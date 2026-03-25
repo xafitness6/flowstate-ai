@@ -438,28 +438,129 @@ function render(){
   h+=id!=='welcome'&&id!=='done'?`<div class="nav">${cur>1?`<button class="nb b" onclick="back()">← Back</button>`:''}<button class="nb p" onclick="next()">Continue →</button></div>`:'';
   document.getElementById('sw').innerHTML=h;
 }
-
-function generateProgram(){
+const OPENAI_KEY = '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';
+async function generateProgram(){
   const m=calcMet();
-  const prompt=`Flowstate AI intake complete. 
+  const btn=document.querySelector('.gbtn');
+  btn.textContent='Building your program...';
+  btn.disabled=true;
+
+  const prompt=`You are Xavier Ellis Bey, founder of Flowstate AI — a premium fitness coaching platform for high performers. You speak directly, with authority, warmth, and zero fluff.
+
+A new client just completed their intake. Build them a detailed, personalized 90-day transformation program based on everything below.
+
+CLIENT PROFILE:
 Name: ${a.fn||''} ${a.ln||''}
 Goal: ${a.goal||''}
 Specific goals: ${a.goals||''}
 Body type: ${a.bodyType||''}
-Metabolism: ${m.t}
+Metabolism type: ${m.t} — ${m.d}
 Training history: ${a.trainHist||''}
-Training days: ${a.tdays||''} days/week
+Training days available: ${a.tdays||''} days/week
 Equipment: ${(a.equip||[]).join(', ')}
+Weekly schedule: ${(a.week||[]).join(', ')}
+Stress level: ${a.stress||''}
 Dietary restrictions: ${(a.diet||[]).join(', ')}
-Cheat meal: ${a.cheat||''}
+Meals per day: ${a.meals||''}
+Foods they like: ${a.flike||''}
+Foods they dislike: ${a.fdis||''}
+Cheat meal: ${a.cheat||''} — they reach for it ${a.cheatWhen||''} and feel ${a.cheatFeel||''}
 Emotional eating: ${a.emEat||''}
-Biggest barrier: ${a.barrier||''}
-Motivator: ${a.motiv||''}
-Conditions: ${(a.cond||[]).join(', ')}
+Current supplements: ${(a.supps||[]).join(', ')}
+Supplement budget: ${a.suppBudget||''}
+Uses protein shakes: ${a.protShake||''}
+Sleep weeknights: ${a.slWN||''} — quality: ${a.slQ||''}
+Bedtime: ${a.bed||''} — Wake time: ${a.wake||''}
+Injuries: ${(a.inj||[]).join(', ')}
+Health conditions: ${(a.cond||[]).join(', ')}
 Maternal status: ${a.mat||''}
-Program tier: ${a.tier||''}
+Medications: ${a.meds||''}
+Biggest barrier: ${a.barrier||''}
 90-day vision: ${a.vision||''}
+Accountability style: ${a.acctStyle||''}
+Biggest motivator: ${a.motiv||''}
+Program tier: ${a.tier||''}
+Additional notes: ${a.notes||''}
 
+BUILD THE FOLLOWING:
+
+1. METABOLISM & BODY ANALYSIS
+Brief explanation of their specific metabolism type and what it means for their results. What their body does well and where it struggles.
+
+2. 90-DAY TRAINING PROGRAM
+Week by week breakdown across 3 phases:
+- Phase 1 (Weeks 1-4): Foundation — movement patterns, habit building, baseline
+- Phase 2 (Weeks 5-8): Progressive overload — intensity increases, strength focus
+- Phase 3 (Weeks 9-12): Peak — maximum output, body composition shift
+Include specific workout structure for their available days and equipment.
+
+3. NUTRITION FRAMEWORK
+Based on their metabolism type, dietary restrictions, and food preferences:
+- Daily calorie and macro targets
+- Meal timing recommendations
+- How to handle their cheat meal pattern
+- Specific foods to prioritize and avoid
+- Strategy for eating off-plan moments
+
+4. SUPPLEMENT PROTOCOL
+Based on their goals, budget, and restrictions — recommend specific products from: Progressive, Iron Vegan, Vega, Blessed, Kaizen, Iron Kingdom, Biosteel. Include dosing and timing.
+
+5. SLEEP & RECOVERY PLAN
+Specific protocols based on their current sleep patterns and stress level.
+
+6. ACCOUNTABILITY SYSTEM
+Based on their accountability style and biggest barrier — a daily check-in system, weekly targets, and how to handle slip-ups.
+
+7. WEEK 1 ACTION PLAN
+Exactly what they do on Day 1, Day 2, Day 3. Specific. No fluff.
+
+8. COACH MESSAGE
+End with a direct personal message to ${a.fn||'this client'} from Xavier. Speak to their specific goal, their barrier, their motivator. Make them feel seen. Make them want to execute.
+
+Format everything clearly with headers. Be specific, not generic. This person is paying for a premium experience.`;
+
+  try{
+    const response=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+OPENAI_KEY
+      },
+      body:JSON.stringify({
+        model:'gpt-4o',
+        messages:[{role:'user',content:prompt}],
+        max_tokens:3000,
+        temperature:0.7
+      })
+    });
+
+    const data=await response.json();
+
+    if(data.error){
+      btn.textContent='Generate my full 90-day program →';
+      btn.disabled=false;
+      alert('Error: '+data.error.message);
+      return;
+    }
+
+    const program=data.choices[0].message.content;
+
+    document.getElementById('sw').innerHTML=`
+      <div style="margin-bottom:1.5rem;">
+        <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Your personalized program</div>
+        <div style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px;">90-Day Transformation Plan</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:1.5rem;">Built for ${a.fn||'you'} — ${a.goal||'your goal'} — ${m.t}</div>
+        <div style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);padding:1.25rem;font-size:14px;color:var(--text);line-height:1.8;white-space:pre-wrap;">${program}</div>
+        <button class="gbtn" onclick="window.print()" style="margin-top:1rem;">Save / print my program</button>
+      </div>`;
+
+  }catch(err){
+    btn.textContent='Generate my full 90-day program →';
+    btn.disabled=false;
+    alert('Something went wrong. Check your API key and try again.');
+    console.error(err);
+  }
+}
 Please build a detailed personalized 90-day transformation program including:
 1. Weekly training structure
 2. Nutrition approach based on metabolism type
