@@ -463,7 +463,7 @@ async function generateProgram(){
   btn.textContent='Building your program...';
   btn.disabled=true;
 
-  const prompt=`You are Xavier Ellis Bey, founder of Flowstate AI — a premium fitness coaching platform for high performers. You speak directly, with authority, warmth, and zero fluff.
+  const prompt=`You are Xavier Ellis , founder of Flowstate AI — a premium fitness coaching platform for high performers. You speak directly, with authority, warmth, and zero fluff.
 
 A new client just completed their intake. Build them a detailed, personalized 90-day transformation program based on everything below.
 
@@ -578,15 +578,6 @@ Format everything clearly with headers. Be specific, not generic. This person is
     alert('Something went wrong. Check your API key and try again.');
     console.error(err);
   }
-}
-Please build a detailed personalized 90-day transformation program including:
-1. Weekly training structure
-2. Nutrition approach based on metabolism type
-3. Supplement recommendations
-4. Step by step healing and progression roadmap
-5. Accountability system`;
-  alert('Your profile is ready! Connect your OpenAI API key to generate your personalized program. Your coach prompt has been prepared with all your intake data.');
-  console.log('PROGRAM PROMPT:', prompt);
 }
 
 function pick(k,v,btn){a[k]=v;btn.closest('.opts').querySelectorAll('.o').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
