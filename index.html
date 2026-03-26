@@ -6,76 +6,105 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Flowstate AI</title>
 <style>
-:root{--bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;--border:rgba(255,255,255,0.09);--border2:rgba(255,255,255,0.15);--text:#f0f0f0;--text2:#888;--text3:#444;--accent:#1D9E75;--al:rgba(29,158,117,0.12);--red:#E24B4A;--amber:#FAC775;--purple:#7F77DD;--coral:#D85A30;--r:14px;--rs:8px;}
-.lm{--bg:#f8f8f8;--bg2:#f0f0f0;--bg3:#e4e4e4;--border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.15);--text:#111;--text2:#666;--text3:#bbb;--al:rgba(29,158,117,0.08);}
-.lm .quote-banner{background:rgba(255,255,255,0.95);}
-.lm .o{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.lm .o:hover{background:#f7f7f5;}
-.lm .o.s{background:rgba(29,158,117,0.08);}
-.lm .co{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.lm .co.s{background:rgba(29,158,117,0.08);}
+:root{
+--bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;--border:rgba(255,255,255,0.08);
+--border2:rgba(255,255,255,0.14);--text:#f0f0f0;--text2:#888;--text3:#444;
+--accent:#1D9E75;--al:rgba(29,158,117,0.12);
+--amber:#FAC775;--purple:#7F77DD;--red:#E24B4A;--rs:10px;
+}
+.lm{
+--bg:#ffffff;--bg2:#f5f5f3;--bg3:#ececea;
+--border:rgba(0,0,0,0.07);--border2:rgba(0,0,0,0.13);
+--text:#0a0a0a;--text2:#505050;--text3:#aaa;
+--al:rgba(29,158,117,0.08);
+}
+.lm .o{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.07);}
+.lm .o:hover{background:#f5f5f3;}
+.lm .co{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.07);}
 .lm .inp{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
 .lm .tg{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.05);}
-.lm .tg.s{background:rgba(29,158,117,0.08);}
-.lm .pcard{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.lm .rs-wrap{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.lm .met-box{background:#fff;}
-.lm .supp-box{background:#fff;}
-.lm .tier-o{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.lm .tier-o.s{background:rgba(29,158,117,0.08);}
+.lm .nb.b{background:#ececea;}
+.lm .pcard,.lm .rs-wrap,.lm .met-box,.lm .supp-box,.lm .fact-box,.lm .tier-o{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.07);}
 .lm .scb{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.05);}
-.lm .nb.b{background:#f0f0ee;}
-.lm .done-title{color:#0a0a0a;}
-.lm .done-sub{color:#555;}
-.lm .logo{color:#0a0a0a;}
-.lm .prog-track{background:#ebebeb;}
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+.lm .tooltip-box{background:#fff;border-color:rgba(0,0,0,0.15);box-shadow:0 4px 20px rgba(0,0,0,0.12);}
+.lm .tooltip-box .tt-title{color:#0a0a0a;}
+.lm .tooltip-box .tt-body{color:#505050;}
+.lm .overlay-card{background:#fff;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;min-height:100vh;transition:background .3s,color .3s;}
-.app{max-width:520px;margin:0 auto;padding:1.5rem 1.1rem 4rem;}
-.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.75rem;}.logo{font-size:20px;font-weight:700;letter-spacing:-.03em;color:var(--text);}
-.theme-row{display:flex;background:var(--bg3);border-radius:99px;padding:3px;gap:2px;border:.5px solid var(--border2);}.tbtn{width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;font-size:14px;background:transparent;transition:all .2s;display:flex;align-items:center;justify-content:center;}
-.tbtn.on{background:var(--accent);color:#fff;}.prog-track{background:var(--bg3);border-radius:99px;height:3px;margin-bottom:.4rem;overflow:hidden;}
-.prog-fill{height:3px;border-radius:99px;background:var(--accent);transition:width .4s;}
+.app{max-width:540px;margin:0 auto;padding:1.5rem 1.1rem 4rem;}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.75rem;}
+.logo{font-size:19px;font-weight:700;letter-spacing:-.03em;color:var(--text);}
+.right-controls{display:flex;align-items:center;gap:8px;}
+.mode-toggle{display:flex;background:var(--bg3);border-radius:99px;padding:3px;gap:2px;border:.5px solid var(--border2);}
+.mode-btn{padding:5px 11px;border-radius:99px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:transparent;color:var(--text2);transition:all .2s;font-family:inherit;letter-spacing:.02em;}
+.mode-btn.on{background:var(--accent);color:#fff;}
+.theme-row{display:flex;background:var(--bg3);border-radius:99px;padding:3px;gap:2px;border:.5px solid var(--border2);}
+.tbtn{width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;font-size:12px;background:transparent;transition:all .2s;display:flex;align-items:center;justify-content:center;color:var(--text);}
+.tbtn.on{background:var(--accent);}
+.prog-track{background:var(--bg3);border-radius:99px;height:3px;margin-bottom:.4rem;overflow:hidden;}
+.prog-fill{height:3px;border-radius:99px;background:var(--accent);transition:width .5s cubic-bezier(.4,0,.2,1);}
 .prog-info{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:1.75rem;}
 .eyebrow{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;}
 .q{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px;line-height:1.3;color:var(--text);}
-.sub{font-size:13px;color:var(--text2);margin-bottom:1.4rem;line-height:1.65;}
+.sub{font-size:13px;color:var(--text2);margin-bottom:1.25rem;line-height:1.65;}
+.fact-box{background:rgba(29,158,117,0.08);border:.5px solid rgba(29,158,117,0.2);border-radius:var(--rs);padding:12px 14px;margin-bottom:1.25rem;}
+.fact-label{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;}
+.fact-text{font-size:13px;color:var(--text2);line-height:1.65;}
+.fact-text b{color:var(--text);}
+.pro-box{background:rgba(127,119,221,0.08);border:.5px solid rgba(127,119,221,0.2);border-radius:var(--rs);padding:12px 14px;margin-bottom:1.25rem;display:none;}
+.pro-box.show{display:block;}
+.pro-label{font-size:10px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;}
+.pro-text{font-size:13px;color:var(--text2);line-height:1.65;}
+.pro-text b{color:var(--text);}
+.tooltip-wrap{display:inline-flex;align-items:center;gap:4px;position:relative;}
+.info-btn{width:16px;height:16px;border-radius:50%;background:var(--bg3);border:.5px solid var(--border2);cursor:pointer;font-size:9px;font-weight:700;color:var(--text2);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;vertical-align:middle;margin-left:4px;}
+.info-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
+.tooltip-box{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);padding:10px 12px;width:220px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.3);display:none;}
+.tooltip-box.show{display:block;}
+.tt-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.tt-body{font-size:12px;color:var(--text2);line-height:1.6;}
 .opts{display:flex;flex-direction:column;gap:7px;margin-bottom:1.25rem;}
 .o{padding:13px 16px;border:.5px solid var(--border2);border-radius:var(--rs);cursor:pointer;font-size:14px;color:var(--text);background:var(--bg2);text-align:left;border-left:3px solid transparent;width:100%;transition:all .15s;font-family:inherit;}
-.o:hover{border-color:var(--accent);background:var(--bg3);}
+.o:hover{border-color:var(--accent);}
 .o.s{background:var(--al);border-color:var(--accent);border-left-color:var(--accent);}
+.o.dim{opacity:.4;cursor:not-allowed;pointer-events:none;}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1.25rem;}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:1.25rem;}
-.co{padding:14px 10px;border:.5px solid var(--border2);border-radius:var(--rs);cursor:pointer;background:var(--bg2);text-align:center;transition:all .15s;font-family:inherit;}
+.co{padding:14px 10px;border:.5px solid var(--border2);border-radius:var(--rs);cursor:pointer;background:var(--bg2);text-align:center;transition:all .15s;font-family:inherit;position:relative;}
 .co:hover{border-color:var(--accent);}
 .co.s{border-color:var(--accent);background:var(--al);}
+.co.dim{opacity:.4;cursor:not-allowed;pointer-events:none;}
 .co .ci{font-size:22px;margin-bottom:5px;}
 .co .cl{font-size:13px;font-weight:600;color:var(--text);}
 .co .cs{font-size:11px;color:var(--text2);margin-top:2px;}
+.co .sel-dot{position:absolute;top:7px;right:7px;width:14px;height:14px;border-radius:50%;background:var(--accent);display:none;align-items:center;justify-content:center;}
+.co.s .sel-dot{display:flex;}
+.sel-dot-inner{width:5px;height:5px;border-radius:50%;background:#fff;}
 .inp{width:100%;padding:12px 14px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:14px;outline:none;margin-bottom:10px;font-family:inherit;transition:border-color .15s;}
 .inp:focus{border-color:var(--accent);}
 .inp::placeholder{color:var(--text3);}
 textarea.inp{min-height:72px;resize:vertical;line-height:1.6;}
-.ilbl{font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;}
+.ilbl{font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:4px;}
 .row2{display:flex;gap:8px;margin-bottom:10px;}
 .row2 .inp{margin-bottom:0;}
 .tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1.25rem;}
 .tg{padding:7px 13px;border:.5px solid var(--border2);border-radius:99px;font-size:12px;cursor:pointer;color:var(--text2);background:var(--bg2);transition:all .15s;font-family:inherit;}
 .tg:hover{border-color:var(--accent);}
 .tg.s{background:var(--al);border-color:var(--accent);color:var(--accent);}
-.sep{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin:1.1rem 0 .65rem;border-bottom:.5px solid var(--border);padding-bottom:5px;}
-.meal-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:.5px solid var(--border);}
-.meal-row:last-child{border-bottom:none;}
-.meal-lbl{font-size:11px;font-weight:700;color:var(--text2);min-width:96px;text-transform:uppercase;letter-spacing:.03em;}
-.day-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);}
-.day-row:last-child{border-bottom:none;}
-.day-lbl{font-size:12px;font-weight:700;color:var(--text2);min-width:36px;}
+.metric-row{display:flex;gap:6px;margin-bottom:1.25rem;}
+.m-btn{padding:7px 16px;border:.5px solid var(--border2);border-radius:99px;font-size:12px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text2);transition:all .15s;font-family:inherit;}
+.m-btn.on{background:var(--accent);border-color:var(--accent);color:#fff;}
 .scrow{display:flex;gap:4px;margin-bottom:1.25rem;}
 .scb{flex:1;padding:9px 2px;border:.5px solid var(--border2);border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;background:var(--bg2);color:var(--text2);text-align:center;transition:all .15s;font-family:inherit;}
 .scb.s{background:var(--accent);border-color:var(--accent);color:#fff;}
 .met-box{background:var(--bg2);border:.5px solid var(--accent);border-radius:var(--rs);padding:1.1rem;margin-bottom:1.25rem;text-align:center;}
 .met-type{font-size:20px;font-weight:700;margin-bottom:5px;}
 .met-desc{font-size:12px;color:var(--text2);line-height:1.65;}
+.sep{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin:1.1rem 0 .65rem;border-bottom:.5px solid var(--border);padding-bottom:5px;}
+.meal-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:.5px solid var(--border);}
+.meal-row:last-child{border-bottom:none;}
+.meal-lbl{font-size:11px;font-weight:700;color:var(--text2);min-width:100px;text-transform:uppercase;letter-spacing:.03em;}
 .tier-o{padding:16px;border:.5px solid var(--border2);border-radius:var(--rs);cursor:pointer;background:var(--bg2);margin-bottom:8px;transition:all .15s;font-family:inherit;width:100%;text-align:left;}
 .tier-o:hover{border-color:var(--accent);}
 .tier-o.s{border-color:var(--accent);background:var(--al);}
@@ -109,13 +138,30 @@ textarea.inp{min-height:72px;resize:vertical;line-height:1.6;}
 .rsn{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
 .rst{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;}
 .rsd{font-size:12px;color:var(--text2);line-height:1.55;}
-.gbtn{width:100%;padding:15px;background:var(--accent);border:none;border-radius:var(--rs);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.01em;}
+.gbtn{width:100%;padding:15px;background:var(--accent);border:none;border-radius:var(--rs);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.01em;transition:opacity .2s;}
 .gbtn:hover{opacity:.9;}
-.welcome-wrap{text-align:center;padding:1rem 0 1.5rem;}
-.welcome-ico{font-size:52px;margin-bottom:16px;}
-.welcome-title{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px;color:var(--text);}
-.welcome-sub{font-size:14px;color:var(--text2);line-height:1.75;margin-bottom:2rem;}
-.inline-block{display:inline-block;background:var(--bg2);border:.5px solid var(--border2);border-radius:99px;padding:4px 12px;margin-bottom:1rem;font-size:12px;color:var(--text2);}
+.gbtn:disabled{opacity:.5;cursor:not-allowed;}
+.other-wrap{margin-top:6px;display:none;}
+.other-wrap.show{display:block;}
+.walkthrough-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.85);display:flex;align-items:flex-end;justify-content:center;padding:0 0 2rem;}
+.wt-card{background:var(--bg2);border-radius:20px 20px 16px 16px;padding:1.75rem 1.5rem;max-width:480px;width:100%;margin:0 1rem;}
+.wt-ico{font-size:40px;margin-bottom:12px;text-align:center;}
+.wt-title{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px;color:var(--text);text-align:center;}
+.wt-sub{font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:1.5rem;text-align:center;}
+.wt-dots{display:flex;justify-content:center;gap:6px;margin-bottom:1.25rem;}
+.wt-dot{width:6px;height:6px;border-radius:50%;background:var(--bg3);transition:all .3s;}
+.wt-dot.on{background:var(--accent);width:18px;border-radius:99px;}
+.wt-btns{display:flex;gap:8px;}
+.wt-skip{flex:1;padding:12px;border-radius:var(--rs);border:.5px solid var(--border2);background:transparent;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+.wt-next{flex:2;padding:12px;border-radius:var(--rs);border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
+.highlight-ring{position:fixed;border-radius:12px;border:2px solid var(--accent);box-shadow:0 0 0 4000px rgba(0,0,0,0.7);z-index:999;pointer-events:none;transition:all .4s cubic-bezier(.4,0,.2,1);}
+.mode-explain{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);padding:14px;margin-bottom:1.25rem;}
+.me-row{display:flex;gap:12px;align-items:flex-start;padding:8px 0;}
+.me-row:first-child{border-bottom:.5px solid var(--border);padding-bottom:12px;margin-bottom:4px;}
+.me-badge{padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700;flex-shrink:0;}
+.me-lite{background:rgba(29,158,117,0.15);color:var(--accent);}
+.me-pro{background:rgba(127,119,221,0.15);color:var(--purple);}
+.me-desc{font-size:13px;color:var(--text2);line-height:1.6;}
 </style>
 </head>
 <body>
@@ -123,25 +169,84 @@ textarea.inp{min-height:72px;resize:vertical;line-height:1.6;}
 <div class="app">
   <div class="topbar">
     <div class="logo">Flowstate AI</div>
-    <div class="theme-row">
-      <button class="tbtn on" id="mb" onclick="setTheme('dark')">🌙</button>
-      <button class="tbtn" id="sb" onclick="setTheme('light')">☀️</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="mode-toggle" id="modeToggle" style="display:none;">
+        <button class="mode-btn on" id="liteBtn" onclick="setMode('lite')">Lite</button>
+        <button class="mode-btn" id="proBtn" onclick="setMode('pro')">Pro</button>
+      </div>
+      <div class="theme-row">
+        <button class="tbtn on" id="mb" onclick="setTheme('dark')">🌙</button>
+        <button class="tbtn" id="sb" onclick="setTheme('light')">☀️</button>
+      </div>
     </div>
   </div>
   <div class="prog-track"><div class="prog-fill" id="pf" style="width:2%"></div></div>
-  <div class="prog-info"><span id="pl">Welcome</span><span id="pc">0 / 13</span></div>
+  <div class="prog-info"><span id="pl">Welcome</span><span id="pc">0 / 14</span></div>
   <div id="sw"></div>
 </div>
 </div>
+
+<div class="walkthrough-overlay" id="wtOverlay" style="display:none;">
+  <div class="wt-card">
+    <div id="wtContent"></div>
+    <div class="wt-dots" id="wtDots"></div>
+    <div class="wt-btns">
+      <button class="wt-skip" onclick="closeWT()">Skip</button>
+      <button class="wt-next" id="wtNextBtn" onclick="wtNext()">Next →</button>
+    </div>
+  </div>
+</div>
+
 <script>
-let dark=true,cur=0,a={};
-const STEPS=['welcome','identity','goal','bodystats','schedule','metabolism','nutrition','timeline','foodrel','supplements','sleep','health','mindset','tier','done'];
+let dark=true,cur=0,a={},metric='us',mode='lite',wtStep=0,activeTooltip=null;
+
+const OPENAI_KEY='';
+
+const WT_STEPS=[
+  {ico:'🔥',title:'Welcome to Flowstate AI',sub:'Your personal AI coaching platform. Let\'s show you where everything lives so you get the most out of it from day one.'},
+  {ico:'📋',title:'Your program',sub:'After onboarding, your AI coach generates a personalized 90-day training program. Every workout is built for your body, your goals, and your schedule.'},
+  {ico:'🥗',title:'Nutrition',sub:'Your AI coach builds a custom meal plan based on your metabolism, goals, and food preferences. You can regenerate it, swap meals, or build your own.'},
+  {ico:'💬',title:'Coach chat',sub:'Ask anything — your AI coach responds instantly. Coach X also jumps in here. One chat, two coaches.'},
+  {ico:'🔄',title:'Swap exercises anytime',sub:'Not feeling an exercise? Hit the swap button on any movement and the AI will suggest alternatives targeting the same muscle group.'},
+  {ico:'⚡',title:'Lite vs Pro mode',sub:'Lite mode keeps everything simple and friendly. Pro mode adds anatomical terms, scientific context, and deeper breakdowns. Switch anytime in the top right.'},
+];
+
+function showWT(){
+  if(localStorage.getItem('fs_wt_done'))return;
+  document.getElementById('wtOverlay').style.display='flex';
+  renderWT();
+}
+
+function renderWT(){
+  const s=WT_STEPS[wtStep];
+  document.getElementById('wtContent').innerHTML=`<div class="wt-ico">${s.ico}</div><div class="wt-title">${s.title}</div><div class="wt-sub">${s.sub}</div>`;
+  const dots=document.getElementById('wtDots');
+  dots.innerHTML=WT_STEPS.map((_,i)=>`<div class="wt-dot ${i===wtStep?'on':''}"></div>`).join('');
+  document.getElementById('wtNextBtn').textContent=wtStep===WT_STEPS.length-1?'Get started →':'Next →';
+}
+
+function wtNext(){
+  if(wtStep<WT_STEPS.length-1){wtStep++;renderWT();}
+  else closeWT();
+}
+
+function closeWT(){
+  document.getElementById('wtOverlay').style.display='none';
+  localStorage.setItem('fs_wt_done','1');
+}
 
 function setTheme(t){
   dark=t==='dark';
   document.getElementById('root').classList.toggle('lm',!dark);
   document.getElementById('mb').classList.toggle('on',dark);
   document.getElementById('sb').classList.toggle('on',!dark);
+}
+
+function setMode(m){
+  mode=m;
+  document.getElementById('liteBtn').classList.toggle('on',m==='lite');
+  document.getElementById('proBtn').classList.toggle('on',m==='pro');
+  render();
 }
 
 function calcMet(){
@@ -154,275 +259,491 @@ function calcMet(){
   if((a.energy||'').includes('fatigued')||(a.energy||'').includes('Low energy'))sc-=1;
   if((a.temp||'').includes('warm'))sc+=1;
   if((a.temp||'').includes('cold'))sc-=1;
-  if(sc>=2)return{t:'Fast Metabolism',d:'Your body burns fuel quickly. You respond well to carbs and have high energy potential. Your program focuses on consistent fueling, building muscle, and channeling your metabolic advantage.',c:'#FAC775'};
-  if(sc<=-2)return{t:'Slow Metabolism',d:'Your body is efficient at storing energy. Your program focuses on metabolic activation, strategic carb timing, and progressive strength training to build metabolically active muscle.',c:'#7F77DD'};
-  return{t:'Balanced Metabolism',d:'Your metabolism is adaptable and responds well to structured programming. Your program uses macro cycling and progressive training to maximize your results.',c:'#1D9E75'};
+  if(sc>=2)return{t:'Fast Metabolism',d:'Your body processes fuel quickly. You respond well to carbohydrates and have a naturally high energy output. Your program focuses on consistent fueling, progressive muscle building, and channeling your metabolic advantage.',c:'#FAC775'};
+  if(sc<=-2)return{t:'Slow Metabolism',d:'Your body is highly efficient at storing energy — not a weakness. Your program focuses on metabolic activation through strength training, strategic carb timing, and building metabolically active lean muscle.',c:'#7F77DD'};
+  return{t:'Balanced Metabolism',d:'Your metabolism is adaptable and responds well to structured programming. You have flexibility in your approach. Your program uses progressive overload with macro cycling to consistently drive results.',c:'#1D9E75'};
 }
+
+const COMPAT={
+  'Fat loss':['Body recomp','Stress & energy','Health & longevity'],
+  'Build muscle':['Body recomp','Performance','Health & longevity'],
+  'Performance':['Build muscle','Health & longevity','Stress & energy'],
+  'Health & longevity':['Fat loss','Build muscle','Performance','Stress & energy','Body recomp'],
+  'Stress & energy':['Health & longevity','Fat loss','Performance'],
+  'Body recomp':['Fat loss','Build muscle','Health & longevity']
+};
+
+function canPick(g){
+  if(!a.goals||!a.goals.length)return true;
+  if(a.goals.includes(g))return true;
+  if(a.goals.length>=2)return false;
+  return COMPAT[a.goals[0]]?.includes(g)??true;
+}
+
+function toggleGoal(g,btn){
+  if(!a.goals)a.goals=[];
+  if(a.goals.includes(g)){a.goals=a.goals.filter(x=>x!==g);btn.classList.remove('s');}
+  else{if(!canPick(g))return;a.goals.push(g);btn.classList.add('s');}
+  document.querySelectorAll('.gc').forEach(b=>{
+    const gl=b.dataset.g;
+    if(!a.goals.includes(gl))b.classList.toggle('dim',!canPick(gl));
+  });
+}
+
+function tooltip(id){
+  if(activeTooltip===id){
+    document.getElementById('tt_'+id)?.classList.remove('show');
+    activeTooltip=null;return;
+  }
+  if(activeTooltip)document.getElementById('tt_'+activeTooltip)?.classList.remove('show');
+  document.getElementById('tt_'+id)?.classList.add('show');
+  activeTooltip=id;
+}
+
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.info-btn')&&!e.target.closest('.tooltip-box')){
+    if(activeTooltip){document.getElementById('tt_'+activeTooltip)?.classList.remove('show');activeTooltip=null;}
+  }
+});
+
+function ib(id,title,body){
+  return `<span class="info-btn" onclick="tooltip('${id}')">i</span><div class="tooltip-box" id="tt_${id}"><div class="tt-title">${title}</div><div class="tt-body">${body}</div></div>`;
+}
+
+function esc(s){return s.replace(/'/g,"\\'");}
+function pick(k,v,btn){a[k]=v;btn.closest('.opts').querySelectorAll('.o').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
+function pickCo(k,v,btn){a[k]=v;btn.closest('.g2,.g3,[id^="sw"]').querySelectorAll('.co:not(.gc)').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
+function pickTier(v,btn){a.tier=v;document.querySelectorAll('.tier-o').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
+function pickMet(k,v,btn){pick(k,v,btn);setTimeout(render,40);}
+function stag(k,v,btn){a[k]=v;btn.closest('.tags,.scrow').querySelectorAll('.tg,.scb').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
+function stagMet(k,v,btn){stag(k,v,btn);setTimeout(render,40);}
+function stagAlc(v,btn){stag('alcDays',v,btn);const el=document.getElementById('alcD');if(el)el.style.display=v==='None'?'none':'block';}
+function stagRel(v,btn){stag('inRel',v,btn);const el=document.getElementById('relDetail');if(el)el.style.display=v==='Yes'?'block':'none';}
+function multi(k,v,btn){if(!a[k])a[k]=[];btn.classList.toggle('s');if(btn.classList.contains('s')){if(!a[k].includes(v))a[k].push(v);}else a[k]=a[k].filter(x=>x!==v);}
+
+function showOther(checkboxId,wrapperId){
+  const cb=document.getElementById(checkboxId);
+  const wr=document.getElementById(wrapperId);
+  if(cb&&wr)wr.classList.toggle('show',cb.classList.contains('s'));
+}
+
+function saveInputs(){
+  const g=(id,key)=>{const el=document.getElementById(id);if(el&&el.value!==undefined&&el.value.trim()!=='')a[key]=el.value.trim();};
+  const id=STEPS[cur];
+  if(id==='identity'){g('fn','fn');g('ln','ln');g('em','em');g('job','job');}
+  if(id==='goal'){g('goals_detail','goals_detail');g('reason','reason');}
+  if(id==='bodystats'){
+    g('age','age');g('wt','wt');
+    if(metric==='us'){g('htft','htft');g('htin','htin');}else{g('htcm','htcm');}
+  }
+  if(id==='schedule'){a.week=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((_,i)=>{const el=document.getElementById('d'+i);return el?el.value.trim():'';});}
+  if(id==='nutrition_detail'){g('h2o','h2o');g('caff','caff');g('flike','flike');g('fdis','fdis');}
+  if(id==='timeline'){[['bf'],['ms'],['lu'],['as'],['di'],['es']].forEach(([k])=>{g(k+'f',k+'f');g(k+'t',k+'t');});}
+  if(id==='foodrel'){g('cheat','cheat');g('snack','snack');g('relPartner','relPartner');g('relHabits','relHabits');}
+  if(id==='supplements'){g('suppOther','suppOther');g('brands','brands');}
+  if(id==='sleep'){g('bed','bed');g('wake','wake');}
+  if(id==='health'){g('meds','meds');g('surg','surg');}
+  if(id==='mindset'){g('vision','vision');g('notes','notes');}
+}
+
+const STEPS=['welcome','mode_intro','identity','goal','bodystats','schedule','metabolism','nutrition_structure','nutrition_detail','timeline','foodrel','supplements','sleep','health','mindset','tier','done'];
 
 function render(){
   const id=STEPS[cur];
   const pct=Math.max(2,Math.round((cur/STEPS.length)*100));
   document.getElementById('pf').style.width=pct+'%';
-  document.getElementById('pc').textContent=cur+' / '+(STEPS.length-1);
+  document.getElementById('pc').textContent=Math.max(0,cur-1)+' / '+(STEPS.length-2);
+  const modeToggle=document.getElementById('modeToggle');
+  if(modeToggle)modeToggle.style.display=cur>1?'flex':'none';
   let h='';
 
   if(id==='welcome'){
     document.getElementById('pl').textContent='Welcome';
-    h=`<div class="welcome-wrap">
-      <div class="welcome-ico">🔥</div>
-      <div class="welcome-title">Your transformation starts now.</div>
-      <div class="welcome-sub">This 13-step intake builds your personal transformation profile. Every answer directly programs your AI coach — your workouts, nutrition, recovery, and mindset system.<br><br>Be honest. The more detail you give, the better your results. Takes about 8 minutes.</div>
-      <div class="inline-block">Built by Xavier Ellis Bey — Flowstate AI</div><br><br>
-      <button class="gbtn" onclick="next()">Build my profile →</button>
+    h=`<div style="text-align:center;padding:1rem 0 1.5rem;">
+      <div style="font-size:52px;margin-bottom:16px;">🔥</div>
+      <div style="font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px;color:var(--text);">Your transformation starts now.</div>
+      <div style="font-size:14px;color:var(--text2);line-height:1.75;margin-bottom:2rem;">This 14-step intake builds your personal transformation profile. Every answer directly programs your AI coach — workouts, nutrition, recovery, and your mindset system.<br><br>Be honest. The more specific you are, the better your results. Takes about 8 minutes.</div>
+      <div style="display:inline-block;background:var(--bg2);border:.5px solid var(--border2);border-radius:99px;padding:4px 14px;font-size:12px;color:var(--text2);margin-bottom:1.5rem;">Built by Coach X — Flowstate AI</div>
+      <br><br><button class="gbtn" onclick="next()">Build my profile →</button>
+    </div>`;
+  }
+
+  else if(id==='mode_intro'){
+    document.getElementById('pl').textContent='Your experience';
+    h=`<div class="eyebrow">Before we start</div>
+    <div class="q">Choose how you want information presented.</div>
+    <div class="sub">You can switch this anytime using the Lite / Pro toggle in the top right corner.</div>
+    <div class="mode-explain">
+      <div class="me-row">
+        <div class="me-badge me-lite">Lite</div>
+        <div class="me-desc">Plain English. Simple explanations. Friendly and easy to follow. Great if you want to focus on doing, not reading.</div>
+      </div>
+      <div class="me-row">
+        <div class="me-badge me-pro">Pro</div>
+        <div class="me-desc">Anatomical terms. Scientific context. Deeper breakdowns of why things work. Great if you want to understand the details behind your program.</div>
+      </div>
+    </div>
+    <div class="ilbl">Start in</div>
+    <div class="g2">
+      <button class="co ${mode==='lite'?'s':''}" onclick="setModeAndPick('lite',this)">
+        <div class="sel-dot"><div class="sel-dot-inner"></div></div>
+        <div class="ci">✌️</div><div class="cl">Lite</div><div class="cs">Simple & friendly</div>
+      </button>
+      <button class="co ${mode==='pro'?'s':''}" onclick="setModeAndPick('pro',this)">
+        <div class="sel-dot"><div class="sel-dot-inner"></div></div>
+        <div class="ci">🔬</div><div class="cl">Pro</div><div class="cs">Technical & detailed</div>
+      </button>
+    </div>
+    <div class="fact-box">
+      <div class="fact-label">You can always switch</div>
+      <div class="fact-text">The toggle stays in the top right corner throughout your whole intake. Switch between Lite and Pro anytime to get more or less detail on any page.</div>
     </div>`;
   }
 
   else if(id==='identity'){
     document.getElementById('pl').textContent='Step 1 — About you';
-    h=`<div class="eyebrow">Step 1 of 13</div>
+    h=`<div class="eyebrow">Step 1 of 14</div>
     <div class="q">Let's start with you.</div>
-    <div class="sub">Your coach will use this to personalize every message, program, and check-in.</div>
+    <div class="sub">Your coach uses this to personalize every message, program, and check-in to you specifically.</div>
     <div class="ilbl">Name</div>
     <div class="row2"><input class="inp" id="fn" placeholder="First name" value="${a.fn||''}"/><input class="inp" id="ln" placeholder="Last name" value="${a.ln||''}"/></div>
     <div class="ilbl">Email</div><input class="inp" id="em" type="email" placeholder="your@email.com" value="${a.em||''}"/>
     <div class="ilbl">What do you do for work?</div>
     <input class="inp" id="job" placeholder="e.g. Executive, nurse, entrepreneur, doctor" value="${a.job||''}"/>
-    <div class="ilbl">Are you currently on a program?</div>
-    <div class="opts">${['Yes — a structured program','Yes — loosely following something','No — starting from scratch'].map(o=>`<button class="o ${a.onProg===o?'s':''}" onclick="pick('onProg','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">Are you currently following a program?</div>
+    <div class="opts">${['Yes — a structured program','Yes — loosely following something','No — starting fresh'].map(o=>`<button class="o ${a.onProg===o?'s':''}" onclick="pick('onProg','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="ilbl">Have you worked with a coach or trainer before?</div>
-    <div class="opts">${['Never','Yes — but it didn\'t stick','Yes — and I got results','Yes — currently have one'].map(o=>`<button class="o ${a.prevCoach===o?'s':''}" onclick="pick('prevCoach','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>`;
+    <div class="opts">${['Never','Yes — but it didn\'t stick','Yes — got great results but stopped','Yes — currently working with one'].map(o=>`<button class="o ${a.prevCoach===o?'s':''}" onclick="pick('prevCoach','${esc(o)}',this)">${o}</button>`).join('')}</div>`;
   }
 
   else if(id==='goal'){
-    document.getElementById('pl').textContent='Step 2 — Your goal';
-    h=`<div class="eyebrow">Step 2 of 13</div>
+    document.getElementById('pl').textContent='Step 2 — Your goals';
+    h=`<div class="eyebrow">Step 2 of 14</div>
     <div class="q">What are you training for?</div>
-    <div class="sub">Pick your primary goal — this shapes your entire program.</div>
-    <div class="g2">${[['🔥','Fat loss','Lose weight, get lean'],['💪','Build muscle','Strength & size'],['⚡','Performance','Athletic output'],['❤️','Health & longevity','Feel great long term'],['🧘','Stress & energy','Balance & recovery'],['🏆','Body recomp','Lose fat, build muscle']].map(([i,l,s])=>`<button class="co ${a.goal===l?'s':''}" onclick="pickCo('goal','${l}',this)"><div class="ci">${i}</div><div class="cl">${l}</div><div class="cs">${s}</div></button>`).join('')}</div>
-    <div class="ilbl">List your top 5 specific goals</div>
-    <textarea class="inp" id="goals" placeholder="1. e.g. Lose 20lbs&#10;2. e.g. Snatch 100lb&#10;3. &#10;4. &#10;5. ">${a.goals||''}</textarea>
-    <div class="ilbl">Why are you here right now? What finally brought you to this?</div>
+    <div class="sub">Pick up to 2 goals that work together. Your coach builds your entire program around them. Some combinations aren't realistic — the app will guide you.</div>
+    <div class="g2">${[
+      {ico:'🔥',l:'Fat loss',s:'Lose weight, get lean'},
+      {ico:'💪',l:'Build muscle',s:'Strength & size'},
+      {ico:'⚡',l:'Performance',s:'Athletic output'},
+      {ico:'❤️',l:'Health & longevity',s:'Feel great long term'},
+      {ico:'🧘',l:'Stress & energy',s:'Balance & recovery'},
+      {ico:'🏆',l:'Body recomp',s:'Lose fat, build muscle'}
+    ].map(g=>`<button class="co gc ${(a.goals||[]).includes(g.l)?'s':''} ${!canPick(g.l)&&!(a.goals||[]).includes(g.l)?'dim':''}" data-g="${g.l}" onclick="toggleGoal('${g.l}',this)">
+      <div class="sel-dot"><div class="sel-dot-inner"></div></div>
+      <div class="ci">${g.ico}</div><div class="cl">${g.l}</div><div class="cs">${g.s}</div>
+    </button>`).join('')}</div>
+    ${mode==='pro'?`<div class="fact-box" style="border-color:rgba(127,119,221,0.3);background:rgba(127,119,221,0.07);">
+      <div class="fact-label" style="color:var(--purple);">Why some combos don't work</div>
+      <div class="fact-text">Simultaneous fat loss and muscle gain (body recomp) requires a very specific caloric and hormonal environment. Aggressive fat loss combined with maximum hypertrophy creates opposing anabolic/catabolic signals — physiologically counterproductive without advanced periodization.</div>
+    </div>`:''}
+    <div class="ilbl">Your specific goals in detail</div>
+    <textarea class="inp" id="goals_detail" placeholder="e.g. Lose 20lbs, snatch 100lbs, have energy to keep up with my kids...">${a.goals_detail||''}</textarea>
+    <div class="ilbl">Why now? What finally brought you here?</div>
     <textarea class="inp" id="reason" placeholder="Be honest — the real reason...">${a.reason||''}</textarea>`;
   }
 
   else if(id==='bodystats'){
     document.getElementById('pl').textContent='Step 3 — Body & history';
-    h=`<div class="eyebrow">Step 3 of 13</div>
+    const isUS=metric==='us';
+    h=`<div class="eyebrow">Step 3 of 14</div>
     <div class="q">Your body baseline.</div>
-    <div class="sub">This is for your program only. Never shared.</div>
+    <div class="sub">Used only to build your program correctly. Never shared.</div>
+    <div class="ilbl">Measurement system</div>
+    <div class="metric-row">
+      <button class="m-btn ${isUS?'on':''}" onclick="setMetric('us',this)">US — lbs / ft / in</button>
+      <button class="m-btn ${!isUS?'on':''}" onclick="setMetric('metric',this)">Metric — kg / cm</button>
+    </div>
     <div class="ilbl">Sex</div>
-    <div class="g3">${['Male','Female','Other'].map(o=>`<button class="co ${a.sex===o?'s':''}" onclick="pickCo('sex','${o}',this)"><div class="cl">${o}</div></button>`).join('')}</div>
+    <div class="g3">${['Male','Female','Other'].map(o=>`<button class="co ${a.sex===o?'s':''}" onclick="pickCoSex('${o}',this)"><div class="cl">${o}</div></button>`).join('')}</div>
     <div class="row2">
       <div style="flex:1"><div class="ilbl">Age</div><input class="inp" id="age" type="number" placeholder="Age" value="${a.age||''}" style="margin:0"/></div>
-      <div style="flex:1"><div class="ilbl">Height</div><input class="inp" id="ht" placeholder='5\'10"' value="${a.ht||''}" style="margin:0"/></div>
-      <div style="flex:1"><div class="ilbl">Weight</div><input class="inp" id="wt" placeholder="lbs" value="${a.wt||''}" style="margin:0"/></div>
+      ${isUS?`<div style="flex:2"><div class="ilbl">Height</div><div style="display:flex;gap:6px;"><input class="inp" id="htft" placeholder="ft" value="${a.htft||''}" style="margin:0;flex:1"/><input class="inp" id="htin" placeholder="in" value="${a.htin||''}" style="margin:0;flex:1"/></div></div>`
+      :`<div style="flex:1"><div class="ilbl">Height (cm)</div><input class="inp" id="htcm" placeholder="e.g. 178" value="${a.htcm||''}" style="margin:0"/></div>`}
+      <div style="flex:1"><div class="ilbl">Weight (${isUS?'lbs':'kg'})</div><input class="inp" id="wt" placeholder="${isUS?'e.g. 185':'e.g. 84'}" value="${a.wt||''}" style="margin:0"/></div>
     </div>
     <div style="margin-top:10px;"></div>
     <div class="ilbl">Activity level</div>
-    <div class="opts">${['Sedentary — desk job, little movement','Lightly active — 1–2 workouts/week','Moderately active — 3–4 workouts/week','Very active — 5–6 hard training days/week','Athlete — training twice daily or competing'].map(o=>`<button class="o ${a.actLvl===o?'s':''}" onclick="pick('actLvl','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    <div class="ilbl">Body type right now</div>
-    <div class="opts">${['Skinny / hard gainer — struggle to gain weight','Skinny fat — low muscle with some fat','Average — moderate build','Overweight — significant fat to lose','Muscular — built but want more','Athletic — trained but need new direction'].map(o=>`<button class="o ${a.bodyType===o?'s':''}" onclick="pick('bodyType','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${[
+      'Sedentary — desk job, minimal movement outside work',
+      'Lightly active — 1–2 workouts per week',
+      'Moderately active — 3–4 structured workouts per week',
+      'Very active — 5–6 hard training days per week',
+      'Athlete — training twice daily or actively competing'
+    ].map(o=>`<button class="o ${a.actLvl===o?'s':''}" onclick="pick('actLvl','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">Body type right now ${mode==='pro'?ib('bodytype','Body type explained','Ectomorph: naturally lean, fast metabolic rate, difficulty storing mass. TOFI: thin outside, visceral adiposity present. Mesomorph: balanced hormonal and structural environment. Endomorph: efficient caloric storage, higher adipose tendency. Muscular: established hypertrophy base, focus shifts to density and strength curves.'):''}
+    </div>
+    ${mode==='pro'?`
+    <div class="fact-box" style="background:rgba(127,119,221,0.07);border-color:rgba(127,119,221,0.25);">
+      <div class="fact-label" style="color:var(--purple);">Somatotype and your program</div>
+      <div class="fact-text">Your somatotype influences your <b>hormonal response to training stimuli</b>, carbohydrate sensitivity, and rate of lean mass accrual. It doesn't limit your results — it calibrates your programming approach.</div>
+    </div>
+    <div class="opts">${[
+      'Ectomorph — lean, fast metabolism, hard to gain mass',
+      'TOFI (Skinny fat) — thin appearance, low muscle, higher visceral fat',
+      'Mesomorph — balanced build, responds well to all training',
+      'Endomorph — gains weight easily, higher body fat tendency',
+      'Muscular — solid base, looking to push further',
+      'Athletic — trained and experienced, need a new direction'
+    ].map(o=>`<button class="o ${a.bodyType===o?'s':''}" onclick="pick('bodyType','${esc(o)}',this)">${o}</button>`).join('')}</div>`
+    :`<div class="opts">${[
+      'Skinny / hard gainer — struggle to gain weight or muscle',
+      'Skinny fat — look thin but feel soft, low muscle',
+      'Average — moderate build',
+      'Overweight — carrying significant extra weight',
+      'Muscular — already built, want more',
+      'Athletic — trained but need a new direction'
+    ].map(o=>`<button class="o ${a.bodyType===o?'s':''}" onclick="pick('bodyType','${esc(o)}',this)">${o}</button>`).join('')}</div>`}
     <div class="ilbl">Weight history</div>
-    <div class="opts">${['Always struggled to gain weight','Maintained stable weight most of my life','Always had difficulty losing weight','Weight cycles up and down over the years'].map(o=>`<button class="o ${a.wtHist===o?'s':''}" onclick="pick('wtHist','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${['Always struggled to gain — stay thin no matter what','Stable weight most of my life','Always had difficulty losing weight','Cycles up and down over the years'].map(o=>`<button class="o ${a.wtHist===o?'s':''}" onclick="pick('wtHist','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="ilbl">Training history</div>
-    <div class="opts">${['Brand new — just starting','Under 6 months','6 months to 2 years','2 to 5 years','5+ years — experienced'].map(o=>`<button class="o ${a.trainHist===o?'s':''}" onclick="pick('trainHist','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${['Brand new — just starting','Under 6 months','6 months to 2 years','2 to 5 years','5+ years — experienced'].map(o=>`<button class="o ${a.trainHist===o?'s':''}" onclick="pick('trainHist','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="ilbl">Athletic background</div>
     <div class="tags">${['None','Weightlifting','Olympic lifting','Powerlifting','Running','Team sports','Martial arts','CrossFit','Swimming','Cycling','Dance / gymnastics','Other'].map(t=>`<button class="tg ${(a.ath||[]).includes(t)?'s':''}" onclick="multi('ath','${t}',this)">${t}</button>`).join('')}</div>`;
   }
 
   else if(id==='schedule'){
     document.getElementById('pl').textContent='Step 4 — Your week';
-    h=`<div class="eyebrow">Step 4 of 13</div>
+    h=`<div class="eyebrow">Step 4 of 14</div>
     <div class="q">Walk us through your week.</div>
-    <div class="sub">Your program fits around your life — not the other way around.</div>
-    <div class="ilbl">Training days per week</div>
+    <div class="sub">Your program fits around your life — not the other way around. Be real about what your schedule actually looks like.</div>
+    <div class="ilbl">Training days you can commit to per week</div>
     <div class="tags">${['2','3','4','5','6','7'].map(d=>`<button class="tg ${a.tdays===d?'s':''}" onclick="stag('tdays','${d}',this)">${d} days</button>`).join('')}</div>
-    <div class="ilbl">Equipment access</div>
-    <div class="tags">${['Full gym','Home gym','Dumbbells only','Barbell & plates','Resistance bands','Bodyweight only','Hotel gym','Outdoors'].map(t=>`<button class="tg ${(a.equip||[]).includes(t)?'s':''}" onclick="multi('equip','${t}',this)">${t}</button>`).join('')}</div>
-    <div class="ilbl">What do you do each day?</div>
+    <div class="ilbl">Equipment you have access to</div>
+    <div class="tags">${['Full gym','Home gym','Dumbbells only','Barbell & plates','Cable machine','Resistance bands','Bodyweight only','Hotel gym','Outdoors','GHD machine','Sled','Ski erg','Leg press'].map(t=>`<button class="tg ${(a.equip||[]).includes(t)?'s':''}" onclick="multi('equip','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">What does your typical week look like?</div>
     <div style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);padding:4px 12px;margin-bottom:1.25rem;">
-      ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>`<div class="day-row"><div class="day-lbl">${d}</div><input class="inp" id="d${i}" placeholder="e.g. office, gym, rest, travel..." value="${(a.week||[])[i]||''}" style="margin:0;flex:1;font-size:13px;"/></div>`).join('')}
+      ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);"><div style="font-size:12px;font-weight:700;color:var(--text2);min-width:36px;">${d}</div><input class="inp" id="d${i}" placeholder="e.g. office, gym, rest, travel..." value="${(a.week||[])[i]||''}" style="margin:0;flex:1;font-size:13px;"/></div>`).join('')}
     </div>
-    <div class="ilbl">Average stress level</div>
-    <div class="opts">${['Low — in control most days','Moderate — manageable day to day','High — consistently under pressure','Extreme — barely keeping up'].map(o=>`<button class="o ${a.stress===o?'s':''}" onclick="pick('stress','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>`;
+    <div class="ilbl">Average daily stress level ${mode==='pro'?ib('cortisol','Cortisol & training','Chronically elevated cortisol (your primary stress hormone) suppresses testosterone and growth hormone — directly competing with muscle synthesis and fat mobilization. Your training volume and intensity are calibrated to your stress load to prevent catabolism.'):''}
+    </div>
+    <div class="opts">${['Low — I feel in control most of the time','Moderate — manageable, keeps me sharp','High — consistently under pressure','Extreme — barely keeping my head above water'].map(o=>`<button class="o ${a.stress===o?'s':''}" onclick="pick('stress','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    ${mode==='lite'?`<div class="fact-box"><div class="fact-label">Why this matters</div><div class="fact-text">High stress affects your body's ability to recover and build muscle. <b>Your program will be adjusted to your stress levels</b> so you're always building — never breaking down.</div></div>`:''}`;
   }
 
   else if(id==='metabolism'){
     document.getElementById('pl').textContent='Step 5 — Metabolism';
     const m=calcMet();
-    h=`<div class="eyebrow">Step 5 of 13</div>
-    <div class="q">How does your body work?</div>
-    <div class="sub">These questions calculate your metabolism type and directly program your nutrition approach.</div>
+    h=`<div class="eyebrow">Step 5 of 14</div>
+    <div class="q">How does your body work? ${ib('metab','What is metabolism?','Your metabolism is how your body converts food into energy. A fast metabolism burns through calories quickly. A slow metabolism stores them efficiently. Neither is bad — they just need different programming approaches.')}
+    </div>
+    <div class="sub">These questions calculate your metabolism type and directly shape your nutrition and training.</div>
     <div class="ilbl">How often do you feel hungry?</div>
-    <div class="opts">${['Rarely — I forget to eat for hours','At regular meal times only','I feel hungry often, even after eating','Constantly — I can never feel satisfied'].map(o=>`<button class="o ${a.hunger===o?'s':''}" onclick="pickMet('hunger','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${['Rarely — I forget to eat for hours','At regular meal times only','I feel hungry often, even after eating','Constantly — never fully satisfied'].map(o=>`<button class="o ${a.hunger===o?'s':''}" onclick="pickMet('hunger','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="ilbl">How easily do you gain or lose weight?</div>
-    <div class="opts">${['Very hard to gain — I stay thin no matter what','Easy to maintain balance naturally','I gain fat easily even when careful','Up and down in unpredictable cycles'].map(o=>`<button class="o ${a.wgain===o?'s':''}" onclick="pickMet('wgain','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${['Very hard to gain — stay thin no matter what','Easy to maintain balance naturally','I gain fat easily, even when careful','Up and down in unpredictable cycles'].map(o=>`<button class="o ${a.wgain===o?'s':''}" onclick="pickMet('wgain','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="ilbl">Energy levels throughout the day?</div>
-    <div class="opts">${['High energy all day — no stimulants needed','Stable and consistent','Morning spike then afternoon crash','Low energy and fatigued most of the day','Completely unpredictable'].map(o=>`<button class="o ${a.energy===o?'s':''}" onclick="pickMet('energy','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    <div class="ilbl">Temperature regulation</div>
+    <div class="opts">${['High energy all day — no stimulants needed','Stable and consistent','Morning spike then afternoon crash','Low energy and fatigued most of the day','Completely unpredictable'].map(o=>`<button class="o ${a.energy===o?'s':''}" onclick="pickMet('energy','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">Temperature regulation ${mode==='pro'?ib('thermogen','Thermogenesis','Your body temperature regulation reflects your basal metabolic rate (BMR). People who run warm tend to have higher thermogenesis — more calories burned at rest. People who run cold may have lower thyroid activity or a reduced BMR.'):''}
+    </div>
     <div class="tags">${['Always cold','Usually cold','Neutral','Usually warm','Always warm'].map(t=>`<button class="tg ${a.temp===t?'s':''}" onclick="stagMet('temp','${t}',this)">${t}</button>`).join('')}</div>
     <div class="ilbl">How often do you crave sugar or comfort food?</div>
-    <div class="opts">${['Rarely or never','Occasionally — manageable','Frequently — hard to resist','Daily — constant cravings'].map(o=>`<button class="o ${a.cravings===o?'s':''}" onclick="pick('cravings','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    ${a.hunger&&a.energy&&a.wgain?`<div class="met-box"><div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:5px;">Your metabolism type</div><div class="met-type" style="color:${m.c}">${m.t}</div><div class="met-desc">${m.d}</div></div>`:'<div style="font-size:12px;color:var(--text3);padding:8px 0;text-align:center;">Answer questions above to reveal your metabolism type.</div>'}`;
+    <div class="opts">${['Rarely or never','Occasionally — manageable','Frequently — hard to resist','Daily — constant cravings'].map(o=>`<button class="o ${a.cravings===o?'s':''}" onclick="pick('cravings','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    ${a.hunger&&a.energy&&a.wgain?`<div class="met-box"><div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:5px;">Your metabolism type</div><div class="met-type" style="color:${m.c}">${m.t}</div><div class="met-desc">${m.d}</div></div>`:`<div style="font-size:12px;color:var(--text3);padding:8px 0;text-align:center;">Answer the questions above to reveal your metabolism type.</div>`}`;
   }
 
-  else if(id==='nutrition'){
-    document.getElementById('pl').textContent='Step 6 — Nutrition';
-    h=`<div class="eyebrow">Step 6 of 13</div>
-    <div class="q">How do you currently eat?</div>
-    <div class="sub">No judgment. Honest answers build a plan that actually works.</div>
-    <div class="ilbl">Rate your current nutrition (1–10)</div>
+  else if(id==='nutrition_structure'){
+    document.getElementById('pl').textContent='Step 6 — How you eat';
+    h=`<div class="eyebrow">Step 6 of 14</div>
+    <div class="q">How structured is your eating right now?</div>
+    <div class="sub">No judgment at all. We need the truth to build the right nutrition framework for you.</div>
+    <div class="opts">${[
+      'Very unstructured — I eat whatever, whenever, no real pattern',
+      'Somewhat loose — I eat fairly clean but no real system',
+      'Moderately structured — I have a rough plan but don\'t track',
+      'Highly structured — I track macros or calories consistently',
+      'I barely eat — definitely underfueling my body',
+      'I eat well but fall apart on weekends or under stress'
+    ].map(o=>`<button class="o ${a.eatStructure===o?'s':''}" onclick="pick('eatStructure','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">Rate your current nutrition honestly (1 = poor, 10 = dialed in)</div>
     <div class="scrow">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="scb ${a.nutScore===String(n)?'s':''}" onclick="stag('nutScore','${n}',this)">${n}</button>`).join('')}</div>
-    <div class="ilbl">Current eating habits</div>
-    <div class="opts">${['Mostly unstructured — I eat whatever, whenever','Clean-ish but no real system','I track macros or calories loosely','I follow a specific diet (keto, vegan, paleo...)','I barely eat — definitely underfueling','I eat well but struggle with consistency'].map(o=>`<button class="o ${a.eatHab===o?'s':''}" onclick="pick('eatHab','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    <div class="ilbl">Meals per day on average</div>
-    <div class="tags">${['1','2','3','4','5','6+','I skip meals often'].map(d=>`<button class="tg ${a.meals===d?'s':''}" onclick="stag('meals','${d}',this)">${d}</button>`).join('')}</div>
-    <div class="ilbl">Dietary restrictions</div>
-    <div class="tags">${['None','Vegan','Vegetarian','No red meat','No pork','Dairy free','Gluten free','Halal','Kosher','Nut allergy','Lactose intolerant','Shellfish allergy'].map(t=>`<button class="tg ${(a.diet||[]).includes(t)?'s':''}" onclick="multi('diet','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">Dietary restrictions or preferences</div>
+    <div class="tags">${['None','Vegan','Vegetarian','No red meat','No pork','Dairy free','Gluten free','Halal','Kosher','Nut allergy','Lactose intolerant','Shellfish allergy','Egg free','Other'].map(t=>`<button class="tg ${(a.diet||[]).includes(t)?'s':''}" onclick="multi('diet','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">How many meals do you eat per day on average?</div>
+    <div class="tags">${['1','2','3','4','5','6+','I skip meals regularly'].map(d=>`<button class="tg ${a.meals===d?'s':''}" onclick="stag('meals','${d}',this)">${d}</button>`).join('')}</div>
+    ${mode==='pro'?`<div class="fact-box" style="background:rgba(127,119,221,0.07);border-color:rgba(127,119,221,0.25);">
+      <div class="fact-label" style="color:var(--purple);">Meal frequency & metabolism</div>
+      <div class="fact-text">Meal frequency affects insulin sensitivity, muscle protein synthesis windows, and cortisol management. <b>There is no universally optimal number</b> — your program will be designed around your actual lifestyle, not a textbook model.</div>
+    </div>`:`<div class="fact-box"><div class="fact-label">Good to know</div><div class="fact-text">There's no perfect number of meals. <b>Consistency and total intake matter more than timing.</b> Your program will be built around what actually fits your life.</div></div>`}`;
+  }
+
+  else if(id==='nutrition_detail'){
+    document.getElementById('pl').textContent='Step 7 — Nutrition details';
+    h=`<div class="eyebrow">Step 7 of 14</div>
+    <div class="q">Let's go deeper on your nutrition.</div>
+    <div class="sub">The more specific you are here, the more personalized your meal plan will be.</div>
     <div class="row2">
-      <div style="flex:1"><div class="ilbl">Water (glasses/day)</div><input class="inp" id="h2o" type="number" placeholder="e.g. 8" value="${a.h2o||''}" style="margin:0"/></div>
+      <div style="flex:1"><div class="ilbl">Water intake (glasses/day)</div><input class="inp" id="h2o" type="number" placeholder="e.g. 8" value="${a.h2o||''}" style="margin:0"/></div>
       <div style="flex:1"><div class="ilbl">Caffeine per day</div><input class="inp" id="caff" placeholder="e.g. 2 coffees" value="${a.caff||''}" style="margin:0"/></div>
     </div>
     <div style="margin-top:10px;"></div>
-    <div class="ilbl">Foods you enjoy</div>
-    <textarea class="inp" id="flike" placeholder="Cuisines, meals, ingredients you love...">${a.flike||''}</textarea>
-    <div class="ilbl">Foods you dislike or avoid</div>
-    <textarea class="inp" id="fdis" placeholder="Foods you won't eat or genuinely don't enjoy...">${a.fdis||''}</textarea>`;
+    <div class="ilbl">Caffeine type</div>
+    <div class="tags">${['None','Coffee','Espresso','Tea','Energy drinks','Pre-workout','Other'].map(t=>`<button class="tg ${(a.caffType||[]).includes(t)?'s':''}" onclick="multi('caffType','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">Foods you enjoy eating</div>
+    <textarea class="inp" id="flike" placeholder="List cuisines, meals, ingredients, snacks you love...">${a.flike||''}</textarea>
+    <div class="ilbl">Foods you dislike or refuse to eat</div>
+    <textarea class="inp" id="fdis" placeholder="List anything you won't eat or genuinely don't enjoy...">${a.fdis||''}</textarea>`;
   }
 
   else if(id==='timeline'){
-    document.getElementById('pl').textContent='Step 7 — Daily timeline';
-    h=`<div class="eyebrow">Step 7 of 13</div>
+    document.getElementById('pl').textContent='Step 8 — Daily eating';
+    h=`<div class="eyebrow">Step 8 of 14</div>
     <div class="q">Walk us through a typical eating day.</div>
-    <div class="sub">Fill in what you eat and roughly what time. Skip what you don't do.</div>
+    <div class="sub">Fill in what you usually eat and roughly what time. Leave blank for anything you skip. This builds your meal timing framework.</div>
     <div style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);padding:4px 12px;margin-bottom:1rem;">
       ${[['Breakfast','bf'],['Morning snack','ms'],['Lunch','lu'],['Afternoon snack','as'],['Dinner','di'],['Evening snack','es']].map(([lbl,k])=>`
       <div class="meal-row">
         <div class="meal-lbl">${lbl}</div>
         <input class="inp" id="${k}f" placeholder="What you eat..." value="${a[k+'f']||''}" style="margin:0;flex:2;font-size:13px;"/>
-        <input class="inp" id="${k}t" placeholder="Time" value="${a[k+'t']||''}" style="margin:0;width:72px;font-size:13px;flex-shrink:0;"/>
+        <input class="inp" id="${k}t" placeholder="Time" value="${a[k+'t']||''}" style="margin:0;width:70px;font-size:13px;flex-shrink:0;"/>
       </div>`).join('')}
     </div>
-    <div class="ilbl">Alcohol — days per week?</div>
+    <div class="ilbl">Alcohol — how many days per week?</div>
     <div class="tags">${['None','1 day','2 days','3 days','4–5 days','Daily'].map(t=>`<button class="tg ${a.alcDays===t?'s':''}" onclick="stagAlc('${t}',this)">${t}</button>`).join('')}</div>
     <div id="alcD" style="${a.alcDays&&a.alcDays!=='None'?'':'display:none'}">
       <div class="ilbl">Drinks per occasion</div>
       <div class="tags">${['1','2','3','4','5+'].map(t=>`<button class="tg ${a.alcCnt===t?'s':''}" onclick="stag('alcCnt','${t}',this)">${t}</button>`).join('')}</div>
       <div class="ilbl">Type of alcohol</div>
-      <div class="tags">${['Beer','Wine','Spirits','Cocktails','Hard seltzer'].map(t=>`<button class="tg ${(a.alcType||[]).includes(t)?'s':''}" onclick="multi('alcType','${t}',this)">${t}</button>`).join('')}</div>
+      <div class="tags">${['Beer','Wine','Spirits / liquor','Cocktails','Hard seltzer','Champagne'].map(t=>`<button class="tg ${(a.alcType||[]).includes(t)?'s':''}" onclick="multi('alcType','${t}',this)">${t}</button>`).join('')}</div>
+    </div>
+    <div class="sep">Social & relationship</div>
+    <div class="ilbl">Are you in a relationship?</div>
+    <div class="tags">${['Yes','No','It\'s complicated'].map(t=>`<button class="tg ${a.inRel===t?'s':''}" onclick="stagRel('${t}',this)">${t}</button>`).join('')}</div>
+    <div id="relDetail" style="${a.inRel==='Yes'?'':'display:none'}">
+      <div class="ilbl">How does your partner influence your eating habits?</div>
+      <div class="opts">${['They eat very healthy — supportive','They eat well sometimes but inconsistently','They eat whatever and it makes it hard for me','We eat the same food so it\'s easy','We eat separately — no real impact'].map(o=>`<button class="o ${a.partnerEating===o?'s':''}" onclick="pick('partnerEating','${esc(o)}',this)">${o}</button>`).join('')}</div>
+      <div class="ilbl">Does your partner actively support your fitness goals?</div>
+      <div class="opts">${['Very supportive — they encourage me consistently','Somewhat supportive — neutral most of the time','Not really — they don\'t prioritize it','It\'s a source of tension'].map(o=>`<button class="o ${a.partnerSupport===o?'s':''}" onclick="pick('partnerSupport','${esc(o)}',this)">${o}</button>`).join('')}</div>
+      <div class="ilbl">How often do you eat out socially or for date nights?</div>
+      <div class="tags">${['Rarely','1–2x a month','Weekly','Multiple times a week'].map(t=>`<button class="tg ${a.socialEating===t?'s':''}" onclick="stag('socialEating','${t}',this)">${t}</button>`).join('')}</div>
     </div>`;
   }
 
   else if(id==='foodrel'){
-    document.getElementById('pl').textContent='Step 8 — Food relationship';
-    h=`<div class="eyebrow">Step 8 of 13</div>
+    document.getElementById('pl').textContent='Step 9 — Food relationship';
+    h=`<div class="eyebrow">Step 9 of 14</div>
     <div class="q">Your relationship with food.</div>
-    <div class="sub">Most programs skip this entirely. Understanding your food psychology is how we fix the pattern for good.</div>
-    <div class="ilbl">Go-to cheat meal or comfort food</div>
+    <div class="sub">Most programs completely skip this. Understanding your food psychology is how we actually fix the pattern — not just manage it.</div>
+    <div class="ilbl">Your go-to cheat meal or comfort food</div>
     <input class="inp" id="cheat" placeholder="e.g. Pizza, ice cream, McDonald's, chips..." value="${a.cheat||''}"/>
-    <div class="ilbl">Favourite snack — even when not hungry</div>
-    <input class="inp" id="snack" placeholder="Be honest — everyone has one" value="${a.snack||''}"/>
-    <div class="ilbl">When do you reach for it?</div>
-    <div class="opts">${['Late at night after a long day','When stressed or overwhelmed','On weekends as a reward','When bored','After a hard workout — I earned it','Socially with friends or family','After a bad day emotionally','No real trigger'].map(o=>`<button class="o ${a.cheatWhen===o?'s':''}" onclick="pick('cheatWhen','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">Favourite snack — even when you're not hungry</div>
+    <input class="inp" id="snack" placeholder="Be honest — everyone has at least one" value="${a.favSnack||''}"/>
+    <div class="ilbl">When do you reach for it? (select all that apply)</div>
+    <div class="tags">${['Late at night after a long day','When stressed or overwhelmed','On weekends as a reward','When bored or procrastinating','After a hard workout — I earned it','Socially with friends or family','After an emotionally difficult day','When I\'m lonely','When I\'m celebrating','No real trigger — it\'s random'].map(t=>`<button class="tg ${(a.cheatWhen||[]).includes(t)?'s':''}" onclick="multi('cheatWhen','${t}',this)">${t}</button>`).join('')}</div>
     <div class="ilbl">How do you feel when you go for it?</div>
-    <div class="opts">${['Guilty — like I failed','Relieved — I needed that','Nothing — it\'s just food','Pleasure then immediate regret','Conscious intentional reward','Shame — I try to hide it','Out of control — I can\'t stop'].map(o=>`<button class="o ${a.cheatFeel===o?'s':''}" onclick="pick('cheatFeel','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    <div class="ilbl">How often do you eat off-plan?</div>
-    <div class="tags">${['Rarely','Once a week','2–3x a week','4–5x a week','Daily'].map(t=>`<button class="tg ${a.cheatFreq===t?'s':''}" onclick="stag('cheatFreq','${t}',this)">${t}</button>`).join('')}</div>
-    <div class="ilbl">Do you eat emotionally?</div>
-    <div class="opts">${['No — hunger based only','Occasionally when stressed','Yes — food is how I cope','Yes — and I want help with this'].map(o=>`<button class="o ${a.emEat===o?'s':''}" onclick="pick('emEat','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>`;
+    <div class="opts">${['Guilty — like I failed myself','Relieved — I genuinely needed that','Nothing — it\'s just food to me','Pleasure in the moment, regret immediately after','It\'s a conscious and intentional reward','Shame — I try to hide it','Out of control — I can\'t stop once I start'].map(o=>`<button class="o ${a.cheatFeel===o?'s':''}" onclick="pick('cheatFeel','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">How often do you eat off-plan per week?</div>
+    <div class="tags">${['Rarely — once or twice a month','Once a week','2–3x a week','4–5x a week','Daily'].map(t=>`<button class="tg ${a.cheatFreq===t?'s':''}" onclick="stag('cheatFreq','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">Do you eat emotionally? (eating when not physically hungry)</div>
+    <div class="opts">${['No — I eat based on hunger signals only','Occasionally when stressed','Yes — food is how I cope with emotions','Yes — and I genuinely want help with this'].map(o=>`<button class="o ${a.emEat===o?'s':''}" onclick="pick('emEat','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    ${mode==='pro'?`<div class="fact-box" style="background:rgba(127,119,221,0.07);border-color:rgba(127,119,221,0.25);">
+      <div class="fact-label" style="color:var(--purple);">The neuroscience of comfort eating</div>
+      <div class="fact-text">Emotional eating activates the same <b>dopaminergic reward pathways</b> as other compulsive behaviours. Cortisol and ghrelin (hunger hormone) both spike under stress — creating a physiological drive to seek calorie-dense foods. Understanding your triggers is the first step to rewiring the pattern.</div>
+    </div>`:`<div class="fact-box"><div class="fact-label">You're not alone</div><div class="fact-text">Most people eat emotionally at some point. <b>Knowing when and why you do it</b> is the first step to building strategies that actually work — your program will address this directly.</div></div>`}`;
   }
 
   else if(id==='supplements'){
-    document.getElementById('pl').textContent='Step 9 — Supplements';
-    h=`<div class="eyebrow">Step 9 of 13</div>
+    document.getElementById('pl').textContent='Step 10 — Supplements';
+    h=`<div class="eyebrow">Step 10 of 14</div>
     <div class="q">Supplements and nutrition support.</div>
-    <div class="sub">Your AI coach will make specific brand recommendations based on your goals and restrictions.</div>
-    <div class="ilbl">Current supplements</div>
-    <div class="tags">${['None','Protein powder','Creatine','Pre-workout','Multivitamin','Vitamin D','Omega-3','Magnesium','Collagen','Greens powder','Probiotics','Iron','B12','Zinc'].map(t=>`<button class="tg ${(a.supps||[]).includes(t)?'s':''}" onclick="multi('supps','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="sub">Your AI coach will make specific brand recommendations based on your goals, budget, and restrictions.</div>
+    <div class="ilbl">Current supplements (select all that apply)</div>
+    <div class="tags">${['None','Protein powder','Creatine','Pre-workout','Multivitamin','Vitamin D','Omega-3','Magnesium','Collagen','Greens powder','Probiotics','Iron','B12','Zinc','Ashwagandha','Melatonin'].map(t=>`<button class="tg ${(a.supps||[]).includes(t)?'s':''}" onclick="multi('supps','${t}',this)">${t}</button>`).join('')}</div>
+    <button class="tg ${(a.supps||[]).includes('Other')?'s':''}" onclick="multi('supps','Other',this);showOther('suppOtherTag','suppOtherWrap')" id="suppOtherTag" style="margin-bottom:6px;">+ Other</button>
+    <div class="other-wrap ${(a.supps||[]).includes('Other')?'show':''}" id="suppOtherWrap">
+      <input class="inp" id="suppOther" placeholder="Write in your other supplements..." value="${a.suppOther||''}"/>
+    </div>
     <div class="ilbl">Monthly supplement budget</div>
-    <div class="opts">${['$0 — not interested','Under $50','$50–$100','$100–$200','$200+ — I invest in this'].map(o=>`<button class="o ${a.suppBudget===o?'s':''}" onclick="pick('suppBudget','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    <div class="ilbl">Do you use protein shakes?</div>
-    <div class="opts">${['Yes — regularly','Occasionally','No — I don\'t like them','No — but open to it','Not interested'].map(o=>`<button class="o ${a.protShake===o?'s':''}" onclick="pick('protShake','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${['$0 — not interested right now','Under $50','$50–$100','$100–$200','$200+ — I invest in this seriously'].map(o=>`<button class="o ${a.suppBudget===o?'s':''}" onclick="pick('suppBudget','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">Do you currently use protein shakes?</div>
+    <div class="opts">${['Yes — regularly','Occasionally','No — I don\'t enjoy them','No — but I\'m open to it','Not interested'].map(o=>`<button class="o ${a.protShake===o?'s':''}" onclick="pick('protShake','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="supp-box">
-      <div class="supp-title">Brands your AI coach may recommend</div>
-      <div class="supp-row">
-        Protein: <span>Progressive, Iron Vegan, Vega, Blessed, Kaizen, Iron Kingdom</span><br>
-        Performance: <span>Biosteel, Progressive</span><br>
-        Recovery: <span>Magnesium glycinate, pharmaceutical grade Omega-3</span><br>
-        Tracking: <span>WHOOP band, Oura Ring</span>
-      </div>
+      <div class="supp-title">Brands your coach may recommend</div>
+      <div class="supp-row">Protein: <span>Progressive, Iron Vegan, Vega, Blessed, Kaizen, Iron Kingdom</span><br>
+      Performance: <span>Biosteel, Progressive, Kaizen</span><br>
+      Recovery: <span>Magnesium glycinate, pharmaceutical grade Omega-3</span><br>
+      Tracking: <span>WHOOP band, Oura Ring</span></div>
     </div>
     <div class="ilbl">Brands you already use or prefer</div>
-    <textarea class="inp" id="brands" placeholder="List your current supplements and brands...">${a.brands||''}</textarea>`;
+    <textarea class="inp" id="brands" placeholder="List any current supplements and their brands..." style="min-height:56px;">${a.brands||''}</textarea>`;
   }
 
   else if(id==='sleep'){
-    document.getElementById('pl').textContent='Step 10 — Sleep & recovery';
-    h=`<div class="eyebrow">Step 10 of 13</div>
-    <div class="q">Sleep and recovery.</div>
-    <div class="sub">Results happen outside the gym. Sleep is where your body actually transforms.</div>
+    document.getElementById('pl').textContent='Step 11 — Sleep & recovery';
+    h=`<div class="eyebrow">Step 11 of 14</div>
+    <div class="q">Sleep and recovery. ${mode==='pro'?ib('sleepscience','Sleep & muscle growth','During deep sleep (NREM Stage 3), your pituitary gland releases 70-80% of your daily growth hormone. Sleep deprivation reduces testosterone by 10-15% per night of poor sleep and elevates cortisol — directly opposing your training goals.'):''}
+    </div>
+    <div class="sub">${mode==='pro'?'Sleep is where anabolic processes occur — muscle repair, hormone synthesis, and neural recovery all happen during sleep, not training.':'Results happen outside the gym. Sleep is where your body actually rebuilds and transforms.'}</div>
     <div class="ilbl">Sleep on weeknights</div>
     <div class="tags">${['Under 4h','4–5h','5–6h','6–7h','7–8h','8–9h','9h+'].map(t=>`<button class="tg ${a.slWN===t?'s':''}" onclick="stag('slWN','${t}',this)">${t}</button>`).join('')}</div>
     <div class="ilbl">Sleep on weekends</div>
     <div class="tags">${['Under 4h','4–5h','5–6h','6–7h','7–8h','8–9h','9h+'].map(t=>`<button class="tg ${a.slWE===t?'s':''}" onclick="stag('slWE','${t}',this)">${t}</button>`).join('')}</div>
     <div class="ilbl">Sleep quality</div>
-    <div class="opts">${['I fall asleep easily and wake refreshed','I fall asleep fine but wake up tired','I struggle to fall asleep','I wake up multiple times at night','I oversleep and still feel exhausted'].map(o=>`<button class="o ${a.slQ===o?'s':''}" onclick="pick('slQ','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${['I fall asleep easily and wake up genuinely refreshed','I fall asleep fine but wake up still tired','I struggle to fall asleep — racing thoughts','I wake up multiple times during the night','I oversleep and still feel exhausted'].map(o=>`<button class="o ${a.slQ===o?'s':''}" onclick="pick('slQ','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="row2">
-      <div style="flex:1"><div class="ilbl">Bedtime</div><input class="inp" id="bed" placeholder="e.g. 11pm" value="${a.bed||''}" style="margin:0"/></div>
-      <div style="flex:1"><div class="ilbl">Wake time</div><input class="inp" id="wake" placeholder="e.g. 6am" value="${a.wake||''}" style="margin:0"/></div>
+      <div style="flex:1"><div class="ilbl">Usual bedtime</div><input class="inp" id="bed" placeholder="e.g. 11pm" value="${a.bed||''}" style="margin:0"/></div>
+      <div style="flex:1"><div class="ilbl">Usual wake time</div><input class="inp" id="wake" placeholder="e.g. 6am" value="${a.wake||''}" style="margin:0"/></div>
     </div>
     <div style="margin-top:10px;"></div>
-    <div class="ilbl">Recovery practices</div>
-    <div class="tags">${['Stretching','Foam rolling','Sauna','Cold therapy','Massage','Yoga','Meditation','Walking','Nothing currently'].map(t=>`<button class="tg ${(a.recov||[]).includes(t)?'s':''}" onclick="multi('recov','${t}',this)">${t}</button>`).join('')}</div>
-    <div class="ilbl">Stress management</div>
-    <div class="tags">${['Exercise','Meditation','Journaling','Reading','Social time','Music','Therapy','I don\'t manage it'].map(t=>`<button class="tg ${(a.stMgmt||[]).includes(t)?'s':''}" onclick="multi('stMgmt','${t}',this)">${t}</button>`).join('')}</div>`;
+    <div class="ilbl">Recovery practices you currently do</div>
+    <div class="tags">${['Stretching','Foam rolling','Sauna','Cold therapy / ice bath','Massage','Yoga','Meditation','Walking','Nothing currently'].map(t=>`<button class="tg ${(a.recov||[]).includes(t)?'s':''}" onclick="multi('recov','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">How do you manage stress day to day?</div>
+    <div class="tags">${['Exercise','Meditation','Journaling','Reading','Social time','Music','Therapy / coaching','Prayer','Nature / outdoors','I don\'t really manage it'].map(t=>`<button class="tg ${(a.stMgmt||[]).includes(t)?'s':''}" onclick="multi('stMgmt','${t}',this)">${t}</button>`).join('')}</div>`;
   }
 
   else if(id==='health'){
-    document.getElementById('pl').textContent='Step 11 — Health history';
-    h=`<div class="eyebrow">Step 11 of 13</div>
+    document.getElementById('pl').textContent='Step 12 — Health history';
+    h=`<div class="eyebrow">Step 12 of 14</div>
     <div class="q">Health and injury history.</div>
-    <div class="sub">This keeps your program safe. Everything stays between you and your coach.</div>
-    <div class="ilbl">Current injuries or chronic pain</div>
-    <div class="tags">${['None','Lower back','Upper back','Knee (L)','Knee (R)','Shoulder (L)','Shoulder (R)','Hip','Neck','Ankle','Wrist','Elbow','Foot'].map(t=>`<button class="tg ${(a.inj||[]).includes(t)?'s':''}" onclick="multi('inj','${t}',this)">${t}</button>`).join('')}</div>
-    <div class="ilbl">Diagnosed health conditions</div>
-    <div class="tags">${['None','High blood pressure','Diabetes','High cholesterol','Hypothyroidism','Hyperthyroidism','Heart condition','ADHD','Depression','Anxiety','Eating disorder history','Anemia','IBS','PCOS','Asthma'].map(t=>`<button class="tg ${(a.cond||[]).includes(t)?'s':''}" onclick="multi('cond','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="sub">This keeps your program safe and your coach informed. Everything stays between you and your coach.</div>
+    <div class="ilbl">Current injuries or areas of chronic pain ${mode==='pro'?ib('injury_anat','Anatomical context','Common injury sites and their biomechanical impact: Rotator cuff (shoulder complex) affects all horizontal and vertical pressing/pulling. Lumbar (L4/L5) affects all loaded spinal flexion/extension. Patellofemoral (knee) affects squat mechanics and knee tracking. Hip labrum affects hip flexion depth and single-leg stability.'):''}
+    </div>
+    <div class="tags">${['None','Lower back','Upper back / thoracic','Knee (left)','Knee (right)','Shoulder (left)','Shoulder (right)','Hip','Neck / cervical','Ankle','Wrist','Elbow','Foot / plantar fascia'].map(t=>`<button class="tg ${(a.inj||[]).includes(t)?'s':''}" onclick="multi('inj','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">Diagnosed health conditions ${mode==='pro'?ib('conditions_anat','How conditions affect programming','Hypothyroidism lowers BMR and affects recovery. PCOS affects insulin sensitivity and hormonal balance. Hypertension limits max intensity thresholds. ADHD affects training structure needs. Each condition has specific programming adaptations built into your plan.'):''}
+    </div>
+    <div class="tags">${['None','High blood pressure','Diabetes (Type 1 or 2)','High cholesterol','Hypothyroidism','Hyperthyroidism','Heart condition','ADHD','Depression','Anxiety','Eating disorder history','Anemia','IBS / bowel disease','PCOS','Asthma'].map(t=>`<button class="tg ${(a.cond||[]).includes(t)?'s':''}" onclick="multi('cond','${t}',this)">${t}</button>`).join('')}</div>
     <div class="ilbl">Maternal status</div>
-    <div class="opts">${['Not applicable','Pregnant','Postpartum — under 6 months','Postpartum — 6 to 12 months','Currently breastfeeding','Postpartum and breastfeeding'].map(o=>`<button class="o ${a.mat===o?'s':''}" onclick="pick('mat','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${['Not applicable','Pregnant','Postpartum — under 6 months','Postpartum — 6 to 12 months','Currently breastfeeding','Postpartum and breastfeeding'].map(o=>`<button class="o ${a.mat===o?'s':''}" onclick="pick('mat','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="ilbl">Food allergies or intolerances</div>
-    <div class="tags">${['None','Gluten','Dairy','Nuts','Shellfish','Soy','Eggs','Other'].map(t=>`<button class="tg ${(a.allerg||[]).includes(t)?'s':''}" onclick="multi('allerg','${t}',this)">${t}</button>`).join('')}</div>
-    <div class="ilbl">Current medications</div>
-    <textarea class="inp" id="meds" placeholder="List medications, doses, duration..." style="min-height:60px;">${a.meds||''}</textarea>
+    <div class="tags">${['None','Gluten','Dairy','Tree nuts','Shellfish','Soy','Eggs','Other'].map(t=>`<button class="tg ${(a.allerg||[]).includes(t)?'s':''}" onclick="multi('allerg','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">Current medications (important for your coach to know)</div>
+    <textarea class="inp" id="meds" placeholder="List medications, doses, and duration..." style="min-height:56px;">${a.meds||''}</textarea>
     <div class="ilbl">Recent surgeries or significant medical events</div>
-    <textarea class="inp" id="surg" placeholder="What, when, and recovery status..." style="min-height:60px;">${a.surg||''}</textarea>`;
+    <textarea class="inp" id="surg" placeholder="What, when, and current recovery status..." style="min-height:56px;">${a.surg||''}</textarea>`;
   }
 
   else if(id==='mindset'){
-    document.getElementById('pl').textContent='Step 12 — Mindset';
-    h=`<div class="eyebrow">Step 12 of 13</div>
+    document.getElementById('pl').textContent='Step 13 — Mindset';
+    h=`<div class="eyebrow">Step 13 of 14</div>
     <div class="q">Mindset and accountability.</div>
-    <div class="sub">Understanding your psychology is how we build a system that actually sticks this time.</div>
-    <div class="ilbl">What has stopped you from reaching your goals before?</div>
-    <div class="opts">${['Consistency — I start strong then fall off','Time — life and work always win','Knowledge — I don\'t know what to do','Motivation — I lose drive after the initial push','Injury or physical limitation','Emotional eating and food relationship','Lack of accountability','I\'ve never seriously committed'].map(o=>`<button class="o ${a.barrier===o?'s':''}" onclick="pick('barrier','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    <div class="ilbl">What does success look like in 90 days? Be specific.</div>
-    <textarea class="inp" id="vision" placeholder="e.g. Lost 20lbs, have energy for my kids, snatch 100lbs, fit into old clothes...">${a.vision||''}</textarea>
+    <div class="sub">Understanding your psychology is how we build a system that actually sticks this time — not just for 30 days.</div>
+    <div class="ilbl">What has stopped you from reaching your goals before? (select all that apply)</div>
+    <div class="tags">${['Consistency — I start strong then fall off','Time — life and work always win','Knowledge — I don\'t know what to do','Motivation — I lose drive after the first push','Injury or physical limitation','Emotional eating / food relationship','Lack of accountability — I need someone to answer to','Perfectionism — all or nothing mindset','I\'ve never seriously committed to anything','Social environment — people around me don\'t prioritize health'].map(t=>`<button class="tg ${(a.barriers||[]).includes(t)?'s':''}" onclick="multi('barriers','${t}',this)">${t}</button>`).join('')}</div>
+    <div class="ilbl">What does success look like to you in 90 days? Be as specific as possible.</div>
+    <textarea class="inp" id="vision" placeholder="e.g. Lost 20lbs, have energy to play with my kids, snatch 100lbs, fit into my old clothes, wake up feeling good every day...">${a.vision||''}</textarea>
     <div class="ilbl">How do you want to be held accountable?</div>
-    <div class="opts">${['Daily AI check-ins and streaks','Weekly coach calls','Strict accountability — check in on me','Community and public accountability','Self-motivated — I just need the right system'].map(o=>`<button class="o ${a.acctStyle===o?'s':''}" onclick="pick('acctStyle','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-    <div class="ilbl">Single biggest motivator right now</div>
-    <div class="opts">${['My health — I\'m not where I want to be','My family — I want to be there long term','My confidence — I want to feel good','My performance — athletic or business goals','A specific event or deadline','My energy — running on empty'].map(o=>`<button class="o ${a.motiv===o?'s':''}" onclick="pick('motiv','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+    <div class="opts">${[
+      'Daily accountability check-ins — streaks and progress tracking keep me going',
+      'Weekly coach calls — scheduled check-ins keep me on track',
+      'Strict accountability — I need someone checking in on me',
+      'Community — I work better with others around me',
+      'Self-motivated — I just need the right system and I\'ll execute'
+    ].map(o=>`<button class="o ${a.acctStyle===o?'s':''}" onclick="pick('acctStyle','${esc(o)}',this)">${o}</button>`).join('')}</div>
+    <div class="ilbl">Your single biggest motivator right now</div>
+    <div class="opts">${['My health — I\'m not where I want or need to be','My family — I want to be there for them long term','My confidence — I want to feel genuinely good in my body','My performance — athletic or professional goals','A specific event or deadline coming up','My energy — I\'m running on empty and need to change that'].map(o=>`<button class="o ${a.motiv===o?'s':''}" onclick="pick('motiv','${esc(o)}',this)">${o}</button>`).join('')}</div>
     <div class="ilbl">Anything else your coach should know?</div>
-    <textarea class="inp" id="notes" placeholder="Personal context, specific requests, things you want your coach to know...">${a.notes||''}</textarea>`;
+    <textarea class="inp" id="notes" placeholder="Personal context, specific requests, things that are important for your coach to understand...">${a.notes||''}</textarea>`;
   }
 
   else if(id==='tier'){
-    document.getElementById('pl').textContent='Step 13 — Your path';
-    h=`<div class="eyebrow">Step 13 of 13</div>
+    document.getElementById('pl').textContent='Step 14 — Your path';
+    h=`<div class="eyebrow">Step 14 of 14</div>
     <div class="q">Choose your program level.</div>
-    <div class="sub">Every tier includes your AI coach, personalized programming, and the Flowstate accountability system. Upgrade anytime.</div>
-    ${[['Core','$29/mo','AI coach + progress tracking + community. Daily accountability system. Perfect for self-driven people who want a smart program.',''],
-       ['Pro','$59/mo','Everything in Core + AI form tracking, The Classroom (courses), monthly challenges, advanced nutrition guidance.','Most popular'],
-       ['Elite','$99/mo','Everything in Pro + monthly trainer check-in call, priority support, nutrition consult, supplement recommendations.',''],
-       ['1-on-1 Coaching','$1,600 / 3 months','Fully custom. Weekly coaching calls, personalized meal plans, travel playbook, direct access to your coach.','']
+    <div class="sub">Every tier includes your AI coach, personalized programming, and the Flowstate accountability system. Upgrade anytime — no lock-in.</div>
+    ${[
+      ['Core','$29/mo','AI coach, progress tracking, daily accountability check-ins, and community. The complete system for self-driven people who want a smart program.',''],
+      ['Pro','$59/mo','Everything in Core + AI form tracking, The Classroom (courses), monthly challenges, exercise swap library, and advanced nutrition guidance.','Most popular'],
+      ['Elite','$99/mo','Everything in Pro + monthly 1-on-1 trainer check-in call, priority support, nutrition consult, and personalized supplement recommendations.',''],
+      ['1-on-1 Coaching','$1,600 / 3 months','Fully custom. Weekly coaching calls with Coach X, personalized meal plans updated monthly, travel playbook, direct access. Everything in Elite included.','']
     ].map(([n,p,d,b])=>`<button class="tier-o ${a.tier===n?'s':''}" onclick="pickTier('${n}',this)">
       <div class="tier-top"><div><span class="tier-n">${n}</span>${b?`<span class="pop-badge">${b}</span>`:''}</div><span class="tier-p">${p}</span></div>
       <div class="tier-d">${d}</div>
@@ -435,143 +756,159 @@ function render(){
     h=`<div class="done-wrap">
     <div class="done-ico">✅</div>
     <div class="done-title">Profile complete, ${a.fn||'champion'}.</div>
-    <div class="done-sub">Your AI coach has everything it needs. Your personalized 90-day transformation program is being built right now.</div>
+    <div class="done-sub">Your AI coach has everything it needs. Your personalized 90-day transformation program is being built right now based on everything you shared.</div>
     <div class="pcard">
       <div class="pcard-title">Your profile</div>
-      ${[['Goal',a.goal],['Body type',a.bodyType],['Metabolism',m.t],['Training level',a.trainHist],['Training days',(a.tdays||'')+(a.tdays?' days/week':'')],['Equipment',(a.equip||[]).join(', ')],['Cheat meal',a.cheat],['Biggest barrier',a.barrier],['Motivator',a.motiv],['Program tier',a.tier]].filter(([,v])=>v).map(([k,v])=>`<div class="pr"><span class="pk">${k}</span><span class="pv">${v}</span></div>`).join('')}
+      ${[
+        ['Goals',(a.goals||[]).join(' + ')],
+        ['Body type',a.bodyType],
+        ['Metabolism',m.t],
+        ['Training level',a.trainHist],
+        ['Training days',(a.tdays||'')+(a.tdays?' days/week':'')],
+        ['Equipment',(a.equip||[]).slice(0,3).join(', ')+(a.equip?.length>3?' +more':'')],
+        ['Cheat meal',a.cheat],
+        ['Biggest barriers',(a.barriers||[]).slice(0,2).join(', ')],
+        ['Motivator',a.motiv],
+        ['Program tier',a.tier]
+      ].filter(([,v])=>v).map(([k,v])=>`<div class="pr"><span class="pk">${k}</span><span class="pv">${v}</span></div>`).join('')}
     </div>
-    <div style="font-size:14px;font-weight:700;color:var(--text);margin:1.25rem 0 .6rem;letter-spacing:-.01em;">Your 90-day transformation roadmap</div>
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin:1.25rem 0 .6rem;letter-spacing:-.01em;">Your 90-day roadmap</div>
     <div class="rs-wrap">
-      ${[['Week 1–2 — Foundation','No intensity yet. Just show up. Build the habit. Your body and mind are adjusting to the new system.'],
-         ['Week 3–4 — Activation','Progressive overload begins. Nutrition structure locked in. Sleep and recovery protocols running. First measurable results appear.'],
-         ['Month 2 — Momentum','Training intensity increases. Meal timing and macro cycling optimized for your metabolism. Streaks compounding.'],
-         ['Month 3 — Transformation','The compound effect hits. Body composition visibly shifts. Energy optimized. Mindset locked. This is where everything changes.'],
-         ['Month 4+ — Elevation','Program cycles and progresses. Strength milestones hit. Lifestyle fully restructured. The system runs itself.']
+      ${[
+        ['Week 1–2 — Foundation','No intensity yet. Just show up and build the habit. Your body and mind are adjusting to the new system. This phase is about consistency, not performance.'],
+        ['Week 3–4 — Activation','Progressive overload begins. Nutrition structure locked in. Sleep and recovery protocols active. First measurable results start appearing.'],
+        ['Month 2 — Momentum','Training intensity increases. Meal timing and macro cycling optimized for your metabolism type. Streaks compounding. This is where it starts to feel real.'],
+        ['Month 3 — Transformation','The compound effect hits. Body composition visibly shifts. Energy optimized. Mindset locked in. This is where everything changes for good.'],
+        ['Month 4+ — Elevation','Program cycles and progresses. Strength milestones hit. Lifestyle fully restructured. The system runs itself — you just execute.']
       ].map(([t,d],i)=>`<div class="rs"><div class="rsn">${i+1}</div><div><div class="rst">${t}</div><div class="rsd">${d}</div></div></div>`).join('')}
     </div>
-    <button class="gbtn" onclick="generateProgram()">Generate my full 90-day program →</button>
+    <button class="gbtn" id="genBtn" onclick="generateProgram()">Generate my full 90-day program →</button>
     </div>`;
   }
 
-  h+=id!=='welcome'&&id!=='done'?`<div class="nav">${cur>1?`<button class="nb b" onclick="back()">← Back</button>`:''}<button class="nb p" onclick="next()">Continue →</button></div>`:'';
+  h+=id!=='welcome'&&id!=='mode_intro'&&id!=='done'?`<div class="nav">${cur>2?`<button class="nb b" onclick="back()">← Back</button>`:''}<button class="nb p" onclick="next()">Continue →</button></div>`:'';
+  if(id==='mode_intro')h+=`<div class="nav"><button class="nb p" onclick="next()">Continue →</button></div>`;
   document.getElementById('sw').innerHTML=h;
 }
-const OPENAI_KEY = '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';
+
+function setModeAndPick(m,btn){
+  setMode(m);
+  btn.closest('[id^="sw"]').querySelectorAll('.co').forEach(b=>b.classList.remove('s'));
+  btn.classList.add('s');
+}
+
+function setMetric(m,btn){
+  metric=m;
+  document.querySelectorAll('.m-btn').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  saveInputs();render();
+}
+
+function pickCoSex(v,btn){
+  a.sex=v;
+  btn.closest('.g3').querySelectorAll('.co').forEach(b=>b.classList.remove('s'));
+  btn.classList.add('s');
+}
+
 async function generateProgram(){
-  const m=calcMet();
-  const btn=document.querySelector('.gbtn');
+  const btn=document.getElementById('genBtn');
+  if(!btn)return;
   btn.textContent='Building your program...';
   btn.disabled=true;
+  const m=calcMet();
+  const prompt=`You are Coach X, founder of Flowstate AI — a premium AI fitness coaching platform for high performers. You speak directly, with authority, warmth, and zero fluff. No filler. Every word earns its place.
 
-  const prompt=`You are Xavier Ellis , founder of Flowstate AI — a premium fitness coaching platform for high performers. You speak directly, with authority, warmth, and zero fluff.
-
-A new client just completed their intake. Build them a detailed, personalized 90-day transformation program based on everything below.
+A new client just completed their full intake. Build them a detailed, personalized 90-day transformation program.
 
 CLIENT PROFILE:
 Name: ${a.fn||''} ${a.ln||''}
-Goal: ${a.goal||''}
-Specific goals: ${a.goals||''}
+Goals: ${(a.goals||[]).join(' + ')}
+Specific goals: ${a.goals_detail||''}
+Why now: ${a.reason||''}
 Body type: ${a.bodyType||''}
-Metabolism type: ${m.t} — ${m.d}
+Metabolism: ${m.t} — ${m.d}
 Training history: ${a.trainHist||''}
-Training days available: ${a.tdays||''} days/week
+Training days: ${a.tdays||''} days/week
 Equipment: ${(a.equip||[]).join(', ')}
-Weekly schedule: ${(a.week||[]).join(', ')}
 Stress level: ${a.stress||''}
+Eating structure: ${a.eatStructure||''}
 Dietary restrictions: ${(a.diet||[]).join(', ')}
 Meals per day: ${a.meals||''}
 Foods they like: ${a.flike||''}
 Foods they dislike: ${a.fdis||''}
-Cheat meal: ${a.cheat||''} — they reach for it ${a.cheatWhen||''} and feel ${a.cheatFeel||''}
+Cheat meal: ${a.cheat||''} — reaches for it when: ${(a.cheatWhen||[]).join(', ')} — feels: ${a.cheatFeel||''}
 Emotional eating: ${a.emEat||''}
+Partner influence: ${a.partnerEating||'N/A'} — Support: ${a.partnerSupport||'N/A'}
 Current supplements: ${(a.supps||[]).join(', ')}
 Supplement budget: ${a.suppBudget||''}
-Uses protein shakes: ${a.protShake||''}
 Sleep weeknights: ${a.slWN||''} — quality: ${a.slQ||''}
-Bedtime: ${a.bed||''} — Wake time: ${a.wake||''}
 Injuries: ${(a.inj||[]).join(', ')}
 Health conditions: ${(a.cond||[]).join(', ')}
 Maternal status: ${a.mat||''}
-Medications: ${a.meds||''}
-Biggest barrier: ${a.barrier||''}
+Biggest barriers: ${(a.barriers||[]).join(', ')}
 90-day vision: ${a.vision||''}
 Accountability style: ${a.acctStyle||''}
-Biggest motivator: ${a.motiv||''}
+Motivator: ${a.motiv||''}
 Program tier: ${a.tier||''}
-Additional notes: ${a.notes||''}
 
-BUILD THE FOLLOWING:
+BUILD THE FOLLOWING — be specific, not generic. This person is paying for a premium experience:
 
 1. METABOLISM & BODY ANALYSIS
-Brief explanation of their specific metabolism type and what it means for their results. What their body does well and where it struggles.
+Explain their specific metabolism type and what it means. What their body does well and where it struggles. How this shapes everything.
 
 2. 90-DAY TRAINING PROGRAM
-Week by week breakdown across 3 phases:
-- Phase 1 (Weeks 1-4): Foundation — movement patterns, habit building, baseline
-- Phase 2 (Weeks 5-8): Progressive overload — intensity increases, strength focus
-- Phase 3 (Weeks 9-12): Peak — maximum output, body composition shift
-Include specific workout structure for their available days and equipment.
+3 phases across 12 weeks. For each phase include specific workout structure for their available days and equipment. Use tempo notation, RPE, and set/rep schemes.
 
 3. NUTRITION FRAMEWORK
-Based on their metabolism type, dietary restrictions, and food preferences:
+Based on metabolism type, dietary restrictions, and food preferences:
 - Daily calorie and macro targets
-- Meal timing recommendations
-- How to handle their cheat meal pattern
-- Specific foods to prioritize and avoid
-- Strategy for eating off-plan moments
+- Meal timing recommendations  
+- How to handle their specific cheat meal pattern
+- Strategy for off-plan moments
+- Address partner/social eating challenges if relevant
 
 4. SUPPLEMENT PROTOCOL
-Based on their goals, budget, and restrictions — recommend specific products from: Progressive, Iron Vegan, Vega, Blessed, Kaizen, Iron Kingdom, Biosteel. Include dosing and timing.
+Based on goals, budget, and restrictions — recommend specific products from: Progressive, Iron Vegan, Vega, Blessed, Kaizen, Iron Kingdom, Biosteel. Include dosing and timing.
 
 5. SLEEP & RECOVERY PLAN
-Specific protocols based on their current sleep patterns and stress level.
+Specific protocols based on their current patterns and stress level.
 
 6. ACCOUNTABILITY SYSTEM
-Based on their accountability style and biggest barrier — a daily check-in system, weekly targets, and how to handle slip-ups.
+Based on their accountability style and specific barriers — daily check-in structure, weekly targets, and how to handle slip-ups.
 
 7. WEEK 1 ACTION PLAN
-Exactly what they do on Day 1, Day 2, Day 3. Specific. No fluff.
+Day 1, Day 2, Day 3 — exactly what they do. No vagueness.
 
 8. COACH MESSAGE
-End with a direct personal message to ${a.fn||'this client'} from Xavier. Speak to their specific goal, their barrier, their motivator. Make them feel seen. Make them want to execute.
+End with a direct personal message to ${a.fn||'this client'} from Coach X. Speak to their specific goal, their barrier, their motivator. Make them feel seen. Make them want to execute today.`;
 
-Format everything clearly with headers. Be specific, not generic. This person is paying for a premium experience.`;
+  if(!OPENAI_KEY){
+    btn.textContent='Generate my full 90-day program →';
+    btn.disabled=false;
+    alert('Add your OpenAI API key to the OPENAI_KEY variable to activate program generation.');
+    return;
+  }
 
   try{
-    const response=await fetch('https://api.openai.com/v1/chat/completions',{
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
       method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+OPENAI_KEY
-      },
-      body:JSON.stringify({
-        model:'gpt-4o',
-        messages:[{role:'user',content:prompt}],
-        max_tokens:3000,
-        temperature:0.7
-      })
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+OPENAI_KEY},
+      body:JSON.stringify({model:'gpt-4o',messages:[{role:'user',content:prompt}],max_tokens:3500,temperature:0.7})
     });
-
-    const data=await response.json();
-
-    if(data.error){
-      btn.textContent='Generate my full 90-day program →';
-      btn.disabled=false;
-      alert('Error: '+data.error.message);
-      return;
-    }
-
+    const data=await res.json();
+    if(data.error){btn.textContent='Generate my full 90-day program →';btn.disabled=false;alert('Error: '+data.error.message);return;}
     const program=data.choices[0].message.content;
-
     document.getElementById('sw').innerHTML=`
-      <div style="margin-bottom:1.5rem;">
-        <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Your personalized program</div>
-        <div style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px;">90-Day Transformation Plan</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:1.5rem;">Built for ${a.fn||'you'} — ${a.goal||'your goal'} — ${m.t}</div>
-        <div style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);padding:1.25rem;font-size:14px;color:var(--text);line-height:1.8;white-space:pre-wrap;">${program}</div>
-        <button class="gbtn" onclick="window.print()" style="margin-top:1rem;">Save / print my program</button>
-      </div>`;
-
+    <div style="margin-bottom:1.5rem;">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Your personalized program</div>
+      <div style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px;color:var(--text);">90-Day Transformation Plan</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:1.5rem;">Built for ${a.fn||'you'} — ${(a.goals||[]).join(' + ')} — ${m.t}</div>
+      <div style="background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--rs);padding:1.25rem;font-size:14px;color:var(--text);line-height:1.85;white-space:pre-wrap;">${program}</div>
+      <div style="display:flex;gap:8px;margin-top:1rem;">
+        <button class="gbtn" onclick="window.print()" style="flex:1;">Save / print program</button>
+        <button class="nb b" onclick="location.href='dashboard.html'" style="flex:1;padding:15px;cursor:pointer;">Go to dashboard →</button>
+      </div>
+    </div>`;
   }catch(err){
     btn.textContent='Generate my full 90-day program →';
     btn.disabled=false;
@@ -580,35 +917,11 @@ Format everything clearly with headers. Be specific, not generic. This person is
   }
 }
 
-function pick(k,v,btn){a[k]=v;btn.closest('.opts').querySelectorAll('.o').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
-function pickCo(k,v,btn){a[k]=v;btn.closest('.g2,.g3').querySelectorAll('.co').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
-function pickTier(v,btn){a.tier=v;document.querySelectorAll('.tier-o').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
-function pickMet(k,v,btn){pick(k,v,btn);setTimeout(render,30);}
-function stag(k,v,btn){a[k]=v;btn.closest('.tags,.scrow').querySelectorAll('.tg,.scb').forEach(b=>b.classList.remove('s'));btn.classList.add('s');}
-function stagMet(k,v,btn){stag(k,v,btn);setTimeout(render,30);}
-function stagAlc(v,btn){stag('alcDays',v,btn);const el=document.getElementById('alcD');if(el)el.style.display=v==='None'?'none':'block';}
-function multi(k,v,btn){if(!a[k])a[k]=[];btn.classList.toggle('s');if(btn.classList.contains('s')){if(!a[k].includes(v))a[k].push(v);}else a[k]=a[k].filter(x=>x!==v);}
-
-function saveInputs(){
-  const g=(id,key)=>{const el=document.getElementById(id);if(el&&el.value.trim())a[key]=el.value.trim();};
-  const id=STEPS[cur];
-  if(id==='identity'){g('fn','fn');g('ln','ln');g('em','em');g('job','job');}
-  if(id==='goal'){g('goals','goals');g('reason','reason');}
-  if(id==='bodystats'){g('age','age');g('ht','ht');g('wt','wt');}
-  if(id==='schedule'){a.week=[0,1,2,3,4,5,6].map(i=>{const el=document.getElementById('d'+i);return el?el.value.trim():'';});}
-  if(id==='nutrition'){g('h2o','h2o');g('caff','caff');g('flike','flike');g('fdis','fdis');}
-  if(id==='timeline'){[['bf'],['ms'],['lu'],['as'],['di'],['es']].forEach(([k])=>{g(k+'f',k+'f');g(k+'t',k+'t');});}
-  if(id==='foodrel'){g('cheat','cheat');g('snack','snack');}
-  if(id==='supplements'){g('brands','brands');}
-  if(id==='sleep'){g('bed','bed');g('wake','wake');}
-  if(id==='health'){g('meds','meds');g('surg','surg');}
-  if(id==='mindset'){g('vision','vision');g('notes','notes');}
-}
-
 function next(){saveInputs();if(cur<STEPS.length-1){cur++;render();window.scrollTo(0,0);}}
 function back(){if(cur>0){cur--;render();window.scrollTo(0,0);}}
 
 render();
+showWT();
 </script>
 </body>
 </html>
