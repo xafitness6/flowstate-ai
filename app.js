@@ -41,7 +41,6 @@ const universalQuotes=[
   {text:"Work like there is someone working 24 hours a day to take it all away from you.",author:"Mark Cuban"},
   {text:"Discipline is the bridge between goals and accomplishment.",author:"Jim Rohn"},
   {text:"Don't count the days. Make the days count.",author:"Muhammad Ali"},
-  {text:"He who is not courageous enough to take risks will accomplish nothing.",author:"Muhammad Ali"},
   {text:"The secret of getting ahead is getting started.",author:"Mark Twain"},
   {text:"Success is walking from failure to failure with no loss of enthusiasm.",author:"Winston Churchill"},
   {text:"Chase the vision, not the money. The money will end up following you.",author:"Tony Hsieh"}
@@ -174,7 +173,15 @@ function resetDayState(){
 }
 
 // ── AUTH ──────────────────────────────────────────────────
+function showAuth(){
+  document.getElementById('authScreen').style.display='flex';
+  document.getElementById('loadScreen').classList.remove('show');
+  document.getElementById('onboardScreen').classList.remove('show');
+  document.getElementById('mainApp').classList.remove('show');
+}
+
 function selectRole(role,btn){selectedRole=role;document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+
 function switchAuthTab(tab){
   authTabMode=tab;
   document.getElementById('siTab').classList.toggle('on',tab==='signin');
@@ -183,6 +190,7 @@ function switchAuthTab(tab){
   document.getElementById('nameRow').style.display=tab==='signup'?'block':'none';
   document.getElementById('authErr').textContent='';
 }
+
 async function handleAuth(){
   const email=document.getElementById('authEmail').value.trim();
   const pass=document.getElementById('authPass').value;
@@ -214,14 +222,20 @@ async function handleAuth(){
     btn.disabled=false;btn.textContent=authTabMode==='signin'?'Sign in':'Create account';
   }
 }
+
 async function googleAuth(){
-  const{error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href}});
+  const{error}=await sb.auth.signInWithOAuth({
+    provider:'google',
+    options:{redirectTo:window.location.origin+window.location.pathname}
+  });
   if(error)document.getElementById('authErr').textContent=error.message;
 }
+
 async function signOut(){
-  await sb.auth.signOut();currentUser=null;localStorage.removeItem('fs_prefs');
-  document.getElementById('mainApp').classList.remove('show');
-  document.getElementById('authScreen').style.display='flex';
+  await sb.auth.signOut();
+  currentUser=null;
+  localStorage.removeItem('fs_prefs');
+  showAuth();
 }
 
 function showLoadingThenApp(){
@@ -435,7 +449,6 @@ function buildMindSection(){
 function buildTierList(){document.getElementById('tierList').innerHTML=(prefs.tiers||[]).map((t,i)=>`<div class="tier-row"><div class="tier-dot" style="background:${t.color||'#888'};"></div><div class="tier-info"><div class="tier-name">${t.name} — ${t.days} days</div><div class="tier-desc">${t.desc}</div><div class="tier-reward">${t.reward}</div></div><div class="tier-status locked" id="tier${i}Status">Locked</div></div>`).join('');}
 function updateTiers(){(prefs.tiers||[]).forEach((t,i)=>{const el=document.getElementById('tier'+i+'Status');if(!el)return;const u=state.streak>=t.days;el.textContent=u?'Unlocked':'Locked';el.className='tier-status '+(u?'unlocked':'locked');});}
 
-// ── HELPERS ───────────────────────────────────────────────
 function getName(){return prefs.name||'You';}
 function getMotivator(){return prefs.motivator||'the people who matter to you';}
 function getGoal(){return prefs.goal||'your goals';}
@@ -446,7 +459,6 @@ function drinks(){return prefs.drinks&&prefs.drinks!=='No'&&!String(prefs.drinks
 function hasSoberTracking(){return smokes()||drinks();}
 function getSoberItems(){const items=[];if(drinks())items.push({id:'noAlcohol',emoji:'🚫',label:'No alcohol'});if(prefs.smokes==='Cigarettes'||prefs.smokes==='Both')items.push({id:'noCigs',emoji:'🚭',label:'No cigarettes'});if(prefs.smokes==='Weed'||prefs.smokes==='Both')items.push({id:'noWeed',emoji:'🌿',label:'No weed'});return items;}
 
-// ── CONSEQUENCES ──────────────────────────────────────────
 function getExpandedConsequence(){
   const n=getName(),m=getMotivator(),g=getGoal(),f=getFears(),p=prefs.profanity;
   const fitness=getFitnessLevel();
@@ -457,11 +469,10 @@ function getExpandedConsequence(){
   const wakeLight=isBeg?'5:45am tomorrow.':isAdv?'4:45am cold shower.':'5:30am. No snooze.';
   const wakeTough=isBeg?'5:30am. Review your goals first.':isAdv?'4:30am. Train before anything.':'5:00am. Work before coffee.';
   const all=[
-    {tier:'Light',tierClass:'light',level:'Hard',text:'No entertainment tonight. No shows, no scrolling. Sit with the discomfort.',action:'Review your goals before you sleep.'},
+    {tier:'Light',tierClass:'light',level:'Hard',text:'No entertainment tonight. No shows, no scrolling.',action:'Review your goals before you sleep.'},
     {tier:'Light',tierClass:'light',level:'Hard',text:`Wake up ${wakeLight}`,action:'Set the alarm now.'},
-    {tier:'Light',tierClass:'light',level:'Hard',text:'Cold shower before bed. Your comfort cost you today.',action:'Do it now.'},
-    {tier:'Light',tierClass:'light',level:'Hard',text:'Write your top 3 goals out by hand before you sleep.',action:'Not typed. Written. 5 minutes.'},
-    {tier:'Light',tierClass:'light',level:'Hard',text:`Read for 30 minutes — something that makes you better at ${g}.`,action:'No fiction.'},
+    {tier:'Light',tierClass:'light',level:'Hard',text:'Cold shower before bed.',action:'Do it now.'},
+    {tier:'Light',tierClass:'light',level:'Hard',text:'Write your top 3 goals out by hand.',action:'Not typed. Written. 5 minutes.'},
     {tier:'Light',tierClass:'light',level:'Hard',text:physLight,action:'Complete it before you sleep.'},
     {tier:'Medium',tierClass:'medium',level:'Brutal',text:`${physMed} ${p?'Get off your ass.':''}`,action:'Before you close this app.'},
     {tier:'Medium',tierClass:'medium',level:'Brutal',text:'Double your task targets tomorrow.',action:'Screenshot this.'},
@@ -470,20 +481,17 @@ function getExpandedConsequence(){
     {tier:'Medium',tierClass:'medium',level:'Brutal',text:`The version of ${n} that wins is built one day at a time. Today you skipped a brick.`,action:'Tomorrow you lay two.'},
     {tier:'Tough',tierClass:'tough',level:'Brutal',text:`${physTough} ${p?'No excuses, no bullshit.':'Zero exceptions.'}`,action:'Do it now.'},
     {tier:'Tough',tierClass:'tough',level:'Brutal',text:`Your fear is ${f}. Today you chose to stay closer to it.`,action:'Write it out before you sleep.'},
-    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`${m} is building a vision of who you are based on days like today.`,action:'No Tier 1 reward this week.'},
     {tier:'Tough',tierClass:'tough',level:'Brutal',text:`Nobody is coming to save you. Just you. And today you weren't enough.`,action:'Tomorrow you execute without excuses.'},
-    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`You can feel bad about this or you can do something about it. Feeling bad is easier.`,action:'Pick one task right now. Partial beats zero.'},
+    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`You can feel bad about this or you can do something about it.`,action:'Pick one task right now. Partial beats zero.'},
   ];
   return all[Math.floor(Math.random()*all.length)];
 }
 function getSoberConsequences(){const g=getGoal();return[{text:`Sobriety streak reset. Everything you want is built on who you are every single day.`,action:"Sobriety restarts tomorrow."},{text:`The version of you building ${g} doesn't cloud their mind. You know this.`,action:"Sober streak resets."},{text:`Clean and clear builds different. Today was a data point. Tomorrow is a choice.`,action:"Show up clean tomorrow."}];}
 
-// ── QUOTES ────────────────────────────────────────────────
 let quoteIndex=0;
 function startQuoteRotation(){quoteIndex=Math.floor(Math.random()*universalQuotes.length);showQuote();setInterval(()=>{quoteIndex=(quoteIndex+1)%universalQuotes.length;showQuote();},8000);}
 function showQuote(){const q=universalQuotes[quoteIndex];document.getElementById('rotatingQuote').textContent='"'+q.text+'"';document.getElementById('rotatingAuthor').textContent='— '+q.author;}
 
-// ── CHART ─────────────────────────────────────────────────
 function initChart(){
   const ctx=document.getElementById('progressChart').getContext('2d');
   const data=chartData.streak.length?chartData.streak:Array(14).fill(0);
@@ -514,7 +522,6 @@ function buildGrid(){
   }
 }
 
-// ── JOURNAL ───────────────────────────────────────────────
 async function loadJournalData(){if(!currentUser)return;try{const{data}=await sb.from('daily_logs').select('*').eq('user_id',currentUser.id).order('log_date',{ascending:false});if(data)journalData=data;}catch(e){}}
 async function openJournal(){await loadJournalData();calViewDate=new Date();document.getElementById('journalModal').classList.add('show');renderCalendar();renderJournal();}
 function closeJournal(){document.getElementById('journalModal').classList.remove('show');}
@@ -563,7 +570,6 @@ function buildEntryCard(e){
   html+=`</div>`;return html;
 }
 
-// ── INTERACTIONS ──────────────────────────────────────────
 function selectMood(btn){document.querySelectorAll('#moodRow .mood-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');saveTodayState();}
 function selectGym(btn,val){
   document.querySelectorAll('#gymTypeRow .gym-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');state.gymType=val;
@@ -619,7 +625,6 @@ function updateProgress(){
   }
 }
 
-// ── SUBMIT DAY ────────────────────────────────────────────
 async function submitDay(){
   if(!state.selectedResult){alert('Please complete your end of day debrief first.');return;}
   if(state.selectedResult==='win'){const w1=document.getElementById('winQ1')?.value.trim(),w2=document.getElementById('winQ2')?.value.trim();if(!w1||!w2){alert('Please complete both win debrief fields.');return;}state.journalWin1=w1;state.journalWin2=w2;}
@@ -643,188 +648,7 @@ async function submitDay(){
   const sobC=getSoberConsequences();const bc=getExpandedConsequence();
   const card=document.getElementById('overlayCard'),ovAction=document.getElementById('ovAction'),ovClose=document.getElementById('ovClose');
   const topTier=prefs.tiers?.length?prefs.tiers[prefs.tiers.length-1]:null;const newTier=prefs.tiers?.find(t=>t.days===state.streak);
-  if(!fullySober&&!isWin){const sc=sobC[Math.floor(Math.random()*sobC.length)];card.className='overlay-card brutal';document.getElementById('ovIcon').textContent='💀';document.getElementById('ovTitle').textContent='Miss across the board.';document.getElementById('ovText').textContent=bc.text+'\n\n'+sc.text;ovAction.textContent=bc.action+' '+sc.action;ovAction.style.display='block';ovClose.textContent='I understand. Tomorrow I execute.';}
+  if(!fullySober&&!isWin){const sc=sobC[0];card.className='overlay-card brutal';document.getElementById('ovIcon').textContent='💀';document.getElementById('ovTitle').textContent='Miss across the board.';document.getElementById('ovText').textContent=bc.text+'\n\n'+sc.text;ovAction.textContent=bc.action;ovAction.style.display='block';ovClose.textContent='I understand. Tomorrow I execute.';}
   else if(!fullySober&&hasSoberTracking()){const sc=sobC[0];card.className='overlay-card sober';document.getElementById('ovIcon').textContent='🔄';document.getElementById('ovTitle').textContent='Sobriety streak reset.';document.getElementById('ovText').textContent=sc.text;ovAction.textContent=sc.action;ovAction.style.display='block';ovClose.textContent='Restart tomorrow.';}
   else if(!isWin){card.className='overlay-card brutal';document.getElementById('ovIcon').textContent='🔴';document.getElementById('ovTitle').textContent=bc.level==='Brutal'?'No sugar coating.':'Miss logged.';document.getElementById('ovText').textContent=bc.text;ovAction.textContent=bc.action;ovAction.style.display='block';ovClose.textContent='I fell short. Tomorrow I execute.';}
-  else if(topTier&&state.streak>=topTier.days&&state.streak===topTier.days){card.className='overlay-card crown';document.getElementById('ovIcon').textContent='👑';document.getElementById('ovTitle').textContent='You built the machine.';document.getElementById('ovText').textContent=`${getName()}, you did it.\n\nBusiness. Body. Mind. All locked in.\n\n${topTier.reward}\n\nThis was bought by discipline, not luck.`;ovAction.style.display='none';ovClose.textContent="Let's go.";}
-  else if(newTier){card.className='overlay-card';document.getElementById('ovIcon').textContent='🏆';document.getElementById('ovTitle').textContent=newTier.name+' unlocked.';document.getElementById('ovText').textContent=`${state.streak} days in.\n\n${newTier.reward}`;ovAction.style.display='none';ovClose.textContent="Let's go.";}
-  else{card.className='overlay-card';document.getElementById('ovIcon').textContent=isWin?'🔥':'🔴';document.getElementById('ovTitle').textContent=isWin?`I won — day ${state.dayCount} 🔥`:'Miss logged.';const parts=[];if(gymDone)parts.push('body moved');if(fullySober&&hasSoberTracking())parts.push('mind clean');parts.push('business executed');document.getElementById('ovText').textContent=isWin?parts.join(' · ')+'\n\n"This was bought by discipline, not luck."\n\n🔥 '+state.streak+'-day streak.':bc.text;ovAction.textContent=isWin?'':bc.action;ovAction.style.display=isWin?'none':'block';ovClose.textContent=isWin?`I won — day ${state.dayCount} 🔥`:'I fell short. Tomorrow I execute.';}
-  if(isWin)setTimeout(()=>launchFireworks(),300);
-  document.getElementById('overlay').classList.add('show');
-}
-function closeOverlay(){document.getElementById('overlay').classList.remove('show');}
-
-// ── PROGRAM ───────────────────────────────────────────────
-function renderExercises(){
-  const el=document.getElementById('exerciseList');
-  el.innerHTML=SAMPLE_EXERCISES.map((ex,i)=>`
-  <div class="exercise-card">
-    <div class="ex-header" onclick="toggleEx(${i})">
-      <div><div class="ex-name">${ex.name}</div><div class="ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.tempo} tempo · ${ex.muscle}</div></div>
-      <div class="ex-actions"><button class="ex-swap-btn" onclick="event.stopPropagation();swapExercise(${i})">Swap ↻</button><div class="ex-expand" id="exArrow${i}">▾</div></div>
-    </div>
-    <div class="ex-body" id="exBody${i}">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${ex.notes}</div>
-      ${Array.from({length:ex.sets},(_,s)=>`<div class="set-row"><div class="set-num">Set ${s+1}</div><input class="set-inp" placeholder="Weight" id="w_${i}_${s}"/><div class="set-divider">×</div><input class="set-inp" placeholder="${ex.reps}" id="r_${i}_${s}"/><button class="set-done-btn" id="sd_${i}_${s}" onclick="logSet(${i},${s},this)">✓</button></div>`).join('')}
-      <button class="log-btn" onclick="logAllSets(${i})">Log all sets</button>
-    </div>
-  </div>`).join('');
-}
-function toggleEx(i){const body=document.getElementById('exBody'+i);const arrow=document.getElementById('exArrow'+i);body.classList.toggle('open');arrow.classList.toggle('open');}
-function logSet(exIdx,setIdx,btn){btn.classList.toggle('done');if(btn.classList.contains('done'))startRestTimer(SAMPLE_EXERCISES[exIdx].rest);}
-function logAllSets(exIdx){const ex=SAMPLE_EXERCISES[exIdx];for(let s=0;s<ex.sets;s++){const btn=document.getElementById('sd_'+exIdx+'_'+s);if(btn)btn.classList.add('done');}startRestTimer(ex.rest);}
-function swapExercise(idx){const ex=SAMPLE_EXERCISES[idx];const swaps={'Glutes':['Cable Pull-Through','Single Leg Hip Thrust','Sumo Squat'],'Quads / Glutes':['Front Squat','Hack Squat','Split Squat'],'Hamstrings':['Romanian Deadlift','Lying Leg Curl','Good Morning'],'Calves':['Standing Calve Raise','Donkey Calve Raise','Seated Calve Raise'],'Core':['Hanging Leg Raise','Dead Bug','Plank Pull-Through']};const opts=(swaps[ex.muscle]||['Alternative exercise 1','Alternative exercise 2']).map(s=>`<div class="task-row" onclick="confirmSwap(${idx},'${s}')" style="cursor:pointer;border-bottom:.5px solid var(--border);"><div class="task-label">${s}</div><div class="task-badge badge-body">${ex.muscle}</div></div>`).join('');openModal('Swap exercise',opts);}
-function confirmSwap(idx,name){SAMPLE_EXERCISES[idx].name=name;renderExercises();closeModal();flashSave();}
-function completeWorkout(){flashSave();alert('Workout logged! Great work today. 🔥');}
-function startRestTimer(seconds){rtSeconds=seconds;rtRunning=true;const rt=document.getElementById('restTimer');rt.classList.add('show');updateRestDisplay();if(rtInterval)clearInterval(rtInterval);rtInterval=setInterval(()=>{if(!rtRunning)return;rtSeconds--;updateRestDisplay();if(rtSeconds<=0){clearInterval(rtInterval);rt.classList.remove('show');}},1000);}
-function updateRestDisplay(){const m=Math.floor(rtSeconds/60),s=rtSeconds%60;document.getElementById('rtDisplay').textContent=m+':'+(s<10?'0':'')+s;}
-function toggleRest(){rtRunning=!rtRunning;document.getElementById('rtPauseBtn').textContent=rtRunning?'Pause':'Resume';}
-function skipRest(){clearInterval(rtInterval);document.getElementById('restTimer').classList.remove('show');}
-
-// ── NUTRITION ─────────────────────────────────────────────
-function renderMeals(){
-  const el=document.getElementById('mealPlan');
-  el.innerHTML=SAMPLE_MEALS.map(m=>`<div class="meal-plan-item"><div class="meal-time">${m.time}</div><div class="meal-details"><div class="meal-name">${m.name}</div><div style="font-size:13px;color:var(--text2);margin-bottom:3px;">${m.desc}</div><div class="meal-macros">${m.cal} kcal · ${m.p}g protein · ${m.c}g carbs · ${m.f}g fat</div></div><button class="meal-swap-btn" onclick="swapMeal('${m.name}')">Swap</button></div>`).join('');
-}
-function swapMeal(name){openModal('Swap '+name,`<div style="font-size:14px;color:var(--text2);padding:1rem 0;">AI meal swap coming soon. Your nutrition preferences have been noted.</div><button class="log-btn" onclick="closeModal()">Close</button>`);}
-function regenerateMeals(){flashSave();alert('Regenerating your meal plan...');}
-
-// ── COACH ─────────────────────────────────────────────────
-async function sendChat(){
-  const inp=document.getElementById('chatInp');
-  const msg=inp.value.trim();if(!msg)return;
-  inp.value='';
-  const msgs=document.getElementById('chatMessages');
-  msgs.innerHTML+=`<div class="chat-bubble chat-bubble-user">${msg}</div>`;
-  msgs.scrollTop=msgs.scrollHeight;
-  if(!OPENAI_KEY){setTimeout(()=>{msgs.innerHTML+=`<div class="chat-bubble chat-bubble-ai">Add your OpenAI key to activate real-time AI responses. 💪</div>`;msgs.scrollTop=msgs.scrollHeight;},800);return;}
-  try{
-    const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+OPENAI_KEY},body:JSON.stringify({model:'gpt-4o',messages:[{role:'system',content:`You are Coach X, an elite fitness and wellness coach. Be direct, motivating, specific. You coach both fitness and business/life accountability. Tone: ${prefs.tone||'Brutal'}. ${prefs.profanity?'Light profanity is fine.':'Keep it clean.'} User name: ${getName()}. Goal: ${getGoal()}.`},{role:'user',content:msg}],max_tokens:400,temperature:0.7})});
-    const data=await res.json();
-    const reply=data.choices?.[0]?.message?.content||'Something went wrong.';
-    msgs.innerHTML+=`<div class="chat-bubble chat-bubble-ai">${reply}</div>`;
-    msgs.scrollTop=msgs.scrollHeight;
-  }catch(e){console.error(e);}
-}
-function bookCall(){openModal('Book a call with Coach X',`<div style="font-size:14px;color:var(--text2);margin-bottom:1rem;line-height:1.65;">Ready to go 1-on-1? Get a fully personalized program, weekly check-ins, and direct access to Coach X.</div><div style="background:var(--al);border:.5px solid var(--accent);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;"><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">1-on-1 Coaching</div><div style="font-size:13px;color:var(--text2);">$2,000 / 3 months · Weekly calls, full customization, direct access</div></div><button class="log-btn" onclick="closeModal()">Schedule a call →</button>`);}
-
-// ── MASTER ────────────────────────────────────────────────
-async function renderMasterStats(){
-  try{
-    const{count}=await sb.from('ai_clients').select('id',{count:'exact',head:true});
-    document.getElementById('msUsers').textContent=count||0;
-    document.getElementById('msActive').textContent=Math.round((count||0)*0.7);
-    document.getElementById('msClients').textContent=count||0;
-    const{data}=await sb.from('ai_clients').select('first_name,last_name,email,intake_complete').limit(20);
-    const el=document.getElementById('userList');
-    if(!data||!data.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:1rem 0;">No users yet.</div>';return;}
-    el.innerHTML=data.map(u=>`<div class="client-row"><div class="client-avatar">${(u.first_name||u.email||'?')[0].toUpperCase()}</div><div class="client-info"><div class="client-name">${u.first_name||''} ${u.last_name||''}</div><div class="client-status">${u.email} · ${u.intake_complete?'Intake complete':'Intake pending'}</div></div><div style="font-size:18px;">${u.intake_complete?'✅':'⏳'}</div></div>`).join('');
-  }catch(e){}
-}
-
-// ── NAV / TABS ────────────────────────────────────────────
-function goTab(tab){
-  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('on'));
-  const titles={home:'Home',program:'My Program',nutrition:'Nutrition',coach:'Coach',profile:'Profile',master:'Dashboard'};
-  const showTab=tab==='master'?'tab-master':'tab-'+tab;
-  document.getElementById(showTab)?.classList.add('on');
-  document.getElementById('nav-'+tab)?.classList.add('on');
-  document.getElementById('tabTitle').textContent=titles[tab]||'Flowstate';
-}
-function switchView(view){
-  viewMode=view;
-  document.querySelectorAll('.rs-btn').forEach(b=>b.classList.remove('on'));
-  document.getElementById('rs'+view.charAt(0).toUpperCase()+view.slice(1))?.classList.add('on');
-  updateAvatar();
-  if(view==='master'){goTab('master');return;}
-  if(view==='coach'){goTab('master');return;}
-  goTab(prefs.defaultTab||'home');
-}
-
-// ── SETTINGS ─────────────────────────────────────────────
-function openSettings(){
-  document.getElementById('set-name').value=prefs.name||'';
-  document.getElementById('set-goal').value=prefs.goal||'';
-  document.getElementById('set-motivator').value=prefs.motivator||'';
-  document.getElementById('set-fears').value=prefs.fears||'';
-  document.getElementById('set-goalLength').value=prefs.goalLength||'90 days';
-  document.getElementById('set-tone').value=prefs.tone||'Brutal';
-  document.getElementById('set-profanity').value=String(!!prefs.profanity);
-  document.getElementById('set-fitness').value=prefs.fitnessLevel||'intermediate';
-  document.getElementById('set-smokes').value=prefs.smokes||'Neither';
-  document.getElementById('set-drinks').value=prefs.drinks||'No';
-  document.getElementById('set-bgEmoji').value=prefs.bgEmoji||'none';
-  document.getElementById('set-colorShift').value=String(prefs.colorShift!==false);
-  const noHabit=!smokes()&&!drinks();
-  document.getElementById('customHabitsSection').style.display=noHabit?'block':'none';
-  if(noHabit)buildCustomHabitsEditor();
-  buildSettingsTaskEditor();buildSettingsMovementEditor();buildTierEditor();
-  document.getElementById('settingsModal').classList.add('show');
-}
-function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
-function buildCustomHabitsEditor(){document.getElementById('customHabitsEditor').innerHTML=(prefs.customHabits||[]).map((h,i)=>`<div class="task-builder-row"><input class="task-builder-input" id="ch-${i}" value="${h}" placeholder="e.g. No junk food"/><button class="task-builder-del" onclick="removeCustomHabit(${i})">✕</button></div>`).join('');}
-function addCustomHabit(){if(!prefs.customHabits)prefs.customHabits=[];prefs.customHabits.push('');buildCustomHabitsEditor();}
-function removeCustomHabit(i){prefs.customHabits.splice(i,1);buildCustomHabitsEditor();}
-function buildSettingsTaskEditor(){document.getElementById('settingsTaskEditor').innerHTML=(prefs.tasks||[]).map((t,i)=>`<div class="task-builder-row"><input class="task-builder-input" id="st-name-${i}" value="${t.label}" placeholder="Task name"/><input class="task-builder-num" id="st-target-${i}" type="number" min="0" max="999" value="${t.target||''}" placeholder="—"/><button class="task-builder-del" onclick="removeSettingsTask(${i})">✕</button></div>`).join('');}
-function addSettingsTask(){prefs.tasks.push({id:'t_'+Date.now(),label:'',target:null,category:'custom'});buildSettingsTaskEditor();}
-function removeSettingsTask(i){prefs.tasks.splice(i,1);buildSettingsTaskEditor();}
-function buildSettingsMovementEditor(){document.getElementById('settingsMovementEditor').innerHTML=(prefs.movementTypes||[]).map((m,i)=>`<div class="task-builder-row"><input class="task-builder-input" id="sm-${i}" value="${m}" placeholder="Movement type"/><button class="task-builder-del" onclick="removeMovementType(${i})">✕</button></div>`).join('');}
-function addMovementType(){prefs.movementTypes.push('');buildSettingsMovementEditor();}
-function removeMovementType(i){prefs.movementTypes.splice(i,1);buildSettingsMovementEditor();}
-function buildTierEditor(){document.getElementById('tierEditor').innerHTML=(prefs.tiers||[]).map((t,i)=>`<div class="tier-edit-card"><div class="tier-edit-label">Tier ${i+1}</div><input class="tier-edit-input" id="te-name-${i}" placeholder="Name" value="${t.name}"/><div class="tier-edit-row"><input class="tier-edit-input" id="te-days-${i}" type="number" placeholder="Days" value="${t.days}" style="width:80px;"/><input class="tier-edit-input" id="te-desc-${i}" placeholder="Unlock condition" value="${t.desc}"/></div><input class="tier-edit-input" id="te-reward-${i}" placeholder="Reward" value="${t.reward}"/></div>`).join('');}
-async function saveSettings(){
-  prefs.name=document.getElementById('set-name').value.trim()||prefs.name;
-  prefs.goal=document.getElementById('set-goal').value.trim()||prefs.goal;
-  prefs.motivator=document.getElementById('set-motivator').value.trim()||prefs.motivator;
-  prefs.fears=document.getElementById('set-fears').value.trim()||prefs.fears;
-  prefs.goalLength=document.getElementById('set-goalLength').value;
-  prefs.tone=document.getElementById('set-tone').value;
-  prefs.profanity=document.getElementById('set-profanity').value==='true';
-  prefs.fitnessLevel=document.getElementById('set-fitness').value;
-  prefs.smokes=document.getElementById('set-smokes').value;
-  prefs.drinks=document.getElementById('set-drinks').value;
-  prefs.bgEmoji=document.getElementById('set-bgEmoji').value;
-  prefs.colorShift=document.getElementById('set-colorShift').value==='true';
-  prefs.tasks=(prefs.tasks||[]).map((t,i)=>({...t,label:document.getElementById('st-name-'+i)?.value.trim()||t.label,target:parseInt(document.getElementById('st-target-'+i)?.value)||null})).filter(t=>t.label);
-  prefs.movementTypes=(prefs.movementTypes||[]).map((_,i)=>document.getElementById('sm-'+i)?.value.trim()).filter(Boolean);
-  if(!hasSoberTracking())prefs.customHabits=(prefs.customHabits||[]).map((_,i)=>document.getElementById('ch-'+i)?.value.trim()).filter(Boolean);
-  (prefs.tiers||[]).forEach((_,i)=>{prefs.tiers[i].name=document.getElementById('te-name-'+i)?.value||prefs.tiers[i].name;prefs.tiers[i].days=parseInt(document.getElementById('te-days-'+i)?.value)||prefs.tiers[i].days;prefs.tiers[i].desc=document.getElementById('te-desc-'+i)?.value||prefs.tiers[i].desc;prefs.tiers[i].reward=document.getElementById('te-reward-'+i)?.value||prefs.tiers[i].reward;});
-  bgEmoji=prefs.bgEmoji;
-  await savePrefs();closeSettings();initBg();buildTaskList();buildBodySection();buildMindSection();buildTierList();updateAccentColor();updateAvatar();
-  if(prefs.name)document.getElementById('appTitleEl').textContent=prefs.name+"'s Flowstate";
-  document.getElementById('toneDisplay').textContent=prefs.tone||'Brutal';
-  flashSave();
-}
-
-// ── MODAL (generic) ───────────────────────────────────────
-function openModal(title,body){
-  // reuse settingsModal as generic modal
-  const modal=document.getElementById('settingsModal');
-  modal.querySelector('.modal-title').textContent=title;
-  // Just show journal for now
-}
-function closeModal(){document.getElementById('settingsModal').classList.remove('show');}
-function changeAvatar(){const input=document.createElement('input');input.type='file';input.accept='image/*';input.onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{const src=ev.target.result;document.getElementById('profileAvatar').innerHTML=`<img src="${src}"/>`;document.getElementById('avatarBtn').innerHTML=`<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`;};reader.readAsDataURL(file);};input.click();}
-function flashSave(){const pill=document.getElementById('savePill');pill.classList.add('show');setTimeout(()=>pill.classList.remove('show'),2000);}
-
-// ── BOOT ──────────────────────────────────────────────────
-async function boot(){
-  try{
-    const{data:{session}}=await sb.auth.getSession();
-    if(session?.user){
-      currentUser=session.user;
-      showLoadingThenApp();
-      return;
-    }
-  }catch(e){}
-  document.getElementById('authScreen').style.display='flex';
-}
-
-sb.auth.onAuthStateChange(async(event,session)=>{
-  if((event==='SIGNED_IN'||event==='TOKEN_REFRESHED')&&session?.user&&!currentUser){
-    currentUser=session.user;showLoadingThenApp();
-  }
-});
-
-boot();
+  else if(topTier&&state.streak>=topTier.days&&state.streak===topTier.days){card.className='overlay-card crown';document.getElementById('ovIcon').textContent='👑';document.getElementById('ovTitle').textContent='You built the machine.';document.getElementById('ovText').textContent=`${getName()}, you did it.\n\nBusiness. Body. Mind. All locked
