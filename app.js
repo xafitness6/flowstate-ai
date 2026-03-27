@@ -6,27 +6,33 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 let currentUser=null,chartInstance=null;
 let chartData={streak:[],tasks:[],wins:[]};
-let bgParticles=[],bgAnimFrame=null,bgEmoji='none';
 let journalData=[],calViewDate=new Date();
-let fireworksActive=false,allTasksDoneFired=false;
+let fireworksActive=false,allTasksDoneFired=false,fwParticles=[];
 let userRole='member',viewMode='member',selectedRole='member',authTabMode='signin';
 let rtInterval=null,rtSeconds=90,rtRunning=false;
 let currentStep=0,onboardAnswers={};
 let tempTasks=[],tempMovement=['Weights','Cardio','HIIT','Walk / run','Stretch / yoga','Rest day'];
 
-const ACCENT_LEVELS=[{days:0,color:'#1D9E75'},{days:7,color:'#FAC775'},{days:30,color:'#7F77DD'},{days:60,color:'#5DCAA5'},{days:90,color:'#FFD700'}];
-const ACCENT_COLORS=['#1D9E75','#378ADD','#7F77DD','#FAC775','#D85A30','#E24B4A'];
-const TAGLINES=['Greatness loading...','Your best self is being built...','No shortcuts. Just results.','The grind never waits.','Champions are made in the dark.','Every rep counts.','Discipline is freedom.'];
+const ACCENT_COLORS=['#FAC775','#1D9E75','#7F77DD','#D85A30','#378ADD','#E24B4A'];
+const TAGLINES=['Greatness loading...','Your best self is being built...','No shortcuts. Just results.','The grind never waits.','Champions are made in the dark.','Discipline is freedom.'];
 
 let prefs={
   name:'',goal:'',goalLength:'90 days',motivator:'',tone:'Brutal',profanity:true,fears:'',
   onboarding_complete:false,smokes:'Neither',drinks:'No',bgEmoji:'none',colorShift:true,
-  fitnessLevel:'intermediate',customHabits:[],
-  tasks:[],
+  fitnessLevel:'intermediate',customHabits:[],tasks:[],
   movementTypes:['Weights','Cardio','HIIT','Walk / run','Stretch / yoga','Rest day'],
-  bodyTasks:[{id:'gym',label:'Gym / movement completed',category:'body'},{id:'water',label:'Hydration (1 gallon)',category:'body'},{id:'sleep',label:'7+ hours sleep',category:'body'}],
-  tiers:[{name:'First milestone',days:7,desc:'Hit your targets 5/7 days',reward:'Set your own reward',color:'#FAC775'},{name:'Second milestone',days:30,desc:'30 days consistent',reward:'Set your own reward',color:'#AFA9EC'},{name:'Third milestone',days:60,desc:'60 days consistent',reward:'Set your own reward',color:'#5DCAA5'},{name:'Final milestone',days:90,desc:'90 days — full cycle complete',reward:'Set your own reward',color:'#7F77DD'}],
-  accentColor:'#1D9E75',defaultTab:'home',density:'compact',metric:'us'
+  bodyTasks:[
+    {id:'gym',label:'Gym / movement completed',category:'body'},
+    {id:'water',label:'Hydration (1 gallon)',category:'body'},
+    {id:'sleep',label:'7+ hours sleep',category:'body'}
+  ],
+  tiers:[
+    {name:'First milestone',days:7,desc:'Hit your targets 5/7 days',reward:'Set your own reward',color:'#FAC775'},
+    {name:'Second milestone',days:30,desc:'30 days consistent',reward:'Set your own reward',color:'#AFA9EC'},
+    {name:'Third milestone',days:60,desc:'60 days consistent',reward:'Set your own reward',color:'#5DCAA5'},
+    {name:'Final milestone',days:90,desc:'90 days — full cycle complete',reward:'Set your own reward',color:'#7F77DD'}
+  ],
+  accentColor:'#FAC775',defaultTab:'home',density:'compact',metric:'us'
 };
 
 let state={streak:0,soberStreak:0,gymStreak:0,dayCount:1,soberDays:0,gymDays:0,selectedResult:'',soberItems:{},gymType:''};
@@ -64,16 +70,105 @@ const SAMPLE_MEALS=[
   {time:'9:30pm',name:'Evening',desc:'Cottage cheese, casein protein or Iron Vegan blend',cal:180,p:28,c:8,f:4},
 ];
 
-// ── FIREWORKS ──────────────────────────────────────────────
-let fwParticles=[];
+// ─── TASK PANEL CONTENT ────────────────────────────────────
+const TASK_PANELS={
+  'Morning stretch':{
+    title:'Morning stretch — 15 min',
+    sub:'Hip flexors, thoracic spine, calves. Do this before anything else.',
+    body:`
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${[
+        {name:'Hip flexor stretch',duration:'90 sec each side',cue:'Lunge position, push hips forward'},
+        {name:'Thoracic rotation',duration:'10 reps each side',cue:'Seated, hands behind head, rotate'},
+        {name:'Cat-cow',duration:'10 slow reps',cue:'Full breath in on extend, out on flex'},
+        {name:'World\'s greatest stretch',duration:'5 each side',cue:'Deep lunge, reach to ceiling'},
+        {name:'Calve stretch — wall',duration:'60 sec each',cue:'Straight leg and bent knee'},
+        {name:'Child\'s pose',duration:'2 min',cue:'Arms extended, breathe into back'},
+      ].map((s,i)=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg3);border-radius:var(--radius-sm);border:.5px solid var(--border2);">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--al);border:.5px solid var(--amber);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--amber);flex-shrink:0;">${i+1}</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;">${s.name}</div>
+          <div style="font-size:11px;color:var(--text2);">${s.duration} · ${s.cue}</div>
+        </div>
+        <button onclick="this.style.background='var(--amber)';this.style.color='var(--amber2)';this.textContent='Done'" style="padding:5px 12px;border:.5px solid var(--border2);border-radius:99px;background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;">Mark</button>
+      </div>`).join('')}
+      <button onclick="completeTask('morning-stretch')" style="width:100%;padding:13px;background:var(--amber);border:none;border-radius:var(--radius-sm);color:var(--amber2);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;">Complete stretch ✓</button>
+    </div>`
+  },
+  'Workout':{
+    title:'Today\'s workout',
+    sub:'Day 1 — Lower Body / Glutes · Phase 1 Week 1 · ~60 min',
+    body:`<div id="panelExerciseList"></div><button onclick="completeTask('workout')" style="width:100%;padding:13px;background:var(--amber);border:none;border-radius:var(--radius-sm);color:var(--amber2);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;">Mark workout complete ✓</button>`
+  },
+  'Protein':{
+    title:'Protein target',
+    sub:'Hit your daily protein goal. Log each meal as you go.',
+    body:`
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:13px;color:var(--text2);">Progress</span>
+        <span style="font-size:14px;font-weight:700;color:var(--amber);" id="proteinProgress">0 / 165g</span>
+      </div>
+      <div style="background:var(--bg3);border-radius:99px;height:6px;overflow:hidden;">
+        <div id="proteinBar" style="height:6px;background:var(--amber);border-radius:99px;width:0%;transition:width .3s;"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      ${SAMPLE_MEALS.map(m=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg3);border-radius:var(--radius-sm);border:.5px solid var(--border2);">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);">${m.name} <span style="color:var(--text3);font-weight:400;">· ${m.time}</span></div>
+          <div style="font-size:11px;color:var(--amber);margin-top:2px;">${m.p}g protein · ${m.cal} kcal</div>
+        </div>
+        <button onclick="addProtein(${m.p},this)" style="padding:5px 10px;border:.5px solid var(--border2);border-radius:99px;background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">+ Log</button>
+      </div>`).join('')}
+    </div>
+    <button onclick="completeTask('protein')" style="width:100%;padding:13px;background:var(--amber);border:none;border-radius:var(--radius-sm);color:var(--amber2);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Target hit ✓</button>`
+  },
+  'Hydration':{
+    title:'Hydration tracker',
+    sub:'1 gallon = 128 oz. Tap each glass as you drink.',
+    body:`
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-size:36px;font-weight:700;color:var(--amber);" id="waterCount">0</div>
+      <div style="font-size:12px;color:var(--text2);">glasses of 16oz · <span id="waterOz">0</span> oz total</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
+      ${Array.from({length:8},(_,i)=>`<div onclick="logWater(${i},this)" id="water${i}" style="aspect-ratio:1;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;transition:all .2s;">💧</div>`).join('')}
+    </div>
+    <button onclick="completeTask('hydration')" style="width:100%;padding:13px;background:var(--amber);border:none;border-radius:var(--radius-sm);color:var(--amber2);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Target hit ✓</button>`
+  },
+  'Sleep':{
+    title:'Sleep tracker',
+    sub:'Log last night\'s sleep. Quality sleep = better performance.',
+    body:`
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+      <div style="background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);padding:14px;">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Bedtime</div>
+        <input type="time" value="22:30" style="background:transparent;border:none;color:var(--amber);font-size:20px;font-weight:700;outline:none;font-family:inherit;"/>
+      </div>
+      <div style="background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);padding:14px;">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Wake up</div>
+        <input type="time" value="06:00" style="background:transparent;border:none;color:var(--amber);font-size:20px;font-weight:700;outline:none;font-family:inherit;"/>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${['Deep','Restful','Average','Restless','Poor'].map(q=>`<button onclick="selectSleepQuality(this)" style="padding:7px 14px;border:.5px solid var(--border2);border-radius:99px;background:var(--bg3);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s;">${q}</button>`).join('')}
+      </div>
+    </div>
+    <button onclick="completeTask('sleep')" style="width:100%;padding:13px;background:var(--amber);border:none;border-radius:var(--radius-sm);color:var(--amber2);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Log sleep ✓</button>`
+  }
+};
+
+// ─── FIREWORKS ──────────────────────────────────────────────
 function launchFireworks(){
   const canvas=document.getElementById('fireworksCanvas');
   canvas.style.display='block';canvas.width=window.innerWidth;canvas.height=window.innerHeight;
   fwParticles=[];fireworksActive=true;
   for(let b=0;b<6;b++){
     setTimeout(()=>{
-      const x=Math.random()*canvas.width,y=Math.random()*canvas.height*.6+50;
-      const colors=['#FAC775','#1D9E75','#7F77DD','#D85A30','#fff','#FFD700'];
+      const x=Math.random()*canvas.width,y=Math.random()*canvas.height*.5+50;
+      const colors=['#FAC775','#D85A30','#7F77DD','#fff','#FFD700'];
       const color=colors[Math.floor(Math.random()*colors.length)];
       for(let i=0;i<40;i++){
         const angle=Math.random()*Math.PI*2,speed=Math.random()*6+2;
@@ -81,10 +176,10 @@ function launchFireworks(){
       }
     },b*200);
   }
-  animateFireworks();
+  animateFW();
   setTimeout(()=>{fireworksActive=false;document.getElementById('fireworksCanvas').style.display='none';fwParticles=[];},3000);
 }
-function animateFireworks(){
+function animateFW(){
   if(!fireworksActive)return;
   const canvas=document.getElementById('fireworksCanvas');
   const ctx=canvas.getContext('2d');
@@ -92,96 +187,17 @@ function animateFireworks(){
   fwParticles=fwParticles.filter(p=>p.alpha>0.01);
   fwParticles.forEach(p=>{ctx.globalAlpha=p.alpha;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.alpha*=0.96;});
   ctx.globalAlpha=1;
-  if(fireworksActive)requestAnimationFrame(animateFireworks);
+  requestAnimationFrame(animateFW);
 }
 
-// ── BG ────────────────────────────────────────────────────
-const EMOJI_SETS={'🔥':['🔥'],'⚡':['⚡'],'👑':['👑'],'💎':['💎'],'random':['🔥','⚡','👑','💎','🚀','⭐','🏆'],'none':[]};
-function initBg(){
-  const canvas=document.getElementById('bgCanvas');
-  if(!canvas)return;
-  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
-  const emojis=EMOJI_SETS[bgEmoji]||[];
-  if(!emojis.length){canvas.style.display='none';return;}
-  canvas.style.display='block';
-  bgParticles=Array.from({length:25},()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,emoji:emojis[Math.floor(Math.random()*emojis.length)],size:Math.random()*16+10,speedY:-(Math.random()*.3+.1),speedX:(Math.random()-.5)*.2,opacity:Math.random()*.4+.1}));
-  if(bgAnimFrame)cancelAnimationFrame(bgAnimFrame);
-  animateBg();
-}
-function animateBg(){
-  const canvas=document.getElementById('bgCanvas');
-  if(!canvas)return;
-  const ctx=canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  bgParticles.forEach(p=>{ctx.font=`${p.size}px serif`;ctx.globalAlpha=p.opacity;ctx.fillText(p.emoji,p.x,p.y);p.y+=p.speedY;p.x+=p.speedX;if(p.y<-20){p.y=canvas.height+20;p.x=Math.random()*canvas.width;}});
-  ctx.globalAlpha=1;
-  bgAnimFrame=requestAnimationFrame(animateBg);
-}
-window.addEventListener('resize',()=>{const c=document.getElementById('bgCanvas');if(c){c.width=window.innerWidth;c.height=window.innerHeight;}});
-function updateAccentColor(){if(!prefs.colorShift)return;let level=ACCENT_LEVELS[0];for(const l of ACCENT_LEVELS)if(state.streak>=l.days)level=l;document.documentElement.style.setProperty('--accent',level.color);}
-
-// ── SESSION STATE ──────────────────────────────────────────
-function saveTodayState(){
-  const key='fs_today_'+new Date().toISOString().split('T')[0];
-  const s={};
-  (prefs.tasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);const inp=document.getElementById('inp-'+t.id);if(chk)s['chk-'+t.id]=chk.className;if(inp)s['inp-'+t.id]=inp.value;});
-  (prefs.bodyTasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);if(chk)s['chk-'+t.id]=chk.className;});
-  Object.keys(state.soberItems).forEach(k=>{s['sober-'+k]=state.soberItems[k];});
-  s.gymType=state.gymType;s.selectedResult=state.selectedResult;
-  s.mood=document.querySelector('#moodRow .mood-btn.selected')?.textContent||'';
-  s.focusWord=document.getElementById('focusWord')?.value||'';
-  s.winQ1=document.getElementById('winQ1')?.value||'';
-  s.winQ2=document.getElementById('winQ2')?.value||'';
-  s.missQ1=document.getElementById('missQ1')?.value||'';
-  s.missQ2=document.getElementById('missQ2')?.value||'';
-  localStorage.setItem(key,JSON.stringify(s));
-}
-function restoreTodayState(){
-  const key='fs_today_'+new Date().toISOString().split('T')[0];
-  const saved=localStorage.getItem(key);
-  if(!saved)return;
-  try{
-    const s=JSON.parse(saved);
-    (prefs.tasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);const inp=document.getElementById('inp-'+t.id);if(chk&&s['chk-'+t.id])chk.className=s['chk-'+t.id];if(inp&&s['inp-'+t.id])inp.value=s['inp-'+t.id];if(chk&&(chk.classList.contains('done')||chk.classList.contains('gym-done'))){const lbl=document.getElementById('lbl-'+t.id);if(lbl)lbl.classList.add('done-text');}});
-    (prefs.bodyTasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);if(chk&&s['chk-'+t.id])chk.className=s['chk-'+t.id];if(chk&&(chk.classList.contains('done')||chk.classList.contains('gym-done'))){const lbl=document.getElementById('lbl-'+t.id);if(lbl)lbl.classList.add('done-text');}});
-    Object.keys(state.soberItems).forEach(k=>{if(s['sober-'+k]!==undefined){state.soberItems[k]=s['sober-'+k];const el=document.getElementById('sober-'+k);if(el&&s['sober-'+k])el.classList.add('clean');}});
-    if(s.gymType){state.gymType=s.gymType;document.querySelectorAll('#gymTypeRow .gym-btn').forEach(b=>{if(b.textContent===s.gymType)b.classList.add('selected');});}
-    if(s.mood)document.querySelectorAll('#moodRow .mood-btn').forEach(b=>{if(b.textContent===s.mood)b.classList.add('selected');});
-    if(s.focusWord){const fw=document.getElementById('focusWord');if(fw)fw.value=s.focusWord;}
-    if(s.selectedResult){state.selectedResult=s.selectedResult;selectResult(s.selectedResult);['winQ1','winQ2','missQ1','missQ2'].forEach(id=>{if(s[id]){const el=document.getElementById(id);if(el)el.value=s[id];}});}
-    updateProgress();
-  }catch(e){}
-}
-function resetDayState(){
-  localStorage.removeItem('fs_today_'+new Date().toISOString().split('T')[0]);
-  (prefs.tasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);const lbl=document.getElementById('lbl-'+t.id);const inp=document.getElementById('inp-'+t.id);if(chk)chk.className='task-check';if(lbl)lbl.classList.remove('done-text');if(inp)inp.value='';});
-  (prefs.bodyTasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);const lbl=document.getElementById('lbl-'+t.id);if(chk)chk.className='task-check';if(lbl)lbl.classList.remove('done-text');});
-  document.querySelectorAll('#gymTypeRow .gym-btn').forEach(b=>b.classList.remove('selected'));
-  document.querySelectorAll('.sober-item').forEach(el=>el.classList.remove('clean'));
-  document.querySelectorAll('#moodRow .mood-btn').forEach(b=>b.classList.remove('selected'));
-  ['focusWord','winQ1','winQ2','missQ1','missQ2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('debriefSection').style.display='none';
-  document.getElementById('winDebrief').style.display='none';
-  document.getElementById('missDebrief').style.display='none';
-  document.getElementById('consequenceBox').style.display='none';
-  document.getElementById('winBtn').className='debrief-btn';
-  document.getElementById('missBtn').className='debrief-btn';
-  document.getElementById('allDoneBanner').style.display='none';
-  state.selectedResult='';state.gymType='';
-  Object.keys(state.soberItems).forEach(k=>{state.soberItems[k]=false;});
-  updateProgress();
-}
-
-// ── AUTH ──────────────────────────────────────────────────
+// ─── AUTH ──────────────────────────────────────────────────
 function showAuth(){
   document.getElementById('authScreen').style.display='flex';
   document.getElementById('loadScreen').classList.remove('show');
   document.getElementById('onboardScreen').classList.remove('show');
   document.getElementById('mainApp').classList.remove('show');
 }
-
 function selectRole(role,btn){selectedRole=role;document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
-
 function switchAuthTab(tab){
   authTabMode=tab;
   document.getElementById('siTab').classList.toggle('on',tab==='signin');
@@ -190,7 +206,6 @@ function switchAuthTab(tab){
   document.getElementById('nameRow').style.display=tab==='signup'?'block':'none';
   document.getElementById('authErr').textContent='';
 }
-
 async function handleAuth(){
   const email=document.getElementById('authEmail').value.trim();
   const pass=document.getElementById('authPass').value;
@@ -210,7 +225,7 @@ async function handleAuth(){
     if(result.error)throw result.error;
     if(result.data?.user){
       if(authTabMode==='signup'&&!result.data.session){
-        err.style.color='var(--accent)';err.textContent='Account created! Check your email to confirm.';
+        err.style.color='var(--amber)';err.textContent='Account created! Check your email to confirm.';
         btn.disabled=false;btn.textContent='Create account';return;
       }
       currentUser=result.data.user;
@@ -222,34 +237,24 @@ async function handleAuth(){
     btn.disabled=false;btn.textContent=authTabMode==='signin'?'Sign in':'Create account';
   }
 }
-
 async function googleAuth(){
-  const{error}=await sb.auth.signInWithOAuth({
-    provider:'google',
-    options:{redirectTo:window.location.origin+window.location.pathname}
-  });
+  const{error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+window.location.pathname}});
   if(error)document.getElementById('authErr').textContent=error.message;
 }
-
 async function signOut(){
-  await sb.auth.signOut();
-  currentUser=null;
-  localStorage.removeItem('fs_prefs');
-  showAuth();
+  await sb.auth.signOut();currentUser=null;localStorage.removeItem('fs_prefs');showAuth();
 }
 
 function showLoadingThenApp(){
   document.getElementById('authScreen').style.display='none';
-  const ls=document.getElementById('loadScreen');
-  ls.classList.add('show');
+  const ls=document.getElementById('loadScreen');ls.classList.add('show');
   const bar=document.getElementById('loadBar'),status=document.getElementById('loadStatus'),tag=document.getElementById('loadTag');
-  const phases=[{p:20,s:'Connecting',t:TAGLINES[0]},{p:45,s:'Loading profile',t:TAGLINES[1]},{p:70,s:'Building your system',t:TAGLINES[2]},{p:90,s:'Almost ready',t:TAGLINES[3]}];
+  const phases=[{p:20,s:'Connecting',t:TAGLINES[0]},{p:50,s:'Loading profile',t:TAGLINES[1]},{p:80,s:'Building your system',t:TAGLINES[2]},{p:95,s:'Almost ready',t:TAGLINES[3]}];
   let i=0;
-  const tick=setInterval(()=>{if(i<phases.length){bar.style.width=phases[i].p+'%';status.textContent=phases[i].s;tag.textContent=phases[i].t;i++;}},400);
+  const tick=setInterval(()=>{if(i<phases.length){bar.style.width=phases[i].p+'%';status.textContent=phases[i].s;tag.textContent=phases[i].t;i++;}},450);
   setTimeout(async()=>{
     clearInterval(tick);bar.style.width='100%';status.textContent='Ready';
     await loadPrefs();await loadFromDB();
-    bgEmoji=prefs.bgEmoji||'none';
     await new Promise(r=>setTimeout(r,500));
     ls.style.transition='opacity .5s';ls.style.opacity='0';
     setTimeout(()=>{
@@ -257,10 +262,10 @@ function showLoadingThenApp(){
       if(!prefs.onboarding_complete){buildOnboarding();document.getElementById('onboardScreen').classList.add('show');}
       else showMainApp();
     },500);
-  },2200);
+  },2400);
 }
 
-// ── PREFS / DB ────────────────────────────────────────────
+// ─── PREFS / DB ────────────────────────────────────────────
 async function savePrefs(){
   localStorage.setItem('fs_prefs',JSON.stringify(prefs));
   if(!currentUser)return;
@@ -288,7 +293,58 @@ async function saveToDB(logData){
   }catch(e){}
 }
 
-// ── ONBOARDING ────────────────────────────────────────────
+// ─── SESSION STATE ──────────────────────────────────────────
+function saveTodayState(){
+  const key='fs_today_'+new Date().toISOString().split('T')[0];
+  const s={};
+  (prefs.tasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);if(chk)s['chk-'+t.id]=chk.className;});
+  (prefs.bodyTasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);if(chk)s['chk-'+t.id]=chk.className;});
+  Object.keys(state.soberItems).forEach(k=>{s['sober-'+k]=state.soberItems[k];});
+  s.gymType=state.gymType;s.selectedResult=state.selectedResult;
+  s.mood=document.querySelector('#moodRow .mood-btn.selected')?.textContent||'';
+  s.focusWord=document.getElementById('focusWord')?.value||'';
+  s.winQ1=document.getElementById('winQ1')?.value||'';
+  s.winQ2=document.getElementById('winQ2')?.value||'';
+  s.missQ1=document.getElementById('missQ1')?.value||'';
+  s.missQ2=document.getElementById('missQ2')?.value||'';
+  localStorage.setItem(key,JSON.stringify(s));
+}
+function restoreTodayState(){
+  const key='fs_today_'+new Date().toISOString().split('T')[0];
+  const saved=localStorage.getItem(key);if(!saved)return;
+  try{
+    const s=JSON.parse(saved);
+    (prefs.tasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);if(chk&&s['chk-'+t.id])chk.className=s['chk-'+t.id];if(chk&&(chk.classList.contains('done')||chk.classList.contains('gym-done'))){const lbl=document.getElementById('lbl-'+t.id);if(lbl)lbl.classList.add('done-text');}});
+    (prefs.bodyTasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);if(chk&&s['chk-'+t.id])chk.className=s['chk-'+t.id];if(chk&&(chk.classList.contains('done')||chk.classList.contains('gym-done'))){const lbl=document.getElementById('lbl-'+t.id);if(lbl)lbl.classList.add('done-text');}});
+    Object.keys(state.soberItems).forEach(k=>{if(s['sober-'+k]!==undefined){state.soberItems[k]=s['sober-'+k];const el=document.getElementById('sober-'+k);if(el&&s['sober-'+k])el.classList.add('clean');}});
+    if(s.gymType){state.gymType=s.gymType;document.querySelectorAll('#gymTypeRow .gym-btn').forEach(b=>{if(b.textContent===s.gymType)b.classList.add('selected');});}
+    if(s.mood)document.querySelectorAll('#moodRow .mood-btn').forEach(b=>{if(b.textContent===s.mood)b.classList.add('selected');});
+    if(s.focusWord){const fw=document.getElementById('focusWord');if(fw)fw.value=s.focusWord;}
+    if(s.selectedResult){state.selectedResult=s.selectedResult;selectResult(s.selectedResult);['winQ1','winQ2','missQ1','missQ2'].forEach(id=>{if(s[id]){const el=document.getElementById(id);if(el)el.value=s[id];}});}
+    updateProgress();
+  }catch(e){}
+}
+function resetDayState(){
+  localStorage.removeItem('fs_today_'+new Date().toISOString().split('T')[0]);
+  (prefs.tasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);const lbl=document.getElementById('lbl-'+t.id);if(chk)chk.className='task-check';if(lbl)lbl.classList.remove('done-text');});
+  (prefs.bodyTasks||[]).forEach(t=>{const chk=document.getElementById('chk-'+t.id);const lbl=document.getElementById('lbl-'+t.id);if(chk)chk.className='task-check';if(lbl)lbl.classList.remove('done-text');});
+  document.querySelectorAll('#gymTypeRow .gym-btn').forEach(b=>b.classList.remove('selected'));
+  document.querySelectorAll('.sober-item').forEach(el=>el.classList.remove('clean'));
+  document.querySelectorAll('#moodRow .mood-btn').forEach(b=>b.classList.remove('selected'));
+  ['focusWord','winQ1','winQ2','missQ1','missQ2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('debriefSection').style.display='none';
+  document.getElementById('winDebrief').style.display='none';
+  document.getElementById('missDebrief').style.display='none';
+  document.getElementById('consequenceBox').style.display='none';
+  document.getElementById('winBtn').className='debrief-btn';
+  document.getElementById('missBtn').className='debrief-btn';
+  document.getElementById('allDoneBanner').style.display='none';
+  state.selectedResult='';state.gymType='';
+  Object.keys(state.soberItems).forEach(k=>{state.soberItems[k]=false;});
+  updateProgress();
+}
+
+// ─── ONBOARDING ────────────────────────────────────────────
 const onboardSteps=[
   {id:'name',type:'input',q:"What's your name?",sub:"How should the app address you?",placeholder:"Your first name",key:'name'},
   {id:'goal',type:'input',q:"What are you building?",sub:"Your main goal — business, fitness, income.",placeholder:"e.g. Fitness coaching, $10K/month, lean muscle",key:'goal'},
@@ -304,14 +360,13 @@ const onboardSteps=[
   {id:'movement',type:'movement',q:"What movement types matter to you?",sub:"Select all that apply."},
   {id:'bgEmoji',type:'bgpick',q:"Pick your vibe.",sub:"Floating background — subtle and personal."}
 ];
-
 function buildOnboarding(){
   document.getElementById('onboardProgress').innerHTML=onboardSteps.map((s,i)=>`<div class="onboard-pip ${i===0?'current':''}"></div>`).join('');
   document.getElementById('onboardSteps').innerHTML=onboardSteps.map((s,i)=>{
     let html=`<div class="onboard-step ${i===0?'active':''}" id="step-${i}"><div class="onboard-q">${s.q}</div><div class="onboard-sub">${s.sub}</div>`;
     if(s.type==='input')html+=`<input class="onboard-input" id="ob-${s.key}" placeholder="${s.placeholder||''}" value="${String(prefs[s.key]||'')}"/>`;
-    else if(s.type==='single'){const cur=String(prefs[s.key]||'');html+=`<div class="onboard-options">${s.options.map(o=>`<button class="onboard-option ${cur&&o.toLowerCase().startsWith(cur.toLowerCase().split(' — ')[0])?'selected':''}" onclick="selectOO(this,'${s.key}')">${o}</button>`).join('')}</div>`;}
-    else if(s.type==='tasks')html+=`<div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Add tasks that match your specific goal.</div><div id="ob-task-builder">${tempTasks.map((t,ti)=>`<div class="task-builder-row"><input class="task-builder-input" id="ob-task-name-${ti}" placeholder="Task name" value="${t.label}"/><input class="task-builder-num" id="ob-task-target-${ti}" type="number" min="0" max="999" placeholder="—" value="${t.target||''}"/><button class="task-builder-del" onclick="removeOT(${ti})">✕</button></div>`).join('')}</div><button class="add-btn" onclick="addOT()">+ Add task</button>`;
+    else if(s.type==='single'){html+=`<div class="onboard-options">${s.options.map(o=>`<button class="onboard-option" onclick="selectOO(this,'${s.key}')">${o}</button>`).join('')}</div>`;}
+    else if(s.type==='tasks')html+=`<div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Add tasks that match your goal.</div><div id="ob-task-builder">${tempTasks.map((t,ti)=>`<div class="task-builder-row"><input class="task-builder-input" id="ob-task-name-${ti}" placeholder="Task name" value="${t.label}"/><input class="task-builder-num" id="ob-task-target-${ti}" type="number" min="0" max="999" placeholder="—" value="${t.target||''}"/><button class="task-builder-del" onclick="removeOT(${ti})">✕</button></div>`).join('')}</div><button class="add-btn" onclick="addOT()">+ Add task</button>`;
     else if(s.type==='movement'){const allMov=['Weights','Cardio','HIIT','Walk / run','Stretch / yoga','Rest day','Swimming','Boxing','Cycling','Yoga','Pilates','Sports'];html+=`<div class="movement-chips" id="ob-movement-chips">${allMov.map(m=>`<button class="movement-chip ${tempMovement.includes(m)?'selected':''}" onclick="toggleMC(this,'${m}')">${m}</button>`).join('')}</div><input class="onboard-input" id="ob-custom-movement" placeholder="Add custom type..."/><button class="add-btn" onclick="addCM()">+ Add</button>`;}
     else if(s.type==='bgpick'){const opts=[{v:'none',e:'—'},{v:'🔥',e:'🔥'},{v:'⚡',e:'⚡'},{v:'👑',e:'👑'},{v:'💎',e:'💎'},{v:'random',e:'🎲'}];html+=`<div class="bg-picker">${opts.map(o=>`<button class="bg-option ${(prefs.bgEmoji||'none')===o.v?'selected':''}" onclick="selectBO(this,'${o.v}')">${o.e}</button>`).join('')}</div>`;}
     html+=`</div>`;return html;
@@ -324,9 +379,8 @@ function rebuildOT(){document.getElementById('ob-task-builder').innerHTML=tempTa
 function saveOT(){prefs.tasks=tempTasks.map((t,i)=>({id:t.id||'task_'+i,label:document.getElementById('ob-task-name-'+i)?.value.trim()||t.label,target:parseInt(document.getElementById('ob-task-target-'+i)?.value)||null,category:t.category||'custom'})).filter(t=>t.label);}
 function toggleMC(btn,val){btn.classList.toggle('selected');if(btn.classList.contains('selected')){if(!tempMovement.includes(val))tempMovement.push(val);}else tempMovement=tempMovement.filter(v=>v!==val);}
 function addCM(){const inp=document.getElementById('ob-custom-movement');const val=inp?.value.trim();if(!val)return;if(!tempMovement.includes(val))tempMovement.push(val);const chips=document.getElementById('ob-movement-chips');if(chips){const btn=document.createElement('button');btn.className='movement-chip selected';btn.textContent=val;btn.onclick=()=>toggleMC(btn,val);chips.appendChild(btn);}if(inp)inp.value='';}
-function selectBO(btn,val){document.querySelectorAll('.bg-option').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');onboardAnswers.bgEmoji=val;bgEmoji=val;initBg();}
+function selectBO(btn,val){document.querySelectorAll('.bg-option').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');onboardAnswers.bgEmoji=val;}
 function updateOP(){document.querySelectorAll('.onboard-pip').forEach((p,i)=>{p.className='onboard-pip'+(i<currentStep?' done':i===currentStep?' current':'');});document.getElementById('onboardEyebrow').textContent=`Step ${currentStep+1} of ${onboardSteps.length}`;}
-
 function nextStep(){
   const s=onboardSteps[currentStep];
   if(s.type==='input'){const val=document.getElementById('ob-'+s.key)?.value.trim();if(!val){alert('Please fill this in.');return;}onboardAnswers[s.key]=val;}
@@ -344,13 +398,13 @@ async function finishOnboarding(){
   prefs.smokes=(onboardAnswers.smokes||'Neither').split(' — ')[0];
   prefs.drinks=(onboardAnswers.drinks||'No').split(' — ')[0];
   prefs.fitnessLevel=(onboardAnswers.fitnessLevel||'Intermediate').split(' — ')[0].toLowerCase();
-  prefs.onboarding_complete=true;bgEmoji=prefs.bgEmoji||'none';
+  prefs.onboarding_complete=true;
   await savePrefs();
   document.getElementById('onboardScreen').classList.remove('show');
   showMainApp();
 }
 
-// ── MAIN APP ──────────────────────────────────────────────
+// ─── MAIN APP ──────────────────────────────────────────────
 function showMainApp(){
   const isMaster=currentUser?.email===MASTER_EMAIL;
   userRole=isMaster?'master':(localStorage.getItem('fs_role')||selectedRole);
@@ -360,68 +414,104 @@ function showMainApp(){
   const rs=document.getElementById('roleSwitcher');
   if(isTrainer){rs.style.display='flex';document.getElementById('rsMaster').style.display=isMaster?'block':'none';}
   else rs.style.display='none';
-  const cogBtn=document.getElementById('cogBtn');if(cogBtn)cogBtn.style.display='block';
+  if(isMaster)document.getElementById('nav-master').style.display='flex';
   updateAvatar();renderColorPicker();renderDefaultTabPicker();
+  applyAccentColor();
   initApp();
   goTab(prefs.defaultTab||'home');
   if(isMaster)renderMasterStats();
 }
 
+function applyAccentColor(){
+  if(prefs.accentColor&&prefs.accentColor!=='#FAC775'){
+    document.documentElement.style.setProperty('--amber',prefs.accentColor);
+  }
+}
+
 function updateAvatar(){
-  const btn=document.getElementById('avatarBtn');
-  const profAvatar=document.getElementById('profileAvatar');
-  const nameEl=document.getElementById('profileName');
   const isMaster=currentUser?.email===MASTER_EMAIL;
-  const name=isMaster?'Xavier Ellis':(currentUser?.user_metadata?.first_name||prefs.name||currentUser?.email?.split('@')[0]||'X');
+  const name=isMaster?'Xavier Ellis':(prefs.name||currentUser?.user_metadata?.first_name||currentUser?.email?.split('@')[0]||'X');
   const initials=name.substring(0,1).toUpperCase();
-  if(btn)btn.textContent=initials;
-  if(profAvatar)profAvatar.textContent=initials;
-  if(nameEl)nameEl.textContent=name;
+  const btn=document.getElementById('avatarBtn');const prof=document.getElementById('profileAvatar');const nameEl=document.getElementById('profileName');
+  if(btn)btn.textContent=initials;if(prof)prof.textContent=initials;if(nameEl)nameEl.textContent=name;
   const badge=document.getElementById('profileRoleBadge');
   const labels={master:'Master',trainer:'Trainer',client:'Client',member:'Member'};
   const classes={master:'role-master',trainer:'role-trainer',client:'role-client',member:'role-member'};
   if(badge){badge.textContent=labels[viewMode]||'Member';badge.className='profile-role-badge '+(classes[viewMode]||'role-member');}
+  const sidebarName=document.getElementById('sidebarName');
+  const sidebarRole=document.getElementById('sidebarRole');
+  if(sidebarName)sidebarName.textContent=name;
+  if(sidebarRole){sidebarRole.textContent=labels[viewMode]||'Member';}
 }
 
 function renderColorPicker(){const el=document.getElementById('colorPicker');if(!el)return;el.innerHTML=ACCENT_COLORS.map(c=>`<div class="c-swatch ${prefs.accentColor===c?'on':''}" style="background:${c};" onclick="setAccent('${c}',this)"></div>`).join('');}
-function setAccent(color,el){prefs.accentColor=color;document.documentElement.style.setProperty('--accent',color);localStorage.setItem('fs_prefs',JSON.stringify(prefs));document.querySelectorAll('.c-swatch').forEach(s=>s.classList.remove('on'));el.classList.add('on');}
+function setAccent(color,el){prefs.accentColor=color;document.documentElement.style.setProperty('--amber',color);localStorage.setItem('fs_prefs',JSON.stringify(prefs));document.querySelectorAll('.c-swatch').forEach(s=>s.classList.remove('on'));el.classList.add('on');}
 function renderDefaultTabPicker(){const el=document.getElementById('defaultTabPicker');if(!el)return;const tabs=[['home','🏠 Home'],['program','💪 Program'],['nutrition','🥗 Nutrition'],['coach','💬 Coach']];el.innerHTML=tabs.map(([id,lbl])=>`<button class="tp-btn ${prefs.defaultTab===id?'on':''}" onclick="setDefaultTab('${id}',this)">${lbl}</button>`).join('');}
 function setDefaultTab(tab,el){prefs.defaultTab=tab;localStorage.setItem('fs_prefs',JSON.stringify(prefs));document.querySelectorAll('.tp-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
-function setDensity(d,el){prefs.density=d;localStorage.setItem('fs_prefs',JSON.stringify(prefs));document.querySelectorAll('#densityCompact,#densityComfy').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
 function toggleMetric(){prefs.metric=prefs.metric==='us'?'metric':'us';const el=document.getElementById('metricDisplay');if(el)el.textContent=prefs.metric==='us'?'US — lbs / ft':'Metric — kg / cm';localStorage.setItem('fs_prefs',JSON.stringify(prefs));}
 function toggleProfanity(el){el.classList.toggle('on');prefs.profanity=el.classList.contains('on');localStorage.setItem('fs_prefs',JSON.stringify(prefs));}
 
-// ── INIT APP ──────────────────────────────────────────────
+// ─── INIT APP ──────────────────────────────────────────────
 function initApp(){
   const now=new Date();
-  document.getElementById('dateDisplay').textContent=now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  document.getElementById('quoteDisplay').textContent=operatorQuotes[now.getDay()%operatorQuotes.length];
-  document.getElementById('streakBadge').textContent='🔥 '+state.streak+' day streak';
+  const dayName=now.toLocaleDateString('en-US',{weekday:'long'});
+  const dateStr=now.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const maxDays=parseInt(prefs.goalLength)||90;
+  document.getElementById('dateDisplay').textContent=`${dayName} · ${dateStr}`;
+  document.getElementById('sidebarDay').textContent=`${dayName} · Day ${state.dayCount} of ${maxDays}`;
+  document.getElementById('daySubLabel').textContent='of '+maxDays;
+  document.getElementById('streakGridTitle').textContent=maxDays+'-day streak';
+  if(prefs.name){
+    const hour=now.getHours();
+    const greeting=hour<12?'Good morning':'hour<17?Good afternoon':'Good evening';
+    document.getElementById('appTitleEl').textContent=`${hour<12?'Good morning':hour<17?'Good afternoon':'Good evening'}, ${prefs.name}`;
+  }
   document.getElementById('dayCount').textContent=state.dayCount;
   document.getElementById('soberDays').textContent=state.soberDays;
   document.getElementById('gymDays').textContent=state.gymDays;
-  document.getElementById('bizStreak').textContent=state.streak;
-  document.getElementById('gymStreak').textContent=state.gymStreak;
-  document.getElementById('soberStreak').textContent=state.soberStreak;
-  if(prefs.name)document.getElementById('appTitleEl').textContent=prefs.name+"'s Flowstate";
-  const maxDays=parseInt(prefs.goalLength)||90;
-  document.getElementById('daySubLabel').textContent='of '+maxDays;
-  document.getElementById('streakGridTitle').textContent=maxDays+'-day streak';
-  buildTaskList();buildBodySection();buildMindSection();buildTierList();
-  buildGrid();updateProgress();startQuoteRotation();initChart();updateTiers();updateAccentColor();initBg();
-  renderExercises();renderMeals();
+  document.getElementById('sb-biz').textContent=state.streak;
+  document.getElementById('sb-body').textContent=state.gymStreak;
+  document.getElementById('sb-mind').textContent=state.soberStreak;
   document.getElementById('toneDisplay').textContent=prefs.tone||'Brutal';
+  buildTaskList();buildBodySection();buildMindSection();buildTierList();
+  buildGrid();updateProgress();startQuoteRotation();initChart();updateTiers();
+  renderExercises();renderMeals();
   setTimeout(()=>restoreTodayState(),100);
 }
 
-// ── DYNAMIC SECTIONS ──────────────────────────────────────
+// ─── BUILD SECTIONS ────────────────────────────────────────
 function buildTaskList(){
   const tasks=prefs.tasks||[];
-  document.getElementById('taskList').innerHTML=tasks.length?tasks.map((t,i)=>`<div class="task-row" style="${i===tasks.length-1?'border-bottom:none;padding-bottom:0;':''}"><div class="task-check" id="chk-${t.id}" onclick="toggleCheck('${t.id}','done')"></div><div class="task-label" id="lbl-${t.id}">${t.label}</div><span class="task-badge badge-${t.category==='biz'?'biz':'custom'}">${t.category==='biz'?'biz':'custom'}</span>${t.target?`<input class="task-input" id="inp-${t.id}" type="number" min="0" max="999" placeholder="0" oninput="updateProgress()"/><div class="task-target">/ ${t.target}</div>`:''}</div>`).join(''):`<div style="font-size:13px;color:var(--text2);padding:8px 0;">No tasks set — open settings ⚙️ to add them.</div>`;
+  document.getElementById('taskList').innerHTML=tasks.length?tasks.map((t,i)=>{
+    const panelKey=getPanelKey(t.label);
+    return`<div class="task-item" onclick="handleTaskClick('${t.id}','${panelKey}',event)">
+      <div class="task-check" id="chk-${t.id}"></div>
+      <div class="task-label" id="lbl-${t.id}">${t.label}</div>
+      <span class="task-badge badge-custom">${t.category==='biz'?'biz':'custom'}</span>
+      ${panelKey?'<span class="task-arrow">›</span>':''}
+    </div>`;
+  }).join(''):`<div style="font-size:13px;color:var(--text2);padding:8px 0;">No tasks yet — open settings ⚙️ to add them.</div>`;
   updateProgress();
 }
+function getPanelKey(label){
+  const l=label.toLowerCase();
+  if(l.includes('stretch'))return'Morning stretch';
+  if(l.includes('workout')||l.includes('gym')||l.includes('train'))return'Workout';
+  if(l.includes('protein'))return'Protein';
+  if(l.includes('water')||l.includes('hydrat'))return'Hydration';
+  if(l.includes('sleep'))return'Sleep';
+  return'';
+}
 function buildBodySection(){
-  document.getElementById('bodyTaskList').innerHTML=(prefs.bodyTasks||[]).map((t,i)=>`<div class="task-row" style="${i===(prefs.bodyTasks.length-1)?'border-bottom:none;padding-bottom:0;':''}"><div class="task-check" id="chk-${t.id}" onclick="toggleCheck('${t.id}','gym-done')"></div><div class="task-label" id="lbl-${t.id}">${t.label}</div><span class="task-badge badge-body">body</span></div>`).join('');
+  document.getElementById('bodyTaskList').innerHTML=(prefs.bodyTasks||[]).map(t=>{
+    const panelKey=getPanelKey(t.label);
+    return`<div class="task-item" onclick="handleTaskClick('${t.id}','${panelKey}',event)">
+      <div class="task-check" id="chk-${t.id}"></div>
+      <div class="task-label" id="lbl-${t.id}">${t.label}</div>
+      <span class="task-badge badge-body">body</span>
+      ${panelKey?'<span class="task-arrow">›</span>':''}
+    </div>`;
+  }).join('');
   document.getElementById('gymTypeRow').innerHTML=(prefs.movementTypes||[]).map(m=>`<button class="gym-btn" onclick="selectGym(this,'${m}')">${m}</button>`).join('');
 }
 function buildMindSection(){
@@ -430,7 +520,6 @@ function buildMindSection(){
   const content=document.getElementById('mindContent');
   const note=document.getElementById('soberNote');
   document.getElementById('soberMetricLabel').textContent=hasSober?'Sober':'Habits';
-  document.getElementById('soberStreakLabel').textContent=hasSober?'Sobriety':'Habits';
   document.getElementById('mindNotifLabel').textContent=hasSober?'Sobriety check-in':'Habit check-in';
   state.soberItems={};
   if(hasSober){
@@ -442,70 +531,107 @@ function buildMindSection(){
   }else{
     title.textContent='Mind — habits';
     const habits=prefs.customHabits||[];
-    if(!habits.length){content.innerHTML=`<div style="font-size:13px;color:var(--text2);">Add habits in settings ⚙️ to track them here.</div>`;note.textContent='';}
-    else{habits.forEach((_,i)=>{state.soberItems['habit_'+i]=false;});content.innerHTML=`<div>${habits.map((h,i)=>`<div class="custom-habit-row"><div class="task-check" id="sober-habit_${i}" onclick="toggleSoberItem('habit_${i}')"></div><div style="font-size:14px;color:var(--text);flex:1;">${h}</div><span class="task-badge badge-custom">habit</span></div>`).join('')}</div>`;note.textContent='Small wins compound. Lock these in daily.';}
+    if(!habits.length){content.innerHTML=`<div style="font-size:13px;color:var(--text2);">Add habits in settings ⚙️</div>`;note.textContent='';}
+    else{habits.forEach((_,i)=>{state.soberItems['habit_'+i]=false;});content.innerHTML=`<div>${habits.map((h,i)=>`<div class="task-item" onclick="toggleSoberItem('habit_${i}')"><div class="task-check" id="sober-habit_${i}"></div><div style="font-size:13px;color:var(--text);flex:1;">${h}</div><span class="task-badge badge-custom">habit</span></div>`).join('')}</div>`;note.textContent='Small wins compound.';}
   }
 }
 function buildTierList(){document.getElementById('tierList').innerHTML=(prefs.tiers||[]).map((t,i)=>`<div class="tier-row"><div class="tier-dot" style="background:${t.color||'#888'};"></div><div class="tier-info"><div class="tier-name">${t.name} — ${t.days} days</div><div class="tier-desc">${t.desc}</div><div class="tier-reward">${t.reward}</div></div><div class="tier-status locked" id="tier${i}Status">Locked</div></div>`).join('');}
 function updateTiers(){(prefs.tiers||[]).forEach((t,i)=>{const el=document.getElementById('tier'+i+'Status');if(!el)return;const u=state.streak>=t.days;el.textContent=u?'Unlocked':'Locked';el.className='tier-status '+(u?'unlocked':'locked');});}
 
+// ─── HELPERS ───────────────────────────────────────────────
 function getName(){return prefs.name||'You';}
-function getMotivator(){return prefs.motivator||'the people who matter to you';}
 function getGoal(){return prefs.goal||'your goals';}
 function getFears(){return prefs.fears||'staying exactly where you are';}
+function getMotivator(){return prefs.motivator||'the people who matter to you';}
 function getFitnessLevel(){return(prefs.fitnessLevel||'intermediate').toLowerCase();}
 function smokes(){return prefs.smokes&&prefs.smokes!=='Neither'&&!String(prefs.smokes).includes('Neither');}
 function drinks(){return prefs.drinks&&prefs.drinks!=='No'&&!String(prefs.drinks).includes('No');}
 function hasSoberTracking(){return smokes()||drinks();}
 function getSoberItems(){const items=[];if(drinks())items.push({id:'noAlcohol',emoji:'🚫',label:'No alcohol'});if(prefs.smokes==='Cigarettes'||prefs.smokes==='Both')items.push({id:'noCigs',emoji:'🚭',label:'No cigarettes'});if(prefs.smokes==='Weed'||prefs.smokes==='Both')items.push({id:'noWeed',emoji:'🌿',label:'No weed'});return items;}
 
-function getExpandedConsequence(){
-  const n=getName(),m=getMotivator(),g=getGoal(),f=getFears(),p=prefs.profanity;
-  const fitness=getFitnessLevel();
-  const isBeg=fitness==='beginner',isAdv=fitness==='advanced';
-  const physLight=isBeg?'10 push-ups before bed.':isAdv?'50 push-ups and a cold plunge.':'25 push-ups before bed.';
-  const physMed=isBeg?'20 push-ups + 10 squats before you sleep.':isAdv?'100 push-ups + 50 burpees tonight.':'50 push-ups before you sleep.';
-  const physTough=isBeg?'30 push-ups + 20 squats + 10 burpees.':isAdv?'150 push-ups + 75 burpees + 1 mile run.':'100 push-ups + 50 burpees tonight.';
-  const wakeLight=isBeg?'5:45am tomorrow.':isAdv?'4:45am cold shower.':'5:30am. No snooze.';
-  const wakeTough=isBeg?'5:30am. Review your goals first.':isAdv?'4:30am. Train before anything.':'5:00am. Work before coffee.';
-  const all=[
-    {tier:'Light',tierClass:'light',level:'Hard',text:'No entertainment tonight. No shows, no scrolling.',action:'Review your goals before you sleep.'},
-    {tier:'Light',tierClass:'light',level:'Hard',text:`Wake up ${wakeLight}`,action:'Set the alarm now.'},
-    {tier:'Light',tierClass:'light',level:'Hard',text:'Cold shower before bed.',action:'Do it now.'},
-    {tier:'Light',tierClass:'light',level:'Hard',text:'Write your top 3 goals out by hand.',action:'Not typed. Written. 5 minutes.'},
-    {tier:'Light',tierClass:'light',level:'Hard',text:physLight,action:'Complete it before you sleep.'},
-    {tier:'Medium',tierClass:'medium',level:'Brutal',text:`${physMed} ${p?'Get off your ass.':''}`,action:'Before you close this app.'},
-    {tier:'Medium',tierClass:'medium',level:'Brutal',text:'Double your task targets tomorrow.',action:'Screenshot this.'},
-    {tier:'Medium',tierClass:'medium',level:'Brutal',text:'No spending on anything non-essential for 48 hours.',action:'You forfeited that right.'},
-    {tier:'Medium',tierClass:'medium',level:'Brutal',text:`Text ${m} right now and tell them you didn't execute today.`,action:'Do it.'},
-    {tier:'Medium',tierClass:'medium',level:'Brutal',text:`The version of ${n} that wins is built one day at a time. Today you skipped a brick.`,action:'Tomorrow you lay two.'},
-    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`${physTough} ${p?'No excuses, no bullshit.':'Zero exceptions.'}`,action:'Do it now.'},
-    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`Your fear is ${f}. Today you chose to stay closer to it.`,action:'Write it out before you sleep.'},
-    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`Nobody is coming to save you. Just you. And today you weren't enough.`,action:'Tomorrow you execute without excuses.'},
-    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`You can feel bad about this or you can do something about it.`,action:'Pick one task right now. Partial beats zero.'},
-  ];
-  return all[Math.floor(Math.random()*all.length)];
+// ─── TASK INTERACTIONS ────────────────────────────────────
+function handleTaskClick(taskId,panelKey,event){
+  if(event.target.classList.contains('task-check'))return;
+  if(panelKey&&TASK_PANELS[panelKey]){
+    openTaskPanel(panelKey);
+  }else{
+    toggleCheck(taskId,'done');
+  }
 }
-function getSoberConsequences(){const g=getGoal();return[{text:`Sobriety streak reset. Everything you want is built on who you are every single day.`,action:"Sobriety restarts tomorrow."},{text:`The version of you building ${g} doesn't cloud their mind. You know this.`,action:"Sober streak resets."},{text:`Clean and clear builds different. Today was a data point. Tomorrow is a choice.`,action:"Show up clean tomorrow."}];}
+function openTaskPanel(key){
+  const p=TASK_PANELS[key];if(!p)return;
+  document.getElementById('panelTitle').textContent=p.title;
+  document.getElementById('panelSub').textContent=p.sub;
+  document.getElementById('panelBody').innerHTML=p.body;
+  document.getElementById('taskPanel').classList.add('show');
+  if(key==='Workout'){
+    setTimeout(()=>renderPanelExercises(),50);
+  }
+}
+function closePanel(){document.getElementById('taskPanel').classList.remove('show');}
+function renderPanelExercises(){
+  const el=document.getElementById('panelExerciseList');if(!el)return;
+  el.innerHTML=SAMPLE_EXERCISES.map((ex,i)=>`
+  <div style="background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;">
+    <div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${ex.name}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${ex.sets} sets · ${ex.reps} reps · ${ex.muscle}</div>
+      </div>
+      <span style="color:var(--amber);font-size:16px;">▾</span>
+    </div>
+    <div style="display:none;padding:0 14px 12px;">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-style:italic;">${ex.notes}</div>
+      ${Array.from({length:ex.sets},(_,s)=>`<div class="set-row"><div class="set-num">Set ${s+1}</div><input class="set-inp" placeholder="Weight" id="pw_${i}_${s}"/><div class="set-div">×</div><input class="set-inp" placeholder="${ex.reps}" id="pr_${i}_${s}"/><button class="set-done-btn" id="psd_${i}_${s}" onclick="this.classList.toggle('done');if(this.classList.contains('done'))startRestTimer(${ex.rest})">✓</button></div>`).join('')}
+    </div>
+  </div>`).join('');
+}
 
+// protein / water panel helpers
+let proteinLogged=0;
+function addProtein(amount,btn){
+  proteinLogged=Math.min(165,proteinLogged+amount);
+  btn.textContent='Logged';btn.disabled=true;btn.style.color='var(--amber)';btn.style.borderColor='var(--amber)';
+  document.getElementById('proteinProgress').textContent=proteinLogged+' / 165g';
+  document.getElementById('proteinBar').style.width=Math.round((proteinLogged/165)*100)+'%';
+}
+let waterLogged=0;
+function logWater(idx,el){
+  if(el.style.background==='var(--amber)')return;
+  el.style.background='var(--al)';el.style.borderColor='var(--amber)';
+  waterLogged=document.querySelectorAll('[id^="water"]').length?[...document.querySelectorAll('[id^="water"]')].filter(e=>e.style.background==='var(--al)').length:waterLogged+1;
+  const oz=waterLogged*16;
+  document.getElementById('waterCount').textContent=waterLogged;
+  document.getElementById('waterOz').textContent=oz;
+}
+function selectSleepQuality(btn){document.querySelectorAll('.panel-card button').forEach(b=>{if(b.textContent===btn.textContent)return;});btn.style.background='var(--al)';btn.style.borderColor='var(--amber)';btn.style.color='var(--amber)';}
+function completeTask(type){
+  closePanel();
+  const map={'morning-stretch':'morning-stretch','workout':'gym','protein':'protein','hydration':'water','sleep':'sleep'};
+  const taskId=map[type]||type;
+  const chk=document.getElementById('chk-'+taskId);const lbl=document.getElementById('lbl-'+taskId);
+  if(chk){chk.className='task-check done';if(lbl)lbl.classList.add('done-text');}
+  updateProgress();saveTodayState();flashSave();
+}
+
+// ─── QUOTE ROTATION ────────────────────────────────────────
 let quoteIndex=0;
 function startQuoteRotation(){quoteIndex=Math.floor(Math.random()*universalQuotes.length);showQuote();setInterval(()=>{quoteIndex=(quoteIndex+1)%universalQuotes.length;showQuote();},8000);}
 function showQuote(){const q=universalQuotes[quoteIndex];document.getElementById('rotatingQuote').textContent='"'+q.text+'"';document.getElementById('rotatingAuthor').textContent='— '+q.author;}
 
+// ─── CHART ─────────────────────────────────────────────────
 function initChart(){
   const ctx=document.getElementById('progressChart').getContext('2d');
-  const data=chartData.streak.length?chartData.streak:Array(14).fill(0);
   if(chartInstance)chartInstance.destroy();
-  chartInstance=new Chart(ctx,{type:'line',data:{labels:Array.from({length:14},(_,i)=>'D'+(i+1)),datasets:[{data,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.08)',borderWidth:2,pointBackgroundColor:'#1D9E75',pointRadius:3,tension:0.4,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:10}},beginAtZero:true}}}});
+  const data=chartData.streak.length?chartData.streak:Array(14).fill(0);
+  chartInstance=new Chart(ctx,{type:'line',data:{labels:Array.from({length:14},(_,i)=>'D'+(i+1)),datasets:[{data,borderColor:'#FAC775',backgroundColor:'rgba(250,199,117,0.06)',borderWidth:2,pointBackgroundColor:'#FAC775',pointRadius:3,tension:0.4,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(250,199,117,0.04)'},ticks:{color:'#4a3018',font:{size:10}}},y:{grid:{color:'rgba(250,199,117,0.04)'},ticks:{color:'#4a3018',font:{size:10}},beginAtZero:true}}}});
 }
 function switchChart(type,btn){
   document.querySelectorAll('.chart-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
-  let data,color,bg;
-  if(type==='streak'){data=chartData.streak.length?chartData.streak:Array(14).fill(0);color='#1D9E75';bg='rgba(29,158,117,0.08)';}
-  else if(type==='tasks'){data=chartData.tasks.length?chartData.tasks:Array(14).fill(0);color='#7F77DD';bg='rgba(127,119,221,0.08)';}
-  else{data=chartData.wins.length?chartData.wins:Array(14).fill(0);color='#FAC775';bg='rgba(250,199,117,0.08)';}
+  const map={streak:[chartData.streak,'#FAC775','rgba(250,199,117,0.06)'],tasks:[chartData.tasks,'#D85A30','rgba(216,90,48,0.06)'],wins:[chartData.wins,'#7F77DD','rgba(127,119,221,0.06)']};
+  const[data,color,bg]=map[type]||map.streak;
   if(chartInstance)chartInstance.destroy();
-  chartInstance=new Chart(document.getElementById('progressChart').getContext('2d'),{type:'bar',data:{labels:Array.from({length:14},(_,i)=>'D'+(i+1)),datasets:[{data,backgroundColor:bg,borderColor:color,borderWidth:1.5,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#444',font:{size:10}},beginAtZero:true}}}});
+  chartInstance=new Chart(document.getElementById('progressChart').getContext('2d'),{type:'bar',data:{labels:Array.from({length:14},(_,i)=>'D'+(i+1)),datasets:[{data:data.length?data:Array(14).fill(0),backgroundColor:bg,borderColor:color,borderWidth:1.5,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(250,199,117,0.04)'},ticks:{color:'#4a3018',font:{size:10}}},y:{grid:{color:'rgba(250,199,117,0.04)'},ticks:{color:'#4a3018',font:{size:10}},beginAtZero:true}}}});
 }
 function buildGrid(){
   const n=parseInt(prefs.goalLength)||90;
@@ -522,6 +648,7 @@ function buildGrid(){
   }
 }
 
+// ─── JOURNAL ───────────────────────────────────────────────
 async function loadJournalData(){if(!currentUser)return;try{const{data}=await sb.from('daily_logs').select('*').eq('user_id',currentUser.id).order('log_date',{ascending:false});if(data)journalData=data;}catch(e){}}
 async function openJournal(){await loadJournalData();calViewDate=new Date();document.getElementById('journalModal').classList.add('show');renderCalendar();renderJournal();}
 function closeJournal(){document.getElementById('journalModal').classList.remove('show');}
@@ -552,52 +679,37 @@ function showDayEntry(dateStr){
   const entry=journalData.find(e=>e.log_date===dateStr);
   const el=document.getElementById('journalEntries');
   el.innerHTML=entry?buildEntryCard(entry):`<div class="no-entries">No entry for this date.</div>`;
-  el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function renderJournal(){
   const search=document.getElementById('journalSearch')?.value.toLowerCase()||'';
   const filtered=journalData.filter(e=>!search||[e.log_date,e.mood,e.focus_word,e.journal_win1,e.journal_win2,e.journal_miss1,e.journal_miss2].join(' ').toLowerCase().includes(search));
-  const el=document.getElementById('journalEntries');
-  el.innerHTML=filtered.length?filtered.map(e=>buildEntryCard(e)).join(''):`<div class="no-entries">No entries found.</div>`;
+  document.getElementById('journalEntries').innerHTML=filtered.length?filtered.map(e=>buildEntryCard(e)).join(''):`<div class="no-entries">No entries found.</div>`;
 }
 function buildEntryCard(e){
   const date=new Date(e.log_date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   let html=`<div class="entry-card"><div class="entry-top"><div class="entry-date-label">${date}</div><div class="entry-badge ${e.is_win?'win':'miss'}">${e.is_win?'✓ Won':'✗ Fell short'}</div></div>`;
   if(e.biz_streak||e.gym_streak||e.sober_streak)html+=`<div class="entry-streaks">🔥 ${e.biz_streak||0} biz · 💪 ${e.gym_streak||0} gym · 🧠 ${e.sober_streak||0} sober</div>`;
   if(e.focus_word)html+=`<div class="entry-q">Energy word</div><div class="entry-a">${e.focus_word}</div>`;
-  if(e.is_win){if(e.journal_win1)html+=`<div class="entry-q">Biggest win</div><div class="entry-a">${e.journal_win1}</div>`;if(e.journal_win2)html+=`<div class="entry-q">Momentum into tomorrow</div><div class="entry-a">${e.journal_win2}</div>`;}
-  else{if(e.journal_miss1)html+=`<div class="entry-q">What got in the way</div><div class="entry-a">${e.journal_miss1}</div>`;if(e.journal_miss2)html+=`<div class="entry-q">What changes tomorrow</div><div class="entry-a">${e.journal_miss2}</div>`;}
+  if(e.is_win){if(e.journal_win1)html+=`<div class="entry-q">Biggest win</div><div class="entry-a">${e.journal_win1}</div>`;if(e.journal_win2)html+=`<div class="entry-q">Momentum</div><div class="entry-a">${e.journal_win2}</div>`;}
+  else{if(e.journal_miss1)html+=`<div class="entry-q">What got in the way</div><div class="entry-a">${e.journal_miss1}</div>`;if(e.journal_miss2)html+=`<div class="entry-q">What changes</div><div class="entry-a">${e.journal_miss2}</div>`;}
   html+=`</div>`;return html;
 }
 
+// ─── INTERACTIONS ──────────────────────────────────────────
 function selectMood(btn){document.querySelectorAll('#moodRow .mood-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');saveTodayState();}
 function selectGym(btn,val){
   document.querySelectorAll('#gymTypeRow .gym-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');state.gymType=val;
   if(val!=='Rest day'){const chk=document.getElementById('chk-gym');const lbl=document.getElementById('lbl-gym');if(chk)chk.className='task-check gym-done';if(lbl)lbl.classList.add('done-text');}
   updateProgress();saveTodayState();
 }
-function toggleSoberItem(id){const el=document.getElementById('sober-'+id);if(!el)return;el.classList.toggle('clean');state.soberItems[id]=el.classList.contains('clean');saveTodayState();}
-function isFullySober(){const items=Object.values(state.soberItems);if(!items.length)return true;return items.every(v=>v===true);}
-
-function selectResult(type){
-  document.getElementById('winBtn').className='debrief-btn'+(type==='win'?' win-selected':'');
-  document.getElementById('missBtn').className='debrief-btn'+(type==='miss'?' miss-selected':'');
-  state.selectedResult=type;
-  document.getElementById('debriefSection').style.display='block';
-  document.getElementById('winDebrief').style.display=type==='win'?'block':'none';
-  document.getElementById('missDebrief').style.display=type==='miss'?'block':'none';
-  if(type==='miss'){
-    const c=getExpandedConsequence();
-    document.getElementById('conTier').textContent=c.tier;document.getElementById('conTier').className='con-tier '+c.tierClass;
-    document.getElementById('conLevel').textContent=c.level;document.getElementById('conLevel').className='con-level '+(c.level==='Brutal'?'con-brutal':'con-hard');
-    document.getElementById('conText').textContent=c.text;document.getElementById('conAction').textContent=c.action;
-    document.getElementById('consequenceBox').style.display='block';
-  }else document.getElementById('consequenceBox').style.display='none';
-  const btn=document.getElementById('submitBtn');
-  if(type==='win'){btn.classList.add('ready');btn.style.background='var(--accent)';btn.textContent='I won today 🔥';}
-  else{btn.classList.remove('ready');btn.style.background='var(--red)';btn.textContent='I failed today';}
+function toggleSoberItem(id){
+  const el=document.getElementById('sober-'+id);if(!el)return;
+  el.classList.toggle('clean');state.soberItems[id]=el.classList.contains('clean');
+  if(el.classList.contains('clean')){const chk=el.querySelector('.task-check');if(chk)chk.className='task-check done';}
+  else{const chk=el.querySelector('.task-check');if(chk)chk.className='task-check';}
   saveTodayState();
 }
+function isFullySober(){const items=Object.values(state.soberItems);if(!items.length)return true;return items.every(v=>v===true);}
 
 function toggleCheck(id,cls){
   const chk=document.getElementById('chk-'+id);const lbl=document.getElementById('lbl-'+id);if(!chk)return;
@@ -607,24 +719,71 @@ function toggleCheck(id,cls){
   updateProgress();saveTodayState();
 }
 
+function selectResult(type){
+  document.getElementById('winBtn').className='debrief-btn'+(type==='win'?' win-sel':'');
+  document.getElementById('missBtn').className='debrief-btn'+(type==='miss'?' miss-sel':'');
+  state.selectedResult=type;
+  document.getElementById('debriefSection').style.display='block';
+  document.getElementById('winDebrief').style.display=type==='win'?'block':'none';
+  document.getElementById('missDebrief').style.display=type==='miss'?'block':'none';
+  if(type==='miss'){
+    const c=getExpandedConsequence();
+    document.getElementById('conTier').textContent=c.tier;document.getElementById('conTier').className='con-tier '+c.tierClass;
+    document.getElementById('conLevel').textContent=c.level;
+    document.getElementById('conText').textContent=c.text;document.getElementById('conAction').textContent=c.action;
+    document.getElementById('consequenceBox').style.display='block';
+  }else document.getElementById('consequenceBox').style.display='none';
+  const btn=document.getElementById('submitBtn');
+  if(type==='win'){btn.className='submit-btn';btn.textContent='I won today 🔥';}
+  else{btn.className='submit-btn miss';btn.textContent='I failed today';}
+  saveTodayState();
+}
+
 function updateProgress(){
   const tasks=prefs.tasks||[];let done=0;
-  tasks.forEach(t=>{const chk=document.getElementById('chk-'+t.id);const inp=document.getElementById('inp-'+t.id);if(!chk)return;let completed=chk.classList.contains('done')||chk.classList.contains('gym-done');if(inp&&t.target){const val=parseInt(inp.value)||0;if(val>=t.target){chk.className='task-check done';const l=document.getElementById('lbl-'+t.id);if(l)l.classList.add('done-text');completed=true;}}if(completed)done++;});
+  tasks.forEach(t=>{const chk=document.getElementById('chk-'+t.id);if(!chk)return;if(chk.classList.contains('done')||chk.classList.contains('gym-done'))done++;});
   const total=tasks.length||1,pct=Math.round((done/total)*100);
   document.getElementById('progressBar').style.width=pct+'%';
   document.getElementById('progressLabel').textContent=done+' of '+total+' tasks complete';
   document.getElementById('completedPct').textContent=pct+'%';
+  if(document.getElementById('completedPctSmall'))document.getElementById('completedPctSmall').textContent=pct+'%';
   const allDone=done===total&&total>0;
   const banner=document.getElementById('allDoneBanner');
   if(allDone){banner.style.display='block';if(!allTasksDoneFired){allTasksDoneFired=true;launchFireworks();}}
   else{banner.style.display='none';allTasksDoneFired=false;}
   if(!state.selectedResult){
     const btn=document.getElementById('submitBtn');
-    if(allDone){btn.classList.add('ready');btn.style.background='var(--accent)';btn.textContent=state.streak>0?`Win — day ${state.streak+1} locked in`:'Lock in day 1';}
-    else{btn.classList.remove('ready');btn.style.background='var(--red)';btn.textContent='I failed today';}
+    if(allDone){btn.className='submit-btn';btn.textContent=`Win — day ${state.dayCount} locked in 🔥`;}
+    else{btn.className='submit-btn miss';btn.textContent='I failed today';}
   }
 }
 
+// ─── CONSEQUENCES ──────────────────────────────────────────
+function getExpandedConsequence(){
+  const n=getName(),m=getMotivator(),g=getGoal(),f=getFears(),p=prefs.profanity;
+  const fitness=getFitnessLevel();
+  const isBeg=fitness==='beginner',isAdv=fitness==='advanced';
+  const physLight=isBeg?'10 push-ups before bed.':isAdv?'50 push-ups and a cold plunge.':'25 push-ups before bed.';
+  const physMed=isBeg?'20 push-ups + 10 squats.':isAdv?'100 push-ups + 50 burpees.':'50 push-ups before you sleep.';
+  const physTough=isBeg?'30 push-ups + 20 squats + 10 burpees.':isAdv?'150 push-ups + 75 burpees + 1 mile run.':'100 push-ups + 50 burpees.';
+  const wakeLight=isBeg?'5:45am tomorrow.':isAdv?'4:45am cold shower.':'5:30am. No snooze.';
+  const all=[
+    {tier:'Light',tierClass:'light',level:'Hard',text:'No entertainment tonight. No shows, no scrolling.',action:'Review your goals before you sleep.'},
+    {tier:'Light',tierClass:'light',level:'Hard',text:`Wake up ${wakeLight}`,action:'Set the alarm now.'},
+    {tier:'Light',tierClass:'light',level:'Hard',text:'Cold shower before bed.',action:'Do it now.'},
+    {tier:'Light',tierClass:'light',level:'Hard',text:physLight,action:'Complete it before you sleep.'},
+    {tier:'Medium',tierClass:'medium',level:'Brutal',text:`${physMed} ${p?'Get off your ass.':''}`,action:'Before you close this app.'},
+    {tier:'Medium',tierClass:'medium',level:'Brutal',text:`Text ${m} right now and tell them you didn't execute.`,action:'Do it.'},
+    {tier:'Medium',tierClass:'medium',level:'Brutal',text:`The version of ${n} that wins is built one day at a time.`,action:'Tomorrow you lay two bricks.'},
+    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`${physTough} ${p?'No excuses, no bullshit.':'Zero exceptions.'}`,action:'Do it now.'},
+    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`Your fear is ${f}. Today you chose to stay closer to it.`,action:'Write it out before you sleep.'},
+    {tier:'Tough',tierClass:'tough',level:'Brutal',text:`Nobody is coming to save you.`,action:'Tomorrow you execute without excuses.'},
+  ];
+  return all[Math.floor(Math.random()*all.length)];
+}
+function getSoberConsequences(){return[{text:`Sobriety streak reset. Everything you want is built on who you are every single day.`,action:"Sobriety restarts tomorrow."},{text:`Clean and clear builds different. Today was a data point. Tomorrow is a choice.`,action:"Show up clean tomorrow."}];}
+
+// ─── SUBMIT DAY ────────────────────────────────────────────
 async function submitDay(){
   if(!state.selectedResult){alert('Please complete your end of day debrief first.');return;}
   if(state.selectedResult==='win'){const w1=document.getElementById('winQ1')?.value.trim(),w2=document.getElementById('winQ2')?.value.trim();if(!w1||!w2){alert('Please complete both win debrief fields.');return;}state.journalWin1=w1;state.journalWin2=w2;}
@@ -638,17 +797,192 @@ async function submitDay(){
   if(gymDone){state.gymStreak=(state.gymStreak||0)+1;state.gymDays=(state.gymDays||0)+1;}else state.gymStreak=0;
   if(fullySober){state.soberStreak=(state.soberStreak||0)+1;state.soberDays=(state.soberDays||0)+1;}else state.soberStreak=0;
   const maxDays=parseInt(prefs.goalLength)||90;state.dayCount=Math.min((state.dayCount||1)+1,maxDays);
-  updateTiers();buildGrid();updateAccentColor();
-  document.getElementById('streakBadge').textContent='🔥 '+state.streak+' day streak';
-  document.getElementById('soberDays').textContent=state.soberDays;document.getElementById('gymDays').textContent=state.gymDays;
-  document.getElementById('bizStreak').textContent=state.streak;document.getElementById('gymStreak').textContent=state.gymStreak;
-  document.getElementById('soberStreak').textContent=state.soberStreak;document.getElementById('dayCount').textContent=state.dayCount;
+  updateTiers();buildGrid();
+  document.getElementById('sb-biz').textContent=state.streak;
+  document.getElementById('sb-body').textContent=state.gymStreak;
+  document.getElementById('sb-mind').textContent=state.soberStreak;
+  document.getElementById('soberDays').textContent=state.soberDays;
+  document.getElementById('gymDays').textContent=state.gymDays;
+  document.getElementById('dayCount').textContent=state.dayCount;
+  const maxD=parseInt(prefs.goalLength)||90;
+  document.getElementById('sidebarDay').textContent=`${new Date().toLocaleDateString('en-US',{weekday:'long'})} · Day ${state.dayCount} of ${maxD}`;
   await saveToDB({streak:state.streak,gymStreak:state.gymStreak,soberStreak:state.soberStreak,soberDays:state.soberDays,gymDays:state.gymDays,dayCount:state.dayCount,isWin,fullySober,gymDone});
   resetDayState();allTasksDoneFired=false;
-  const sobC=getSoberConsequences();const bc=getExpandedConsequence();
-  const card=document.getElementById('overlayCard'),ovAction=document.getElementById('ovAction'),ovClose=document.getElementById('ovClose');
-  const topTier=prefs.tiers?.length?prefs.tiers[prefs.tiers.length-1]:null;const newTier=prefs.tiers?.find(t=>t.days===state.streak);
-  if(!fullySober&&!isWin){const sc=sobC[0];card.className='overlay-card brutal';document.getElementById('ovIcon').textContent='💀';document.getElementById('ovTitle').textContent='Miss across the board.';document.getElementById('ovText').textContent=bc.text+'\n\n'+sc.text;ovAction.textContent=bc.action;ovAction.style.display='block';ovClose.textContent='I understand. Tomorrow I execute.';}
-  else if(!fullySober&&hasSoberTracking()){const sc=sobC[0];card.className='overlay-card sober';document.getElementById('ovIcon').textContent='🔄';document.getElementById('ovTitle').textContent='Sobriety streak reset.';document.getElementById('ovText').textContent=sc.text;ovAction.textContent=sc.action;ovAction.style.display='block';ovClose.textContent='Restart tomorrow.';}
-  else if(!isWin){card.className='overlay-card brutal';document.getElementById('ovIcon').textContent='🔴';document.getElementById('ovTitle').textContent=bc.level==='Brutal'?'No sugar coating.':'Miss logged.';document.getElementById('ovText').textContent=bc.text;ovAction.textContent=bc.action;ovAction.style.display='block';ovClose.textContent='I fell short. Tomorrow I execute.';}
-  else if(topTier&&state.streak>=topTier.days&&state.streak===topTier.days){card.className='overlay-card crown';document.getElementById('ovIcon').textContent='👑';document.getElementById('ovTitle').textContent='You built the machine.';document.getElementById('ovText').textContent=`${getName()}, you did it.\n\nBusiness. Body. Mind. All locked
+  const bc=getExpandedConsequence();const sobC=getSoberConsequences();
+  const card=document.getElementById('overlayCard');
+  const topTier=prefs.tiers?.length?prefs.tiers[prefs.tiers.length-1]:null;
+  const newTier=prefs.tiers?.find(t=>t.days===state.streak);
+  if(!fullySober&&!isWin){card.className='overlay-card brutal';document.getElementById('ovIcon').textContent='💀';document.getElementById('ovTitle').textContent='Miss across the board.';document.getElementById('ovText').textContent=bc.text+'\n\n'+sobC[0].text;document.getElementById('ovAction').textContent=bc.action;document.getElementById('ovAction').style.display='block';document.getElementById('ovClose').textContent='I understand. Tomorrow I execute.';}
+  else if(!fullySober&&hasSoberTracking()){card.className='overlay-card sober';document.getElementById('ovIcon').textContent='🔄';document.getElementById('ovTitle').textContent='Sobriety streak reset.';document.getElementById('ovText').textContent=sobC[0].text;document.getElementById('ovAction').textContent=sobC[0].action;document.getElementById('ovAction').style.display='block';document.getElementById('ovClose').textContent='Restart tomorrow.';}
+  else if(!isWin){card.className='overlay-card brutal';document.getElementById('ovIcon').textContent='🔴';document.getElementById('ovTitle').textContent='Miss logged.';document.getElementById('ovText').textContent=bc.text;document.getElementById('ovAction').textContent=bc.action;document.getElementById('ovAction').style.display='block';document.getElementById('ovClose').textContent='I fell short. Tomorrow I execute.';}
+  else if(topTier&&state.streak===topTier.days){card.className='overlay-card crown';document.getElementById('ovIcon').textContent='👑';document.getElementById('ovTitle').textContent='You built the machine.';document.getElementById('ovText').textContent=`${getName()}, you did it.\n\nBusiness. Body. Mind. All locked in.\n\n${topTier.reward}`;document.getElementById('ovAction').style.display='none';document.getElementById('ovClose').textContent="Let's go.";}
+  else if(newTier){card.className='overlay-card';document.getElementById('ovIcon').textContent='🏆';document.getElementById('ovTitle').textContent=newTier.name+' unlocked.';document.getElementById('ovText').textContent=`${state.streak} days in.\n\n${newTier.reward}`;document.getElementById('ovAction').style.display='none';document.getElementById('ovClose').textContent="Let's go.";}
+  else{card.className='overlay-card';document.getElementById('ovIcon').textContent=isWin?'🔥':'🔴';document.getElementById('ovTitle').textContent=isWin?`I won — day ${state.dayCount} 🔥`:'Miss logged.';document.getElementById('ovText').textContent=isWin?`Business. Body. Mind.\n\nThis was bought by discipline, not luck.\n\n🔥 ${state.streak}-day streak.`:bc.text;document.getElementById('ovAction').textContent=isWin?'':bc.action;document.getElementById('ovAction').style.display=isWin?'none':'block';document.getElementById('ovClose').textContent=isWin?`Let's go 🔥`:'I fell short. Tomorrow I execute.';}
+  if(isWin)setTimeout(()=>launchFireworks(),300);
+  document.getElementById('overlay').classList.add('show');
+}
+function closeOverlay(){document.getElementById('overlay').classList.remove('show');}
+
+// ─── PROGRAM ───────────────────────────────────────────────
+function renderExercises(){
+  const el=document.getElementById('exerciseList');
+  el.innerHTML=SAMPLE_EXERCISES.map((ex,i)=>`
+  <div class="exercise-card" onclick="toggleEx(${i})">
+    <div class="ex-header">
+      <div><div class="ex-name">${ex.name}</div><div class="ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.tempo} tempo · ${ex.muscle}</div></div>
+      <div class="ex-actions">
+        <button class="ex-swap-btn" onclick="event.stopPropagation();swapExercise(${i})">Swap ↻</button>
+        <div class="ex-expand" id="exArrow${i}">▾</div>
+      </div>
+    </div>
+    <div class="ex-body" id="exBody${i}">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic;">${ex.notes}</div>
+      ${Array.from({length:ex.sets},(_,s)=>`<div class="set-row"><div class="set-num">Set ${s+1}</div><input class="set-inp" placeholder="Weight" id="w_${i}_${s}"/><div class="set-div">×</div><input class="set-inp" placeholder="${ex.reps}" id="r_${i}_${s}"/><button class="set-done-btn" id="sd_${i}_${s}" onclick="logSet(${i},${s},this)">✓</button></div>`).join('')}
+      <button class="log-btn" onclick="logAllSets(${i})">Log all sets</button>
+    </div>
+  </div>`).join('');
+}
+function toggleEx(i){document.getElementById('exBody'+i).classList.toggle('open');document.getElementById('exArrow'+i).classList.toggle('open');}
+function logSet(exIdx,setIdx,btn){btn.classList.toggle('done');if(btn.classList.contains('done'))startRestTimer(SAMPLE_EXERCISES[exIdx].rest);}
+function logAllSets(exIdx){const ex=SAMPLE_EXERCISES[exIdx];for(let s=0;s<ex.sets;s++){const btn=document.getElementById('sd_'+exIdx+'_'+s);if(btn)btn.classList.add('done');}startRestTimer(ex.rest);}
+function swapExercise(idx){alert('Swap exercise coming soon — AI will suggest alternatives based on your equipment.');}
+function completeWorkout(){
+  const gymChk=document.getElementById('chk-gym');const gymLbl=document.getElementById('lbl-gym');
+  if(gymChk){gymChk.className='task-check gym-done';if(gymLbl)gymLbl.classList.add('done-text');}
+  updateProgress();saveTodayState();flashSave();
+  alert('Workout logged! Great work today. 🔥');
+}
+function startRestTimer(seconds){rtSeconds=seconds;rtRunning=true;const rt=document.getElementById('restTimer');rt.classList.add('show');updateRestDisplay();if(rtInterval)clearInterval(rtInterval);rtInterval=setInterval(()=>{if(!rtRunning)return;rtSeconds--;updateRestDisplay();if(rtSeconds<=0){clearInterval(rtInterval);rt.classList.remove('show');}},1000);}
+function updateRestDisplay(){const m=Math.floor(rtSeconds/60),s=rtSeconds%60;document.getElementById('rtDisplay').textContent=m+':'+(s<10?'0':'')+s;}
+function toggleRest(){rtRunning=!rtRunning;document.getElementById('rtPauseBtn').textContent=rtRunning?'Pause':'Resume';}
+function skipRest(){clearInterval(rtInterval);document.getElementById('restTimer').classList.remove('show');}
+
+// ─── NUTRITION ─────────────────────────────────────────────
+function renderMeals(){
+  document.getElementById('mealPlan').innerHTML=SAMPLE_MEALS.map(m=>`
+  <div class="meal-item" onclick="openMealPanel('${m.name}')">
+    <div class="meal-time">${m.time}</div>
+    <div class="meal-details">
+      <div class="meal-name">${m.name}</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:3px;">${m.desc}</div>
+      <div class="meal-macros">${m.cal} kcal · ${m.p}g protein · ${m.c}g carbs · ${m.f}g fat</div>
+    </div>
+    <button class="meal-swap-btn" onclick="event.stopPropagation();">Swap</button>
+  </div>`).join('');
+}
+function openMealPanel(name){const meal=SAMPLE_MEALS.find(m=>m.name===name);if(!meal)return;document.getElementById('panelTitle').textContent=meal.name;document.getElementById('panelSub').textContent=`${meal.time} · ${meal.cal} kcal · ${meal.p}g protein`;document.getElementById('panelBody').innerHTML=`<div style="padding:1rem;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:16px;"><div style="font-size:15px;color:var(--text);line-height:1.7;">${meal.desc}</div></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">${[['Protein',meal.p+'g'],['Carbs',meal.c+'g'],['Fat',meal.f+'g']].map(([l,v])=>`<div style="background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);padding:10px;text-align:center;"><div style="font-size:16px;font-weight:700;color:var(--amber);">${v}</div><div style="font-size:10px;color:var(--text3);">${l}</div></div>`).join('')}</div><button onclick="closePanel()" style="width:100%;padding:13px;background:var(--al);border:.5px solid var(--amber);border-radius:var(--radius-sm);color:var(--amber);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Close</button>`;document.getElementById('taskPanel').classList.add('show');}
+function regenerateMeals(){flashSave();alert('Regenerating your meal plan...');}
+
+// ─── COACH ─────────────────────────────────────────────────
+async function sendChat(){
+  const inp=document.getElementById('chatInp');const msg=inp.value.trim();if(!msg)return;inp.value='';
+  const msgs=document.getElementById('chatMessages');
+  msgs.innerHTML+=`<div class="chat-bubble chat-bubble-user">${msg}</div>`;msgs.scrollTop=msgs.scrollHeight;
+  if(!OPENAI_KEY){setTimeout(()=>{msgs.innerHTML+=`<div class="chat-bubble chat-bubble-ai">Add your OpenAI key to activate real-time AI coaching. 💪</div>`;msgs.scrollTop=msgs.scrollHeight;},800);return;}
+  try{
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+OPENAI_KEY},body:JSON.stringify({model:'gpt-4o',messages:[{role:'system',content:`You are Coach X, an elite fitness and life accountability coach. Be direct, motivating, specific. Tone: ${prefs.tone||'Brutal'}. ${prefs.profanity?'Light profanity is fine.':'Keep it clean.'} User: ${getName()}. Goal: ${getGoal()}.`},{role:'user',content:msg}],max_tokens:400,temperature:0.7})});
+    const data=await res.json();
+    msgs.innerHTML+=`<div class="chat-bubble chat-bubble-ai">${data.choices?.[0]?.message?.content||'Something went wrong.'}</div>`;
+    msgs.scrollTop=msgs.scrollHeight;
+  }catch(e){console.error(e);}
+}
+function bookCall(){document.getElementById('panelTitle').textContent='Book a call with Coach X';document.getElementById('panelSub').textContent='1-on-1 coaching — weekly calls, full customization, direct access.';document.getElementById('panelBody').innerHTML=`<div style="background:var(--al);border:.5px solid var(--amber);border-radius:var(--radius-sm);padding:1.25rem;margin-bottom:1rem;"><div style="font-size:16px;font-weight:700;color:var(--amber);margin-bottom:4px;">$2,000 / 3 months</div><div style="font-size:13px;color:var(--text2);">Weekly calls · Full program customization · Direct coach access · Lifestyle + travel system</div></div><button onclick="closePanel()" style="width:100%;padding:13px;background:var(--amber);border:none;border-radius:var(--radius-sm);color:var(--amber2);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Schedule a call →</button>`;document.getElementById('taskPanel').classList.add('show');}
+
+// ─── MASTER ────────────────────────────────────────────────
+async function renderMasterStats(){
+  try{
+    const{count}=await sb.from('ai_clients').select('id',{count:'exact',head:true});
+    document.getElementById('msUsers').textContent=count||0;
+    document.getElementById('msActive').textContent=Math.round((count||0)*0.7);
+    document.getElementById('msClients').textContent=count||0;
+    const{data}=await sb.from('ai_clients').select('first_name,last_name,email,intake_complete').limit(20);
+    const el=document.getElementById('userList');
+    if(!data||!data.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:1rem 0;">No users yet.</div>';return;}
+    el.innerHTML=data.map(u=>`<div class="client-row"><div class="client-avatar">${(u.first_name||u.email||'?')[0].toUpperCase()}</div><div class="client-info"><div class="client-name">${u.first_name||''} ${u.last_name||''}</div><div class="client-status">${u.email} · ${u.intake_complete?'Intake complete':'Pending'}</div></div><div>${u.intake_complete?'✅':'⏳'}</div></div>`).join('');
+  }catch(e){}
+}
+
+// ─── NAV ───────────────────────────────────────────────────
+function goTab(tab){
+  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('on'));
+  document.getElementById('tab-'+tab)?.classList.add('on');
+  document.getElementById('nav-'+tab)?.classList.add('on');
+}
+function switchView(view){
+  viewMode=view;
+  document.querySelectorAll('.rs-btn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('rs'+view.charAt(0).toUpperCase()+view.slice(1))?.classList.add('on');
+  if(view==='master')goTab('master');
+  else goTab(prefs.defaultTab||'home');
+}
+
+// ─── SETTINGS ──────────────────────────────────────────────
+function openSettings(){
+  document.getElementById('set-name').value=prefs.name||'';
+  document.getElementById('set-goal').value=prefs.goal||'';
+  document.getElementById('set-motivator').value=prefs.motivator||'';
+  document.getElementById('set-fears').value=prefs.fears||'';
+  document.getElementById('set-goalLength').value=prefs.goalLength||'90 days';
+  document.getElementById('set-tone').value=prefs.tone||'Brutal';
+  document.getElementById('set-profanity').value=String(!!prefs.profanity);
+  document.getElementById('set-fitness').value=prefs.fitnessLevel||'intermediate';
+  document.getElementById('set-smokes').value=prefs.smokes||'Neither';
+  document.getElementById('set-drinks').value=prefs.drinks||'No';
+  document.getElementById('set-bgEmoji').value=prefs.bgEmoji||'none';
+  document.getElementById('set-colorShift').value=String(prefs.colorShift!==false);
+  const noHabit=!smokes()&&!drinks();
+  document.getElementById('customHabitsSection').style.display=noHabit?'block':'none';
+  if(noHabit)buildCustomHabitsEditor();
+  buildSettingsTaskEditor();buildSettingsMovementEditor();buildTierEditor();
+  document.getElementById('settingsModal').classList.add('show');
+}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
+function buildCustomHabitsEditor(){document.getElementById('customHabitsEditor').innerHTML=(prefs.customHabits||[]).map((h,i)=>`<div class="task-builder-row"><input class="task-builder-input" id="ch-${i}" value="${h}" placeholder="e.g. No junk food"/><button class="task-builder-del" onclick="removeCustomHabit(${i})">✕</button></div>`).join('');}
+function addCustomHabit(){if(!prefs.customHabits)prefs.customHabits=[];prefs.customHabits.push('');buildCustomHabitsEditor();}
+function removeCustomHabit(i){prefs.customHabits.splice(i,1);buildCustomHabitsEditor();}
+function buildSettingsTaskEditor(){document.getElementById('settingsTaskEditor').innerHTML=(prefs.tasks||[]).map((t,i)=>`<div class="task-builder-row"><input class="task-builder-input" id="st-name-${i}" value="${t.label}" placeholder="Task name"/><input class="task-builder-num" id="st-target-${i}" type="number" min="0" max="999" value="${t.target||''}" placeholder="—"/><button class="task-builder-del" onclick="removeSettingsTask(${i})">✕</button></div>`).join('');}
+function addSettingsTask(){prefs.tasks.push({id:'t_'+Date.now(),label:'',target:null,category:'custom'});buildSettingsTaskEditor();}
+function removeSettingsTask(i){prefs.tasks.splice(i,1);buildSettingsTaskEditor();}
+function buildSettingsMovementEditor(){document.getElementById('settingsMovementEditor').innerHTML=(prefs.movementTypes||[]).map((m,i)=>`<div class="task-builder-row"><input class="task-builder-input" id="sm-${i}" value="${m}" placeholder="Movement type"/><button class="task-builder-del" onclick="removeMovementType(${i})">✕</button></div>`).join('');}
+function addMovementType(){prefs.movementTypes.push('');buildSettingsMovementEditor();}
+function removeMovementType(i){prefs.movementTypes.splice(i,1);buildSettingsMovementEditor();}
+function buildTierEditor(){document.getElementById('tierEditor').innerHTML=(prefs.tiers||[]).map((t,i)=>`<div class="tier-edit-card"><div class="tier-edit-label">Tier ${i+1}</div><input class="tier-edit-input" id="te-name-${i}" placeholder="Name" value="${t.name}"/><div class="tier-edit-row"><input class="tier-edit-input" id="te-days-${i}" type="number" placeholder="Days" value="${t.days}" style="width:80px;"/><input class="tier-edit-input" id="te-desc-${i}" placeholder="Unlock condition" value="${t.desc}"/></div><input class="tier-edit-input" id="te-reward-${i}" placeholder="Reward" value="${t.reward}"/></div>`).join('');}
+async function saveSettings(){
+  prefs.name=document.getElementById('set-name').value.trim()||prefs.name;
+  prefs.goal=document.getElementById('set-goal').value.trim()||prefs.goal;
+  prefs.motivator=document.getElementById('set-motivator').value.trim()||prefs.motivator;
+  prefs.fears=document.getElementById('set-fears').value.trim()||prefs.fears;
+  prefs.goalLength=document.getElementById('set-goalLength').value;
+  prefs.tone=document.getElementById('set-tone').value;
+  prefs.profanity=document.getElementById('set-profanity').value==='true';
+  prefs.fitnessLevel=document.getElementById('set-fitness').value;
+  prefs.smokes=document.getElementById('set-smokes').value;
+  prefs.drinks=document.getElementById('set-drinks').value;
+  prefs.bgEmoji=document.getElementById('set-bgEmoji').value;
+  prefs.colorShift=document.getElementById('set-colorShift').value==='true';
+  prefs.tasks=(prefs.tasks||[]).map((t,i)=>({...t,label:document.getElementById('st-name-'+i)?.value.trim()||t.label,target:parseInt(document.getElementById('st-target-'+i)?.value)||null})).filter(t=>t.label);
+  prefs.movementTypes=(prefs.movementTypes||[]).map((_,i)=>document.getElementById('sm-'+i)?.value.trim()).filter(Boolean);
+  if(!hasSoberTracking())prefs.customHabits=(prefs.customHabits||[]).map((_,i)=>document.getElementById('ch-'+i)?.value.trim()).filter(Boolean);
+  (prefs.tiers||[]).forEach((_,i)=>{prefs.tiers[i].name=document.getElementById('te-name-'+i)?.value||prefs.tiers[i].name;prefs.tiers[i].days=parseInt(document.getElementById('te-days-'+i)?.value)||prefs.tiers[i].days;prefs.tiers[i].desc=document.getElementById('te-desc-'+i)?.value||prefs.tiers[i].desc;prefs.tiers[i].reward=document.getElementById('te-reward-'+i)?.value||prefs.tiers[i].reward;});
+  await savePrefs();closeSettings();
+  buildTaskList();buildBodySection();buildMindSection();buildTierList();updateAvatar();
+  const hour=new Date().getHours();
+  if(prefs.name)document.getElementById('appTitleEl').textContent=`${hour<12?'Good morning':hour<17?'Good afternoon':'Good evening'}, ${prefs.name}`;
+  document.getElementById('toneDisplay').textContent=prefs.tone||'Brutal';
+  flashSave();
+}
+function changeAvatar(){const input=document.createElement('input');input.type='file';input.accept='image/*';input.onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{const src=ev.target.result;document.getElementById('profileAvatar').innerHTML=`<img src="${src}"/>`;document.getElementById('avatarBtn').innerHTML=`<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`;};reader.readAsDataURL(file);};input.click();}
+function flashSave(){const pill=document.getElementById('savePill');pill.classList.add('show');setTimeout(()=>pill.classList.remove('show'),2000);}
+
+// ─── BOOT ──────────────────────────────────────────────────
+async function boot(){
+  try{const{data:{session}}=await sb.auth.getSession();if(session?.user){currentUser=session.user;showLoadingThenApp();return;}}catch(e){}
+  showAuth();
+}
+sb.auth.onAuthStateChange(async(event,session)=>{
+  if((event==='SIGNED_IN'||event==='TOKEN_REFRESHED')&&session?.user&&!currentUser){
+    currentUser=session.user;showLoadingThenApp();
+  }
+});
+boot();
