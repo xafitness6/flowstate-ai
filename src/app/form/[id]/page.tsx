@@ -354,8 +354,7 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
   function handleSaveReview(review: CoachReview) {
     setSubmissions((prev) =>
       prev.map((s) =>
-        s.id === sub.id ? { ...s, status: "coach_reviewed", coachReview: review } : s
-      )
+sub && s.id === sub.id ? { ...s, status: "coach_reviewed", coachReview: review } : s      )
     );
   }
 
