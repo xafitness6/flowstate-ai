@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Flowstate AI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#0c0806;--bg2:#150f08;--bg3:#1e1508;--card:#150f08;
+  --border:rgba(250,199,117,0.06);--border2:rgba(250,199,117,0.12);
+  --text:#f5e6d0;--text2:#8a6535;--text3:#4a3018;
+  --amber:#FAC775;--amber2:#412402;--coral:#D85A30;--purple:#7F77DD;
+  --red:#E24B4A;--green:#1D9E75;--blue:#378ADD;
+  --accent:#FAC775;--al:rgba(250,199,117,0.08);
+  --radius:14px;--radius-sm:8px;
+  --sidebar:240px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;min-height:100vh;overflow-x:hidden;}
+canvas#fireworksCanvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;display:none;}
+
+/* ── AUTH ── */
+#authScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;background:var(--bg);}
+.auth-wrap{width:100%;max-width:420px;}
+.auth-brand{font-size:28px;font-weight:700;letter-spacing:-.03em;color:var(--amber);margin-bottom:4px;text-align:center;}
+.auth-tagline{font-size:13px;color:var(--text2);margin-bottom:2rem;text-align:center;line-height:1.6;}
+.role-row{display:flex;gap:8px;margin-bottom:1.5rem;}
+.role-btn{flex:1;padding:14px 8px;border:.5px solid var(--border2);border-radius:var(--radius);cursor:pointer;background:var(--bg2);text-align:center;transition:all .2s;font-family:inherit;}
+.role-btn.on{border-color:var(--amber);background:var(--al);}
+.role-ico{font-size:20px;margin-bottom:4px;}
+.role-lbl{font-size:12px;font-weight:700;color:var(--text);}
+.role-sub{font-size:10px;color:var(--text2);margin-top:1px;}
+.auth-card{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);padding:1.5rem;}
+.auth-tabs{display:flex;background:var(--bg3);border-radius:99px;padding:3px;margin-bottom:1.5rem;}
+.auth-tab{flex:1;padding:8px;border-radius:99px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);transition:all .2s;font-family:inherit;}
+.auth-tab.on{background:var(--amber);color:var(--amber2);}
+.auth-input{width:100%;padding:12px 14px;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;outline:none;margin-bottom:10px;font-family:inherit;}
+.auth-input::placeholder{color:var(--text3);}
+.auth-input:focus{border-color:var(--amber);}
+.auth-btn{width:100%;padding:13px;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;color:var(--amber2);background:var(--amber);font-family:inherit;transition:all .2s;}
+.auth-btn:disabled{opacity:.5;}
+.google-btn{width:100%;padding:12px;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .2s;}
+.google-btn:hover{border-color:var(--amber);}
+.auth-div{display:flex;align-items:center;gap:8px;margin:4px 0 10px;color:var(--text3);font-size:12px;}
+.auth-div::before,.auth-div::after{content:'';flex:1;height:.5px;background:var(--border2);}
+.auth-err{font-size:12px;color:var(--red);margin-bottom:8px;text-align:center;min-height:16px;}
+
+/* ── LOADING ── */
+#loadScreen{display:none;position:fixed;inset:0;z-index:9999;background:#000;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:60px;}
+#loadScreen.show{display:flex;}
+.load-athlete{position:absolute;bottom:110px;left:50%;transform:translateX(-50%);width:280px;height:340px;opacity:0;animation:fadeUp 1s .4s forwards;}
+@keyframes fadeUp{from{opacity:0;transform:translateX(-50%) translateY(20px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+.load-content{position:relative;z-index:2;width:100%;max-width:380px;padding:0 2rem;text-align:center;}
+.load-logo{font-size:28px;font-weight:700;letter-spacing:-.03em;color:var(--amber);margin-bottom:6px;opacity:0;animation:fadeUp .6s .2s forwards;}
+.load-tag{font-size:13px;color:rgba(250,199,117,0.4);margin-bottom:1.75rem;min-height:18px;}
+.load-bar-wrap{width:100%;background:rgba(250,199,117,0.08);border-radius:99px;height:2px;margin-bottom:10px;overflow:hidden;}
+.load-bar{height:2px;border-radius:99px;background:var(--amber);width:0%;transition:width .5s ease;}
+.load-status{font-size:10px;color:rgba(250,199,117,0.2);letter-spacing:.08em;text-transform:uppercase;}
+
+/* ── ONBOARD ── */
+#onboardScreen{display:none;flex-direction:column;align-items:flex-start;min-height:100vh;padding:3rem 1.25rem 2rem;background:var(--bg);}
+#onboardScreen.show{display:flex;}
+.onboard-wrap{width:100%;max-width:480px;margin:0 auto;}
+.onboard-eyebrow{font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.onboard-progress{display:flex;gap:4px;margin-bottom:1.5rem;}
+.onboard-pip{flex:1;height:2px;border-radius:99px;background:var(--bg3);transition:background .3s;}
+.onboard-pip.done{background:var(--amber);}
+.onboard-pip.current{background:var(--coral);}
+.onboard-step{display:none;}
+.onboard-step.active{display:block;}
+.onboard-q{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px;line-height:1.3;color:var(--text);}
+.onboard-sub{font-size:14px;color:var(--text2);margin-bottom:1.5rem;line-height:1.6;}
+.onboard-options{display:flex;flex-direction:column;gap:8px;margin-bottom:1.25rem;}
+.onboard-option{padding:14px 16px;border:.5px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;background:var(--bg2);color:var(--text);font-size:14px;text-align:left;transition:all .15s;border-left:3px solid transparent;width:100%;font-family:inherit;}
+.onboard-option.selected{background:var(--al);border-color:var(--amber);border-left-color:var(--amber);}
+.onboard-input{width:100%;padding:14px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:15px;outline:none;margin-bottom:1.25rem;font-family:inherit;}
+.onboard-input::placeholder{color:var(--text3);}
+.onboard-nav{display:flex;gap:8px;margin-top:.75rem;}
+.ob-btn{flex:1;padding:13px;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;color:var(--amber2);background:var(--amber);font-family:inherit;transition:all .2s;}
+.ob-btn.sec{background:var(--bg3);color:var(--text2);border:.5px solid var(--border2);}
+.task-builder-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.task-builder-input{flex:1;padding:10px 12px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;outline:none;font-family:inherit;}
+.task-builder-num{width:56px;padding:10px 6px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;outline:none;text-align:center;font-family:inherit;}
+.task-builder-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:6px;flex-shrink:0;}
+.add-btn{width:100%;padding:10px;background:transparent;border:.5px dashed var(--border2);border-radius:var(--radius-sm);color:var(--text2);font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit;}
+.add-btn:hover{border-color:var(--amber);color:var(--amber);}
+.movement-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.25rem;}
+.movement-chip{padding:8px 14px;border:.5px solid var(--border2);border-radius:99px;font-size:13px;cursor:pointer;background:var(--bg2);color:var(--text2);transition:all .15s;font-family:inherit;}
+.movement-chip.selected{background:rgba(216,90,48,.15);border-color:var(--coral);color:var(--coral);}
+.bg-picker{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem;}
+.bg-option{padding:10px 14px;border:.5px solid var(--border2);border-radius:var(--radius-sm);font-size:18px;cursor:pointer;background:var(--bg2);transition:all .15s;text-align:center;min-width:52px;font-family:inherit;}
+.bg-option.selected{border-color:var(--amber);background:var(--al);}
+
+/* ── DESKTOP LAYOUT ── */
+#mainApp{display:none;}
+#mainApp.show{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:.5px solid var(--border2);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;overflow-y:auto;}
+.sidebar-brand{padding:1.5rem 1.25rem 1rem;border-bottom:.5px solid var(--border);}
+.brand-wordmark{font-size:16px;font-weight:700;color:var(--amber);letter-spacing:-.01em;}
+.brand-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.sidebar-user{padding:1rem 1.25rem;border-bottom:.5px solid var(--border);}
+.user-day{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
+.user-name{font-size:14px;font-weight:600;color:var(--text);}
+.user-role{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;display:inline-block;margin-top:4px;background:rgba(250,199,117,0.1);color:var(--amber);}
+.sidebar-streaks{padding:1rem 1.25rem;border-bottom:.5px solid var(--border);}
+.streak-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
+.streak-item{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.streak-item:last-child{margin-bottom:0;}
+.si-name{font-size:12px;color:var(--text2);}
+.si-val{font-size:14px;font-weight:700;}
+.si-biz{color:var(--amber);}
+.si-body{color:var(--coral);}
+.si-mind{color:var(--purple);}
+.sidebar-nav{padding:1rem 0;flex:1;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 1.25rem;cursor:pointer;transition:all .15s;border-left:2px solid transparent;color:var(--text2);font-size:13px;font-weight:500;font-family:inherit;background:none;border-top:none;border-right:none;border-bottom:none;width:100%;text-align:left;}
+.nav-item:hover{color:var(--text);background:var(--al);}
+.nav-item.on{color:var(--amber);border-left-color:var(--amber);background:var(--al);}
+.nav-ico{font-size:16px;width:20px;text-align:center;}
+.sidebar-bottom{padding:1rem 1.25rem;border-top:.5px solid var(--border);}
+.signout-btn{width:100%;padding:10px;background:transparent;border:.5px solid rgba(228,75,74,.2);border-radius:var(--radius-sm);color:var(--red);font-size:13px;cursor:pointer;font-family:inherit;transition:all .2s;}
+.signout-btn:hover{background:rgba(228,75,74,.06);}
+
+/* MAIN CONTENT */
+.main-content{margin-left:var(--sidebar);flex:1;padding:2rem;overflow-y:auto;min-height:100vh;}
+.content-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;}
+.page-title{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--text);}
+.page-date{font-size:12px;color:var(--text3);margin-top:3px;}
+.header-right{display:flex;align-items:center;gap:10px;}
+.avatar-btn{width:36px;height:36px;border-radius:50%;background:var(--amber);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--amber2);overflow:hidden;}
+.cog-btn{background:none;border:none;cursor:pointer;font-size:18px;padding:4px;line-height:1;transition:transform .3s;color:var(--text2);}
+.cog-btn:hover{transform:rotate(60deg);color:var(--amber);}
+
+/* TABS */
+.tab-page{display:none;}
+.tab-page.on{display:block;}
+
+/* QUOTE BANNER */
+.quote-banner{background:var(--bg2);border:.5px solid var(--border2);border-left:3px solid var(--amber);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.5rem;}
+.quote-text{font-size:14px;color:var(--text2);line-height:1.7;font-style:italic;}
+.quote-author{font-size:10px;color:var(--text3);margin-top:5px;text-transform:uppercase;letter-spacing:.07em;}
+
+/* METRICS ROW */
+.metrics-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:1.5rem;}
+.metric-card{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius-sm);padding:.875rem 1rem;}
+.mc-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
+.mc-val{font-size:24px;font-weight:700;color:var(--text);line-height:1;}
+.mc-sub{font-size:10px;color:var(--text3);margin-top:3px;}
+
+/* GRID LAYOUT */
+.content-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
+.full-width{grid-column:1/-1;}
+
+/* SECTION CARDS */
+.section-card{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);padding:1.25rem;}
+.section-card-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:1rem;}
+
+/* TASK ITEMS */
+.task-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;transition:all .15s;border:.5px solid transparent;}
+.task-item:hover{border-color:var(--border2);background:#1e1a10;}
+.task-item:last-child{margin-bottom:0;}
+.task-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--text3);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.task-check.done{background:var(--amber);border-color:var(--amber);}
+.task-check.done::after{content:'';display:block;width:5px;height:8px;border:2px solid var(--amber2);border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px);}
+.task-check.gym-done{background:var(--coral);border-color:var(--coral);}
+.task-check.gym-done::after{content:'';display:block;width:5px;height:8px;border:2px solid white;border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px);}
+.task-label{font-size:13px;color:var(--text);flex:1;}
+.task-label.done-text{color:var(--text3);text-decoration:line-through;}
+.task-badge{font-size:9px;padding:2px 7px;border-radius:99px;font-weight:600;flex-shrink:0;}
+.badge-custom{background:rgba(250,199,117,.1);color:var(--amber);}
+.badge-body{background:rgba(216,90,48,.1);color:var(--coral);}
+.badge-done{background:rgba(250,199,117,.15);color:var(--amber);font-size:9px;font-weight:700;}
+.task-arrow{font-size:12px;color:var(--text3);flex-shrink:0;transition:color .15s;}
+.task-item:hover .task-arrow{color:var(--amber);}
+.progress-wrap{background:var(--bg3);border-radius:99px;height:2px;margin-top:12px;overflow:hidden;}
+.progress-fill{height:2px;border-radius:99px;background:var(--amber);transition:width .4s;}
+.progress-label{font-size:11px;color:var(--text3);margin-top:5px;display:flex;justify-content:space-between;}
+.all-done-banner{background:rgba(250,199,117,.08);border:.5px solid rgba(250,199,117,.2);border-radius:var(--radius-sm);padding:8px 12px;margin-top:10px;font-size:13px;color:var(--amber);font-weight:600;text-align:center;display:none;}
+
+/* GYM TYPE */
+.gym-type-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.gym-btn{padding:5px 11px;border:.5px solid var(--border2);border-radius:99px;font-size:12px;cursor:pointer;background:var(--bg3);color:var(--text2);transition:all .15s;font-family:inherit;}
+.gym-btn.selected{background:rgba(216,90,48,.15);border-color:var(--coral);color:var(--coral);}
+
+/* MOOD */
+.mood-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+.mood-btn{padding:6px 12px;border:.5px solid var(--border2);border-radius:99px;font-size:12px;cursor:pointer;background:var(--bg3);color:var(--text2);transition:all .15s;font-family:inherit;}
+.mood-btn.selected{background:rgba(127,119,221,.15);border-color:var(--purple);color:var(--purple);}
+.focus-input{font-size:13px;padding:8px 12px;border:.5px solid var(--border2);border-radius:var(--radius-sm);background:var(--bg3);color:var(--text);width:100%;outline:none;font-family:inherit;}
+.focus-input::placeholder{color:var(--text3);}
+
+/* SOBER */
+.sober-checks{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.sober-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:.5px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;flex:1;min-width:110px;background:var(--bg3);transition:all .15s;}
+.sober-item.clean{background:rgba(127,119,221,.1);border-color:var(--purple);}
+.sober-item-text{font-size:12px;color:var(--text);}
+.sober-item-sub{font-size:10px;color:var(--text3);}
+
+/* DEBRIEF */
+.debrief-btns{display:flex;gap:8px;margin-bottom:12px;}
+.debrief-btn{flex:1;padding:12px;border:.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;cursor:pointer;background:var(--bg3);color:var(--text);transition:all .2s;text-align:center;font-weight:600;font-family:inherit;}
+.debrief-btn.win-sel{background:var(--amber);border-color:var(--amber);color:var(--amber2);}
+.debrief-btn.miss-sel{background:var(--red);border-color:var(--red);color:#fff;}
+.debrief-textarea{width:100%;padding:12px;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;outline:none;margin-bottom:10px;min-height:76px;resize:vertical;font-family:inherit;line-height:1.6;}
+.debrief-textarea::placeholder{color:var(--text3);}
+.consequence-box{margin-top:.75rem;border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:1rem;border-left:3px solid var(--red);background:#120606;}
+.con-tier{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;}
+.con-tier.light{color:var(--amber);}
+.con-tier.medium{color:var(--coral);}
+.con-tier.tough{color:#F09595;}
+.con-level{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;color:var(--red);}
+.con-text{font-size:13px;color:#ccc;line-height:1.6;font-weight:500;margin-bottom:8px;}
+.con-action{font-size:12px;color:#555;padding-top:8px;border-top:.5px solid #1a1010;line-height:1.5;}
+.submit-btn{width:100%;padding:15px;border:none;border-radius:var(--radius);color:var(--amber2);font-size:15px;font-weight:700;cursor:pointer;margin-top:1rem;transition:all .3s;background:var(--amber);font-family:inherit;}
+.submit-btn.miss{background:var(--red);color:#fff;}
+
+/* CHART */
+.chart-tabs{display:flex;gap:6px;margin-bottom:12px;}
+.chart-tab{padding:5px 12px;border:.5px solid var(--border2);border-radius:99px;font-size:12px;cursor:pointer;background:var(--bg3);color:var(--text2);transition:all .15s;font-family:inherit;}
+.chart-tab.active{background:var(--amber);border-color:var(--amber);color:var(--amber2);}
+.chart-wrap{position:relative;height:160px;}
+
+/* TIER */
+.tier-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:.5px solid var(--border);}
+.tier-row:last-child{border-bottom:none;padding-bottom:0;}
+.tier-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.tier-info{flex:1;}
+.tier-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:1px;}
+.tier-desc{font-size:11px;color:var(--text3);margin-bottom:2px;}
+.tier-reward{font-size:12px;color:var(--amber);font-weight:500;}
+.tier-status{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;flex-shrink:0;}
+.locked{background:var(--bg3);color:var(--text3);}
+.unlocked{background:rgba(250,199,117,.12);color:var(--amber);}
+
+/* STREAK GRID */
+.streak-grid{display:flex;gap:3px;flex-wrap:wrap;margin-top:8px;}
+.sdot{width:13px;height:13px;border-radius:3px;background:var(--bg3);border:.5px solid var(--border);transition:background .3s;cursor:pointer;}
+.sdot:hover{border-color:var(--amber);}
+.sdot.filled{background:var(--amber);border-color:var(--amber);}
+.sdot.filled-miss{background:var(--red);border-color:var(--red);}
+.sdot.today{background:var(--coral);border-color:var(--coral);}
+
+/* NOTIFICATIONS */
+.notify-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--border);}
+.notify-row:last-child{border-bottom:none;}
+.notify-label{font-size:13px;color:var(--text);}
+.notify-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.toggle{width:40px;height:22px;background:var(--bg3);border:.5px solid var(--border2);border-radius:99px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--amber);border-color:var(--amber);}
+.toggle::after{content:'';width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;}
+.toggle.on::after{left:20px;background:var(--amber2);}
+
+/* PROGRAM TAB */
+.workout-header{margin-bottom:1.25rem;}
+.workout-phase{font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;}
+.workout-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.workout-meta{font-size:12px;color:var(--text2);}
+.exercise-card{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);margin-bottom:.75rem;overflow:hidden;cursor:pointer;transition:border-color .15s;}
+.exercise-card:hover{border-color:var(--amber);}
+.ex-header{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;}
+.ex-name{font-size:14px;font-weight:600;color:var(--text);}
+.ex-meta{font-size:12px;color:var(--text2);margin-top:2px;}
+.ex-actions{display:flex;gap:8px;align-items:center;}
+.ex-swap-btn{font-size:11px;font-weight:600;color:var(--amber);background:var(--al);border:none;border-radius:99px;padding:4px 10px;cursor:pointer;font-family:inherit;}
+.ex-expand{font-size:16px;color:var(--text3);transition:transform .2s;}
+.ex-expand.open{transform:rotate(180deg);}
+.ex-body{display:none;padding:0 16px 14px;}
+.ex-body.open{display:block;}
+.set-row{display:flex;gap:8px;align-items:center;background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:6px;}
+.set-num{font-size:12px;font-weight:700;color:var(--text2);min-width:32px;}
+.set-inp{flex:1;background:transparent;border:none;outline:none;font-size:14px;color:var(--text);font-family:inherit;text-align:center;}
+.set-inp::placeholder{color:var(--text3);}
+.set-div{font-size:12px;color:var(--text3);}
+.set-done-btn{width:28px;height:28px;border-radius:50%;background:var(--bg2);border:.5px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s;}
+.set-done-btn.done{background:var(--amber);border-color:var(--amber);}
+.log-btn{width:100%;padding:10px;background:var(--amber);border:none;border-radius:8px;color:var(--amber2);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;}
+
+/* REST TIMER */
+.rest-timer{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:.5px solid var(--amber);border-radius:14px;padding:12px 20px;display:none;align-items:center;gap:14px;z-index:200;min-width:200px;}
+.rest-timer.show{display:flex;}
+.rt-label{font-size:11px;color:var(--text2);font-weight:600;}
+.rt-time{font-size:22px;font-weight:700;color:var(--amber);min-width:48px;}
+.rt-btn{padding:6px 12px;border-radius:99px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;}
+.rt-pause{background:var(--bg3);color:var(--text2);}
+.rt-skip{background:var(--amber);color:var(--amber2);}
+
+/* NUTRITION */
+.card{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;}
+.card-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
+.macro-ring-wrap{display:flex;align-items:center;gap:1.25rem;margin-bottom:.75rem;}
+.macro-legend{flex:1;}
+.macro-item{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.macro-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.macro-name{font-size:12px;color:var(--text2);}
+.macro-val{font-size:14px;font-weight:700;color:var(--text);}
+.macro-bar-wrap{flex:1;background:var(--bg3);border-radius:99px;height:3px;margin-top:3px;overflow:hidden;}
+.macro-bar{height:3px;border-radius:99px;}
+.meal-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:.5px solid var(--border);cursor:pointer;transition:all .15s;}
+.meal-item:hover{background:var(--al);margin:0 -1.25rem;padding:12px 1.25rem;}
+.meal-item:last-child{border-bottom:none;}
+.meal-time{font-size:11px;font-weight:700;color:var(--text3);min-width:60px;text-transform:uppercase;letter-spacing:.04em;padding-top:2px;}
+.meal-details{flex:1;}
+.meal-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.meal-macros{font-size:11px;color:var(--text2);}
+.meal-swap-btn{font-size:11px;color:var(--amber);background:var(--al);border:none;border-radius:99px;padding:3px 8px;cursor:pointer;font-family:inherit;font-weight:600;}
+
+/* COACH */
+.chat-outer{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:400px;}
+.chat-messages{flex:1;overflow-y:auto;padding:1rem 0;display:flex;flex-direction:column;gap:10px;}
+.chat-bubble{max-width:75%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.6;}
+.chat-bubble-ai{background:var(--bg3);color:var(--text);border-bottom-left-radius:4px;align-self:flex-start;}
+.chat-bubble-user{background:var(--amber);color:var(--amber2);border-bottom-right-radius:4px;align-self:flex-end;}
+.chat-input-wrap{padding:.75rem 0 0;display:flex;gap:8px;border-top:.5px solid var(--border);}
+.chat-inp{flex:1;padding:12px 14px;background:var(--bg2);border:.5px solid var(--border2);border-radius:99px;color:var(--text);font-size:14px;outline:none;font-family:inherit;}
+.chat-inp:focus{border-color:var(--amber);}
+.chat-send{width:40px;height:40px;border-radius:50%;background:var(--amber);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:var(--amber2);}
+.book-btn{width:100%;padding:14px;background:transparent;border:.5px solid var(--amber);border-radius:var(--radius);color:var(--amber);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;margin-bottom:1rem;}
+.book-btn:hover{background:var(--al);}
+
+/* PROFILE */
+.profile-hero{display:flex;align-items:center;gap:1.5rem;padding:1.5rem;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);margin-bottom:1.25rem;}
+.profile-avatar{width:72px;height:72px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:var(--amber2);overflow:hidden;cursor:pointer;flex-shrink:0;}
+.profile-avatar img{width:100%;height:100%;object-fit:cover;}
+.profile-name{font-size:20px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.profile-role-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;display:inline-block;margin-bottom:4px;}
+.role-master{background:rgba(250,199,117,0.15);color:var(--amber);}
+.role-trainer{background:rgba(127,119,221,0.15);color:var(--purple);}
+.role-client{background:rgba(55,138,221,0.15);color:var(--blue);}
+.role-member{background:rgba(29,158,117,0.15);color:var(--green);}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.settings-section-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;}
+.settings-card{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;}
+.setting-item{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:.5px solid var(--border);}
+.setting-item:last-child{border-bottom:none;}
+.si-left{display:flex;align-items:center;gap:10px;}
+.si-ico{font-size:16px;width:28px;text-align:center;}
+.si-label{font-size:13px;color:var(--text);}
+.si-sub{font-size:11px;color:var(--text2);}
+.si-right{font-size:12px;color:var(--text2);cursor:pointer;}
+.toggle-sw{width:40px;height:22px;border-radius:99px;background:var(--bg3);border:.5px solid var(--border2);cursor:pointer;position:relative;transition:background .2s;}
+.toggle-sw.on{background:var(--amber);}
+.toggle-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle-sw.on .toggle-knob{transform:translateX(18px);background:var(--amber2);}
+.color-row{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;}
+.c-swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .2s;}
+.c-swatch.on{border-color:var(--text);transform:scale(1.15);}
+.tab-picker-row{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;}
+.tp-btn{padding:6px 12px;border:.5px solid var(--border2);border-radius:99px;font-size:12px;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text2);font-family:inherit;transition:all .2s;}
+.tp-btn.on{background:var(--amber);border-color:var(--amber);color:var(--amber2);}
+
+/* MASTER */
+.master-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:1.25rem;}
+.master-stat{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius-sm);padding:1rem;}
+.ms-val{font-size:26px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.ms-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;}
+.ms-change{font-size:11px;color:var(--amber);margin-top:2px;}
+.client-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:.5px solid var(--border);cursor:pointer;}
+.client-row:last-child{border-bottom:none;}
+.client-avatar{width:38px;height:38px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--text2);flex-shrink:0;}
+.client-info{flex:1;}
+.client-name{font-size:13px;font-weight:600;color:var(--text);}
+.client-status{font-size:11px;color:var(--text2);}
+
+/* ROLE SWITCHER */
+.rs-row{display:flex;gap:6px;margin-bottom:1.25rem;}
+.rs-btn{padding:7px 14px;border:.5px solid var(--border2);border-radius:99px;font-size:12px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text2);font-family:inherit;transition:all .2s;white-space:nowrap;}
+.rs-btn.on{background:var(--amber);border-color:var(--amber);color:var(--amber2);}
+
+/* SLIDE-UP PANEL */
+#taskPanel{position:fixed;inset:0;z-index:300;display:none;}
+#taskPanel.show{display:block;}
+.panel-bg{position:absolute;inset:0;background:rgba(0,0,0,0.7);}
+.panel-card{position:absolute;bottom:0;left:var(--sidebar);right:0;background:var(--bg2);border-top:.5px solid var(--border2);border-radius:20px 20px 0 0;padding:1.5rem;max-height:70vh;overflow-y:auto;transition:transform .3s;}
+.panel-handle{width:36px;height:3px;border-radius:99px;background:var(--border2);margin:0 auto 1.25rem;}
+.panel-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.panel-sub{font-size:13px;color:var(--text2);margin-bottom:1.25rem;line-height:1.6;}
+.panel-close{position:absolute;top:1.25rem;right:1.25rem;background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px;}
+
+/* OVERLAY */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);align-items:center;justify-content:center;z-index:998;padding:1rem;}
+.overlay.show{display:flex;}
+.overlay-card{background:var(--card);border:.5px solid var(--border2);border-radius:var(--radius);padding:2rem 1.5rem;text-align:center;max-width:380px;width:100%;}
+.overlay-card.brutal{background:#0a0404;border-color:var(--red);}
+.overlay-card.sober{background:#06060f;border-color:var(--purple);}
+.overlay-card.crown{background:#0a0800;border-color:var(--amber);}
+.ov-icon{font-size:40px;margin-bottom:12px;}
+.ov-title{font-size:19px;font-weight:700;margin-bottom:10px;letter-spacing:-.02em;color:var(--text);}
+.ov-text{font-size:14px;color:var(--text2);line-height:1.75;margin-bottom:12px;white-space:pre-line;}
+.ov-action{font-size:12px;color:var(--red);font-weight:600;margin-bottom:1.25rem;line-height:1.5;}
+.ov-close{padding:12px 32px;background:var(--amber);border:none;border-radius:var(--radius-sm);color:var(--amber2);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;}
+.overlay-card.brutal .ov-close{background:var(--red);color:#fff;}
+.overlay-card.sober .ov-close{background:var(--purple);color:#fff;}
+
+/* SETTINGS MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;align-items:flex-end;justify-content:center;padding:1rem;}
+.modal-overlay.show{display:flex;}
+.modal-card{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:1.25rem;color:var(--text);}
+.modal-section{margin-bottom:1.5rem;}
+.modal-section-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem;}
+.modal-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--border);}
+.modal-row:last-child{border-bottom:none;}
+.modal-row-label{font-size:14px;color:var(--text);flex:1;}
+.modal-input{padding:8px 12px;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13px;outline:none;width:160px;text-align:right;font-family:inherit;}
+.modal-select{padding:8px 12px;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13px;outline:none;font-family:inherit;}
+.modal-close{width:100%;padding:12px;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;margin-top:1rem;font-family:inherit;}
+.tier-edit-card{background:var(--bg3);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;}
+.tier-edit-label{font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.tier-edit-input{width:100%;padding:8px 10px;background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13px;outline:none;margin-bottom:6px;font-family:inherit;}
+.tier-edit-row{display:flex;gap:6px;}
+.tier-edit-row .tier-edit-input{margin-bottom:0;}
+
+/* JOURNAL MODAL */
+.journal-modal-inner{background:var(--bg2);border:.5px solid var(--border2);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;}
+.cal-month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.cal-month-label{font-size:15px;font-weight:600;color:var(--text);}
+.cal-nav-btn{background:none;border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:6px 12px;cursor:pointer;font-size:14px;font-family:inherit;}
+.cal-header{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;}
+.cal-header-day{font-size:10px;color:var(--text3);text-align:center;font-weight:600;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:1rem;}
+.cal-day{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;background:var(--bg3);color:var(--text3);border:.5px solid transparent;transition:all .15s;}
+.cal-day.has-win{background:rgba(250,199,117,.12);color:var(--amber);border-color:rgba(250,199,117,.2);}
+.cal-day.has-miss{background:rgba(228,75,74,.1);color:var(--red);border-color:rgba(228,75,74,.2);}
+.cal-day.today{border-color:var(--coral)!important;color:var(--coral);}
+.cal-day.empty{background:transparent;border:none;cursor:default;}
+.cal-day.selected{transform:scale(1.15);border-color:var(--amber)!important;}
+.search-bar{width:100%;padding:10px 14px;background:var(--bg3);border:.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;outline:none;margin-bottom:14px;font-family:inherit;}
+.entry-card{background:var(--bg3);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px;border:.5px solid var(--border);}
+.entry-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.entry-date-label{font-size:12px;color:var(--text2);font-weight:500;}
+.entry-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:99px;}
+.entry-badge.win{background:rgba(250,199,117,.12);color:var(--amber);}
+.entry-badge.miss{background:rgba(228,75,74,.1);color:var(--red);}
+.entry-streaks{font-size:11px;color:var(--text3);margin-bottom:8px;}
+.entry-q{font-size:10px;color:var(--text3);margin-bottom:3px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.entry-a{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:8px;}
+.no-entries{font-size:13px;color:var(--text3);text-align:center;padding:1.5rem 0;}
+
+/* SAVE PILL */
+.save-pill{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--amber);color:var(--amber2);font-size:12px;font-weight:700;padding:6px 16px;border-radius:99px;z-index:500;opacity:0;transition:opacity .3s;pointer-events:none;}
+.save-pill.show{opacity:1;}
+
+/* MOBILE FALLBACK */
+@media(max-width:768px){
+  :root{--sidebar:0px;}
+  .sidebar{width:100%;position:relative;bottom:auto;left:auto;top:auto;border-right:none;border-bottom:.5px solid var(--border2);flex-direction:row;overflow-x:auto;height:auto;}
+  .sidebar-nav{display:flex;flex-direction:row;padding:.5rem;}
+  .nav-item{padding:8px 14px;border-left:none;border-bottom:2px solid transparent;}
+  .nav-item.on{border-left:none;border-bottom-color:var(--amber);}
+  .sidebar-brand,.sidebar-user,.sidebar-streaks,.sidebar-bottom{display:none;}
+  #mainApp.show{flex-direction:column;}
+  .main-content{margin-left:0;padding:1rem;}
+  .content-grid{grid-template-columns:1fr;}
+  .metrics-row{grid-template-columns:repeat(2,1fr);}
+  .panel-card{left:0;}
+}
+</style>
+</head>
+<body>
+<canvas id="fireworksCanvas"></canvas>
+
+<!-- AUTH SCREEN -->
+<div id="authScreen">
+  <div class="auth-wrap">
+    <div class="auth-brand">Flowstate AI</div>
+    <div class="auth-tagline">You don't need more discipline.<br>You need a system that thinks for you.</div>
+    <div class="role-row" id="roleSelect">
+      <button class="role-btn on" onclick="selectRole('member',this)"><div class="role-ico">🏃</div><div class="role-lbl">Member</div><div class="role-sub">Solo user</div></button>
+      <button class="role-btn" onclick="selectRole('client',this)"><div class="role-ico">🤝</div><div class="role-lbl">Client</div><div class="role-sub">Has a trainer</div></button>
+      <button class="role-btn" onclick="selectRole('trainer',this)"><div class="role-ico">💼</div><div class="role-lbl">Trainer</div><div class="role-sub">Coach view</div></button>
+    </div>
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button class="auth-tab on" id="siTab" onclick="switchAuthTab('signin')">Sign in</button>
+        <button class="auth-tab" id="suTab" onclick="switchAuthTab('signup')">Sign up</button>
+      </div>
+      <div class="auth-err" id="authErr"></div>
+      <input class="auth-input" id="authEmail" type="email" placeholder="Email address"/>
+      <input class="auth-input" id="authPass" type="password" placeholder="Password"/>
+      <div id="nameRow" style="display:none;">
+        <input class="auth-input" id="authFN" placeholder="First name"/>
+        <input class="auth-input" id="authLN" placeholder="Last name"/>
+      </div>
+      <button class="auth-btn" id="authSubmitBtn" onclick="handleAuth()">Sign in</button>
+      <div class="auth-div">or</div>
+      <button class="google-btn" onclick="googleAuth()">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="loadScreen">
+  <svg class="load-athlete" viewBox="0 0 280 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="g1" cx="50%" cy="90%" r="50%"><stop offset="0%" stop-color="#FAC775" stop-opacity="0.3"/><stop offset="100%" stop-color="#FAC775" stop-opacity="0"/></radialGradient></defs>
+    <ellipse cx="140" cy="325" rx="100" ry="15" fill="url(#g1)"/>
+    <circle cx="140" cy="28" r="20" fill="#FAC775" opacity="0.9"/>
+    <path d="M140 48 C140 48 112 65 108 92 C104 119 107 130 103 142 C99 154 82 163 78 183 C74 203 77 218 77 218 L85 213 C85 213 82 199 86 184 C90 169 106 160 111 147 C116 134 113 122 118 98 C123 74 140 62 140 62 C140 62 157 74 162 98 C167 122 164 134 169 147 C174 160 190 169 194 184 C198 199 195 213 195 213 L203 218 C203 218 206 203 202 183 C198 163 181 154 177 142 C173 130 176 119 172 92 C168 65 140 48 140 48Z" fill="#FAC775" opacity="0.9"/>
+    <path d="M108 140 C96 128 80 116 62 99 C50 87 40 72 38 64" stroke="#FAC775" stroke-width="11" stroke-linecap="round" opacity="0.8"/>
+    <path d="M172 140 C184 128 200 116 218 99 C230 87 240 72 242 64" stroke="#FAC775" stroke-width="11" stroke-linecap="round" opacity="0.8"/>
+    <path d="M118 218 C115 245 110 280 105 315" stroke="#FAC775" stroke-width="13" stroke-linecap="round" opacity="0.8"/>
+    <path d="M162 218 C165 245 170 280 175 315" stroke="#FAC775" stroke-width="13" stroke-linecap="round" opacity="0.8"/>
+    <rect x="22" y="57" width="236" height="9" rx="4.5" fill="#D85A30" opacity="0.8"/>
+    <rect x="12" y="43" width="30" height="37" rx="7" fill="#D85A30" opacity="0.7"/>
+    <rect x="238" y="43" width="30" height="37" rx="7" fill="#D85A30" opacity="0.7"/>
+  </svg>
+  <div class="load-content">
+    <div class="load-logo">Flowstate AI</div>
+    <div class="load-tag" id="loadTag">Greatness loading...</div>
+    <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+    <div class="load-status" id="loadStatus">Initializing</div>
+  </div>
+</div>
+
+<!-- ONBOARD SCREEN -->
+<div id="onboardScreen">
+  <div class="onboard-wrap">
+    <div class="onboard-eyebrow" id="onboardEyebrow">Setup — one time only</div>
+    <div class="onboard-progress" id="onboardProgress"></div>
+    <div id="onboardSteps"></div>
+    <div class="onboard-nav">
+      <button class="ob-btn sec" id="onboardBack" onclick="prevStep()" style="display:none;max-width:80px;">Back</button>
+      <button class="ob-btn" id="onboardNext" onclick="nextStep()">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- SAVE PILL -->
+<div class="save-pill" id="savePill">Saved ✓</div>
+
+<!-- REST TIMER -->
+<div class="rest-timer" id="restTimer">
+  <div><div class="rt-label">Rest timer</div><div class="rt-time" id="rtDisplay">1:30</div></div>
+  <button class="rt-btn rt-pause" id="rtPauseBtn" onclick="toggleRest()">Pause</button>
+  <button class="rt-btn rt-skip" onclick="skipRest()">Skip</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-wordmark">Flowstate AI</div>
+      <div class="brand-sub">Built by Coach X</div>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-day" id="sidebarDay">Thursday · Day 1 of 90</div>
+      <div class="user-name" id="sidebarName">Xavier Ellis</div>
+      <div class="user-role" id="sidebarRole">Master</div>
+    </div>
+    <div class="sidebar-streaks">
+      <div class="streak-label">Current streaks</div>
+      <div class="streak-item"><span class="si-name">Business</span><span class="si-val si-biz" id="sb-biz">0</span></div>
+      <div class="streak-item"><span class="si-name">Movement</span><span class="si-val si-body" id="sb-body">0</span></div>
+      <div class="streak-item"><span class="si-name">Sobriety</span><span class="si-val si-mind" id="sb-mind">0</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item on" id="nav-home" onclick="goTab('home')"><span class="nav-ico">🏠</span>Home</button>
+      <button class="nav-item" id="nav-program" onclick="goTab('program')"><span class="nav-ico">💪</span>Program</button>
+      <button class="nav-item" id="nav-nutrition" onclick="goTab('nutrition')"><span class="nav-ico">🥗</span>Nutrition</button>
+      <button class="nav-item" id="nav-coach" onclick="goTab('coach')"><span class="nav-ico">💬</span>Coach</button>
+      <button class="nav-item" id="nav-master" onclick="goTab('master')" style="display:none;"><span class="nav-ico">👑</span>Master</button>
+      <button class="nav-item" id="nav-profile" onclick="goTab('profile')"><span class="nav-ico">👤</span>Profile</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+
+    <!-- HOME TAB -->
+    <div class="tab-page on" id="tab-home">
+      <div class="content-header">
+        <div>
+          <div class="page-title" id="appTitleEl">Good morning, Xavier</div>
+          <div class="page-date" id="dateDisplay"></div>
+        </div>
+        <div class="header-right">
+          <button class="cog-btn" id="cogBtn" onclick="openSettings()">⚙️</button>
+          <button class="avatar-btn" id="avatarBtn" onclick="goTab('profile')">X</button>
+        </div>
+      </div>
+
+      <!-- Role switcher for trainer/master -->
+      <div class="rs-row" id="roleSwitcher" style="display:none;">
+        <button class="rs-btn on" id="rsCoach" onclick="switchView('coach')">Coach view</button>
+        <button class="rs-btn" id="rsMember" onclick="switchView('member')">My training</button>
+        <button class="rs-btn" id="rsMaster" style="display:none;" onclick="switchView('master')">Master</button>
+      </div>
+
+      <div class="quote-banner">
+        <div class="quote-text" id="rotatingQuote"></div>
+        <div class="quote-author" id="rotatingAuthor"></div>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-card"><div class="mc-label">Day</div><div class="mc-val" id="dayCount" style="color:var(--amber)">1</div><div class="mc-sub" id="daySubLabel">of 90</div></div>
+        <div class="metric-card"><div class="mc-label">Done</div><div class="mc-val" id="completedPct">0%</div><div class="mc-sub">today</div></div>
+        <div class="metric-card"><div class="mc-label" id="soberMetricLabel">Sober</div><div class="mc-val" id="soberDays">0</div><div class="mc-sub">days</div></div>
+        <div class="metric-card"><div class="mc-label">Gym</div><div class="mc-val" id="gymDays">0</div><div class="mc-sub">days</div></div>
+      </div>
+
+      <div class="content-grid">
+        <!-- IDENTITY CHECK-IN -->
+        <div class="section-card">
+          <div class="section-card-title">Identity check-in</div>
+          <div class="mood-row" id="moodRow">
+            <button class="mood-btn" onclick="selectMood(this)">Locked in</button>
+            <button class="mood-btn" onclick="selectMood(this)">Focused</button>
+            <button class="mood-btn" onclick="selectMood(this)">Tired but moving</button>
+            <button class="mood-btn" onclick="selectMood(this)">Off</button>
+          </div>
+          <input class="focus-input" id="focusWord" placeholder="One word for today's energy..."/>
+        </div>
+
+        <!-- DAILY EXECUTION -->
+        <div class="section-card">
+          <div class="section-card-title">Daily execution</div>
+          <div id="taskList"></div>
+          <div class="progress-wrap"><div class="progress-fill" id="progressBar" style="width:0%"></div></div>
+          <div class="progress-label">
+            <span id="progressLabel">0 tasks complete</span>
+            <span id="completedPctSmall" style="color:var(--amber)">0%</span>
+          </div>
+          <div class="all-done-banner" id="allDoneBanner">🎉 All tasks complete — let's go!</div>
+        </div>
+
+        <!-- BODY MOVEMENT -->
+        <div class="section-card">
+          <div class="section-card-title">Body — movement</div>
+          <div id="bodyTaskList"></div>
+          <div class="gym-type-row" id="gymTypeRow"></div>
+        </div>
+
+        <!-- MIND -->
+        <div class="section-card" id="mindSection">
+          <div class="section-card-title" id="mindSectionTitle">Mind</div>
+          <div id="mindContent"></div>
+          <div id="soberNote" style="font-size:11px;color:var(--text3);font-style:italic;margin-top:8px;line-height:1.5;"></div>
+        </div>
+
+        <!-- PROGRESS CHART -->
+        <div class="section-card">
+          <div class="section-card-title">Progress</div>
+          <div class="chart-tabs">
+            <button class="chart-tab active" onclick="switchChart('streak',this)">Streaks</button>
+            <button class="chart-tab" onclick="switchChart('tasks',this)">Tasks</button>
+            <button class="chart-tab" onclick="switchChart('wins',this)">Wins</button>
+          </div>
+          <div class="chart-wrap"><canvas id="progressChart"></canvas></div>
+        </div>
+
+        <!-- REWARD TIERS -->
+        <div class="section-card">
+          <div class="section-card-title">Reward tiers</div>
+          <div id="tierList"></div>
+        </div>
+
+        <!-- STREAK GRID -->
+        <div class="section-card">
+          <div class="section-card-title" id="streakGridTitle">90-day streak</div>
+          <div class="streak-grid" id="streakGrid"></div>
+          <button class="add-btn" onclick="openJournal()" style="margin-top:10px;border-style:solid;border-color:var(--border2);color:var(--text2);">📓 Journal history</button>
+        </div>
+
+        <!-- NOTIFICATIONS -->
+        <div class="section-card">
+          <div class="section-card-title">Notifications</div>
+          <div class="notify-row"><div><div class="notify-label">Morning brief</div><div class="notify-sub">7:30 AM</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="notify-row"><div><div class="notify-label">Midday check-in</div><div class="notify-sub">12:30 PM</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="notify-row"><div><div class="notify-label">Movement reminder</div><div class="notify-sub">4:30 PM</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="notify-row"><div><div class="notify-label">Streak protection</div><div class="notify-sub">6:30 PM</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="notify-row"><div><div class="notify-label" id="mindNotifLabel">Mind check-in</div><div class="notify-sub">9:00 PM</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="notify-row"><div><div class="notify-label">End of day</div><div class="notify-sub">9:30 PM</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+        </div>
+
+        <!-- END OF DAY DEBRIEF -->
+        <div class="section-card full-width">
+          <div class="section-card-title">End of day debrief</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Complete your debrief then lock in the day below.</div>
+          <div class="debrief-btns">
+            <div class="debrief-btn" id="winBtn" onclick="selectResult('win')">I executed ✓</div>
+            <div class="debrief-btn" id="missBtn" onclick="selectResult('miss')">I fell short</div>
+          </div>
+          <div id="debriefSection" style="display:none;margin-top:14px;">
+            <div id="winDebrief" style="display:none;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--amber);margin-bottom:8px;">Win debrief</div>
+              <textarea class="debrief-textarea" id="winQ1" placeholder="What was your biggest win today?"></textarea>
+              <textarea class="debrief-textarea" id="winQ2" placeholder="What momentum are you carrying into tomorrow?"></textarea>
+            </div>
+            <div id="missDebrief" style="display:none;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--red);margin-bottom:8px;">Miss debrief</div>
+              <textarea class="debrief-textarea" id="missQ1" placeholder="What got in the way today? Be specific."></textarea>
+              <textarea class="debrief-textarea" id="missQ2" placeholder="What specifically will you do differently tomorrow?"></textarea>
+              <div class="consequence-box" id="consequenceBox" style="display:none;">
+                <div class="con-tier" id="conTier"></div>
+                <div class="con-level" id="conLevel"></div>
+                <div class="con-text" id="conText"></div>
+                <div class="con-action" id="conAction"></div>
+              </div>
+            </div>
+          </div>
+          <button class="submit-btn miss" id="submitBtn" onclick="submitDay()">I failed today</button>
+          <div class="saving-indicator" id="savingIndicator" style="font-size:11px;color:var(--amber);text-align:center;margin-top:6px;opacity:0;transition:opacity .3s;">Saved to cloud ✓</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROGRAM TAB -->
+    <div class="tab-page" id="tab-program">
+      <div class="content-header">
+        <div>
+          <div class="page-title">My Program</div>
+          <div class="page-date">Phase 1 · Week 1</div>
+        </div>
+      </div>
+      <div class="workout-header">
+        <div class="workout-phase">Phase 1 — Week 1</div>
+        <div class="workout-title">Day 1 — Lower Body / Glutes</div>
+        <div class="workout-meta">5 exercises · ~60 min · 70–80% intensity</div>
+      </div>
+      <div id="exerciseList"></div>
+      <button class="log-btn" onclick="completeWorkout()" style="max-width:320px;margin-top:.5rem;">Mark workout complete ✓</button>
+    </div>
+
+    <!-- NUTRITION TAB -->
+    <div class="tab-page" id="tab-nutrition">
+      <div class="content-header"><div class="page-title">Nutrition</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="card">
+          <div class="card-title">Today's macros</div>
+          <div class="macro-ring-wrap">
+            <svg width="90" height="90" viewBox="0 0 90 90"><circle cx="45" cy="45" r="36" fill="none" stroke="var(--bg3)" stroke-width="8"/><circle cx="45" cy="45" r="36" fill="none" stroke="var(--amber)" stroke-width="8" stroke-dasharray="226" stroke-dashoffset="56" stroke-linecap="round" transform="rotate(-90 45 45)"/><text x="45" y="49" text-anchor="middle" font-size="14" font-weight="700" fill="#f5e6d0">1,840</text><text x="45" y="60" text-anchor="middle" font-size="9" fill="#8a6535">kcal</text></svg>
+            <div class="macro-legend">
+              <div class="macro-item"><div class="macro-dot" style="background:var(--amber);"></div><div><div class="macro-name">Protein</div><div class="macro-val">165g</div><div class="macro-bar-wrap"><div class="macro-bar" style="width:75%;background:var(--amber);"></div></div></div></div>
+              <div class="macro-item"><div class="macro-dot" style="background:var(--coral);"></div><div><div class="macro-name">Carbs</div><div class="macro-val">180g</div><div class="macro-bar-wrap"><div class="macro-bar" style="width:60%;background:var(--coral);"></div></div></div></div>
+              <div class="macro-item"><div class="macro-dot" style="background:var(--purple);"></div><div><div class="macro-name">Fat</div><div class="macro-val">55g</div><div class="macro-bar-wrap"><div class="macro-bar" style="width:45%;background:var(--purple);"></div></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">Meal plan<button onclick="regenerateMeals()" style="font-size:11px;font-weight:700;color:var(--amber);background:var(--al);border:none;border-radius:99px;padding:4px 10px;cursor:pointer;font-family:inherit;">Regenerate ↻</button></div>
+          <div id="mealPlan"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COACH TAB -->
+    <div class="tab-page" id="tab-coach">
+      <div class="content-header"><div class="page-title">AI Coach</div></div>
+      <button class="book-btn" onclick="bookCall()">📞 Book a call with Coach X — 1-on-1 · $2,000 / 3 months</button>
+      <div class="card" style="padding:.75rem 1rem;">
+        <div class="card-title">AI Coach + Coach X — 24/7</div>
+        <div class="chat-outer">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-bubble chat-bubble-ai">Hey! I'm your AI coach powered by Coach X's methodology. Ask me anything about your program, nutrition, recovery — I'm here 24/7. 💪</div>
+          </div>
+          <div class="chat-input-wrap">
+            <input class="chat-inp" id="chatInp" placeholder="Ask your coach..." onkeydown="if(event.key==='Enter')sendChat()"/>
+            <button class="chat-send" onclick="sendChat()">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MASTER TAB -->
+    <div class="tab-page" id="tab-master">
+      <div class="content-header"><div><div class="page-title">Master Dashboard</div><div class="page-date">All users · Revenue · Activity</div></div></div>
+      <div class="master-stats">
+        <div class="master-stat"><div class="ms-val" id="msUsers">0</div><div class="ms-lbl">Total users</div><div class="ms-change">+0 this week</div></div>
+        <div class="master-stat"><div class="ms-val" id="msActive">0</div><div class="ms-lbl">Active</div><div class="ms-change">last 7 days</div></div>
+        <div class="master-stat"><div class="ms-val" id="msRevenue">$0</div><div class="ms-lbl">Revenue</div><div class="ms-change">this month</div></div>
+        <div class="master-stat"><div class="ms-val" id="msClients">0</div><div class="ms-lbl">Clients</div><div class="ms-change">assigned</div></div>
+      </div>
+      <div class="section-card"><div class="section-card-title">All users</div><div id="userList"></div></div>
+    </div>
+
+    <!-- PROFILE TAB -->
+    <div class="tab-page" id="tab-profile">
+      <div class="content-header"><div class="page-title">Profile</div></div>
+      <div class="profile-hero">
+        <div class="profile-avatar" id="profileAvatar" onclick="changeAvatar()">X</div>
+        <div>
+          <div class="profile-name" id="profileName">Xavier Ellis</div>
+          <div class="profile-role-badge role-master" id="profileRoleBadge">Master</div>
+        </div>
+      </div>
+      <div class="settings-grid">
+        <div>
+          <div class="settings-section-title">Customization</div>
+          <div class="settings-card">
+            <div style="padding:12px 14px;border-bottom:.5px solid var(--border);"><div class="card-title" style="margin-bottom:8px;">Accent color</div><div class="color-row" id="colorPicker" style="padding:0;"></div></div>
+            <div style="padding:12px 14px;border-bottom:.5px solid var(--border);"><div class="card-title" style="margin-bottom:8px;">Default tab</div><div class="tab-picker-row" id="defaultTabPicker" style="padding:0;"></div></div>
+            <div class="setting-item"><div class="si-left"><div class="si-ico">📐</div><div><div class="si-label">Measurement</div><div class="si-sub" id="metricDisplay">US — lbs / ft</div></div></div><div class="si-right" onclick="toggleMetric()">Switch ›</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="settings-section-title">Coaching</div>
+          <div class="settings-card">
+            <div class="setting-item"><div class="si-left"><div class="si-ico">🎯</div><div><div class="si-label">Tone</div><div class="si-sub" id="toneDisplay">Brutal</div></div></div><div class="si-right" onclick="openSettings()">Change ›</div></div>
+            <div class="setting-item"><div class="si-left"><div class="si-ico">🤬</div><div><div class="si-label">Profanity</div></div></div><div class="toggle-sw" id="profToggle" onclick="toggleProfanity(this)"><div class="toggle-knob"></div></div></div>
+            <div class="setting-item"><div class="si-left"><div class="si-ico">🔔</div><div><div class="si-label">Reminders</div></div></div><div class="toggle-sw on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TASK PANEL (slide-up) -->
+<div id="taskPanel">
+  <div class="panel-bg" onclick="closePanel()"></div>
+  <div class="panel-card" id="panelCard">
+    <div class="panel-handle"></div>
+    <button class="panel-close" onclick="closePanel()">✕</button>
+    <div class="panel-title" id="panelTitle">Task</div>
+    <div class="panel-sub" id="panelSub"></div>
+    <div id="panelBody"></div>
+  </div>
+</div>
+
+<!-- DAY OVERLAY -->
+<div class="overlay" id="overlay">
+  <div class="overlay-card" id="overlayCard">
+    <div class="ov-icon" id="ovIcon">🔥</div>
+    <div class="ov-title" id="ovTitle">Day locked in.</div>
+    <div class="ov-text" id="ovText"></div>
+    <div class="ov-action" id="ovAction" style="display:none;"></div>
+    <button class="ov-close" id="ovClose" onclick="closeOverlay()">Let's go</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-card">
+    <div class="modal-title">⚙️ Settings</div>
+    <div class="modal-section">
+      <div class="modal-section-title">Profile</div>
+      <div class="modal-row"><div class="modal-row-label">Name</div><input class="modal-input" id="set-name" placeholder="Your name"/></div>
+      <div class="modal-row"><div class="modal-row-label">Building</div><input class="modal-input" id="set-goal" placeholder="Your goal"/></div>
+      <div class="modal-row"><div class="modal-row-label">Who motivates you</div><input class="modal-input" id="set-motivator" placeholder="Partner, kids..."/></div>
+      <div class="modal-row"><div class="modal-row-label">Biggest fear</div><input class="modal-input" id="set-fears" placeholder="If you don't execute..."/></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Timeline & tone</div>
+      <div class="modal-row"><div class="modal-row-label">Goal length</div><select class="modal-select" id="set-goalLength"><option>30 days</option><option>60 days</option><option selected>90 days</option><option>6 months</option><option>1 year</option></select></div>
+      <div class="modal-row"><div class="modal-row-label">Consequence tone</div><select class="modal-select" id="set-tone"><option>Hard</option><option selected>Brutal</option><option>Motivational</option><option>Balanced</option></select></div>
+      <div class="modal-row"><div class="modal-row-label">Profanity</div><select class="modal-select" id="set-profanity"><option value="true" selected>On</option><option value="false">Off</option></select></div>
+      <div class="modal-row"><div class="modal-row-label">Fitness level</div><select class="modal-select" id="set-fitness"><option value="beginner">Beginner</option><option value="intermediate" selected>Intermediate</option><option value="advanced">Advanced</option></select></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Mind & sobriety</div>
+      <div class="modal-row"><div class="modal-row-label">Do you smoke?</div><select class="modal-select" id="set-smokes"><option value="Neither">Neither</option><option value="Cigarettes">Cigarettes</option><option value="Weed">Weed</option><option value="Both">Both</option></select></div>
+      <div class="modal-row"><div class="modal-row-label">Do you drink?</div><select class="modal-select" id="set-drinks"><option value="No">No</option><option value="Yes">Yes — regularly</option><option value="Socially">Socially</option></select></div>
+      <div id="customHabitsSection" style="display:none;margin-top:10px;">
+        <div class="modal-section-title">Custom habits</div>
+        <div id="customHabitsEditor"></div>
+        <button class="add-btn" onclick="addCustomHabit()" style="margin-top:4px;">+ Add habit</button>
+      </div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Background</div>
+      <div class="modal-row"><div class="modal-row-label">Floating emoji</div><select class="modal-select" id="set-bgEmoji"><option value="none">None</option><option value="🔥">🔥 Flames</option><option value="⚡">⚡ Lightning</option><option value="👑">👑 Crowns</option><option value="💎">💎 Diamonds</option><option value="random">🎲 Random</option></select></div>
+      <div class="modal-row"><div class="modal-row-label">Streak color shift</div><select class="modal-select" id="set-colorShift"><option value="true" selected>On</option><option value="false">Off</option></select></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Daily tasks</div>
+      <div id="settingsTaskEditor"></div>
+      <button class="add-btn" onclick="addSettingsTask()" style="margin-top:4px;">+ Add task</button>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Movement types</div>
+      <div id="settingsMovementEditor"></div>
+      <button class="add-btn" onclick="addMovementType()" style="margin-top:4px;">+ Add movement type</button>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Reward tiers</div>
+      <div id="tierEditor"></div>
+    </div>
+    <button class="auth-btn" onclick="saveSettings()" style="margin-bottom:8px;">Save changes</button>
+    <div style="padding:13px 16px;background:rgba(228,75,74,.08);border:.5px solid rgba(228,75,74,.2);border-radius:var(--radius-sm);color:var(--red);font-size:14px;font-weight:600;cursor:pointer;text-align:center;margin-top:.75rem;" onclick="signOut()">Sign out</div>
+    <button class="modal-close" onclick="closeSettings()">Close</button>
+  </div>
+</div>
+
+<!-- JOURNAL MODAL -->
+<div class="modal-overlay" id="journalModal">
+  <div class="journal-modal-inner">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <div style="font-size:18px;font-weight:700;color:var(--text);">📓 Journal</div>
+      <button class="modal-close" onclick="closeJournal()" style="width:auto;padding:6px 16px;margin:0;">Close</button>
+    </div>
+    <input class="search-bar" id="journalSearch" placeholder="🔍 Search entries..." oninput="renderJournal()"/>
+    <div class="cal-month-nav">
+      <button class="cal-nav-btn" onclick="changeMonth(-1)">←</button>
+      <div class="cal-month-label" id="calMonthLabel"></div>
+      <button class="cal-nav-btn" onclick="changeMonth(1)">→</button>
+    </div>
+    <div class="cal-header"><div class="cal-header-day">Su</div><div class="cal-header-day">Mo</div><div class="cal-header-day">Tu</div><div class="cal-header-day">We</div><div class="cal-header-day">Th</div><div class="cal-header-day">Fr</div><div class="cal-header-day">Sa</div></div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div style="height:.5px;background:var(--border);margin:.75rem 0;"></div>
+    <div id="journalEntries"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
