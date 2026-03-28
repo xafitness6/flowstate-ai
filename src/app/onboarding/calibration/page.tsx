@@ -10,7 +10,7 @@ import {
   ChevronDown,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../../lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -857,22 +857,21 @@ export default function CalibrationPage() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   const stepIndex = STEPS.indexOf(step);
+
+  const isContent = step !== "intro" && step !== "complete";
+
   const contentSteps = STEPS.filter(
-  const stepIndex = STEPS.indexOf(step);
-const isContent = step !== "intro" && step !== "complete";
+    (s): s is Exclude<Step, "intro" | "complete"> =>
+      s !== "intro" && s !== "complete"
+  );
 
-const contentSteps = STEPS.filter(
-  (s): s is Exclude<Step, "intro" | "complete"> =>
-    s !== "intro" && s !== "complete"
-);
+  const contentIndex = isContent ? contentSteps.indexOf(step) : -1;
 
-const contentIndex = isContent ? contentSteps.indexOf(step) : -1;
-
-const progress = isContent
-  ? ((contentIndex + 1) / contentSteps.length) * 100
-  : step === "complete"
-    ? 100
-    : 0;
+  const progress = isContent
+    ? ((contentIndex + 1) / contentSteps.length) * 100
+    : step === "complete"
+      ? 100
+      : 0;
 
   function navigate(target: Step) {
     setAnimating(true);
@@ -893,8 +892,8 @@ const progress = isContent
     if (prev) navigate(prev);
   }
 
-  const showNav   = step !== "intro" && step !== "complete";
-  const showBack  = stepIndex > 1;
+  const showNav = step !== "intro" && step !== "complete";
+  const showBack = stepIndex > 1;
 
   return (
     <div className="min-h-[calc(100vh-56px)] flex flex-col text-white">
