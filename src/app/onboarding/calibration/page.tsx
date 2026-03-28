@@ -857,14 +857,11 @@ export default function CalibrationPage() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   const stepIndex = STEPS.indexOf(step);
-  const isContent = step !== "intro" && step !== "complete";
   const contentSteps = STEPS.filter(
   (s): s is Exclude<Step, "intro" | "complete"> => s !== "intro" && s !== "complete"
 );
 
-const contentIndex = isContent ? contentSteps.indexOf(step) : -1; = STEPS.filter(
-  (s): s is Exclude<Step, "intro" | "complete"> => s !== "intro" && s !== "complete"
-);
+const contentIndex = isContent ? contentSteps.indexOf(step) : -1;
 
 const contentIndex = isContent ? contentSteps.indexOf(step) : -1; = STEPS.filter((s) => s !== "intro" && s !== "complete");
   const contentIndex = contentSteps.indexOf(step);
