@@ -7,42 +7,53 @@ import type { MockUser, Role } from "@/types";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
-    id:        "usr_001",
-    name:      "Xavier Ellis",
-    role:      "master",
-    status:    "active",
-    pushLevel: 6,
+    id:               "usr_001",
+    name:             "Xavier Ellis",
+    role:             "master",
+    status:           "active",
+    pushLevel:        6,
+    defaultDashboard: "overview",
+    plan:             "elite",
   },
   trainer: {
-    id:        "u4",
-    name:      "Jordan Lee",
-    role:      "trainer",
-    status:    "active",
-    pushLevel: 7,
+    id:               "u4",
+    name:             "Alex Rivera",
+    role:             "trainer",
+    status:           "active",
+    pushLevel:        7,
+    defaultDashboard: "program",
+    plan:             "pro",
   },
   client: {
-    id:        "u1",
-    name:      "Kai Nakamura",
-    role:      "client",
-    status:    "active",
-    pushLevel: 5,
+    id:               "u1",
+    name:             "Kai Nakamura",
+    role:             "client",
+    status:           "active",
+    pushLevel:        5,
+    defaultDashboard: "program",
+    plan:             "pro",
   },
   member: {
-    id:        "u6",
-    name:      "Luca Ferretti",
-    role:      "member",
-    status:    "active",
-    pushLevel: 4,
+    id:               "u6",
+    name:             "Luca Ferretti",
+    role:             "member",
+    status:           "active",
+    pushLevel:        4,
+    defaultDashboard: "accountability",
+    plan:             "starter",
   },
 };
 
 const LS_KEY = "flowstate-active-role";
+const SS_KEY = "flowstate-session-role";
 
 function loadUser(): MockUser {
   if (typeof window === "undefined") return DEMO_USERS.master;
   try {
-    const saved = localStorage.getItem(LS_KEY) as keyof typeof DEMO_USERS | null;
-    if (saved && DEMO_USERS[saved]) return DEMO_USERS[saved];
+    const ss = sessionStorage.getItem(SS_KEY) as keyof typeof DEMO_USERS | null;
+    if (ss && DEMO_USERS[ss]) return DEMO_USERS[ss];
+    const ls = localStorage.getItem(LS_KEY) as keyof typeof DEMO_USERS | null;
+    if (ls && DEMO_USERS[ls]) return DEMO_USERS[ls];
   } catch { /* ignore */ }
   return DEMO_USERS.master;
 }
@@ -53,12 +64,12 @@ type UserContextValue = {
   user:       MockUser;
   setRole:    (role: Role) => void;
   switchUser: (demoKey: keyof typeof DEMO_USERS) => void;
+  logout:     () => void;
 };
 
 const UserContext = createContext<UserContextValue | null>(null);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  // Start with master for SSR, hydrate from localStorage after mount
   const [user, setUser] = useState<MockUser>(DEMO_USERS.master);
 
   useEffect(() => {
@@ -78,8 +89,16 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(LS_KEY, demoKey); } catch { /* ignore */ }
   }
 
+  function logout() {
+    try {
+      localStorage.removeItem(LS_KEY);
+      sessionStorage.removeItem(SS_KEY);
+    } catch { /* ignore */ }
+    window.location.href = "/login";
+  }
+
   return (
-    <UserContext.Provider value={{ user, setRole, switchUser }}>
+    <UserContext.Provider value={{ user, setRole, switchUser, logout }}>
       {children}
     </UserContext.Provider>
   );

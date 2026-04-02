@@ -2,58 +2,75 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Dumbbell, Utensils, Bot, User, LayoutDashboard, CheckSquare, CalendarDays, Users, Trophy, Film, Clapperboard } from "lucide-react";
+import { Home, Dumbbell, Utensils, Bot, User, LayoutDashboard, CheckSquare, CalendarDays, Users, Trophy, Film, Clapperboard, Wind, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
-import { isMaster } from "@/lib/roles";
+import { hasAccess, isAdmin } from "@/lib/roles";
+import { planHasAccess, PLAN_LABELS } from "@/lib/plans";
 import type { NavItem } from "@/types";
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home",           href: "/",               icon: Home },
+  { label: "Home",           href: "/dashboard",      icon: Home },
   { label: "Program",        href: "/program",        icon: Dumbbell },
-  { label: "Nutrition",      href: "/nutrition",      icon: Utensils },
-  { label: "Calendar",       href: "/calendar",       icon: CalendarDays },
-  { label: "Coach",          href: "/coach",          icon: Bot },
+  { label: "Nutrition",      href: "/nutrition",      icon: Utensils,     roles: ["client"], plan: "pro"   },
+  { label: "Calendar",       href: "/calendar",       icon: CalendarDays, roles: ["client"], plan: "pro"   },
+  { label: "Coach",          href: "/coach",          icon: Bot,          roles: ["client"], plan: "pro"   },
   { label: "Accountability", href: "/accountability", icon: CheckSquare },
-  { label: "Library",       href: "/library",        icon: Film },
-  { label: "Form Analysis", href: "/form",           icon: Clapperboard },
-  { label: "Leaderboard",   href: "/leaderboard",    icon: Trophy },
-  { label: "Profile",       href: "/profile",        icon: User },
+  { label: "Breathwork",     href: "/breathwork",     icon: Wind },
+  { label: "Library",        href: "/library",        icon: Film,         roles: ["trainer"], plan: "pro"  },
+  { label: "Form Analysis",  href: "/form",           icon: Clapperboard, roles: ["trainer"], plan: "elite"},
+  { label: "Leaderboard",    href: "/leaderboard",    icon: Trophy },
+  { label: "Profile",        href: "/profile",        icon: User },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useUser();
+  const { user }  = useUser();
 
   return (
-    <aside className="hidden md:flex flex-col w-56 min-h-screen border-r border-white/5 bg-[#0D0D0D] px-3 py-6 gap-1 sticky top-0 h-screen">
+    <aside className="hidden md:flex flex-col w-56 min-h-screen border-r border-white/5 bg-[#0D0D0D] px-3 py-6 gap-1 sticky top-0 h-screen overflow-y-auto">
       <div className="px-3 mb-6">
         <span className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90">
           Flowstate
         </span>
       </div>
 
-      {NAV_ITEMS.map((item) => {
-        const active = pathname === item.href;
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-              active
-                ? "bg-[#B48240]/10 text-[#B48240]"
-                : "text-[#525252] hover:text-[#F5F5F5] hover:bg-white/5"
-            )}
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            {item.label}
-          </Link>
-        );
-      })}
+      {NAV_ITEMS
+        // Role gate: hide completely if role is insufficient
+        .filter((item) => !item.roles || hasAccess(user.role, item.roles[0]))
+        .map((item) => {
+          const active  = item.href === "/dashboard"
+            ? pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+            : pathname === item.href;
+          const locked  = !!item.plan && !planHasAccess(user.plan, item.plan);
+          const Icon    = item.icon;
 
-      {isMaster(user.role) && (
+          return (
+            <Link
+              key={item.href}
+              href={locked ? "/pricing" : item.href}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                active  ? "bg-[#B48240]/10 text-[#B48240]"
+                : locked ? "text-[#383838] hover:text-[#505050] hover:bg-white/[0.02]"
+                :          "text-[#525252] hover:text-[#F5F5F5] hover:bg-white/5"
+              )}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="flex-1">{item.label}</span>
+              {locked && (
+                <span className="flex items-center gap-1 ml-auto">
+                  <span className="text-[8px] uppercase tracking-[0.12em] text-[#B48B40]/40 font-medium">
+                    {PLAN_LABELS[item.plan!]}
+                  </span>
+                  <Lock className="w-3 h-3 text-white/15" strokeWidth={1.5} />
+                </span>
+              )}
+            </Link>
+          );
+        })}
+
+      {isAdmin(user.role) && (
         <div className="mt-auto">
           <div className="h-px bg-white/5 mb-3" />
           <Link
@@ -69,16 +86,16 @@ export function Sidebar() {
             Trainers
           </Link>
           <Link
-            href="/master"
+            href="/admin"
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-              pathname === "/master"
+              pathname === "/admin"
                 ? "bg-[#B48240]/10 text-[#B48240]"
                 : "text-[#525252] hover:text-[#A3A3A3] hover:bg-white/5"
             )}
           >
             <LayoutDashboard className="w-4 h-4 shrink-0" />
-            Master
+            Admin
           </Link>
         </div>
       )}

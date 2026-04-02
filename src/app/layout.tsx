@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/context/UserContext";
-import { AppShell } from "@/components/layout/AppShell";
-import { DevPanel } from "@/components/dev/DevPanel";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,6 +14,9 @@ export const metadata: Metadata = {
   description: "Your performance operating system.",
 };
 
+// Root layout: HTML shell + context providers only.
+// No sidebar, no nav, no dev controls.
+// Each route group (public / app) adds its own layout on top of this.
 export default function RootLayout({
   children,
 }: {
@@ -23,10 +24,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} dark h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full bg-[#0A0A0A] flex flex-col">
         <UserProvider>
-          <AppShell>{children}</AppShell>
-          <DevPanel />
+          {children}
         </UserProvider>
       </body>
     </html>

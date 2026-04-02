@@ -38,6 +38,10 @@ function HoverCardContent({
     member:  "text-white/35",
   };
 
+  const ROLE_LABEL: Record<string, string> = {
+    master: "Admin", trainer: "Trainer", client: "Client", member: "Member",
+  };
+
   const PLAN_COLOR: Record<string, string> = {
     elite: "text-[#B48B40]",
     pro:   "text-white/50",
@@ -60,8 +64,8 @@ function HoverCardContent({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white/90 truncate">{user.name}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={cn("text-[10px] font-medium capitalize", ROLE_COLOR[user.role])}>
-                {user.role}
+              <span className={cn("text-[10px] font-medium", ROLE_COLOR[user.role])}>
+                {ROLE_LABEL[user.role] ?? user.role}
               </span>
               {user.plan && (
                 <>

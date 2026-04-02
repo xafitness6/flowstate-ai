@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { PLAN_LABELS } from "@/lib/plans";
 import { User, Settings, LogOut } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { cn } from "@/lib/utils";
@@ -19,7 +21,7 @@ const MENU_ITEMS = [
 ];
 
 export function TopBar() {
-  const { user } = useUser();
+  const { user, logout } = useUser();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef  = useRef<HTMLDivElement>(null);
@@ -52,14 +54,21 @@ export function TopBar() {
 
   function handleItem(href: string | null) {
     setOpen(false);
-    if (href) router.push(href);
+    if (href) {
+      router.push(href);
+    } else {
+      logout(); // clears storage + hard-navigates to /login
+    }
   }
 
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-14 border-b border-white/5 bg-[#0A0A0A]/90 backdrop-blur-md">
-      <span className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90">
+      <Link
+        href="/dashboard?tab=overview"
+        className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90 hover:text-white transition-colors"
+      >
         Flowstate
-      </span>
+      </Link>
 
       <div ref={menuRef} className="relative">
         {/* Avatar button */}
@@ -88,7 +97,12 @@ export function TopBar() {
             {/* User info */}
             <div className="px-4 py-3 border-b border-white/[0.05]">
               <p className="text-xs font-semibold text-white/75 truncate">{user.name}</p>
-              <p className="text-[10px] text-white/28 mt-0.5 capitalize">{user.role}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-[10px] text-white/28 capitalize">{user.role}</p>
+                <span className="text-[8px] uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-md bg-[#B48B40]/15 text-[#B48B40]/70 border border-[#B48B40]/20">
+                  {PLAN_LABELS[user.plan]}
+                </span>
+              </div>
             </div>
 
             {/* Menu items */}

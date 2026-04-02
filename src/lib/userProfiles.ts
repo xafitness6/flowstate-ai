@@ -24,7 +24,7 @@ export type SnapshotUser = {
 
 // Keys are trainer names; values are user IDs of their assigned clients.
 export const TRAINER_ASSIGNMENTS: Record<string, string[]> = {
-  "Jordan Lee":  ["u1", "u2", "u7", "u11"],
+  "Alex Rivera": ["u1", "u2", "u7", "u11"],
   "Marcus Webb": ["u5", "u9"],
 };
 
