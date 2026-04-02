@@ -1,3 +1,6 @@
+"use client";
+
+import { useAdminGuard } from "@/hooks/useAdminGuard";
 import { AdjustmentCard } from "@/components/ai/AdjustmentCard";
 import { AdjustmentGroup } from "@/components/ai/AdjustmentGroup";
 
@@ -89,6 +92,9 @@ const GROUP_ROWS = [
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ShowcasePage() {
+  const ready = useAdminGuard();
+  if (!ready) return null;
+
   return (
     <div className="px-5 md:px-8 py-6 text-white">
       <div className="max-w-2xl mx-auto space-y-10">

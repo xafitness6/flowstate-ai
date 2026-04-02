@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+// DevPanel is intentionally only mounted on /dev.
+// Never import or render this component from layouts or other routes.
 import { cn } from "@/lib/utils";
 import { useUser, DEMO_USERS } from "@/context/UserContext";
 import {
@@ -134,12 +136,10 @@ function PanelContent({
 }
 
 // ── DevPanel ──────────────────────────────────────────────────────────────────
-// forceOpen=true  → inline mode for /dev page, no floating toggle
-// forceOpen=false → floating badge in bottom-left corner (legacy, not in layout)
+// Always renders inline. Only mount this on /dev — never in layouts or shells.
 
-export function DevPanel({ forceOpen = false }: { forceOpen?: boolean }) {
+export function DevPanel() {
   const { user, switchUser } = useUser();
-  const [open,   setOpen  ] = useState(forceOpen);
   const [status, setStatus] = useState("");
 
   function handleSeed() {
@@ -174,36 +174,9 @@ export function DevPanel({ forceOpen = false }: { forceOpen?: boolean }) {
 
   const contentProps = { user, status, handleSeed, handleMissedDays, handleFirstRun, handleReset, handleSwitch };
 
-  // Inline mode — no floating toggle, panel always visible
-  if (forceOpen) {
-    return (
-      <div className="w-full rounded-2xl border border-white/10 bg-[#0F0F0F] overflow-hidden">
-        <PanelContent {...contentProps} />
-      </div>
-    );
-  }
-
-  // Floating mode — toggle badge in corner
   return (
-    <div className="fixed bottom-[72px] md:bottom-4 left-3 z-[300]">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-[0.12em] transition-all shadow-lg shadow-black/40",
-          open
-            ? "border-[#B48B40]/30 bg-[#B48B40]/10 text-[#B48B40]"
-            : "border-white/10 bg-[#111111] text-white/35 hover:text-white/55"
-        )}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-[#B48B40] shrink-0" />
-        Dev
-      </button>
-
-      {open && (
-        <div className="absolute bottom-full mb-2 left-0 w-56 rounded-2xl border border-white/10 bg-[#0F0F0F] shadow-2xl shadow-black/60 overflow-hidden">
-          <PanelContent {...contentProps} />
-        </div>
-      )}
+    <div className="w-full rounded-2xl border border-white/10 bg-[#0F0F0F] overflow-hidden">
+      <PanelContent {...contentProps} />
     </div>
   );
 }

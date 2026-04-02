@@ -14,8 +14,10 @@ function DevPageInner() {
 
   useEffect(() => {
     try {
-      const role     = localStorage.getItem(LS_KEY) || sessionStorage.getItem(SS_KEY);
-      const devParam = searchParams.get("dev") === "true";
+      const role = localStorage.getItem(LS_KEY) || sessionStorage.getItem(SS_KEY);
+      // ?dev=true only works in local development — never in production builds.
+      const devParam =
+        process.env.NODE_ENV !== "production" && searchParams.get("dev") === "true";
       if (role === "master" || devParam) {
         setAllowed(true);
       } else {
@@ -36,7 +38,7 @@ function DevPageInner() {
           <h1 className="text-xl font-semibold tracking-tight">Dev Tools</h1>
           <p className="text-xs text-white/30 mt-1">Testing controls. Not visible to users.</p>
         </div>
-        <DevPanel forceOpen />
+        <DevPanel />
       </div>
     </div>
   );
