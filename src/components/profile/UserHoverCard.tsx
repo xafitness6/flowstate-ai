@@ -43,9 +43,10 @@ function HoverCardContent({
   };
 
   const PLAN_COLOR: Record<string, string> = {
-    elite: "text-[#B48B40]",
-    pro:   "text-white/50",
-    free:  "text-white/28",
+    elite:   "text-[#B48B40]",
+    pro:     "text-white/50",
+    starter: "text-white/28",
+    free:    "text-white/28",
   };
 
   return (

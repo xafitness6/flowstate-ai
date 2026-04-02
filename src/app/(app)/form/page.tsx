@@ -12,7 +12,6 @@ import {
   visibleSubmissions,
   statusLabel,
   scoreColor,
-  generateAIAnalysis,
   type FormSubmission,
 } from "@/lib/formAnalysis";
 import { TRAINER_ASSIGNMENTS } from "@/lib/userProfiles";
@@ -157,15 +156,14 @@ function SubmitModal({
       submittedAt: new Date().toISOString(),
       submittedById: user.id,
       submittedByName: user.name,
-      status: "ai_reviewed",
-      aiAnalysis: generateAIAnalysis(exercise.trim()),
+      status: "pending",
       notes: notes.trim(),
     };
 
     setTimeout(() => {
       onSubmit(newSub);
       onClose();
-    }, 800);
+    }, 600);
   }
 
   return (
@@ -299,7 +297,7 @@ function SubmitModal({
                 : "bg-white/5 text-white/20 cursor-not-allowed"
             )}
           >
-            {submitting ? "Analyzing…" : "Submit for Analysis"}
+            {submitting ? "Submitting…" : "Submit for review"}
           </button>
         </div>
       </div>
@@ -342,8 +340,8 @@ export default function FormPage() {
             </div>
             <p className="text-sm text-white/35">
               {user.role === "master" || user.role === "trainer"
-                ? "Review and coach your clients' form submissions"
-                : "Submit videos for AI feedback and coach review"}
+                ? "Review submissions and leave coaching feedback"
+                : "Submit a video and get coaching feedback from your trainer"}
             </p>
           </div>
           {canSubmit && (
@@ -365,7 +363,7 @@ export default function FormPage() {
             </div>
             <p className="text-sm font-medium text-white/35">No submissions yet</p>
             <p className="text-xs text-white/20 mt-1">
-              {canSubmit ? "Submit a video to get AI form analysis and coach feedback." : "No submissions to review."}
+              {canSubmit ? "Submit a video and your coach will review it and leave feedback." : "No submissions to review yet."}
             </p>
           </div>
         )}
@@ -380,10 +378,10 @@ export default function FormPage() {
           </section>
         )}
 
-        {/* AI reviewed */}
+        {/* Reviewed (includes legacy AI-reviewed submissions) */}
         {aiReviewed.length > 0 && (
           <section className="mb-6">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-white/25 mb-2 px-1">AI reviewed</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-white/25 mb-2 px-1">Reviewed</p>
             <div className="space-y-2">
               {aiReviewed.map((s) => <SubmissionCard key={s.id} sub={s} />)}
             </div>

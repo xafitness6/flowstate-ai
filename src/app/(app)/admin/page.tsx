@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Users,
   TrendingUp,
@@ -12,87 +13,62 @@ import {
   ChevronUp,
   ChevronDown,
   Minus,
+  MoreHorizontal,
+  Eye,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserNameLink } from "@/components/profile/UserHoverCard";
 import { useAdminGuard } from "@/hooks/useAdminGuard";
+import { useUser } from "@/context/UserContext";
+import {
+  initStore,
+  getUsers,
+  deleteUser,
+  type PlatformUser,
+  PermissionError,
+} from "@/lib/data/store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type UserStatus  = "active" | "at-risk" | "churned" | "trial" | "paused";
-type UserRole    = "member" | "client" | "trainer" | "master";
-type UserPlan    = "free" | "pro" | "elite";
-type SortKey     = "name" | "role" | "plan" | "status" | "lastActive";
-type SortDir     = "asc" | "desc";
+type SortKey = "name" | "role" | "plan" | "status" | "lastActive";
+type SortDir = "asc" | "desc";
 
-type MockMember = {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  plan: UserPlan;
-  status: UserStatus;
-  lastActive: string;
-  trainer?: string;
-  joinDate: string;
-};
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Static platform-level stats (aggregate, not from seed users) ─────────────
 
 const REVENUE_POINTS = [18400, 19200, 20100, 21800, 22400, 23650, 24840];
 const USER_GROWTH    = [610, 648, 672, 695, 718, 741, 762, 791, 812, 831, 841, 847];
 
-const TIERS: { plan: UserPlan; label: string; count: number; color: string; mrr: number }[] = [
-  { plan: "elite", label: "Elite",  count: 234, color: "bg-[#B48B40]",    mrr: 14040 },
-  { plan: "pro",   label: "Pro",    count: 489, color: "bg-[#93C5FD]/70", mrr: 9780  },
-  { plan: "free",  label: "Free",   count: 124, color: "bg-white/12",     mrr: 0     },
-];
-
-const USERS: MockMember[] = [
-  { id: "u1",  name: "Kai Nakamura",  email: "kai@domain.com",    role: "client",  plan: "elite", status: "active",   lastActive: "2m ago",  trainer: "Alex Rivera", joinDate: "Jan 2025" },
-  { id: "u2",  name: "Priya Sharma",  email: "priya@domain.com",  role: "client",  plan: "elite", status: "active",   lastActive: "14m ago", trainer: "Alex Rivera", joinDate: "Feb 2025" },
-  { id: "u3",  name: "Marcus Webb",   email: "marcus@domain.com", role: "trainer", plan: "pro",   status: "active",   lastActive: "1h ago",  joinDate: "Nov 2024" },
-  { id: "u4",  name: "Alex Rivera",   email: "alex@domain.com",   role: "trainer", plan: "elite", status: "active",   lastActive: "3h ago",  joinDate: "Oct 2024" },
-  { id: "u5",  name: "Anya Patel",    email: "anya@domain.com",   role: "client",  plan: "pro",   status: "at-risk",  lastActive: "4d ago",  trainer: "Marcus Webb", joinDate: "Mar 2025" },
-  { id: "u6",  name: "Luca Ferretti", email: "luca@domain.com",   role: "member",  plan: "pro",   status: "active",   lastActive: "6h ago",  joinDate: "Dec 2024" },
-  { id: "u7",  name: "Sofia Reyes",   email: "sofia@domain.com",  role: "client",  plan: "elite", status: "active",   lastActive: "22h ago", trainer: "Alex Rivera", joinDate: "Feb 2025" },
-  { id: "u8",  name: "Dmitri Volkov", email: "dmitri@domain.com", role: "member",  plan: "free",  status: "trial",    lastActive: "1d ago",  joinDate: "Mar 2025" },
-  { id: "u9",  name: "Hana Suzuki",   email: "hana@domain.com",   role: "client",  plan: "pro",   status: "paused",   lastActive: "8d ago",  trainer: "Marcus Webb", joinDate: "Jan 2025" },
-  { id: "u10", name: "Omar Hassan",   email: "omar@domain.com",   role: "member",  plan: "pro",   status: "active",   lastActive: "2d ago",  joinDate: "Feb 2025" },
-  { id: "u11", name: "Claire Dubois", email: "claire@domain.com", role: "client",  plan: "elite", status: "at-risk",  lastActive: "5d ago",  trainer: "Alex Rivera", joinDate: "Dec 2024" },
-  { id: "u12", name: "Ravi Menon",    email: "ravi@domain.com",   role: "member",  plan: "free",  status: "churned",  lastActive: "21d ago", joinDate: "Nov 2024" },
-];
-
-const ASSIGNMENTS: { trainer: string; count: number; clients: string[] }[] = [
-  { trainer: "Alex Rivera", count: 4, clients: ["Kai Nakamura", "Priya Sharma", "Sofia Reyes", "Claire Dubois"] },
-  { trainer: "Marcus Webb", count: 2, clients: ["Anya Patel", "Hana Suzuki"] },
+const TIERS: { plan: PlatformUser["plan"]; label: string; count: number; color: string; mrr: number }[] = [
+  { plan: "elite",   label: "Elite",   count: 234, color: "bg-[#B48B40]",    mrr: 14040 },
+  { plan: "pro",     label: "Pro",     count: 489, color: "bg-[#93C5FD]/70", mrr: 9780  },
+  { plan: "starter", label: "Starter", count: 124, color: "bg-white/12",     mrr: 0     },
 ];
 
 // ─── Config maps ──────────────────────────────────────────────────────────────
 
-const STATUS_CFG: Record<UserStatus, { label: string; dot: string; badge: string }> = {
-  active:    { label: "Active",  dot: "bg-emerald-400", badge: "text-emerald-400 border-emerald-400/20 bg-emerald-400/8"   },
-  "at-risk": { label: "At risk", dot: "bg-amber-400",   badge: "text-amber-400 border-amber-400/20 bg-amber-400/8"         },
-  churned:   { label: "Churned", dot: "bg-[#F87171]",   badge: "text-[#F87171] border-[#F87171]/20 bg-[#F87171]/8"         },
-  trial:     { label: "Trial",   dot: "bg-[#93C5FD]",   badge: "text-[#93C5FD] border-[#93C5FD]/20 bg-[#93C5FD]/8"         },
-  paused:    { label: "Paused",  dot: "bg-white/30",    badge: "text-white/40 border-white/12 bg-white/[0.04]"             },
-};
+const STATUS_CFG = {
+  active:    { label: "Active",  dot: "bg-emerald-400", badge: "text-emerald-400 border-emerald-400/20 bg-emerald-400/8"  },
+  "at-risk": { label: "At risk", dot: "bg-amber-400",   badge: "text-amber-400 border-amber-400/20 bg-amber-400/8"        },
+  churned:   { label: "Churned", dot: "bg-[#F87171]",   badge: "text-[#F87171] border-[#F87171]/20 bg-[#F87171]/8"        },
+  trial:     { label: "Trial",   dot: "bg-[#93C5FD]",   badge: "text-[#93C5FD] border-[#93C5FD]/20 bg-[#93C5FD]/8"        },
+  paused:    { label: "Paused",  dot: "bg-white/30",    badge: "text-white/40 border-white/12 bg-white/[0.04]"            },
+} as const;
 
-// Role display — "master" internal role shows as "Admin" in UI
-const ROLE_CFG: Record<UserRole, { label: string; color: string }> = {
+const ROLE_CFG = {
   master:  { label: "Admin",   color: "text-emerald-400/80" },
   trainer: { label: "Trainer", color: "text-[#B48B40]/80"   },
   client:  { label: "Client",  color: "text-[#93C5FD]/70"   },
   member:  { label: "Member",  color: "text-white/35"        },
-};
+} as const;
 
-const PLAN_CFG: Record<UserPlan, { label: string; color: string }> = {
-  elite: { label: "Elite", color: "text-[#B48B40]"  },
-  pro:   { label: "Pro",   color: "text-white/55"   },
-  free:  { label: "Free",  color: "text-white/28"   },
-};
+const PLAN_CFG = {
+  elite:   { label: "Elite",   color: "text-[#B48B40]" },
+  pro:     { label: "Pro",     color: "text-white/55"  },
+  starter: { label: "Starter", color: "text-white/28"  },
+} as const;
 
-// ─── Sparkline chart ──────────────────────────────────────────────────────────
+// ─── Sparkline / bar chart ────────────────────────────────────────────────────
 
 function Sparkline({ points, color = "#B48B40", height = 40 }: { points: number[]; color?: string; height?: number }) {
   const w = 200, h = height;
@@ -177,27 +153,142 @@ function SortIcon({ field, sortKey, sortDir }: { field: SortKey; sortKey: SortKe
     : <ChevronDown className="w-3 h-3 text-[#B48B40]" strokeWidth={2} />;
 }
 
+// ─── Action menu ──────────────────────────────────────────────────────────────
+
+type MenuOption = { label: string; icon?: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean };
+
+function ActionMenu({ id, openId, setOpenId, options }: {
+  id: string;
+  openId: string | null;
+  setOpenId: (id: string | null) => void;
+  options: MenuOption[];
+}) {
+  const ref  = useRef<HTMLDivElement>(null);
+  const open = openId === id;
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpenId(null);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open, setOpenId]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpenId(open ? null : id); }}
+        className="w-8 h-8 flex items-center justify-center rounded-lg text-white/22 hover:text-white/60 hover:bg-white/[0.05] transition-all"
+        title="Actions"
+      >
+        <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-40 rounded-xl border border-white/10 bg-[#1A1A1A] shadow-2xl z-50 overflow-hidden py-1">
+          {options.map((opt, i) => (
+            <button
+              key={i}
+              onClick={(e) => { e.stopPropagation(); if (!opt.disabled) { opt.onClick(); setOpenId(null); } }}
+              disabled={opt.disabled}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left",
+                opt.danger
+                  ? "text-red-400/70 hover:text-red-400 hover:bg-red-400/6"
+                  : "text-white/55 hover:text-white/80 hover:bg-white/[0.04]",
+                opt.disabled && "opacity-30 cursor-not-allowed"
+              )}
+            >
+              {opt.icon && <span className="shrink-0">{opt.icon}</span>}
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
   const adminReady = useAdminGuard();
+  const { user }   = useUser();
+  const router     = useRouter();
+
+  const [users,        setUsers       ] = useState<PlatformUser[]>([]);
   const [search,       setSearch      ] = useState("");
-  const [roleFilter,   setRoleFilter  ] = useState<UserRole | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<UserStatus | "all">("all");
+  const [roleFilter,   setRoleFilter  ] = useState<PlatformUser["role"] | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<PlatformUser["status"] | "all">("all");
   const [sortKey,      setSortKey     ] = useState<SortKey>("lastActive");
   const [sortDir,      setSortDir     ] = useState<SortDir>("asc");
+  const [deleting,     setDeleting    ] = useState<string | null>(null);
+  const [error,        setError       ] = useState<string | null>(null);
+  const [openMenuId,   setOpenMenuId  ] = useState<string | null>(null);
 
-  const totalUsers   = USERS.length;
-  const activeUsers  = USERS.filter((u) => u.status === "active").length;
-  const atRiskUsers  = USERS.filter((u) => u.status === "at-risk").length;
-  const totalClients = USERS.filter((u) => u.role === "client").length;
+  useEffect(() => {
+    initStore();
+    try {
+      setUsers(getUsers(user.role));
+    } catch (e) {
+      if (e instanceof PermissionError) setError("Access denied.");
+    }
+  }, [user.role]);
+
+  const totalUsers   = users.length;
+  const activeUsers  = users.filter((u) => u.status === "active").length;
+  const atRiskUsers  = users.filter((u) => u.status === "at-risk").length;
+  const totalClients = users.filter((u) => u.role === "client").length;
+
+  // Derive assignment summary from store data
+  const assignments = (() => {
+    const trainers = users.filter((u) => u.role === "trainer");
+    return trainers.map((t) => {
+      const clientNames = users
+        .filter((u) => u.role === "client" && u.trainerId === t.id)
+        .map((c) => c.name);
+      return { trainer: t.name, trainerId: t.id, count: clientNames.length, clients: clientNames };
+    }).filter((a) => a.count > 0);
+  })();
+
+  async function handleDeleteUser(target: PlatformUser) {
+    if (!confirm(`Delete ${target.name}? This cannot be undone.`)) return;
+    setDeleting(target.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/users/${target.id}`, {
+        method:  "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "x-actor-role": user.role,
+          "x-actor-id":   user.id,
+        },
+        body: JSON.stringify({
+          targetRole:      target.role,
+          targetTrainerId: target.trainerId,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json() as { error?: string };
+        setError(j.error ?? "Delete failed");
+        setDeleting(null);
+        return;
+      }
+      deleteUser(target.id, user.role, user.id);
+      setUsers((prev) => prev.filter((u) => u.id !== target.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  const filtered = USERS
+  const filtered = users
     .filter((u) => {
       const q = search.toLowerCase();
       return (
@@ -207,14 +298,13 @@ export default function AdminDashboard() {
       );
     })
     .sort((a, b) => {
-      const va = a[sortKey === "lastActive" ? "lastActive" : sortKey] ?? "";
-      const vb = b[sortKey === "lastActive" ? "lastActive" : sortKey] ?? "";
+      const va = a[sortKey] ?? "";
+      const vb = b[sortKey] ?? "";
       return sortDir === "asc" ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     });
 
   const tierTotal = TIERS.reduce((s, t) => s + t.count, 0);
 
-  // Role filter labels — show "Admin" instead of "master"
   const ROLE_FILTER_LABELS: Record<string, string> = {
     all: "All", master: "Admin", trainer: "Trainer", client: "Client", member: "Member",
   };
@@ -239,19 +329,25 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {error && (
+        <p className="text-xs text-red-400/70 bg-red-400/5 border border-red-400/15 rounded-xl px-4 py-3">
+          {error}
+        </p>
+      )}
+
       {/* ── KPI row ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <StatCard label="Total users"   value="847"     delta={4}  deltaLabel="vs last month"
           icon={Users}       chart={<BarChart points={USER_GROWTH} color="#B48B40" />} accent />
         <StatCard label="Active users"  value={`${activeUsers}`} delta={2}
-          deltaLabel={`${Math.round((activeUsers / totalUsers) * 100)}% of total`}
+          deltaLabel={totalUsers > 0 ? `${Math.round((activeUsers / totalUsers) * 100)}% of total` : "—"}
           icon={Activity}    chart={<Sparkline points={[580,595,601,610,612,608,612]} color="#4ADE80" height={36} />} />
         <StatCard label="Monthly revenue" value="$24,840" delta={6} deltaLabel="MRR growth"
           icon={DollarSign}  chart={<Sparkline points={REVENUE_POINTS} color="#B48B40" height={36} />} accent />
         <StatCard label="Retention"     value="94.2%"   delta={1}  deltaLabel="30-day average"  icon={TrendingUp}   />
         <StatCard label="Churn rate"    value="2.1%"    delta={-1} deltaLabel="Month over month" icon={TrendingDown} />
         <StatCard label="Client assignments" value={`${totalClients}`}
-          deltaLabel={`${ASSIGNMENTS.length} active trainers`} icon={Users} />
+          deltaLabel={`${assignments.length} active trainers`} icon={Users} />
       </div>
 
       {/* ── Middle row ──────────────────────────────────────────────── */}
@@ -312,8 +408,11 @@ export default function AdminDashboard() {
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
             <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3.5">Client assignments</p>
             <div className="space-y-4">
-              {ASSIGNMENTS.map((a) => (
-                <div key={a.trainer}>
+              {assignments.length === 0 && (
+                <p className="text-xs text-white/25">No active assignments.</p>
+              )}
+              {assignments.map((a) => (
+                <div key={a.trainerId}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-white/75 font-medium">{a.trainer}</span>
                     <span className="text-xs text-[#B48B40] font-semibold">{a.count} clients</span>
@@ -333,9 +432,9 @@ export default function AdminDashboard() {
             <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Alerts</p>
             <div className="space-y-2.5">
               {[
-                { color: "bg-amber-400", text: `${atRiskUsers} users at risk of churning`    },
-                { color: "bg-[#93C5FD]", text: "1 user in free trial (day 6 of 7)"          },
-                { color: "bg-white/20",  text: "1 account paused — no activity in 8d"       },
+                { color: "bg-amber-400", text: `${atRiskUsers} user${atRiskUsers !== 1 ? "s" : ""} at risk of churning` },
+                { color: "bg-[#93C5FD]", text: "1 user in free trial (day 6 of 7)"                                       },
+                { color: "bg-white/20",  text: "1 account paused — no activity in 8d"                                     },
               ].map((a, i) => (
                 <div key={i} className="flex items-start gap-2.5">
                   <span className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", a.color)} />
@@ -364,7 +463,6 @@ export default function AdminDashboard() {
                 className="bg-transparent text-xs text-white/70 placeholder:text-white/22 outline-none w-28"
               />
             </div>
-            {/* Role filter — shows "Admin" not "Master" */}
             <div className="flex items-center gap-1">
               {(["all", "master", "trainer", "client", "member"] as const).map((r) => (
                 <button
@@ -396,7 +494,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 border-b border-white/[0.04]">
+        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 border-b border-white/[0.04]">
           {([
             { key: "name",       label: "Name"        },
             { key: "role",       label: "Role"        },
@@ -414,16 +512,21 @@ export default function AdminDashboard() {
             </button>
           ))}
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/22">Trainer</p>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 w-8" />
         </div>
 
         <div className="divide-y divide-white/[0.04]">
           {filtered.map((u) => {
-            const sc       = STATUS_CFG[u.status];
-            const rc       = ROLE_CFG[u.role];
-            const pc       = PLAN_CFG[u.plan];
+            const sc       = STATUS_CFG[u.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.active;
+            const rc       = ROLE_CFG[u.role as keyof typeof ROLE_CFG] ?? ROLE_CFG.member;
+            const pc       = PLAN_CFG[u.plan as keyof typeof PLAN_CFG] ?? PLAN_CFG.starter;
             const initials = u.name.split(" ").map((n) => n[0]).join("").toUpperCase();
+            const trainer  = u.trainerId ? users.find((x) => x.id === u.trainerId) : undefined;
+            const isBeingDel = deleting === u.id;
+            const canDelete  = u.role !== "master";
+
             return (
-              <div key={u.id} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-2 md:gap-4 items-center px-5 py-3.5 hover:bg-white/[0.015] transition-colors">
+              <div key={u.id} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 md:gap-4 items-center px-5 py-3.5 hover:bg-white/[0.015] transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#1C1C1C] border border-white/8 flex items-center justify-center shrink-0">
                     <span className="text-[10px] font-semibold text-white/45">{initials}</span>
@@ -445,19 +548,33 @@ export default function AdminDashboard() {
                   </span>
                 </div>
                 <p className="text-xs text-white/28 tabular-nums">{u.lastActive}</p>
-                {u.trainer ? (() => {
-                  const t = USERS.find((x) => x.name === u.trainer);
-                  return t ? (
-                    <UserNameLink
-                      user={{ id: t.id, name: t.name, email: t.email, role: t.role, plan: t.plan, status: t.status }}
-                      className="text-xs text-white/45"
-                    />
-                  ) : (
-                    <p className="text-xs text-white/28">{u.trainer}</p>
-                  );
-                })() : (
+                {trainer ? (
+                  <UserNameLink
+                    user={{ id: trainer.id, name: trainer.name, email: trainer.email, role: trainer.role, plan: trainer.plan, status: trainer.status }}
+                    className="text-xs text-white/45"
+                  />
+                ) : (
                   <p className="text-xs text-white/28">—</p>
                 )}
+                <ActionMenu
+                  id={u.id}
+                  openId={openMenuId}
+                  setOpenId={setOpenMenuId}
+                  options={[
+                    {
+                      label: "View details",
+                      icon: <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />,
+                      onClick: () => router.push(`/profile/${u.id}`),
+                    },
+                    {
+                      label: isBeingDel ? "Deleting…" : "Delete",
+                      icon: <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />,
+                      danger: true,
+                      disabled: !canDelete || isBeingDel,
+                      onClick: () => handleDeleteUser(u),
+                    },
+                  ]}
+                />
               </div>
             );
           })}

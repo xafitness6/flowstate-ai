@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Wind } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { DEMO_USERS } from "@/context/UserContext";
 import { BreathingTimer } from "@/components/breathwork/BreathingTimer";
 import {
@@ -10,8 +11,8 @@ import {
   loadSessions, saveSession,
   computeAnalytics,
 } from "@/lib/breathwork/store";
-import { DEFAULT_SETTINGS } from "@/lib/breathwork/types";
-import type { BreathworkSettings, BreathworkSession, BreathworkAnalytics } from "@/lib/breathwork/types";
+import { DEFAULT_SETTINGS, SPEED_INTERVAL_MS } from "@/lib/breathwork/types";
+import type { BreathworkSettings, BreathworkSession, BreathworkAnalytics, BreathSpeed } from "@/lib/breathwork/types";
 
 type Tab = "configure" | "session" | "analytics";
 
@@ -161,6 +162,40 @@ export default function BreathworkPage() {
       {/* ── Configure ─────────────────────────────────────────────────────────── */}
       {tab === "configure" && (
         <div className="space-y-5">
+
+          {/* Speed selector */}
+          <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4">
+            <p className="text-xs text-white/50 mb-3">Breathing speed</p>
+            <div className="flex gap-2">
+              {(["fast", "medium", "slow"] as BreathSpeed[]).map((s) => {
+                const ms = SPEED_INTERVAL_MS[s];
+                const secs = ms / 1000;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setPendingSettings((p) => ({ ...p, speed: s }))}
+                    className={cn(
+                      "flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-xl border text-xs font-medium transition-all capitalize",
+                      pendingSettings.speed === s
+                        ? "border-[#B48B40]/30 bg-[#B48B40]/8 text-[#B48B40]"
+                        : "border-white/6 text-white/28 hover:border-white/15 hover:text-white/45"
+                    )}
+                  >
+                    {s}
+                    <span className="text-[9px] opacity-60 font-normal normal-case">
+                      {secs}s / phase
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-white/20 mt-3 leading-relaxed">
+              {pendingSettings.speed === "fast" && "Fast pacing — energising, high-volume breathwork."}
+              {pendingSettings.speed === "medium" && "Medium pacing — balanced breathwork for most sessions."}
+              {pendingSettings.speed === "slow" && "Slow pacing — deep, meditative, parasympathetic focus."}
+            </p>
+          </div>
+
           {/* Rounds */}
           <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4">
             <div className="flex items-center justify-between mb-3">
@@ -238,7 +273,7 @@ export default function BreathworkPage() {
                 <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-0.5">~Duration</p>
                 <p className="text-lg font-semibold text-white/70">
                   {Math.round(
-                    (pendingSettings.rounds * pendingSettings.breathsPerRound * 3 +
+                    (pendingSettings.rounds * pendingSettings.breathsPerRound * (SPEED_INTERVAL_MS[pendingSettings.speed] / 1000) +
                       pendingSettings.rounds * pendingSettings.recoveryDuration) / 60
                   )}m
                 </p>
@@ -254,7 +289,10 @@ export default function BreathworkPage() {
               Save defaults
             </button>
             <button
-              onClick={() => setTab("session")}
+              onClick={() => {
+                setSettings(pendingSettings);
+                setTab("session");
+              }}
               className="flex-1 py-3 rounded-2xl border border-white/12 bg-white/[0.06] text-sm font-medium text-white/75 hover:bg-white/10 hover:text-white/90 transition-all"
             >
               Begin session

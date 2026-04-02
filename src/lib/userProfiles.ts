@@ -16,7 +16,7 @@ export type SnapshotUser = {
   name: string;
   email?: string;
   role: "member" | "client" | "trainer" | "master";
-  plan?: "free" | "pro" | "elite";
+  plan?: "starter" | "free" | "pro" | "elite";
   status?: string;
 };
 

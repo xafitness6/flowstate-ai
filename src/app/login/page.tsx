@@ -51,11 +51,20 @@ function resolveRole(username: string, password: string): string | null {
 }
 
 function postLoginRoute(roleKey: string): string {
-  // Only master lands on the operator dashboard
-  if (roleKey === "master") return "/admin";
+  // Check if onboarded
+  let isOnboarded = false;
   try {
-    return localStorage.getItem(ONBOARDED_KEY) === "true" ? "/dashboard" : "/onboarding";
-  } catch { return "/onboarding"; }
+    isOnboarded = localStorage.getItem(ONBOARDED_KEY) === "true";
+  } catch { /* ignore */ }
+
+  // All users must complete onboarding
+  if (!isOnboarded) {
+    return "/onboarding";
+  }
+
+  // After onboarding, route by role
+  if (roleKey === "master") return "/admin";
+  return "/dashboard";
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

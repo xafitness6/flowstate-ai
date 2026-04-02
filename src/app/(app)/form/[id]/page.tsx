@@ -556,12 +556,24 @@ sub && s.id === sub.id ? { ...s, status: "coach_reviewed", coachReview: review }
                 </div>
               </>
             ) : (
-              <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-4 py-10 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/6 flex items-center justify-center mb-3">
-                  <Zap className="w-4 h-4 text-white/20" />
+              <div className="rounded-2xl border border-white/6 bg-white/[0.02] overflow-hidden">
+                <div className="px-5 py-10 flex flex-col items-center text-center">
+                  <div className="w-11 h-11 rounded-2xl bg-white/[0.03] border border-white/6 flex items-center justify-center mb-4">
+                    <Zap className="w-5 h-5 text-white/18" />
+                  </div>
+                  <p className="text-sm font-medium text-white/40">Awaiting coach review</p>
+                  <p className="text-xs text-white/22 mt-1.5 leading-relaxed max-w-[200px]">
+                    {canReview
+                      ? "Watch the video and add your feedback using the coach panel."
+                      : "Your trainer will watch this and leave feedback shortly."}
+                  </p>
                 </div>
-                <p className="text-sm text-white/35">Analysis pending</p>
-                <p className="text-xs text-white/20 mt-1">AI is processing this submission.</p>
+                <div className="border-t border-white/[0.05] px-5 py-3 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/15 shrink-0" />
+                  <span className="text-[10px] text-white/22">
+                    AI analysis — available in a future update
+                  </span>
+                </div>
               </div>
             )}
           </div>

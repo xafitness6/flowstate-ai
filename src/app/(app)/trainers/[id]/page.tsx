@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -12,7 +12,6 @@ import {
   Star,
   AlertTriangle,
   CheckCircle2,
-  BookOpen,
   DollarSign,
   RefreshCw,
   ChevronUp,
@@ -20,140 +19,38 @@ import {
   Minus,
   Flag,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/context/UserContext";
+import {
+  initStore,
+  getTrainers,
+  getTrainerMetrics,
+  getClients,
+  getClientTrainingData,
+  deleteUser,
+  type PlatformUser,
+  type TrainerMetrics,
+  type ClientTrainingData,
+  PermissionError,
+} from "@/lib/data/store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ClientStatus = "active" | "at-risk" | "paused" | "churned";
+type ClientRow = PlatformUser & ClientTrainingData;
 
-type TrainerClient = {
-  id: string;
-  name: string;
-  status: ClientStatus;
-  adherence: number;
-  lastActive: string;
-  plan: "pro" | "elite";
-  program: string;
-  checkInCompletion: number;
-  executionScore: number;
-};
-
-type TrainerDetail = {
-  id: string;
-  name: string;
-  email: string;
-  status: "active" | "paused";
-  joinDate: string;
-  // Client metrics
-  totalClients: number;
-  activeClients: number;
-  pausedClients: number;
-  churnedClients: number;
-  retentionRate: number;
-  avgAdherence: number;
-  avgExecutionScore: number;
-  avgCheckInCompletion: number;
-  atRiskClients: number;
-  // Program metrics
-  programAssignments: number;
-  activeProgramCount: number;
-  overdueReviews: number;
-  // Engagement
-  avgResponseTime: string;
-  responseMinutes: number;
-  messageCount: number;
-  feedbackScore: number;
-  upgradeCount: number;
-  revenueGenerated: number;
-  // Chart data
-  adherenceTrend: number[];
-  retentionTrend: number[];
-  // Clients
-  clients: TrainerClient[];
-};
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const TRAINER_DATA: Record<string, TrainerDetail> = {
-  u4: {
-    id: "u4",
-    name: "Alex Rivera",
-    email: "alex@domain.com",
-    status: "active",
-    joinDate: "Oct 2024",
-    totalClients: 6,
-    activeClients: 4,
-    pausedClients: 1,
-    churnedClients: 1,
-    retentionRate: 83,
-    avgAdherence: 87,
-    avgExecutionScore: 81,
-    avgCheckInCompletion: 92,
-    atRiskClients: 1,
-    programAssignments: 5,
-    activeProgramCount: 4,
-    overdueReviews: 0,
-    avgResponseTime: "< 1h",
-    responseMinutes: 45,
-    messageCount: 142,
-    feedbackScore: 4.8,
-    upgradeCount: 2,
-    revenueGenerated: 4200,
-    adherenceTrend: [78, 80, 82, 84, 85, 86, 87],
-    retentionTrend: [75, 78, 80, 80, 82, 83, 83],
-    clients: [
-      { id: "u1",  name: "Kai Nakamura",  status: "active",   adherence: 91, lastActive: "2m ago",   plan: "elite", program: "Hypertrophy Block 3",  checkInCompletion: 95, executionScore: 88 },
-      { id: "u2",  name: "Priya Sharma",  status: "active",   adherence: 88, lastActive: "14m ago",  plan: "elite", program: "Strength Foundation",  checkInCompletion: 92, executionScore: 84 },
-      { id: "u7",  name: "Sofia Reyes",   status: "active",   adherence: 85, lastActive: "22h ago",  plan: "elite", program: "Athletic Performance", checkInCompletion: 90, executionScore: 80 },
-      { id: "u11", name: "Claire Dubois", status: "at-risk",  adherence: 62, lastActive: "5d ago",   plan: "pro",   program: "Strength Foundation",  checkInCompletion: 68, executionScore: 58 },
-      { id: "u13", name: "Tomas Vidal",   status: "paused",   adherence: 0,  lastActive: "12d ago",  plan: "pro",   program: "Unassigned",           checkInCompletion: 40, executionScore: 0  },
-      { id: "u14", name: "Nadia Okonkwo", status: "churned",  adherence: 0,  lastActive: "45d ago",  plan: "pro",   program: "Unassigned",           checkInCompletion: 22, executionScore: 0  },
-    ],
-  },
-  u3: {
-    id: "u3",
-    name: "Marcus Webb",
-    email: "marcus@domain.com",
-    status: "active",
-    joinDate: "Nov 2024",
-    totalClients: 4,
-    activeClients: 2,
-    pausedClients: 1,
-    churnedClients: 1,
-    retentionRate: 71,
-    avgAdherence: 74,
-    avgExecutionScore: 68,
-    avgCheckInCompletion: 78,
-    atRiskClients: 1,
-    programAssignments: 3,
-    activeProgramCount: 2,
-    overdueReviews: 2,
-    avgResponseTime: "3–5h",
-    responseMinutes: 240,
-    messageCount: 67,
-    feedbackScore: 3.9,
-    upgradeCount: 0,
-    revenueGenerated: 1800,
-    adherenceTrend: [80, 77, 75, 72, 74, 73, 74],
-    retentionTrend: [82, 80, 78, 74, 72, 71, 71],
-    clients: [
-      { id: "u5",  name: "Anya Patel",   status: "at-risk", adherence: 61, lastActive: "4d ago",   plan: "pro",   program: "General Fitness Block", checkInCompletion: 70, executionScore: 60 },
-      { id: "u9",  name: "Hana Suzuki",  status: "paused",  adherence: 0,  lastActive: "8d ago",   plan: "pro",   program: "Unassigned",            checkInCompletion: 55, executionScore: 0  },
-      { id: "u15", name: "Brett Nguyen", status: "active",  adherence: 87, lastActive: "1d ago",   plan: "elite", program: "Strength Foundation",   checkInCompletion: 86, executionScore: 76 },
-      { id: "u16", name: "Leila Amara",  status: "churned", adherence: 0,  lastActive: "38d ago",  plan: "pro",   program: "Unassigned",            checkInCompletion: 30, executionScore: 0  },
-    ],
-  },
-};
+type TrainerData = PlatformUser & { metrics: TrainerMetrics };
 
 // ─── Config maps ──────────────────────────────────────────────────────────────
 
-const STATUS_CFG: Record<ClientStatus, { label: string; dot: string; badge: string }> = {
+const STATUS_CFG = {
   active:    { label: "Active",   dot: "bg-emerald-400",   badge: "text-emerald-400 border-emerald-400/20 bg-emerald-400/8"  },
   "at-risk": { label: "At risk",  dot: "bg-amber-400",     badge: "text-amber-400 border-amber-400/20 bg-amber-400/8"        },
   paused:    { label: "Paused",   dot: "bg-white/30",      badge: "text-white/40 border-white/12 bg-white/[0.04]"            },
   churned:   { label: "Churned",  dot: "bg-[#F87171]",     badge: "text-[#F87171] border-[#F87171]/20 bg-[#F87171]/8"        },
-};
+  trial:     { label: "Trial",    dot: "bg-blue-400",      badge: "text-blue-400 border-blue-400/20 bg-blue-400/8"           },
+} as const;
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
 
@@ -187,21 +84,11 @@ function Sparkline({ points, color = "#B48B40", height = 40 }: { points: number[
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({
-  label,
-  value,
-  sub,
-  delta,
-  icon: Icon,
-  accent = false,
-  chart,
+  label, value, sub, delta, icon: Icon, accent = false, chart,
 }: {
-  label: string;
-  value: string;
-  sub?: string;
-  delta?: number;
+  label: string; value: string; sub?: string; delta?: number;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  accent?: boolean;
-  chart?: React.ReactNode;
+  accent?: boolean; chart?: React.ReactNode;
 }) {
   const up = delta !== undefined && delta > 0;
   const dn = delta !== undefined && delta < 0;
@@ -278,11 +165,88 @@ function PctBar({ value, color }: { value: number; color: string }) {
 
 export default function TrainerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const router = useRouter();
+  const router  = useRouter();
+  const { user } = useUser();
 
-  const trainer = TRAINER_DATA[id];
+  const [trainer,  setTrainer ] = useState<TrainerData | null | undefined>(undefined); // undefined = loading
+  const [clients,  setClients ] = useState<ClientRow[]>([]);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error,    setError   ] = useState<string | null>(null);
 
-  if (!trainer) {
+  const isMaster  = user.role === "master";
+  const isTrainer = user.role === "trainer";
+
+  useEffect(() => {
+    initStore();
+    try {
+      // Ownership guard: trainers can only view their own detail page
+      if (isTrainer && id !== user.id) {
+        router.replace("/trainers");
+        return;
+      }
+
+      const trainers = getTrainers(user.role, user.id);
+      const found    = trainers.find((t) => t.id === id);
+      if (!found) { setTrainer(null); return; }
+
+      const metrics  = getTrainerMetrics(id);
+      if (!metrics)  { setTrainer(null); return; }
+
+      setTrainer({ ...found, metrics });
+
+      // Load clients visible to this actor (master → all clients of this trainer, trainer → their own)
+      const allClients = getClients(user.role, user.id).filter((c) => c.trainerId === id);
+      const rows: ClientRow[] = allClients.map((c) => ({
+        ...c,
+        ...getClientTrainingData(c.id),
+      }));
+      setClients(rows);
+    } catch (e) {
+      if (e instanceof PermissionError) router.replace("/");
+    }
+  }, [id, user.role, user.id, isTrainer, router]);
+
+  async function handleDeleteClient(clientId: string) {
+    if (!confirm("Remove this client? This action cannot be undone.")) return;
+    setDeleting(clientId);
+    setError(null);
+    try {
+      const target = clients.find((c) => c.id === clientId);
+      const res = await fetch(`/api/users/${clientId}`, {
+        method:  "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "x-actor-role": user.role,
+          "x-actor-id":   user.id,
+        },
+        body: JSON.stringify({
+          targetRole:      target?.role ?? "client",
+          targetTrainerId: target?.trainerId,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json() as { error?: string };
+        setError(j.error ?? "Delete failed");
+        setDeleting(null);
+        return;
+      }
+      deleteUser(clientId, user.role, user.id);
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
+      // Refresh trainer metrics after client deletion
+      const metrics = getTrainerMetrics(id);
+      if (metrics && trainer) setTrainer({ ...trainer, metrics });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  // Loading state
+  if (trainer === undefined) return null;
+
+  // Not found
+  if (trainer === null) {
     return (
       <div className="px-5 md:px-8 py-6 text-white">
         <button
@@ -296,12 +260,12 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const retentionDelta = trainer.retentionTrend[trainer.retentionTrend.length - 1] - trainer.retentionTrend[0];
-  const adherenceDelta = trainer.adherenceTrend[trainer.adherenceTrend.length - 1] - trainer.adherenceTrend[0];
-  const isSlowResponse = trainer.responseMinutes > 120;
-  const hasFlags = trainer.overdueReviews > 0 || trainer.atRiskClients > 0;
-
-  const initials = trainer.name.split(" ").map((n) => n[0]).join("").toUpperCase();
+  const { metrics } = trainer;
+  const retentionDelta  = metrics.retentionTrend[metrics.retentionTrend.length - 1] - metrics.retentionTrend[0];
+  const adherenceDelta  = metrics.adherenceTrend[metrics.adherenceTrend.length - 1] - metrics.adherenceTrend[0];
+  const isSlowResponse  = metrics.responseMinutes > 120;
+  const hasFlags        = metrics.overdueReviews > 0 || metrics.atRiskClients > 0;
+  const initials        = trainer.name.split(" ").map((n) => n[0]).join("").toUpperCase();
 
   return (
     <div className="px-5 md:px-8 py-6 text-white space-y-6">
@@ -338,15 +302,10 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          {/* Quick actions */}
           <div className="flex items-center gap-2 shrink-0 mt-1">
             <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs font-medium text-white/55 hover:bg-white/[0.05] hover:text-white/75 transition-all">
               <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.5} />
               Message
-            </button>
-            <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs font-medium text-white/55 hover:bg-white/[0.05] hover:text-white/75 transition-all">
-              <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
-              Client list
             </button>
             {hasFlags && (
               <button className="flex items-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/6 px-3.5 py-2 text-xs font-medium text-amber-400 hover:bg-amber-400/10 transition-all">
@@ -358,20 +317,26 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      {error && (
+        <p className="text-xs text-red-400/70 bg-red-400/5 border border-red-400/15 rounded-xl px-4 py-3">
+          {error}
+        </p>
+      )}
+
       {/* ── KPI grid ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        <KpiCard label="Total clients"   value={`${trainer.totalClients}`}           sub={`${trainer.activeClients} active`}      icon={Users}         accent />
-        <KpiCard label="Active"          value={`${trainer.activeClients}`}           sub="currently engaged"                      icon={CheckCircle2}        />
-        <KpiCard label="Paused"          value={`${trainer.pausedClients}`}           sub="on hold"                                icon={Minus}               />
-        <KpiCard label="Churned"         value={`${trainer.churnedClients}`}          sub="lost clients"                           icon={TrendingDown}        />
-        <KpiCard label="Retention"       value={`${trainer.retentionRate}%`}          delta={retentionDelta}                       icon={TrendingUp}
-          chart={<Sparkline points={trainer.retentionTrend} color={retentionDelta >= 0 ? "#4ADE80" : "#F87171"} height={30} />}
+        <KpiCard label="Total clients"   value={`${metrics.totalClients}`}           sub={`${metrics.activeClients} active`}      icon={Users}        accent />
+        <KpiCard label="Active"          value={`${metrics.activeClients}`}           sub="currently engaged"                      icon={CheckCircle2}        />
+        <KpiCard label="Paused"          value={`${metrics.pausedClients}`}           sub="on hold"                                icon={Minus}               />
+        <KpiCard label="Churned"         value={`${metrics.churnedClients}`}          sub="lost clients"                           icon={TrendingDown}        />
+        <KpiCard label="Retention"       value={`${metrics.retentionRate}%`}          delta={retentionDelta}                       icon={TrendingUp}
+          chart={<Sparkline points={metrics.retentionTrend} color={retentionDelta >= 0 ? "#4ADE80" : "#F87171"} height={30} />}
         />
-        <KpiCard label="Avg adherence"   value={`${trainer.avgAdherence}%`}           delta={adherenceDelta}                       icon={RefreshCw}
-          chart={<Sparkline points={trainer.adherenceTrend} color={adherenceDelta >= 0 ? "#93C5FD" : "#F87171"} height={30} />}
+        <KpiCard label="Avg adherence"   value={`${metrics.avgAdherence}%`}           delta={adherenceDelta}                       icon={RefreshCw}
+          chart={<Sparkline points={metrics.adherenceTrend} color={adherenceDelta >= 0 ? "#93C5FD" : "#F87171"} height={30} />}
         />
-        <KpiCard label="Execution score" value={`${trainer.avgExecutionScore}`}       sub="client average"                         icon={TrendingUp}          />
-        <KpiCard label="Check-in rate"   value={`${trainer.avgCheckInCompletion}%`}   sub="avg completion"                         icon={Calendar}            />
+        <KpiCard label="Execution score" value={`${metrics.avgExecutionScore}`}       sub="client average"                         icon={TrendingUp}          />
+        <KpiCard label="Check-in rate"   value={`${metrics.avgCheckInCompletion}%`}   sub="avg completion"                         icon={Calendar}            />
       </div>
 
       {/* ── Middle row ──────────────────────────────────────────────── */}
@@ -386,9 +351,9 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
 
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Total assigned",  value: trainer.programAssignments },
-              { label: "Active programs", value: trainer.activeProgramCount },
-              { label: "Overdue reviews", value: trainer.overdueReviews,  flag: trainer.overdueReviews > 0 },
+              { label: "Total assigned",  value: metrics.programAssignments },
+              { label: "Active programs", value: metrics.activeProgramCount },
+              { label: "Overdue reviews", value: metrics.overdueReviews, flag: metrics.overdueReviews > 0 },
             ].map((s) => (
               <div key={s.label} className="rounded-xl border border-white/5 bg-white/[0.02] px-3.5 py-3">
                 <p className={cn("text-xl font-semibold tabular-nums", s.flag ? "text-amber-400" : "text-white/85")}>
@@ -402,9 +367,9 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
           <div className="pt-3 border-t border-white/5 space-y-2.5">
             <p className="text-[10px] uppercase tracking-[0.15em] text-white/22 mb-3">Client breakdown</p>
             {[
-              { label: "Active",  count: trainer.activeClients,  color: "bg-emerald-400/70",    pct: Math.round((trainer.activeClients  / trainer.totalClients) * 100) },
-              { label: "Paused",  count: trainer.pausedClients,  color: "bg-white/20",          pct: Math.round((trainer.pausedClients  / trainer.totalClients) * 100) },
-              { label: "Churned", count: trainer.churnedClients, color: "bg-[#F87171]/60",      pct: Math.round((trainer.churnedClients / trainer.totalClients) * 100) },
+              { label: "Active",  count: metrics.activeClients,  color: "bg-emerald-400/70",    pct: metrics.totalClients > 0 ? Math.round((metrics.activeClients  / metrics.totalClients) * 100) : 0 },
+              { label: "Paused",  count: metrics.pausedClients,  color: "bg-white/20",          pct: metrics.totalClients > 0 ? Math.round((metrics.pausedClients  / metrics.totalClients) * 100) : 0 },
+              { label: "Churned", count: metrics.churnedClients, color: "bg-[#F87171]/60",      pct: metrics.totalClients > 0 ? Math.round((metrics.churnedClients / metrics.totalClients) * 100) : 0 },
             ].map((row) => (
               <div key={row.label} className="flex items-center gap-3">
                 <span className="text-xs text-white/40 w-14">{row.label}</span>
@@ -432,7 +397,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
                 <div className="flex items-center gap-2">
                   <Clock className={cn("w-4 h-4", isSlowResponse ? "text-[#F87171]" : "text-white/35")} strokeWidth={1.5} />
                   <span className={cn("text-lg font-semibold", isSlowResponse ? "text-[#F87171]" : "text-white/80")}>
-                    {trainer.avgResponseTime}
+                    {metrics.avgResponseTime}
                   </span>
                   {isSlowResponse && (
                     <span className="text-[10px] text-[#F87171] border border-[#F87171]/25 bg-[#F87171]/8 rounded px-1.5 py-0.5">
@@ -445,7 +410,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
                 <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">Messages sent</p>
                 <div className="flex items-center gap-1.5 justify-end">
                   <MessageSquare className="w-3.5 h-3.5 text-white/30" strokeWidth={1.5} />
-                  <span className="text-lg font-semibold text-white/80 tabular-nums">{trainer.messageCount}</span>
+                  <span className="text-lg font-semibold text-white/80 tabular-nums">{metrics.messageCount}</span>
                 </div>
               </div>
             </div>
@@ -454,11 +419,11 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex items-start justify-between pb-4 border-b border-white/[0.05]">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1.5">Client feedback</p>
-                <FeedbackStars score={trainer.feedbackScore} />
+                <FeedbackStars score={metrics.feedbackScore} />
               </div>
               <div className="text-right">
                 <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">Upgrades driven</p>
-                <p className="text-lg font-semibold text-white/80 tabular-nums">{trainer.upgradeCount}</p>
+                <p className="text-lg font-semibold text-white/80 tabular-nums">{metrics.upgradeCount}</p>
               </div>
             </div>
 
@@ -466,7 +431,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
             <div>
               <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">Revenue generated</p>
               <p className="text-2xl font-semibold text-[#B48B40] tabular-nums">
-                ${trainer.revenueGenerated.toLocaleString()}
+                ${metrics.revenueGenerated.toLocaleString()}
               </p>
               <p className="text-[10px] text-white/20 mt-0.5">estimated client lifetime contribution</p>
             </div>
@@ -479,19 +444,19 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
         <div className="rounded-2xl border border-amber-400/14 bg-amber-400/[0.03] px-5 py-4">
           <p className="text-[10px] uppercase tracking-[0.18em] text-amber-400/60 mb-3">Flags</p>
           <div className="space-y-2">
-            {trainer.atRiskClients > 0 && (
+            {metrics.atRiskClients > 0 && (
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" strokeWidth={1.5} />
                 <p className="text-sm text-white/60">
-                  <span className="text-amber-400 font-semibold">{trainer.atRiskClients} client{trainer.atRiskClients > 1 ? "s" : ""}</span> flagged as at-risk — follow-up recommended
+                  <span className="text-amber-400 font-semibold">{metrics.atRiskClients} client{metrics.atRiskClients > 1 ? "s" : ""}</span> flagged as at-risk — follow-up recommended
                 </p>
               </div>
             )}
-            {trainer.overdueReviews > 0 && (
+            {metrics.overdueReviews > 0 && (
               <div className="flex items-center gap-2.5">
                 <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" strokeWidth={1.5} />
                 <p className="text-sm text-white/60">
-                  <span className="text-amber-400 font-semibold">{trainer.overdueReviews} check-in review{trainer.overdueReviews > 1 ? "s" : ""}</span> overdue — action needed
+                  <span className="text-amber-400 font-semibold">{metrics.overdueReviews} check-in review{metrics.overdueReviews > 1 ? "s" : ""}</span> overdue — action needed
                 </p>
               </div>
             )}
@@ -499,7 +464,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2.5">
                 <Clock className="w-3.5 h-3.5 text-[#F87171] shrink-0" strokeWidth={1.5} />
                 <p className="text-sm text-white/60">
-                  Response time averaging <span className="text-[#F87171] font-semibold">{trainer.avgResponseTime}</span> — below platform standard
+                  Response time averaging <span className="text-[#F87171] font-semibold">{metrics.avgResponseTime}</span> — below platform standard
                 </p>
               </div>
             )}
@@ -511,26 +476,38 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
       <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
         <div className="px-5 py-4 border-b border-white/[0.05]">
           <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Client roster</p>
-          <p className="text-sm font-medium text-white/70 mt-0.5">{trainer.clients.length} assigned</p>
+          <p className="text-sm font-medium text-white/70 mt-0.5">{clients.length} assigned</p>
         </div>
 
         {/* Column headers */}
-        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 border-b border-white/[0.04]">
+        <div className={cn(
+          "hidden md:grid gap-4 px-5 py-2.5 border-b border-white/[0.04]",
+          (isMaster || isTrainer)
+            ? "grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]"
+            : "grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]"
+        )}>
           {["Client", "Status", "Adherence", "Execution", "Check-ins", "Last active"].map((col) => (
             <p key={col} className="text-[10px] uppercase tracking-[0.14em] text-white/22">{col}</p>
           ))}
+          {(isMaster || isTrainer) && <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 w-8" />}
         </div>
 
         <div className="divide-y divide-white/[0.04]">
-          {trainer.clients.map((c) => {
-            const sc = STATUS_CFG[c.status];
-            const initials = c.name.split(" ").map((n) => n[0]).join("").toUpperCase();
-            const isInactive = c.status === "paused" || c.status === "churned";
+          {clients.map((c) => {
+            const sc = STATUS_CFG[c.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.active;
+            const clientInitials = c.name.split(" ").map((n) => n[0]).join("").toUpperCase();
+            const isInactive     = c.status === "paused" || c.status === "churned";
+            const isBeingDel     = deleting === c.id;
 
             return (
               <div
                 key={c.id}
-                className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-2 md:gap-4 items-center px-5 py-3.5"
+                className={cn(
+                  "grid grid-cols-1 gap-2 md:gap-4 items-center px-5 py-3.5",
+                  (isMaster || isTrainer)
+                    ? "md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]"
+                    : "md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]"
+                )}
               >
                 {/* Name */}
                 <div className="flex items-center gap-3">
@@ -538,7 +515,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
                     "w-8 h-8 rounded-full border flex items-center justify-center shrink-0",
                     isInactive ? "bg-[#1A1A1A] border-white/5" : "bg-[#1C1C1C] border-white/8"
                   )}>
-                    <span className={cn("text-[10px] font-semibold", isInactive ? "text-white/25" : "text-white/45")}>{initials}</span>
+                    <span className={cn("text-[10px] font-semibold", isInactive ? "text-white/25" : "text-white/45")}>{clientInitials}</span>
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
@@ -581,18 +558,33 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
                 </span>
 
                 {/* Check-in rate */}
-                <span className={cn(
-                  "text-xs tabular-nums",
-                  isInactive ? "text-white/18" : "text-white/55"
-                )}>
+                <span className={cn("text-xs tabular-nums", isInactive ? "text-white/18" : "text-white/55")}>
                   {isInactive ? "—" : `${c.checkInCompletion}%`}
                 </span>
 
                 {/* Last active */}
                 <span className="text-xs text-white/28 tabular-nums">{c.lastActive}</span>
+
+                {/* Delete — master or trainer (their own clients) */}
+                {(isMaster || isTrainer) && (
+                  <button
+                    onClick={() => handleDeleteClient(c.id)}
+                    disabled={isBeingDel}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-transparent hover:border-red-400/20 hover:bg-red-400/8 text-white/18 hover:text-red-400/70 transition-all disabled:opacity-30"
+                    title="Remove client"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                )}
               </div>
             );
           })}
+
+          {clients.length === 0 && (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm text-white/25">No clients assigned.</p>
+            </div>
+          )}
         </div>
       </div>
 

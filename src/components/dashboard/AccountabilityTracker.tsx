@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, Flame, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -25,6 +25,7 @@ type DailyLog = {
   energyNote: string;
   journalEntry: string;
   journalSaved: boolean;
+  caloriesLogged?: number;
 };
 
 type Logs = Record<string, DailyLog>;
@@ -75,7 +76,47 @@ function computeScore(habits: Habit[], completedIds: string[]): number {
   const earned = visible.filter((h) => completedIds.includes(h.id)).reduce((s, h) => s + h.weight, 0);
   return Math.round((earned / max) * 100);
 }
+type DailyActivity = {
+  date: string;
+  workouts: number;
+  steps: number;
+  calories: number;
+  checkins: number;
+  score: number; // 0-100
+};
 
+type ActivityData = Record<string, DailyActivity>;
+
+function computeDailyActivity(log: DailyLog, date: string): DailyActivity {
+  const workouts = log.completedHabits.includes("training") ? 1 : 0;
+  const steps = log.completedHabits.includes("steps") ? 1 : 0;
+  const checkins = log.completedHabits.includes("journaling") || !!log.identityState ? 1 : 0;
+  const calories = log.caloriesLogged ?? 0;
+
+  const rawScore =
+    workouts * 35 +
+    steps * 20 +
+    checkins * 20 +
+    Math.min(1, calories / 500) * 25;
+
+  return {
+    date,
+    workouts,
+    steps,
+    calories,
+    checkins,
+    score: Math.min(100, Math.round(rawScore)),
+  };
+}
+
+function scoreToLevel(score: number): string {
+  if (score === 0) return "bg-white/10 border-white/10";
+  if (score <= 20) return "bg-[#134e4a]";
+  if (score <= 40) return "bg-[#0f766e]";
+  if (score <= 60) return "bg-[#0d9488]";
+  if (score <= 80) return "bg-[#14b8a6]";
+  return "bg-[#2dd4bf]";
+}
 function topStreak(logs: Logs): number {
   let count = 0;
   for (let i = 0; i < 90; i++) {
@@ -91,11 +132,21 @@ function topStreak(logs: Logs): number {
 export function AccountabilityTracker({ compact = false }: { compact?: boolean }) {
   const [habits, setHabits] = useLocalStorage<Habit[]>("accountability-habits-v2", DEFAULT_HABITS);
   const [logs, setLogs]     = useLocalStorage<Logs  >("accountability-logs",       {});
+  const [activityData, setActivityData] = useLocalStorage<ActivityData>("accountability-activity", {});
 
   const today = todayKey();
   const todayLog: DailyLog = logs[today] ?? BLANK_LOG;
   const score = computeScore(habits, todayLog.completedHabits);
   const streak = topStreak(logs);
+
+  useEffect(() => {
+    const updated: ActivityData = { ...activityData };
+    Object.entries(logs).forEach(([date, log]) => {
+      const item = computeDailyActivity(log, date);
+      updated[date] = item;
+    });
+    setActivityData(updated);
+  }, [logs]);
 
   // Pick top 4 visible habits to surface in the digest
   const preview = habits.filter((h) => h.visible).slice(0, compact ? 3 : 4);
@@ -119,6 +170,18 @@ export function AccountabilityTracker({ compact = false }: { compact?: boolean }
     score >= 75 ? "text-[#B48B40]" :
     score >= 50 ? "text-white/60" :
     "text-white/30";
+
+  const HEATMAP_DAYS = 365;
+  const dayKeys = Array.from({ length: HEATMAP_DAYS }, (_, i) => pastKey(HEATMAP_DAYS - 1 - i));
+  const columns: string[][] = [];
+  dayKeys.forEach((date, i) => {
+    const col = Math.floor(i / 7);
+    if (!columns[col]) columns[col] = [];
+    columns[col].push(date);
+  });
+
+  const getDayActivity = (date: string): DailyActivity =>
+    activityData[date] ?? { date, workouts: 0, steps: 0, calories: 0, checkins: 0, score: 0 };
 
   return (
     <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
@@ -194,6 +257,38 @@ export function AccountabilityTracker({ compact = false }: { compact?: boolean }
           </div>
         </Link>
       )}
+
+      {/* Accountability heatmap */}
+      <div className="px-4 pb-4">
+        <p className="text-xs font-semibold text-white/60 uppercase tracking-[0.15em] mb-2">Consistency heatmap</p>
+        <div className="grid grid-cols-[repeat(53,minmax(0,1fr))] gap-[2px] h-[180px] overflow-x-auto">
+          {columns.map((week, wi) => (
+            <div key={wi} className="grid grid-rows-7 gap-[2px]">
+              {week.map((date) => {
+                const activity = getDayActivity(date);
+                const level = scoreToLevel(activity.score);
+                const title = `${date} • score ${activity.score}\nWorkouts: ${activity.workouts} · Steps: ${activity.steps} · Calories: ${activity.calories} · Check-ins: ${activity.checkins}`;
+                return (
+                  <button
+                    key={date}
+                    title={title}
+                    className={cn("w-4 h-4 rounded-sm border border-white/10", level)}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 text-[10px] text-white/40">
+          <span className="inline-block px-1">Less</span>
+          <span className="inline-block h-2 w-2 bg-[#134e4a] mx-1" />
+          <span className="inline-block h-2 w-2 bg-[#0f766e] mx-1" />
+          <span className="inline-block h-2 w-2 bg-[#0d9488] mx-1" />
+          <span className="inline-block h-2 w-2 bg-[#14b8a6] mx-1" />
+          <span className="inline-block h-2 w-2 bg-[#2dd4bf] mx-1" />
+          <span className="inline-block px-1">More</span>
+        </div>
+      </div>
 
       {/* Footer link */}
       <div className="px-4 pb-4">

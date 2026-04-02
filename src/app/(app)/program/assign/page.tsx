@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search,
   Check,
@@ -11,12 +11,22 @@ import {
   FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/context/UserContext";
+import {
+  initStore,
+  getClients,
+  getClientTrainingData,
+  getPrograms,
+  type PlatformUser,
+  type PlatformProgram,
+} from "@/lib/data/store";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type AssignmentStatus = "draft" | "active" | "needs_review";
+type Goal = "strength" | "hypertrophy" | "fat_loss" | "performance";
 
-type Client = {
+type ClientRow = {
   id: string;
   name: string;
   initials: string;
@@ -25,75 +35,28 @@ type Client = {
   currentProgram?: string;
 };
 
-type Program = {
-  id: string;
-  name: string;
-  phase: string;
-  weeks: number;
-  daysPerWeek: number;
-  goal: "strength" | "hypertrophy" | "fat_loss";
-  exercises: number;
-  description: string;
-  lastUsed?: string;
-};
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-type Goal = "strength" | "hypertrophy" | "fat_loss" | "performance";
+function toClientRow(u: PlatformUser): ClientRow {
+  const td = getClientTrainingData(u.id);
+  const statusMap: Record<string, ClientRow["status"]> = {
+    active:   "active",
+    "at-risk": "active",
+    trial:    "new",
+    paused:   "inactive",
+    churned:  "inactive",
+  };
+  return {
+    id:             u.id,
+    name:           u.name,
+    initials:       u.name.split(" ").map((n) => n[0]).join("").toUpperCase(),
+    goal:           td.program !== "Unassigned" ? td.program : "General fitness",
+    status:         statusMap[u.status] ?? "inactive",
+    currentProgram: td.program !== "Unassigned" ? td.program : undefined,
+  };
+}
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const CLIENTS: Client[] = [
-  { id: "c1", name: "Sam Mitchell",      initials: "SM", goal: "Hypertrophy",  status: "active",   currentProgram: "Upper/Lower Split" },
-  { id: "c2", name: "Alyssa Torres",    initials: "AT", goal: "Fat loss",     status: "active",   currentProgram: "Full Body Circuit" },
-  { id: "c3", name: "Marcus Webb",      initials: "MW", goal: "Strength",     status: "inactive" },
-  { id: "c4", name: "Priya Nair",       initials: "PN", goal: "Performance",  status: "new" },
-  { id: "c5", name: "Devon Clarke",     initials: "DC", goal: "Hypertrophy",  status: "active",   currentProgram: "Push/Pull/Legs" },
-];
-
-const PROGRAMS: Program[] = [
-  {
-    id: "p1",
-    name: "Upper / Lower Split",
-    phase: "Phase 1 — Foundation",
-    weeks: 8,
-    daysPerWeek: 4,
-    goal: "hypertrophy",
-    exercises: 6,
-    description: "4-day upper/lower structure focused on progressive overload. Best for intermediate lifters building volume base.",
-    lastUsed: "2 days ago",
-  },
-  {
-    id: "p2",
-    name: "Push / Pull / Legs",
-    phase: "Phase 2 — Volume",
-    weeks: 6,
-    daysPerWeek: 6,
-    goal: "hypertrophy",
-    exercises: 7,
-    description: "High-frequency 6-day PPL designed for advanced clients with strong recovery capacity.",
-    lastUsed: "1 week ago",
-  },
-  {
-    id: "p3",
-    name: "5/3/1 Strength Block",
-    phase: "Phase 1 — Strength",
-    weeks: 4,
-    daysPerWeek: 4,
-    goal: "strength",
-    exercises: 5,
-    description: "Wendler-style percentage training. Four main lifts across four days with assistance work.",
-  },
-  {
-    id: "p4",
-    name: "Metabolic Circuit",
-    phase: "Phase 1 — Conditioning",
-    weeks: 6,
-    daysPerWeek: 3,
-    goal: "fat_loss",
-    exercises: 8,
-    description: "High-density circuit training combining compound lifts with conditioning finishers.",
-    lastUsed: "3 weeks ago",
-  },
-];
+// ─── Config ───────────────────────────────────────────────────────────────────
 
 const GOAL_OPTIONS: { value: Goal; label: string }[] = [
   { value: "hypertrophy", label: "Hypertrophy" },
@@ -104,7 +67,7 @@ const GOAL_OPTIONS: { value: Goal; label: string }[] = [
 
 const DAYS_OPTIONS = [2, 3, 4, 5, 6];
 
-const GOAL_COLORS: Record<Program["goal"], string> = {
+const GOAL_COLORS: Record<PlatformProgram["goal"], string> = {
   strength:    "text-[#93C5FD] bg-[#93C5FD]/8 border-[#93C5FD]/20",
   hypertrophy: "text-[#B48B40] bg-[#B48B40]/8 border-[#B48B40]/20",
   fat_loss:    "text-emerald-400 bg-emerald-400/8 border-emerald-400/20",
@@ -116,7 +79,7 @@ const STATUS_CONFIG: Record<AssignmentStatus, { label: string; color: string }> 
   needs_review: { label: "Needs Review", color: "text-[#FBBF24] bg-[#FBBF24]/8 border-[#FBBF24]/20" },
 };
 
-const CLIENT_STATUS_DOT: Record<Client["status"], string> = {
+const CLIENT_STATUS_DOT: Record<ClientRow["status"], string> = {
   active:   "bg-emerald-400",
   inactive: "bg-white/20",
   new:      "bg-[#B48B40]",
@@ -133,7 +96,7 @@ function StatusBadge({ status }: { status: AssignmentStatus }) {
   );
 }
 
-function ProgramPreview({ program }: { program: Program }) {
+function ProgramPreview({ program }: { program: PlatformProgram }) {
   return (
     <div className="rounded-2xl border border-[#6f4a17]/40 bg-[#0e0d0b] p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -152,9 +115,9 @@ function ProgramPreview({ program }: { program: Program }) {
 
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: "Duration",   value: `${program.weeks}w` },
-          { label: "Days/week",  value: String(program.daysPerWeek) },
-          { label: "Exercises",  value: `${program.exercises}/session` },
+          { label: "Duration",  value: `${program.weeks}w` },
+          { label: "Days/week", value: String(program.daysPerWeek) },
+          { label: "Exercises", value: `${program.exercises}/session` },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2.5">
             <p className="text-[10px] uppercase tracking-[0.1em] text-white/25 mb-1">{label}</p>
@@ -173,26 +136,36 @@ function ProgramPreview({ program }: { program: Program }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AssignProgramPage() {
-  const [clientQuery, setClientQuery]     = useState("");
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
-  const [startDate, setStartDate]         = useState("");
-  const [daysPerWeek, setDaysPerWeek]     = useState<number>(4);
-  const [goal, setGoal]                   = useState<Goal>("hypertrophy");
-  const [coachNote, setCoachNote]         = useState("");
-  const [status, setStatus]               = useState<AssignmentStatus>("draft");
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const [assigned, setAssigned]           = useState(false);
+  const { user } = useUser();
+
+  const [clients,  setClients ] = useState<ClientRow[]>([]);
+  const [programs, setPrograms] = useState<PlatformProgram[]>([]);
+
+  useEffect(() => {
+    initStore();
+    const raw = getClients(user.role, user.id);
+    setClients(raw.map(toClientRow));
+    setPrograms(getPrograms());
+  }, [user.role, user.id]);
+
+  const [clientQuery,     setClientQuery    ] = useState("");
+  const [selectedClient,  setSelectedClient ] = useState<ClientRow | null>(null);
+  const [selectedProgram, setSelectedProgram] = useState<PlatformProgram | null>(null);
+  const [startDate,       setStartDate      ] = useState("");
+  const [daysPerWeek,     setDaysPerWeek    ] = useState<number>(4);
+  const [goal,            setGoal           ] = useState<Goal>("hypertrophy");
+  const [coachNote,       setCoachNote      ] = useState("");
+  const [status,          setStatus         ] = useState<AssignmentStatus>("draft");
+  const [statusMenuOpen,  setStatusMenuOpen ] = useState(false);
+  const [assigned,        setAssigned       ] = useState(false);
 
   const filteredClients = useMemo(() => {
     const q = clientQuery.toLowerCase().trim();
-    if (!q) return CLIENTS;
-    return CLIENTS.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.goal.toLowerCase().includes(q)
+    if (!q) return clients;
+    return clients.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.goal.toLowerCase().includes(q)
     );
-  }, [clientQuery]);
+  }, [clientQuery, clients]);
 
   const canAssign = selectedClient && selectedProgram && startDate;
 
@@ -255,7 +228,6 @@ export default function AssignProgramPage() {
                 </p>
               </div>
 
-              {/* Search */}
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" strokeWidth={1.5} />
                 <input
@@ -267,7 +239,6 @@ export default function AssignProgramPage() {
                 />
               </div>
 
-              {/* Client list */}
               <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                 {filteredClients.length === 0 && (
                   <p className="text-sm text-white/25 text-center py-4">No clients found.</p>
@@ -285,7 +256,6 @@ export default function AssignProgramPage() {
                           : "hover:bg-white/[0.03] border border-transparent"
                       )}
                     >
-                      {/* Avatar */}
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0",
                         selected ? "bg-[#B48B40]/20 text-[#B48B40]" : "bg-white/6 text-white/50"
@@ -330,7 +300,7 @@ export default function AssignProgramPage() {
               </div>
 
               <div className="space-y-2">
-                {PROGRAMS.map((program) => {
+                {programs.map((program) => {
                   const selected = selectedProgram?.id === program.id;
                   return (
                     <button
@@ -375,7 +345,6 @@ export default function AssignProgramPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Start date */}
               <div>
                 <label className="text-[10px] uppercase tracking-[0.15em] text-white/25 block mb-2">
                   Start date
@@ -388,7 +357,6 @@ export default function AssignProgramPage() {
                 />
               </div>
 
-              {/* Goal override */}
               <div>
                 <label className="text-[10px] uppercase tracking-[0.15em] text-white/25 block mb-2">
                   Client goal
@@ -412,7 +380,6 @@ export default function AssignProgramPage() {
               </div>
             </div>
 
-            {/* Days per week */}
             <div>
               <label className="text-[10px] uppercase tracking-[0.15em] text-white/25 block mb-2">
                 Training days / week
@@ -435,7 +402,6 @@ export default function AssignProgramPage() {
               </div>
             </div>
 
-            {/* Coach notes */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <FileText className="w-3.5 h-3.5 text-white/25" strokeWidth={1.5} />
@@ -457,7 +423,6 @@ export default function AssignProgramPage() {
         {/* ── Right column ───────────────────────────────────────────────── */}
         <div className="space-y-4">
 
-          {/* Selected client summary */}
           {selectedClient ? (
             <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4">
               <p className="text-xs uppercase tracking-[0.18em] text-white/25 mb-3">Client</p>
@@ -487,7 +452,6 @@ export default function AssignProgramPage() {
             </div>
           )}
 
-          {/* Program preview */}
           {selectedProgram ? (
             <ProgramPreview program={selectedProgram} />
           ) : (
@@ -497,16 +461,15 @@ export default function AssignProgramPage() {
             </div>
           )}
 
-          {/* Assignment summary */}
           {canAssign && (
             <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4 space-y-2.5">
               <p className="text-xs uppercase tracking-[0.18em] text-white/25 mb-3">Summary</p>
               {[
-                { label: "Client",    value: selectedClient!.name },
-                { label: "Program",   value: selectedProgram!.name },
-                { label: "Starts",    value: new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) },
-                { label: "Days/wk",   value: String(daysPerWeek) },
-                { label: "Goal",      value: goal.replace("_", " ") },
+                { label: "Client",  value: selectedClient!.name },
+                { label: "Program", value: selectedProgram!.name },
+                { label: "Starts",  value: new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) },
+                { label: "Days/wk", value: String(daysPerWeek) },
+                { label: "Goal",    value: goal.replace("_", " ") },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-xs text-white/30">{label}</span>
@@ -516,7 +479,6 @@ export default function AssignProgramPage() {
             </div>
           )}
 
-          {/* CTA */}
           <button
             onClick={handleAssign}
             disabled={!canAssign}
