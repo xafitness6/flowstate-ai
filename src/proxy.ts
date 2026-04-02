@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 //     to your Vercel env vars. The client-side role check still enforces
 //     that only the master account can use the page.
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const enabled = process.env.ENABLE_DEV_ROUTE === "true";
   if (!enabled) {
     return NextResponse.redirect(new URL("/", req.url));
