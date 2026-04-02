@@ -44,8 +44,11 @@ export const DEMO_USERS: Record<string, MockUser> = {
   },
 };
 
-const LS_KEY = "flowstate-active-role";
-const SS_KEY = "flowstate-session-role";
+const LS_KEY        = "flowstate-active-role";
+const SS_KEY        = "flowstate-session-role";
+const VIEW_MODE_KEY = "flowstate-view-mode";
+
+export type ViewMode = "operator" | "personal";
 
 function loadUser(): MockUser {
   if (typeof window === "undefined") return DEMO_USERS.master;
@@ -61,19 +64,26 @@ function loadUser(): MockUser {
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 type UserContextValue = {
-  user:       MockUser;
-  setRole:    (role: Role) => void;
-  switchUser: (demoKey: keyof typeof DEMO_USERS) => void;
-  logout:     () => void;
+  user:        MockUser;
+  setRole:     (role: Role) => void;
+  switchUser:  (demoKey: keyof typeof DEMO_USERS) => void;
+  logout:      () => void;
+  viewMode:    ViewMode;
+  setViewMode: (m: ViewMode) => void;
 };
 
 const UserContext = createContext<UserContextValue | null>(null);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MockUser>(DEMO_USERS.master);
+  const [viewMode, setViewModeState] = useState<ViewMode>("operator");
 
   useEffect(() => {
     setUser(loadUser());
+    try {
+      const saved = localStorage.getItem(VIEW_MODE_KEY) as ViewMode | null;
+      if (saved === "personal" || saved === "operator") setViewModeState(saved);
+    } catch { /* ignore */ }
   }, []);
 
   function setRole(role: Role) {
@@ -93,12 +103,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.removeItem(LS_KEY);
       sessionStorage.removeItem(SS_KEY);
+      localStorage.removeItem(VIEW_MODE_KEY);
     } catch { /* ignore */ }
     window.location.href = "/login";
   }
 
+  function setViewMode(m: ViewMode) {
+    setViewModeState(m);
+    try { localStorage.setItem(VIEW_MODE_KEY, m); } catch { /* ignore */ }
+  }
+
   return (
-    <UserContext.Provider value={{ user, setRole, switchUser, logout }}>
+    <UserContext.Provider value={{ user, setRole, switchUser, logout, viewMode, setViewMode }}>
       {children}
     </UserContext.Provider>
   );

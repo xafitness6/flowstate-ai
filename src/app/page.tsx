@@ -25,8 +25,8 @@ export default function Root() {
         return;
       }
 
-      // 2. Admin or trainer → admin dashboard
-      if (role === "master" || role === "trainer") {
+      // 2. Master (operator) → admin dashboard
+      if (role === "master") {
         router.replace("/admin");
         return;
       }

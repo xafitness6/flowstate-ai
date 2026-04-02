@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Home, Dumbbell, Utensils, Bot, User, LayoutDashboard, CheckSquare, CalendarDays, Users, Trophy, Film, Clapperboard, Wind, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
+import type { ViewMode } from "@/context/UserContext";
 import { hasAccess, isAdmin } from "@/lib/roles";
 import { planHasAccess, PLAN_LABELS } from "@/lib/plans";
 import type { NavItem } from "@/types";
@@ -24,8 +25,15 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const pathname = usePathname();
-  const { user }  = useUser();
+  const pathname    = usePathname();
+  const router      = useRouter();
+  const { user, viewMode, setViewMode } = useUser();
+
+  function handleViewToggle() {
+    const next: ViewMode = viewMode === "operator" ? "personal" : "operator";
+    setViewMode(next);
+    router.push(next === "personal" ? "/dashboard?tab=overview" : "/admin");
+  }
 
   return (
     <aside className="hidden md:flex flex-col w-56 min-h-screen border-r border-white/5 bg-[#0D0D0D] px-3 py-6 gap-1 sticky top-0 h-screen overflow-y-auto">
@@ -73,6 +81,21 @@ export function Sidebar() {
       {isAdmin(user.role) && (
         <div className="mt-auto">
           <div className="h-px bg-white/5 mb-3" />
+
+          {/* View mode toggle — operator ↔ personal */}
+          <button
+            onClick={handleViewToggle}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-all mb-1",
+              "text-[#525252] hover:text-[#F5F5F5] hover:bg-white/5"
+            )}
+          >
+            {viewMode === "personal"
+              ? <><LayoutDashboard className="w-4 h-4 shrink-0" /><span>Platform View</span></>
+              : <><User className="w-4 h-4 shrink-0" /><span>My Training</span></>
+            }
+          </button>
+
           <Link
             href="/trainers"
             className={cn(

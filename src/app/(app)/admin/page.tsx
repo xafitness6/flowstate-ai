@@ -228,7 +228,7 @@ export default function AdminDashboard() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-1.5">Admin</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Trainer Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Platform Overview</h1>
           <p className="text-sm text-white/30 mt-1">Real-time platform health and user performance.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 mt-1">
