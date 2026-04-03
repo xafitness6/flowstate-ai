@@ -24,8 +24,11 @@ import { useUser } from "@/context/UserContext";
 import {
   initStore,
   getUsers,
+  getTrainers,
+  getTrainerMetrics,
   deleteUser,
   type PlatformUser,
+  type TrainerMetrics,
   PermissionError,
 } from "@/lib/data/store";
 
@@ -216,8 +219,9 @@ export default function AdminDashboard() {
   const { user }   = useUser();
   const router     = useRouter();
 
-  const [users,        setUsers       ] = useState<PlatformUser[]>([]);
-  const [search,       setSearch      ] = useState("");
+  const [users,          setUsers         ] = useState<PlatformUser[]>([]);
+  const [trainerMetrics, setTrainerMetrics] = useState<Array<{ trainer: PlatformUser; metrics: TrainerMetrics }>>([]);
+  const [search,         setSearch        ] = useState("");
   const [roleFilter,   setRoleFilter  ] = useState<PlatformUser["role"] | "all">("all");
   const [statusFilter, setStatusFilter] = useState<PlatformUser["status"] | "all">("all");
   const [sortKey,      setSortKey     ] = useState<SortKey>("lastActive");
@@ -233,7 +237,16 @@ export default function AdminDashboard() {
     } catch (e) {
       if (e instanceof PermissionError) setError("Access denied.");
     }
-  }, [user.role]);
+    try {
+      const trainers = getTrainers("master", user.id);
+      setTrainerMetrics(
+        trainers.flatMap((t) => {
+          const m = getTrainerMetrics(t.id);
+          return m ? [{ trainer: t, metrics: m }] : [];
+        })
+      );
+    } catch { /* ignore */ }
+  }, [user.role, user.id]);
 
   const totalUsers   = users.length;
   const activeUsers  = users.filter((u) => u.status === "active").length;
@@ -445,6 +458,109 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Trainer performance ─────────────────────────────────────── */}
+      {trainerMetrics.length > 0 && (
+        <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/[0.05]">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Trainer Performance</p>
+            <p className="text-sm font-medium text-white/75 mt-0.5">{trainerMetrics.length} trainer{trainerMetrics.length !== 1 ? "s" : ""}</p>
+          </div>
+          <div className="divide-y divide-white/[0.04]">
+            {trainerMetrics.map(({ trainer, metrics }) => {
+              const initials = trainer.name.split(" ").map((n) => n[0]).join("").toUpperCase();
+              return (
+                <div key={trainer.id} className="px-5 py-4">
+                  {/* Trainer identity */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-[#1C1C1C] border border-white/8 flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-semibold text-white/45">{initials}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white/80">{trainer.name}</p>
+                      <p className="text-[10px] text-white/28 mt-0.5">
+                        {metrics.totalClients} client{metrics.totalClients !== 1 ? "s" : ""} · joined {trainer.joinDate}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Metric grid */}
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                    <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3">
+                      <p className={cn(
+                        "text-lg font-semibold tabular-nums",
+                        metrics.avgAdherence >= 80 ? "text-emerald-400"
+                        : metrics.avgAdherence >= 65 ? "text-amber-400"
+                        : "text-[#F87171]"
+                      )}>
+                        {metrics.avgAdherence}%
+                      </p>
+                      <p className="text-[10px] text-white/25 mt-0.5">Avg adherence</p>
+                    </div>
+                    <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3">
+                      <p className="text-lg font-semibold tabular-nums text-white/90">{metrics.avgCheckInCompletion}%</p>
+                      <p className="text-[10px] text-white/25 mt-0.5">Check-ins</p>
+                    </div>
+                    <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3">
+                      <p className="text-lg font-semibold tabular-nums text-white/90">{metrics.retentionRate}%</p>
+                      <p className="text-[10px] text-white/25 mt-0.5">Retention</p>
+                    </div>
+                    <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3">
+                      <p className="text-lg font-semibold tabular-nums text-white/90">
+                        {metrics.activeClients}
+                        <span className="text-xs text-white/25 font-normal ml-1">active</span>
+                      </p>
+                      <p className="text-[10px] text-white/25 mt-0.5">
+                        {metrics.atRiskClients > 0
+                          ? <span className="text-amber-400/80">{metrics.atRiskClients} at risk</span>
+                          : "No at-risk"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3">
+                      <p className="text-lg font-semibold text-white/90">{metrics.avgResponseTime}</p>
+                      <p className="text-[10px] text-white/25 mt-0.5">Response time</p>
+                    </div>
+                    <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3">
+                      <p className={cn(
+                        "text-lg font-semibold tabular-nums",
+                        metrics.feedbackScore >= 4.5 ? "text-[#B48B40]"
+                        : metrics.feedbackScore >= 3.5 ? "text-white/70"
+                        : "text-[#F87171]"
+                      )}>
+                        {metrics.feedbackScore.toFixed(1)}
+                      </p>
+                      <p className="text-[10px] text-white/25 mt-0.5">Feedback score</p>
+                    </div>
+                  </div>
+
+                  {/* Trend bars */}
+                  {metrics.adherenceTrend.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/18 mb-1.5">7-week adherence trend</p>
+                      <div className="flex items-end gap-1 h-8">
+                        {metrics.adherenceTrend.map((v, i) => {
+                          const isLast = i === metrics.adherenceTrend.length - 1;
+                          return (
+                            <div
+                              key={i}
+                              className="flex-1 rounded-sm"
+                              style={{
+                                height: `${v}%`,
+                                minHeight: 3,
+                                background: isLast ? "#B48B40" : "#B48B4040",
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── User table ──────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
