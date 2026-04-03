@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Zap, Fingerprint, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveAccount } from "@/lib/accounts";
 import {
   isPlatformAuthenticatorAvailable,
   hasSavedCredential,
@@ -22,7 +23,9 @@ const LS_KEY        = "flowstate-active-role";
 const SS_KEY        = "flowstate-session-role";
 const ONBOARDED_KEY = "flowstate-onboarded";
 
-// Role is resolved from credentials only — never selected by the user.
+// Hardcoded demo credentials. Role is resolved server-side — never selected by the user.
+// sessionKey is what gets written to storage: the CREDENTIALS map key for demo accounts,
+// or the account ID for dynamically created accounts.
 const CREDENTIALS: Record<string, { username: string; password: string; role: string }> = {
   master:  { username: "ADMIN",  password: "ADMIN",      role: "master"  },
   trainer: { username: "alex",   password: "flowstate",  role: "trainer" },
@@ -30,15 +33,25 @@ const CREDENTIALS: Record<string, { username: string; password: string; role: st
   member:  { username: "luca",   password: "flowstate",  role: "member"  },
 };
 
-function resolveRole(username: string, password: string): string | null {
-  for (const entry of Object.values(CREDENTIALS)) {
+/**
+ * Resolves credentials against demo accounts first, then dynamically created accounts.
+ * Returns { sessionKey } on success — sessionKey is stored in LS/SS and used by
+ * UserContext.loadUser() and postLoginRoute() to identify the active user.
+ */
+function resolveCredentials(username: string, password: string): { sessionKey: string } | null {
+  // 1. Demo accounts (key = role name, e.g. "master", "client")
+  for (const [key, entry] of Object.entries(CREDENTIALS)) {
     if (
       username.trim().toLowerCase() === entry.username.toLowerCase() &&
       password === entry.password
     ) {
-      return entry.role;
+      return { sessionKey: key };
     }
   }
+  // 2. Dynamically created accounts (key = account ID, e.g. "usr_1234_abc")
+  const account = resolveAccount(username, password);
+  if (account) return { sessionKey: account.id };
+
   return null;
 }
 
@@ -135,15 +148,15 @@ export default function LoginPage() {
     e.preventDefault();
     setAuthError(false);
 
-    const role = resolveRole(username, password);
-    if (!role) {
+    const result = resolveCredentials(username, password);
+    if (!result) {
       setAuthError(true);
       return;
     }
 
-    setResolvedRole(role);
+    setResolvedRole(result.sessionKey);
     setLoading(true);
-    afterLogin(role);
+    afterLogin(result.sessionKey);
   }
 
   async function handleBiometricLogin() {
@@ -293,6 +306,15 @@ export default function LoginPage() {
             >
               {loading ? "Signing in…" : "Sign in"}
             </button>
+
+            <div className="text-center pt-1">
+              <Link
+                href="/signup"
+                className="text-xs text-white/22 hover:text-white/45 transition-colors"
+              >
+                Don&apos;t have an account? Create one
+              </Link>
+            </div>
 
           </form>
         )}

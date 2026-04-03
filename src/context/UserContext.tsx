@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import type { MockUser, Plan, Role } from "@/types";
 import { clearBiometric } from "@/lib/biometric";
+import { getAccountById, accountToMockUser } from "@/lib/accounts";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
@@ -57,14 +58,23 @@ function loadUser(): MockUser {
   try {
     // Prefer sessionStorage (current session) over localStorage (remember-me).
     // This order must match useAdminGuard and AppShell.
-    const ss = sessionStorage.getItem(SS_KEY) as keyof typeof DEMO_USERS | null;
-    const ls = localStorage.getItem(LS_KEY) as keyof typeof DEMO_USERS | null;
-    const key = (ss && DEMO_USERS[ss]) ? ss : (ls && DEMO_USERS[ls]) ? ls : null;
+    const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
     if (!key) return SAFE_DEFAULT;
-    const base = DEMO_USERS[key];
-    // Restore persisted plan override (set after Stripe checkout)
-    const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
-    return savedPlan ? { ...base, plan: savedPlan } : base;
+
+    // 1. Demo accounts: key is a role name ("master", "client", etc.)
+    if (DEMO_USERS[key]) {
+      const base = DEMO_USERS[key];
+      const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
+      return savedPlan ? { ...base, plan: savedPlan } : base;
+    }
+
+    // 2. Dynamically created accounts: key is an account ID ("usr_…")
+    const account = getAccountById(key);
+    if (account) {
+      const base = accountToMockUser(account);
+      const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
+      return savedPlan ? { ...base, plan: savedPlan } : base;
+    }
   } catch { /* ignore */ }
   return SAFE_DEFAULT;
 }
