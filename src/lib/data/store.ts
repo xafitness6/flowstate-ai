@@ -83,7 +83,7 @@ export class PermissionError extends Error {
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
 const KEY_USERS   = "flowstate-platform-users";
-const KEY_SEEDED  = "flowstate-platform-seeded";
+const KEY_SEEDED  = "flowstate-platform-seeded-v2";
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
 // Canonical user list. "starter" = the free/entry tier (replaces "free"
@@ -100,8 +100,12 @@ const SEED_USERS: PlatformUser[] = [
   { id: "u8",  name: "Dmitri Volkov", email: "dmitri@domain.com", role: "member",  plan: "starter", status: "trial",    lastActive: "1d ago",                   joinDate: "Mar 2025" },
   { id: "u9",  name: "Hana Suzuki",   email: "hana@domain.com",   role: "client",  plan: "pro",     status: "paused",   lastActive: "8d ago",   trainerId: "u3", joinDate: "Jan 2025" },
   { id: "u10", name: "Omar Hassan",   email: "omar@domain.com",   role: "member",  plan: "pro",     status: "active",   lastActive: "2d ago",                   joinDate: "Feb 2025" },
-  { id: "u11", name: "Claire Dubois", email: "claire@domain.com", role: "client",  plan: "elite",   status: "at-risk",  lastActive: "5d ago",   trainerId: "u4", joinDate: "Dec 2024" },
-  { id: "u12", name: "Ravi Menon",    email: "ravi@domain.com",   role: "member",  plan: "starter", status: "churned",  lastActive: "21d ago",                  joinDate: "Nov 2024" },
+  { id: "u11", name: "Claire Dubois", email: "claire@domain.com", role: "client",  plan: "elite",   status: "at-risk",  lastActive: "5d ago",   trainerId: "u4",      joinDate: "Dec 2024" },
+  { id: "u12", name: "Ravi Menon",    email: "ravi@domain.com",   role: "member",  plan: "starter", status: "churned",  lastActive: "21d ago",                        joinDate: "Nov 2024" },
+  // Master's personally assigned clients (trainerId === master's user id)
+  { id: "u13", name: "Jordan Blake",  email: "jordan@domain.com", role: "client",  plan: "elite",   status: "active",   lastActive: "1h ago",   trainerId: "usr_001", joinDate: "Jan 2026" },
+  { id: "u14", name: "Mia Chen",      email: "mia@domain.com",    role: "client",  plan: "pro",     status: "at-risk",  lastActive: "3d ago",   trainerId: "usr_001", joinDate: "Feb 2026" },
+  { id: "u15", name: "Tyler Ross",    email: "tyler@domain.com",  role: "client",  plan: "elite",   status: "active",   lastActive: "5h ago",   trainerId: "usr_001", joinDate: "Mar 2026" },
 ];
 
 // Stored metrics per trainer — performance data that has no computable source.
@@ -138,6 +142,9 @@ const SEED_CLIENT_DATA: Record<string, ClientTrainingData> = {
   u7:  { program: "Athletic Performance", adherence: 85, executionScore: 80, checkInCompletion: 90 },
   u9:  { program: "Unassigned",           adherence: 0,  executionScore: 0,  checkInCompletion: 55 },
   u11: { program: "Strength Foundation",  adherence: 62, executionScore: 58, checkInCompletion: 68 },
+  u13: { program: "Strength Phase 2",     adherence: 90, executionScore: 87, checkInCompletion: 93 },
+  u14: { program: "Fat Loss Circuit",     adherence: 58, executionScore: 55, checkInCompletion: 65 },
+  u15: { program: "Athletic Performance", adherence: 83, executionScore: 79, checkInCompletion: 88 },
 };
 
 const SEED_PROGRAMS: PlatformProgram[] = [
@@ -239,6 +246,19 @@ export function getClients(actorRole: string, actorId: string): PlatformUser[] {
   if (actorRole === "master") return clients;
   if (actorRole === "trainer") return clients.filter((c) => c.trainerId === actorId);
   throw new PermissionError("getClients: insufficient role");
+}
+
+/**
+ * Clients personally assigned to the actor (trainerId === actorId).
+ * Works the same for both trainer and master — master's "My Clients" view
+ * is separate from the platform-wide all-clients view.
+ */
+export function getMyClients(actorRole: string, actorId: string): PlatformUser[] {
+  if (actorRole !== "trainer" && actorRole !== "master") {
+    throw new PermissionError("getMyClients: insufficient role");
+  }
+  const users = loadUsers();
+  return users.filter((u) => u.role === "client" && u.trainerId === actorId);
 }
 
 /**
