@@ -11,10 +11,10 @@ import type { SnapshotUser } from "@/lib/userProfiles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Plan    = "free" | "pro" | "elite";
+type Plan    = "foundation" | "training" | "performance" | "coaching";
 type Role    = "member" | "client" | "trainer" | "master";
 type SortKey = "overall" | "adherence" | "execution" | "streak" | "accountability" | "progress";
-type TierFilter = "all" | "elite" | "pro" | "free";
+type TierFilter = "all" | "coaching" | "performance" | "training" | "foundation";
 
 type LeaderEntry = {
   id: string;
@@ -31,16 +31,16 @@ type LeaderEntry = {
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const ENTRIES: LeaderEntry[] = [
-  { id: "u1",  name: "Kai Nakamura",   plan: "elite", role: "client",  adherence: 94, execution: 88, streak: 22, accountability: 91, progress: 86 },
-  { id: "u2",  name: "Priya Sharma",   plan: "elite", role: "client",  adherence: 91, execution: 84, streak: 18, accountability: 88, progress: 82 },
-  { id: "u7",  name: "Sofia Reyes",    plan: "elite", role: "client",  adherence: 88, execution: 80, streak: 14, accountability: 85, progress: 79 },
-  { id: "u4",  name: "Alex Rivera",     plan: "elite", role: "trainer", adherence: 85, execution: 79, streak: 31, accountability: 82, progress: 74 },
-  { id: "u6",  name: "Luca Ferretti",  plan: "pro",   role: "member",  adherence: 82, execution: 76, streak: 9,  accountability: 78, progress: 70 },
-  { id: "u10", name: "Omar Hassan",    plan: "pro",   role: "member",  adherence: 79, execution: 72, streak: 7,  accountability: 74, progress: 67 },
-  { id: "u3",  name: "Marcus Webb",    plan: "pro",   role: "trainer", adherence: 75, execution: 68, streak: 5,  accountability: 70, progress: 63 },
-  { id: "u5",  name: "Anya Patel",     plan: "pro",   role: "client",  adherence: 63, execution: 58, streak: 2,  accountability: 61, progress: 52 },
-  { id: "u8",  name: "Dmitri Volkov",  plan: "free",  role: "member",  adherence: 58, execution: 52, streak: 3,  accountability: 55, progress: 44 },
-  { id: "u12", name: "Ravi Menon",     plan: "free",  role: "member",  adherence: 41, execution: 38, streak: 0,  accountability: 35, progress: 28 },
+  { id: "u1",  name: "Kai Nakamura",   plan: "performance", role: "client",  adherence: 94, execution: 88, streak: 22, accountability: 91, progress: 86 },
+  { id: "u2",  name: "Priya Sharma",   plan: "performance", role: "client",  adherence: 91, execution: 84, streak: 18, accountability: 88, progress: 82 },
+  { id: "u7",  name: "Sofia Reyes",    plan: "performance", role: "client",  adherence: 88, execution: 80, streak: 14, accountability: 85, progress: 79 },
+  { id: "u4",  name: "Alex Rivera",    plan: "coaching",    role: "trainer", adherence: 85, execution: 79, streak: 31, accountability: 82, progress: 74 },
+  { id: "u6",  name: "Luca Ferretti",  plan: "training",    role: "member",  adherence: 82, execution: 76, streak: 9,  accountability: 78, progress: 70 },
+  { id: "u10", name: "Omar Hassan",    plan: "training",    role: "member",  adherence: 79, execution: 72, streak: 7,  accountability: 74, progress: 67 },
+  { id: "u3",  name: "Marcus Webb",    plan: "training",    role: "trainer", adherence: 75, execution: 68, streak: 5,  accountability: 70, progress: 63 },
+  { id: "u5",  name: "Anya Patel",     plan: "training",    role: "client",  adherence: 63, execution: 58, streak: 2,  accountability: 61, progress: 52 },
+  { id: "u8",  name: "Dmitri Volkov",  plan: "foundation",  role: "member",  adherence: 58, execution: 52, streak: 3,  accountability: 55, progress: 44 },
+  { id: "u12", name: "Ravi Menon",     plan: "foundation",  role: "member",  adherence: 41, execution: 38, streak: 0,  accountability: 35, progress: 28 },
 ];
 
 function overall(e: LeaderEntry): number {
@@ -60,9 +60,10 @@ function toSnapshotUser(e: LeaderEntry): SnapshotUser {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const PLAN_CFG: Record<Plan, { label: string; color: string }> = {
-  elite: { label: "Elite", color: "text-[#C9932A]"    },
-  pro:   { label: "Pro",   color: "text-[#93C5FD]/70" },
-  free:  { label: "Free",  color: "text-white/28"     },
+  coaching:    { label: "Hybrid Coaching", color: "text-purple-400"    },
+  performance: { label: "AI Performance",  color: "text-[#C9932A]"     },
+  training:    { label: "Training",        color: "text-[#93C5FD]/70"  },
+  foundation:  { label: "Foundation",      color: "text-white/28"      },
 };
 
 const SORT_OPTIONS: { key: SortKey; label: string; icon: typeof Trophy; unit?: string }[] = [
@@ -75,10 +76,11 @@ const SORT_OPTIONS: { key: SortKey; label: string; icon: typeof Trophy; unit?: s
 ];
 
 const TIER_FILTERS: { id: TierFilter; label: string }[] = [
-  { id: "all",   label: "All"   },
-  { id: "elite", label: "Elite" },
-  { id: "pro",   label: "Pro"   },
-  { id: "free",  label: "Free"  },
+  { id: "all",         label: "All"         },
+  { id: "coaching",    label: "Coaching"    },
+  { id: "performance", label: "Performance" },
+  { id: "training",    label: "Training"    },
+  { id: "foundation",  label: "Foundation"  },
 ];
 
 // ─── Rank styling ─────────────────────────────────────────────────────────────

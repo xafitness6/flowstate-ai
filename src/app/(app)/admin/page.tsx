@@ -40,15 +40,17 @@ type SortDir = "asc" | "desc";
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
 const TIER_PRICE: Record<string, number> = {
-  elite:   60,
-  pro:     20,
-  starter: 0,
+  coaching:    199,
+  performance: 79,
+  training:    29,
+  foundation:  0,
 };
 
 const TIER_COLOR: Record<string, string> = {
-  elite:   "bg-[#B48B40]",
-  pro:     "bg-[#93C5FD]/70",
-  starter: "bg-white/12",
+  coaching:    "bg-purple-400/70",
+  performance: "bg-[#B48B40]",
+  training:    "bg-[#93C5FD]/70",
+  foundation:  "bg-white/12",
 };
 
 // Revenue sparkline shape — kept as a growth trend; endpoint will be computed MRR.
@@ -72,9 +74,10 @@ const ROLE_CFG = {
 } as const;
 
 const PLAN_CFG = {
-  elite:   { label: "Elite",   color: "text-[#B48B40]" },
-  pro:     { label: "Pro",     color: "text-white/55"  },
-  starter: { label: "Starter", color: "text-white/28"  },
+  coaching:    { label: "Hybrid Coaching", color: "text-purple-400"    },
+  performance: { label: "AI Performance",  color: "text-[#B48B40]"     },
+  training:    { label: "Training",        color: "text-white/55"       },
+  foundation:  { label: "Foundation",      color: "text-white/28"       },
 } as const;
 
 // ─── Sparkline / bar chart ────────────────────────────────────────────────────
@@ -263,14 +266,15 @@ export default function AdminDashboard() {
   const totalClients = users.filter((u) => u.role === "client").length;
 
   // Tier breakdown and revenue — derived from real users
-  const tierData = (["elite", "pro", "starter"] as const).map((plan) => {
+  const tierData = (["coaching", "performance", "training", "foundation"] as const).map((plan) => {
     const count = users.filter((u) => u.plan === plan).length;
     const mrr   = count * TIER_PRICE[plan];
-    return { plan, label: plan.charAt(0).toUpperCase() + plan.slice(1), count, mrr, color: TIER_COLOR[plan] };
+    const label = PLAN_CFG[plan as keyof typeof PLAN_CFG]?.label ?? plan;
+    return { plan, label, count, mrr, color: TIER_COLOR[plan] };
   });
   const totalMrr     = tierData.reduce((s, t) => s + t.mrr, 0);
   const tierTotal    = totalUsers;
-  const paidUsers    = tierData.filter((t) => t.plan !== "starter").reduce((s, t) => s + t.count, 0);
+  const paidUsers    = tierData.filter((t) => t.plan !== "foundation").reduce((s, t) => s + t.count, 0);
   const arppu        = paidUsers > 0 ? (totalMrr / paidUsers).toFixed(2) : "0.00";
   const retentionPct = totalUsers > 0 ? ((totalUsers - churnedUsers) / totalUsers * 100).toFixed(1) : "100.0";
   const churnPct     = totalUsers > 0 ? (churnedUsers / totalUsers * 100).toFixed(1) : "0.0";
@@ -679,7 +683,7 @@ export default function AdminDashboard() {
           {filtered.map((u) => {
             const sc       = STATUS_CFG[u.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.active;
             const rc       = ROLE_CFG[u.role as keyof typeof ROLE_CFG] ?? ROLE_CFG.member;
-            const pc       = PLAN_CFG[u.plan as keyof typeof PLAN_CFG] ?? PLAN_CFG.starter;
+            const pc       = PLAN_CFG[u.plan as keyof typeof PLAN_CFG] ?? PLAN_CFG.foundation;
             const initials = u.name.split(" ").map((n) => n[0]).join("").toUpperCase();
             const trainer  = u.trainerId ? users.find((x) => x.id === u.trainerId) : undefined;
             const isBeingDel = deleting === u.id;

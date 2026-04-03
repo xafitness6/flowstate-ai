@@ -82,22 +82,24 @@ const STATUS_CONFIG = {
 const PUSH_CHANGE_LIMIT = 2;
 
 const MAX_PLAN_FOR_ROLE: Record<string, Plan> = {
-  member:  "pro",
-  client:  "elite",
-  trainer: "elite",
-  master:  "elite",
+  member:  "performance",
+  client:  "coaching",
+  trainer: "coaching",
+  master:  "coaching",
 };
 
 const PLAN_COLOR: Record<Plan, string> = {
-  starter: "text-white/45",
-  pro:     "text-[#B48B40]",
-  elite:   "text-emerald-400",
+  foundation:  "text-white/45",
+  training:    "text-[#B48B40]",
+  performance: "text-emerald-400",
+  coaching:    "text-purple-400",
 };
 
 const PLAN_BADGE: Record<Plan, string> = {
-  starter: "text-white/40 border-white/10 bg-white/[0.03]",
-  pro:     "text-[#B48B40] border-[#B48B40]/22 bg-[#B48B40]/6",
-  elite:   "text-emerald-400 border-emerald-400/20 bg-emerald-400/5",
+  foundation:  "text-white/40 border-white/10 bg-white/[0.03]",
+  training:    "text-[#B48B40] border-[#B48B40]/22 bg-[#B48B40]/6",
+  performance: "text-emerald-400 border-emerald-400/20 bg-emerald-400/5",
+  coaching:    "text-purple-400 border-purple-400/20 bg-purple-400/5",
 };
 
 // ─── Activity stats ───────────────────────────────────────────────────────────
@@ -876,6 +878,25 @@ export default function ProfilePage() {
                 >
                   Upgrade <ArrowUpRight className="w-3 h-3" strokeWidth={2} />
                 </Link>
+              )}
+              {user.plan !== "foundation" && (
+                <button
+                  onClick={async () => {
+                    const res = await fetch("/api/stripe/portal", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        customerId: `demo_${user.id}`,
+                        returnUrl: window.location.href,
+                      }),
+                    });
+                    const data = await res.json() as { url?: string };
+                    if (data.url) window.location.href = data.url;
+                  }}
+                  className="text-[10px] text-white/30 hover:text-white/55 transition-colors underline underline-offset-2"
+                >
+                  Manage subscription
+                </button>
               )}
             </div>
           </SettingsRow>

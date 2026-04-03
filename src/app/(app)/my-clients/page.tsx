@@ -234,7 +234,7 @@ export default function MyClientsPage() {
                           <p className={cn("text-sm font-medium", isInactive ? "text-white/40" : "text-white/80")}>{c.name}</p>
                           <span className={cn(
                             "text-[9px] font-semibold uppercase tracking-wider",
-                            c.plan === "elite" ? "text-[#B48B40]" : "text-white/28"
+                            (c.plan === "performance" || c.plan === "coaching") ? "text-[#B48B40]" : "text-white/28"
                           )}>
                             {c.plan}
                           </span>

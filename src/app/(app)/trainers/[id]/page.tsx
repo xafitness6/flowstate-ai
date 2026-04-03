@@ -520,7 +520,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
                   <div>
                     <div className="flex items-center gap-1.5">
                       <p className={cn("text-sm font-medium", isInactive ? "text-white/40" : "text-white/80")}>{c.name}</p>
-                      <span className={cn("text-[9px] font-semibold uppercase tracking-wider", c.plan === "elite" ? "text-[#B48B40]" : "text-white/28")}>
+                      <span className={cn("text-[9px] font-semibold uppercase tracking-wider", (c.plan === "performance" || c.plan === "coaching") ? "text-[#B48B40]" : "text-white/28")}>
                         {c.plan}
                       </span>
                     </div>

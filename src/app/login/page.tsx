@@ -51,20 +51,29 @@ function resolveRole(username: string, password: string): string | null {
   return null;
 }
 
+// Maps demo role keys to their user IDs (mirrors DEMO_USERS in UserContext)
+const ROLE_TO_USER_ID: Record<string, string> = {
+  master: "usr_001", trainer: "u4", client: "u1", member: "u6",
+};
+
 function postLoginRoute(roleKey: string): string {
-  // Check if onboarded
-  let isOnboarded = false;
+  // Master always goes directly to admin — no onboarding required
+  if (roleKey === "master") return "/admin";
+
+  const userId = ROLE_TO_USER_ID[roleKey] ?? roleKey;
+
   try {
-    isOnboarded = localStorage.getItem(ONBOARDED_KEY) === "true";
+    // Check new 2-phase onboarding state first
+    const raw = localStorage.getItem(`flowstate-onboarding-${userId}`);
+    if (raw) {
+      const state = JSON.parse(raw) as { hasCompletedQuickStart?: boolean };
+      if (!state.hasCompletedQuickStart) return "/onboarding";
+      return "/dashboard";
+    }
+    // Legacy key fallback
+    if (localStorage.getItem(ONBOARDED_KEY) !== "true") return "/onboarding";
   } catch { /* ignore */ }
 
-  // All users must complete onboarding
-  if (!isOnboarded) {
-    return "/onboarding";
-  }
-
-  // After onboarding, route by role
-  if (roleKey === "master") return "/admin";
   return "/dashboard";
 }
 

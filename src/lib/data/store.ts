@@ -86,26 +86,26 @@ const KEY_USERS   = "flowstate-platform-users";
 const KEY_SEEDED  = "flowstate-platform-seeded-v2";
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
-// Canonical user list. "starter" = the free/entry tier (replaces "free"
-// in older page-local types). trainerId links clients to their trainer.
+// Canonical user list. "foundation" = the free/entry tier.
+// trainerId links clients to their trainer.
 
 const SEED_USERS: PlatformUser[] = [
-  { id: "u1",  name: "Kai Nakamura",  email: "kai@domain.com",    role: "client",  plan: "elite",   status: "active",   lastActive: "2m ago",   trainerId: "u4", joinDate: "Jan 2025" },
-  { id: "u2",  name: "Priya Sharma",  email: "priya@domain.com",  role: "client",  plan: "elite",   status: "active",   lastActive: "14m ago",  trainerId: "u4", joinDate: "Feb 2025" },
-  { id: "u3",  name: "Marcus Webb",   email: "marcus@domain.com", role: "trainer", plan: "pro",     status: "active",   lastActive: "1h ago",                   joinDate: "Nov 2024" },
-  { id: "u4",  name: "Alex Rivera",   email: "alex@domain.com",   role: "trainer", plan: "elite",   status: "active",   lastActive: "3h ago",                   joinDate: "Oct 2024" },
-  { id: "u5",  name: "Anya Patel",    email: "anya@domain.com",   role: "client",  plan: "pro",     status: "at-risk",  lastActive: "4d ago",   trainerId: "u3", joinDate: "Mar 2025" },
-  { id: "u6",  name: "Luca Ferretti", email: "luca@domain.com",   role: "member",  plan: "pro",     status: "active",   lastActive: "6h ago",                   joinDate: "Dec 2024" },
-  { id: "u7",  name: "Sofia Reyes",   email: "sofia@domain.com",  role: "client",  plan: "elite",   status: "active",   lastActive: "22h ago",  trainerId: "u4", joinDate: "Feb 2025" },
-  { id: "u8",  name: "Dmitri Volkov", email: "dmitri@domain.com", role: "member",  plan: "starter", status: "trial",    lastActive: "1d ago",                   joinDate: "Mar 2025" },
-  { id: "u9",  name: "Hana Suzuki",   email: "hana@domain.com",   role: "client",  plan: "pro",     status: "paused",   lastActive: "8d ago",   trainerId: "u3", joinDate: "Jan 2025" },
-  { id: "u10", name: "Omar Hassan",   email: "omar@domain.com",   role: "member",  plan: "pro",     status: "active",   lastActive: "2d ago",                   joinDate: "Feb 2025" },
-  { id: "u11", name: "Claire Dubois", email: "claire@domain.com", role: "client",  plan: "elite",   status: "at-risk",  lastActive: "5d ago",   trainerId: "u4",      joinDate: "Dec 2024" },
-  { id: "u12", name: "Ravi Menon",    email: "ravi@domain.com",   role: "member",  plan: "starter", status: "churned",  lastActive: "21d ago",                        joinDate: "Nov 2024" },
+  { id: "u1",  name: "Kai Nakamura",  email: "kai@domain.com",    role: "client",  plan: "performance", status: "active",   lastActive: "2m ago",   trainerId: "u4", joinDate: "Jan 2025" },
+  { id: "u2",  name: "Priya Sharma",  email: "priya@domain.com",  role: "client",  plan: "performance", status: "active",   lastActive: "14m ago",  trainerId: "u4", joinDate: "Feb 2025" },
+  { id: "u3",  name: "Marcus Webb",   email: "marcus@domain.com", role: "trainer", plan: "training",    status: "active",   lastActive: "1h ago",                   joinDate: "Nov 2024" },
+  { id: "u4",  name: "Alex Rivera",   email: "alex@domain.com",   role: "trainer", plan: "coaching",    status: "active",   lastActive: "3h ago",                   joinDate: "Oct 2024" },
+  { id: "u5",  name: "Anya Patel",    email: "anya@domain.com",   role: "client",  plan: "training",    status: "at-risk",  lastActive: "4d ago",   trainerId: "u3", joinDate: "Mar 2025" },
+  { id: "u6",  name: "Luca Ferretti", email: "luca@domain.com",   role: "member",  plan: "training",    status: "active",   lastActive: "6h ago",                   joinDate: "Dec 2024" },
+  { id: "u7",  name: "Sofia Reyes",   email: "sofia@domain.com",  role: "client",  plan: "performance", status: "active",   lastActive: "22h ago",  trainerId: "u4", joinDate: "Feb 2025" },
+  { id: "u8",  name: "Dmitri Volkov", email: "dmitri@domain.com", role: "member",  plan: "foundation",  status: "trial",    lastActive: "1d ago",                   joinDate: "Mar 2025" },
+  { id: "u9",  name: "Hana Suzuki",   email: "hana@domain.com",   role: "client",  plan: "training",    status: "paused",   lastActive: "8d ago",   trainerId: "u3", joinDate: "Jan 2025" },
+  { id: "u10", name: "Omar Hassan",   email: "omar@domain.com",   role: "member",  plan: "training",    status: "active",   lastActive: "2d ago",                   joinDate: "Feb 2025" },
+  { id: "u11", name: "Claire Dubois", email: "claire@domain.com", role: "client",  plan: "performance", status: "at-risk",  lastActive: "5d ago",   trainerId: "u4",      joinDate: "Dec 2024" },
+  { id: "u12", name: "Ravi Menon",    email: "ravi@domain.com",   role: "member",  plan: "foundation",  status: "churned",  lastActive: "21d ago",                        joinDate: "Nov 2024" },
   // Master's personally assigned clients (trainerId === master's user id)
-  { id: "u13", name: "Jordan Blake",  email: "jordan@domain.com", role: "client",  plan: "elite",   status: "active",   lastActive: "1h ago",   trainerId: "usr_001", joinDate: "Jan 2026" },
-  { id: "u14", name: "Mia Chen",      email: "mia@domain.com",    role: "client",  plan: "pro",     status: "at-risk",  lastActive: "3d ago",   trainerId: "usr_001", joinDate: "Feb 2026" },
-  { id: "u15", name: "Tyler Ross",    email: "tyler@domain.com",  role: "client",  plan: "elite",   status: "active",   lastActive: "5h ago",   trainerId: "usr_001", joinDate: "Mar 2026" },
+  { id: "u13", name: "Jordan Blake",  email: "jordan@domain.com", role: "client",  plan: "coaching",    status: "active",   lastActive: "1h ago",   trainerId: "usr_001", joinDate: "Jan 2026" },
+  { id: "u14", name: "Mia Chen",      email: "mia@domain.com",    role: "client",  plan: "training",    status: "at-risk",  lastActive: "3d ago",   trainerId: "usr_001", joinDate: "Feb 2026" },
+  { id: "u15", name: "Tyler Ross",    email: "tyler@domain.com",  role: "client",  plan: "performance", status: "active",   lastActive: "5h ago",   trainerId: "usr_001", joinDate: "Mar 2026" },
 ];
 
 // Stored metrics per trainer — performance data that has no computable source.

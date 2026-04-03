@@ -12,6 +12,7 @@ import { DEMO_USERS } from "@/context/UserContext";
 import { hasAccess } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { GreetingBanner } from "@/components/dashboard/GreetingBanner";
+import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
 import { useAIPipeline } from "@/hooks/useAIPipeline";
 import type { RawUserData } from "@/lib/ai/types";
 import type { Role } from "@/types";
@@ -569,6 +570,13 @@ function DashboardContent() {
           );
         })()}
       </section>
+
+      {/* Deep calibration nudge — shown after quick start if deep cal is pending */}
+      {actualUserId && (
+        <div className="mb-6">
+          <DeepCalPrompt userId={actualUserId} />
+        </div>
+      )}
 
       {/* Role-specific overview */}
       <section className="mb-8">

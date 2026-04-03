@@ -1,6 +1,6 @@
 export type Role = "member" | "client" | "trainer" | "master";
 
-export type Plan = "starter" | "pro" | "elite";
+export type Plan = "foundation" | "training" | "performance" | "coaching";
 
 export type NavItem = {
   label: string;

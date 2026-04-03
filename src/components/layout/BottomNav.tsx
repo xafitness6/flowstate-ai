@@ -12,7 +12,7 @@ import type { NavItem } from "@/types";
 const NAV_ITEMS: NavItem[] = [
   { label: "Home",    href: "/dashboard",      icon: Home },
   { label: "Program", href: "/program",        icon: Dumbbell },
-  { label: "Coach",   href: "/coach",          icon: Bot,  roles: ["client"], plan: "pro" },
+  { label: "Coach",   href: "/coach",          icon: Bot,  roles: ["client"], plan: "training" },
   { label: "Track",     href: "/accountability", icon: CheckSquare },
   { label: "Breathe",  href: "/breathwork",    icon: Wind },
   { label: "Profile",  href: "/profile",       icon: User },

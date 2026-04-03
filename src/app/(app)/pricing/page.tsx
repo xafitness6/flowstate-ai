@@ -1,502 +1,367 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Minus, ArrowRight, MessageCircle } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Check, Minus, Zap, Users, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/context/UserContext";
+import { usePlan } from "@/hooks/usePlan";
+import { PLAN_LABELS, PLAN_HIERARCHY } from "@/lib/plans";
+import type { Plan } from "@/types";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type PlanKey = "core" | "pro" | "elite" | "coaching";
 type BillingCycle = "monthly" | "annual";
 
-// ─── Plan data ────────────────────────────────────────────────────────────────
-
 const PLANS: {
-  key: PlanKey;
+  key: Plan;
   name: string;
-  identity: string;
   tagline: string;
   monthly: number | null;
   annual: number | null;
-  billingNote: string;
   cta: string;
   highlight: boolean;
-  features: string[];
+  badge?: string;
+  features: { label: string; included: boolean }[];
+  note?: string;
 }[] = [
   {
-    key: "core",
-    name: "Core",
-    identity: "The self-directed athlete",
-    tagline: "Everything you need to train and eat with precision. No coach, no friction.",
+    key: "foundation",
+    name: "Foundation",
+    tagline: "Core tracking and self-directed training. No card required.",
+    monthly: null,
+    annual: null,
+    cta: "Start free",
+    highlight: false,
+    features: [
+      { label: "Workout tracking", included: true },
+      { label: "Nutrition tracking", included: true },
+      { label: "Basic heatmap", included: true },
+      { label: "30-day history", included: true },
+      { label: "AI coach access", included: false },
+      { label: "Full history", included: false },
+      { label: "Accountability tools", included: false },
+      { label: "Weekly AI adjustments", included: false },
+    ],
+  },
+  {
+    key: "training",
+    name: "Training",
+    tagline: "Unlimited history, AI coach access, and weekly program adjustments.",
     monthly: 29,
     annual: 23,
-    billingNote: "per month",
-    cta: "Start with Core",
+    cta: "Upgrade to Training",
     highlight: false,
     features: [
-      "AI-generated training program",
-      "AI nutrition planning",
-      "Daily plan adjustments",
-      "Progress tracking",
-      "Body status signals",
-      "Workout builder",
+      { label: "Everything in Foundation", included: true },
+      { label: "Full history (unlimited)", included: true },
+      { label: "AI coach access", included: true },
+      { label: "Weekly AI adjustments", included: true },
+      { label: "Full heatmap", included: true },
+      { label: "Accountability tools", included: true },
+      { label: "Daily AI adjustments", included: false },
+      { label: "Deep analytics", included: false },
     ],
   },
   {
-    key: "pro",
-    name: "Pro",
-    identity: "The serious performer",
-    tagline: "Full AI coaching layer with deeper calibration and faster adaptation.",
-    monthly: 59,
-    annual: 47,
-    billingNote: "per month",
-    cta: "Start with Pro",
+    key: "performance",
+    name: "AI Performance",
+    tagline: "Unlimited AI coaching, daily adjustments, deep analytics, and smart recovery.",
+    monthly: 79,
+    annual: 63,
+    cta: "Upgrade to AI Performance",
     highlight: true,
+    badge: "Most popular",
     features: [
-      "Everything in Core",
-      "AI coach chat (unlimited)",
-      "Progress photos",
-      "Advanced body composition analysis",
-      "Calibration flow",
-      "Weekly AI performance review",
-      "Priority support",
-    ],
-  },
-  {
-    key: "elite",
-    name: "Elite",
-    identity: "Performance as infrastructure",
-    tagline: "For those who build their life around what their body can do.",
-    monthly: 99,
-    annual: 79,
-    billingNote: "per month",
-    cta: "Start with Elite",
-    highlight: false,
-    features: [
-      "Everything in Pro",
-      "Custom meal plans (AI-generated)",
-      "Full biometric integration",
-      "Trainer assignment",
-      "Trainer dashboard access",
-      "Dedicated plan review cadence",
-      "Early access to new features",
+      { label: "Everything in Training", included: true },
+      { label: "Unlimited AI coach messages", included: true },
+      { label: "Daily AI adjustments", included: true },
+      { label: "Deep analytics", included: true },
+      { label: "Smart recovery signals", included: true },
+      { label: "Priority support", included: true },
+      { label: "Monthly coach meetings", included: false },
+      { label: "Priority form review", included: false },
     ],
   },
   {
     key: "coaching",
-    name: "1:1 Coaching",
-    identity: "A partner, not a product",
-    tagline: "Direct access to a human coach. Built for those who want accountability, not automation.",
-    monthly: null,
-    annual: null,
-    billingNote: "$2,000 / 3 months",
-    cta: "Apply for coaching",
+    name: "Hybrid Coaching",
+    tagline: "Everything in AI Performance, plus 2 monthly meetings with your coach and discounted naturopathic doctor consultations.",
+    monthly: 199,
+    annual: 159,
+    cta: "Apply for Hybrid Coaching",
     highlight: false,
+    badge: "Full-stack",
+    note: "Includes 2 monthly 1:1 coaching calls + discounted (not unlimited) naturopathic doctor consultations.",
     features: [
-      "Everything in Elite",
-      "Dedicated human coach",
-      "Weekly video check-ins",
-      "Direct messaging",
-      "Fully custom programming",
-      "Nutrition planning with your coach",
-      "30-day post-program support",
+      { label: "Everything in AI Performance", included: true },
+      { label: "2 monthly coach meetings", included: true },
+      { label: "Priority form review", included: true },
+      { label: "Discounted naturopathic consultations", included: true },
+      { label: "Hybrid coaching layer", included: true },
+      { label: "Priority support", included: true },
+      { label: "Unlimited AI coach messages", included: true },
+      { label: "Daily AI adjustments", included: true },
     ],
   },
 ];
 
-// ─── Comparison table ─────────────────────────────────────────────────────────
+// ─── Search params handler ────────────────────────────────────────────────────
 
-type FeatureRow = {
-  label: string;
-  group?: string;
-  core: boolean | string;
-  pro: boolean | string;
-  elite: boolean | string;
-  coaching: boolean | string;
-};
-
-const FEATURE_GROUPS: { group: string; rows: FeatureRow[] }[] = [
-  {
-    group: "Training",
-    rows: [
-      { label: "AI-generated training program",   core: true,        pro: true,          elite: true,          coaching: true },
-      { label: "Workout builder",                 core: true,        pro: true,          elite: true,          coaching: true },
-      { label: "Daily plan adjustments",          core: "Weekly",    pro: "Daily",        elite: "Real-time",   coaching: "Real-time" },
-      { label: "Trainer assignment",              core: false,       pro: false,          elite: true,          coaching: true },
-      { label: "Fully custom programming",        core: false,       pro: false,          elite: false,         coaching: true },
-    ],
-  },
-  {
-    group: "Nutrition",
-    rows: [
-      { label: "AI nutrition planning",           core: true,        pro: true,           elite: true,          coaching: true },
-      { label: "Custom meal plans",               core: false,       pro: false,          elite: true,          coaching: true },
-      { label: "Nutrition planning with coach",   core: false,       pro: false,          elite: false,         coaching: true },
-    ],
-  },
-  {
-    group: "Coaching & AI",
-    rows: [
-      { label: "AI coach chat",                   core: "Limited",   pro: "Unlimited",    elite: "Unlimited",   coaching: "Unlimited" },
-      { label: "Weekly AI performance review",    core: false,       pro: true,           elite: true,          coaching: true },
-      { label: "Calibration flow",                core: false,       pro: true,           elite: true,          coaching: true },
-      { label: "Dedicated human coach",           core: false,       pro: false,          elite: false,         coaching: true },
-      { label: "Weekly video check-ins",          core: false,       pro: false,          elite: false,         coaching: true },
-      { label: "Direct messaging with coach",     core: false,       pro: false,          elite: false,         coaching: true },
-    ],
-  },
-  {
-    group: "Tracking & Analysis",
-    rows: [
-      { label: "Progress tracking",               core: true,        pro: true,           elite: true,          coaching: true },
-      { label: "Body status signals",             core: true,        pro: true,           elite: true,          coaching: true },
-      { label: "Progress photos",                 core: false,       pro: true,           elite: true,          coaching: true },
-      { label: "Advanced body composition",       core: false,       pro: true,           elite: true,          coaching: true },
-      { label: "Full biometric integration",      core: false,       pro: false,          elite: true,          coaching: true },
-    ],
-  },
-  {
-    group: "Account",
-    rows: [
-      { label: "Priority support",                core: false,       pro: true,           elite: true,          coaching: true },
-      { label: "Early access to features",        core: false,       pro: false,          elite: true,          coaching: true },
-      { label: "Post-program support",            core: false,       pro: false,          elite: false,         coaching: "30 days" },
-    ],
-  },
-];
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function FeatureValue({ value }: { value: boolean | string }) {
-  if (value === false) return <Minus className="w-3.5 h-3.5 text-white/15 mx-auto" strokeWidth={1.5} />;
-  if (value === true)  return <Check className="w-3.5 h-3.5 text-[#B48B40] mx-auto" strokeWidth={2.5} />;
-  return <span className="text-xs text-white/45 text-center block">{value}</span>;
+function PricingSearchParamsHandler({ onPlan }: { onPlan: (p: Plan) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const plan = searchParams.get("plan") as Plan | null;
+    if (plan && ["foundation", "training", "performance", "coaching"].includes(plan)) {
+      onPlan(plan);
+    }
+  }, [searchParams, onPlan]);
+  return null;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PricingPage() {
-  const [billing, setBilling] = useState<BillingCycle>("monthly");
-  const [tableOpen, setTableOpen] = useState(false);
+  const { user, updatePlan } = useUser();
+  const { plan: currentPlan } = usePlan();
+  const [billing, setBilling]       = useState<BillingCycle>("monthly");
+  const [loading, setLoading]       = useState<Plan | null>(null);
+  const [demoUpgraded, setDemoUpgraded] = useState<Plan | null>(null);
 
-  const savings = billing === "annual";
+  function handleParamPlan(plan: Plan) {
+    updatePlan(plan);
+    setDemoUpgraded(plan);
+  }
+
+  async function handleCta(plan: Plan) {
+    if (plan === "foundation") {
+      // Downgrade to free — no Stripe needed
+      updatePlan(plan);
+      return;
+    }
+    if (PLAN_HIERARCHY[plan] === PLAN_HIERARCHY[currentPlan]) return;
+
+    setLoading(plan);
+    try {
+      const origin = window.location.origin;
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan,
+          userId: user.id,
+          successUrl: `${origin}/pricing`,
+          cancelUrl:  `${origin}/pricing`,
+        }),
+      });
+      const data = await res.json() as { url?: string; demo?: boolean; error?: string };
+      if (data.url) {
+        if (data.demo) {
+          updatePlan(plan);
+          setDemoUpgraded(plan);
+        } else {
+          window.location.href = data.url;
+        }
+      }
+    } catch (err) {
+      console.error("Checkout error:", err);
+    } finally {
+      setLoading(null);
+    }
+  }
 
   return (
-    <div className="text-white">
+    <div className="min-h-screen bg-[#0A0A0A] px-4 py-12">
+      <Suspense fallback={null}>
+        <PricingSearchParamsHandler onPlan={handleParamPlan} />
+      </Suspense>
 
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <div className="px-5 md:px-8 pt-10 pb-8 text-center max-w-3xl mx-auto">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-white/25 mb-5">Pricing</p>
-        <h1 className="text-4xl md:text-5xl font-semibold tracking-tight leading-[1.1] mb-5">
-          Built for people who
-          <br />
-          <span className="text-[#B48B40]">take this seriously.</span>
+      {/* Header */}
+      <div className="max-w-5xl mx-auto text-center mb-10">
+        <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40] mb-3 font-medium">Pricing</p>
+        <h1 className="text-3xl font-semibold text-white mb-3 tracking-tight">
+          Choose your plan
         </h1>
-        <p className="text-white/40 text-base md:text-lg leading-relaxed max-w-xl mx-auto">
-          Every plan includes AI-driven training and nutrition. The difference is how deep the coaching goes and how much of the thinking you want to hand off.
+        <p className="text-sm text-white/45 max-w-md mx-auto leading-relaxed">
+          Start free. Upgrade when you're ready. All historical data is preserved on any plan change.
         </p>
+      </div>
 
-        {/* Billing toggle */}
-        <div className="flex items-center justify-center gap-3 mt-8">
-          <button
-            onClick={() => setBilling("monthly")}
-            className={cn(
-              "text-sm font-medium transition-colors",
-              billing === "monthly" ? "text-white/85" : "text-white/28 hover:text-white/55"
-            )}
-          >
-            Monthly
-          </button>
-          <button
-            onClick={() => setBilling(billing === "monthly" ? "annual" : "monthly")}
-            className={cn(
-              "relative w-10 h-5.5 rounded-full transition-all duration-200 shrink-0",
-              billing === "annual" ? "bg-[#B48B40]" : "bg-white/10"
-            )}
-            style={{ height: "22px", width: "40px" }}
-          >
-            <span
+      {/* Demo upgrade banner */}
+      {demoUpgraded && (
+        <div className="max-w-5xl mx-auto mb-6">
+          <div className="rounded-2xl border border-[#B48B40]/30 bg-[#B48B40]/8 px-5 py-3 flex items-center gap-3">
+            <Zap className="w-4 h-4 text-[#B48B40] shrink-0" strokeWidth={1.5} />
+            <p className="text-sm text-white/75">
+              Demo mode — plan updated to{" "}
+              <span className="text-[#B48B40] font-medium">{PLAN_LABELS[demoUpgraded]}</span>.
+              Connect Stripe in <code className="text-white/50 text-xs">.env.local</code> for real billing.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Billing toggle */}
+      <div className="max-w-5xl mx-auto flex justify-center mb-10">
+        <div className="inline-flex items-center gap-1 rounded-xl border border-white/8 bg-white/[0.02] p-1">
+          {(["monthly", "annual"] as BillingCycle[]).map((cycle) => (
+            <button
+              key={cycle}
+              onClick={() => setBilling(cycle)}
               className={cn(
-                "absolute top-0.5 rounded-full bg-white shadow transition-all duration-200",
-                billing === "annual" ? "left-[18px]" : "left-0.5"
+                "rounded-lg px-4 py-2 text-xs font-medium transition-all capitalize",
+                billing === cycle
+                  ? "bg-[#B48B40] text-black"
+                  : "text-white/40 hover:text-white/65"
               )}
-              style={{ width: "18px", height: "18px" }}
-            />
-          </button>
-          <button
-            onClick={() => setBilling("annual")}
-            className={cn(
-              "text-sm font-medium transition-colors flex items-center gap-2",
-              billing === "annual" ? "text-white/85" : "text-white/28 hover:text-white/55"
-            )}
-          >
-            Annual
-            <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-md">
-              Save 20%
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Plan cards ────────────────────────────────────────────────── */}
-      <div className="px-5 md:px-8 pb-8 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {PLANS.map((plan) => {
-            const price = billing === "annual" ? plan.annual : plan.monthly;
-            const isCoaching = plan.key === "coaching";
-
-            return (
-              <div
-                key={plan.key}
-                className={cn(
-                  "relative rounded-2xl border flex flex-col overflow-hidden transition-all",
-                  plan.highlight
-                    ? "border-[#B48B40]/45 bg-[#0e0d0b]"
-                    : "border-white/6 bg-[#111111]"
-                )}
-              >
-                {/* Pro badge */}
-                {plan.highlight && (
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-px">
-                    <div className="bg-[#B48B40] text-black text-[10px] font-bold tracking-[0.12em] uppercase px-4 py-1 rounded-b-lg">
-                      Most popular
-                    </div>
-                  </div>
-                )}
-
-                <div className={cn("px-6 pt-7 pb-6", plan.highlight && "pt-9")}>
-                  {/* Plan name + identity */}
-                  <div className="mb-5">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className={cn(
-                        "text-xs font-bold tracking-[0.1em] uppercase",
-                        plan.highlight ? "text-[#B48B40]" : "text-white/55"
-                      )}>
-                        {plan.name}
-                      </span>
-                    </div>
-                    <p className={cn(
-                      "text-sm font-medium leading-snug",
-                      plan.highlight ? "text-white/80" : "text-white/55"
-                    )}>
-                      {plan.identity}
-                    </p>
-                  </div>
-
-                  {/* Price */}
-                  <div className="mb-1.5">
-                    {isCoaching ? (
-                      <div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-semibold tracking-tight text-white/88">$2,000</span>
-                        </div>
-                        <p className="text-xs text-white/28 mt-0.5">billed as a single 3-month block</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-[10px] text-white/30 mt-1 self-start pt-1.5">$</span>
-                          <span className="text-3xl font-semibold tracking-tight text-white/88">{price}</span>
-                          <span className="text-xs text-white/28">/ mo</span>
-                        </div>
-                        {savings && (
-                          <p className="text-[10px] text-emerald-400/70 mt-0.5">
-                            ${((plan.monthly! - plan.annual!) * 12).toLocaleString()} saved annually
-                          </p>
-                        )}
-                        {!savings && <p className="text-[10px] text-white/20 mt-0.5">billed monthly</p>}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Tagline */}
-                  <p className="text-xs text-white/32 leading-relaxed mt-4 mb-6 min-h-[3rem]">
-                    {plan.tagline}
-                  </p>
-
-                  {/* CTA */}
-                  <button
-                    className={cn(
-                      "w-full rounded-xl py-3 text-sm font-semibold tracking-wide transition-all",
-                      plan.highlight
-                        ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
-                        : isCoaching
-                        ? "bg-white/[0.04] border border-white/10 text-white/65 hover:bg-white/[0.08] hover:text-white/85"
-                        : "bg-white/[0.04] border border-white/10 text-white/65 hover:bg-white/[0.08] hover:text-white/85"
-                    )}
-                  >
-                    {plan.cta}
-                  </button>
-                </div>
-
-                {/* Divider */}
-                <div className="h-px bg-white/5 mx-6" />
-
-                {/* Feature list */}
-                <div className="px-6 py-5 flex-1">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-white/20 mb-3.5">Includes</p>
-                  <ul className="space-y-2.5">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2.5">
-                        <Check
-                          className={cn(
-                            "w-3.5 h-3.5 shrink-0 mt-0.5",
-                            plan.highlight ? "text-[#B48B40]" : "text-white/28"
-                          )}
-                          strokeWidth={2.5}
-                        />
-                        <span className="text-xs text-white/52 leading-relaxed">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Comparison table ──────────────────────────────────────────── */}
-      <div className="px-5 md:px-8 pb-8 max-w-7xl mx-auto">
-        <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
-
-          {/* Toggle header */}
-          <button
-            onClick={() => setTableOpen((v) => !v)}
-            className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.015] transition-colors"
-          >
-            <p className="text-sm font-medium text-white/65">Full feature comparison</p>
-            <span className={cn(
-              "text-[10px] font-semibold tracking-wide uppercase text-[#B48B40] transition-all"
-            )}>
-              {tableOpen ? "Hide" : "Show"}
-            </span>
-          </button>
-
-          {tableOpen && (
-            <>
-              {/* Column headers */}
-              <div className="border-t border-white/5 grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-6 py-3 bg-white/[0.015]">
-                <div />
-                {(["Core", "Pro", "Elite", "1:1"] as const).map((label, i) => (
-                  <div key={label} className="text-center">
-                    <p className={cn(
-                      "text-xs font-semibold tracking-[0.08em]",
-                      label === "Pro" ? "text-[#B48B40]" : "text-white/38"
-                    )}>
-                      {label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Feature rows */}
-              {FEATURE_GROUPS.map((group) => (
-                <div key={group.group}>
-                  {/* Group label */}
-                  <div className="border-t border-white/5 px-6 py-2.5 bg-white/[0.01]">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/20">
-                      {group.group}
-                    </p>
-                  </div>
-
-                  {group.rows.map((row, ri) => (
-                    <div
-                      key={row.label}
-                      className={cn(
-                        "grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-6 py-3 border-t border-white/[0.04] items-center",
-                        ri % 2 === 1 && "bg-white/[0.008]"
-                      )}
-                    >
-                      <p className="text-xs text-white/48 pr-4">{row.label}</p>
-                      <FeatureValue value={row.core}     />
-                      <FeatureValue value={row.pro}      />
-                      <FeatureValue value={row.elite}    />
-                      <FeatureValue value={row.coaching} />
-                    </div>
-                  ))}
-                </div>
-              ))}
-
-              {/* Table footer */}
-              <div className="border-t border-white/5 grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-6 py-4 bg-white/[0.015]">
-                <div />
-                {PLANS.map((plan) => {
-                  const price = billing === "annual" ? plan.annual : plan.monthly;
-                  return (
-                    <div key={plan.key} className="text-center">
-                      {plan.key !== "coaching" ? (
-                        <p className={cn(
-                          "text-sm font-semibold tabular-nums",
-                          plan.highlight ? "text-[#B48B40]" : "text-white/45"
-                        )}>
-                          ${price}<span className="text-[10px] font-normal">/mo</span>
-                        </p>
-                      ) : (
-                        <p className="text-xs text-white/35">$2,000</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* ── Identity callouts ─────────────────────────────────────────── */}
-      <div className="px-5 md:px-8 pb-8 max-w-3xl mx-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            {
-              label: "If you're self-sufficient",
-              text: "Core covers the full stack of AI-driven training and nutrition. You set the direction. The system executes.",
-            },
-            {
-              label: "If performance is non-negotiable",
-              text: "Pro and Elite are built for people who don't accept guesswork. Deeper calibration, faster adaptation, more signal.",
-            },
-            {
-              label: "If you want a human in the loop",
-              text: "1:1 coaching is for those who want accountability beyond automation. Apply when you're ready to commit.",
-            },
-          ].map(({ label, text }) => (
-            <div key={label} className="rounded-2xl border border-white/5 bg-white/[0.02] px-5 py-4">
-              <p className="text-xs font-semibold text-white/55 mb-2">{label}</p>
-              <p className="text-xs text-white/30 leading-relaxed">{text}</p>
-            </div>
+            >
+              {cycle === "annual" ? "Annual (save 20%)" : "Monthly"}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* ── Coaching CTA ──────────────────────────────────────────────── */}
-      <div className="px-5 md:px-8 pb-10 max-w-3xl mx-auto">
-        <div className="rounded-2xl border border-white/6 bg-[#0e0d0b] px-6 py-7 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-          <div className="w-10 h-10 rounded-xl border border-[#B48B40]/20 bg-[#B48B40]/6 flex items-center justify-center shrink-0">
-            <MessageCircle className="w-4.5 h-4.5 text-[#B48B40]" strokeWidth={1.5} style={{ width: "18px", height: "18px" }} />
+      {/* Plan cards */}
+      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {PLANS.map((p) => {
+          const isCurrent = p.key === currentPlan;
+          const price = billing === "annual" ? p.annual : p.monthly;
+          const isUpgrade = PLAN_HIERARCHY[p.key] > PLAN_HIERARCHY[currentPlan];
+          const isDowngrade = PLAN_HIERARCHY[p.key] < PLAN_HIERARCHY[currentPlan];
+
+          return (
+            <div
+              key={p.key}
+              className={cn(
+                "relative rounded-2xl border bg-[#111111] flex flex-col overflow-hidden transition-all",
+                p.highlight
+                  ? "border-[#B48B40]/40 shadow-[0_0_30px_rgba(180,139,64,0.08)]"
+                  : "border-white/[0.07]",
+                isCurrent && "ring-1 ring-[#B48B40]/30"
+              )}
+            >
+              {/* Badge */}
+              {p.badge && (
+                <div className={cn(
+                  "absolute top-3 right-3 text-[9px] uppercase tracking-[0.18em] font-semibold px-2 py-0.5 rounded-full border",
+                  p.highlight
+                    ? "text-[#B48B40] border-[#B48B40]/30 bg-[#B48B40]/8"
+                    : "text-white/40 border-white/10 bg-white/[0.04]"
+                )}>
+                  {p.badge}
+                </div>
+              )}
+
+              {isCurrent && (
+                <div className="absolute top-3 left-3 text-[9px] uppercase tracking-[0.18em] font-semibold px-2 py-0.5 rounded-full border text-emerald-400 border-emerald-400/25 bg-emerald-400/6">
+                  Current
+                </div>
+              )}
+
+              <div className="p-5 flex-1 flex flex-col">
+                {/* Name + price */}
+                <div className="mb-4 mt-4">
+                  <p className={cn(
+                    "text-xs font-semibold uppercase tracking-[0.15em] mb-1",
+                    p.highlight ? "text-[#B48B40]" : "text-white/50"
+                  )}>
+                    {p.name}
+                  </p>
+                  <div className="flex items-end gap-1">
+                    {price === null ? (
+                      <span className="text-2xl font-bold text-white">Free</span>
+                    ) : (
+                      <>
+                        <span className="text-2xl font-bold text-white">${price}</span>
+                        <span className="text-xs text-white/35 mb-1">/ mo</span>
+                      </>
+                    )}
+                  </div>
+                  {billing === "annual" && price !== null && (
+                    <p className="text-[10px] text-white/30 mt-0.5">billed annually</p>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-white/45 leading-relaxed mb-5 min-h-[48px]">
+                  {p.tagline}
+                </p>
+
+                {/* Features */}
+                <ul className="space-y-2 flex-1 mb-5">
+                  {p.features.map((f) => (
+                    <li key={f.label} className="flex items-start gap-2">
+                      {f.included ? (
+                        <Check className="w-3.5 h-3.5 text-[#B48B40] shrink-0 mt-0.5" strokeWidth={2} />
+                      ) : (
+                        <Minus className="w-3.5 h-3.5 text-white/15 shrink-0 mt-0.5" strokeWidth={1.5} />
+                      )}
+                      <span className={cn(
+                        "text-[11px] leading-tight",
+                        f.included ? "text-white/65" : "text-white/22"
+                      )}>
+                        {f.label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                {p.note && (
+                  <p className="text-[10px] text-white/30 leading-relaxed mb-4 border-t border-white/[0.05] pt-3">
+                    {p.note}
+                  </p>
+                )}
+
+                {/* CTA */}
+                <button
+                  onClick={() => handleCta(p.key)}
+                  disabled={isCurrent || loading === p.key}
+                  className={cn(
+                    "w-full rounded-xl py-2.5 text-xs font-semibold transition-all",
+                    isCurrent
+                      ? "bg-white/[0.04] text-white/25 cursor-default border border-white/[0.06]"
+                      : p.highlight
+                        ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
+                        : isUpgrade
+                          ? "bg-white/[0.07] text-white/75 hover:bg-white/[0.11] border border-white/[0.08]"
+                          : isDowngrade
+                            ? "bg-white/[0.04] text-white/40 hover:bg-white/[0.07] border border-white/[0.06]"
+                            : "bg-white/[0.07] text-white/75 hover:bg-white/[0.11] border border-white/[0.08]"
+                  )}
+                >
+                  {loading === p.key
+                    ? "Redirecting..."
+                    : isCurrent
+                      ? "Current plan"
+                      : p.cta}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer note */}
+      <div className="max-w-5xl mx-auto mt-10 text-center">
+        <p className="text-[11px] text-white/25 leading-relaxed">
+          All plans retain your full history — data is never deleted on downgrade.
+          Cancel anytime. Questions?{" "}
+          <a href="mailto:hello@flowstate.ai" className="text-[#B48B40]/70 hover:text-[#B48B40] transition-colors">
+            Contact us
+          </a>
+        </p>
+        <div className="flex items-center justify-center gap-6 mt-4">
+          <div className="flex items-center gap-1.5 text-[10px] text-white/25">
+            <Star className="w-3 h-3" strokeWidth={1.5} />
+            <span>No lock-in</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white/80 mb-1">
-              Not sure which plan is right for you?
-            </p>
-            <p className="text-xs text-white/35 leading-relaxed">
-              If you're dealing with specific health context, training history, or life circumstances that feel too complex for a standard plan — talk to a coach first. It's one conversation, no pressure.
-            </p>
+          <div className="flex items-center gap-1.5 text-[10px] text-white/25">
+            <Users className="w-3 h-3" strokeWidth={1.5} />
+            <span>Cancel anytime</span>
           </div>
-          <button className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-semibold text-white/60 hover:text-white/85 hover:border-white/18 hover:bg-white/[0.06] transition-all shrink-0">
-            Talk to a coach
-            <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
-          </button>
+          <div className="flex items-center gap-1.5 text-[10px] text-white/25">
+            <Check className="w-3 h-3" strokeWidth={1.5} />
+            <span>Data always preserved</span>
+          </div>
         </div>
       </div>
-
-      {/* ── Footer note ───────────────────────────────────────────────── */}
-      <div className="px-5 md:px-8 pb-8 text-center">
-        <p className="text-xs text-white/20 leading-relaxed max-w-md mx-auto">
-          All plans include a 7-day free trial. No card required to start. Cancel anytime — your data stays yours.
-        </p>
-      </div>
-
     </div>
   );
 }

@@ -18,8 +18,7 @@ export default function OnboardingPage() {
 
   function handleStart() {
     setGoing(true);
-    try { localStorage.setItem("flowstate-onboarded", "true"); } catch { /* ignore */ }
-    router.push("/onboarding/calibration");
+    router.push("/onboarding/quick-start");
   }
 
   return (
@@ -64,7 +63,7 @@ export default function OnboardingPage() {
             {!going && <ArrowRight className="w-4 h-4" strokeWidth={2} />}
           </button>
           <p className="text-[10px] text-white/18 text-center">
-            Takes about 3 minutes. You can skip any step.
+            Takes about 2 minutes.
           </p>
         </div>
 
