@@ -10,6 +10,11 @@ const AUTH_KEY      = "flowstate-active-role";
 const SS_KEY        = "flowstate-session-role";
 const ONBOARDED_KEY = "flowstate-onboarded";
 
+// Maps demo role keys to their user IDs (mirrors ROLE_TO_USER_ID in login page)
+const ROLE_TO_USER_ID: Record<string, string> = {
+  master: "usr_001", trainer: "u4", client: "u1", member: "u6",
+};
+
 // AppShell is only mounted inside (app)/layout.tsx.
 // Enforces auth and onboarding on every app route.
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -22,6 +27,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         router.replace("/login");
         return;
       }
+      // Master is a platform admin — no personal onboarding required
+      if (role === "master") return;
+
+      // Check new per-user onboarding state first
+      const userId = ROLE_TO_USER_ID[role] ?? role;
+      const newStateRaw = localStorage.getItem(`flowstate-onboarding-${userId}`);
+      if (newStateRaw) {
+        try {
+          const state = JSON.parse(newStateRaw) as { hasCompletedQuickStart?: boolean };
+          if (!state.hasCompletedQuickStart) router.replace("/onboarding");
+        } catch { /* ignore */ }
+        return;
+      }
+      // Legacy fallback for existing users
       const isOnboarded = localStorage.getItem(ONBOARDED_KEY) === "true";
       if (!isOnboarded) {
         router.replace("/onboarding");
