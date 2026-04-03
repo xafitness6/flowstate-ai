@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { hasAccess } from "@/lib/roles";
+import { recordActivity } from "@/lib/activity";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -933,6 +934,7 @@ export default function ProgramPage() {
       }
 
       clearWIP(); // discard in-progress snapshot
+      recordActivity(user.id, "Workout logged");
     } catch { /* ignore */ }
 
     setShowComplete(false);

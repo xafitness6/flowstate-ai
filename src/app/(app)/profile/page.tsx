@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Camera, Check, LayoutDashboard, ArrowUpRight, Edit3 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Camera, Check, LayoutDashboard, ArrowUpRight, Edit3, Pencil, X } from "lucide-react";
 import Link from "next/link";
 import { PLAN_HIERARCHY, PLAN_LABELS } from "@/lib/plans";
 import type { Plan } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import {
+  initStore,
+  getClients,
+  getClientTrainingData,
+  type PlatformUser,
+  type ClientTrainingData,
+} from "@/lib/data/store";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -94,7 +101,13 @@ const PLAN_COLOR: Record<Plan, string> = {
   elite:   "text-emerald-400",
 };
 
-// ─── Activity stats (mock) ────────────────────────────────────────────────────
+const PLAN_BADGE: Record<Plan, string> = {
+  starter: "text-white/40 border-white/10 bg-white/[0.03]",
+  pro:     "text-[#B48B40] border-[#B48B40]/22 bg-[#B48B40]/6",
+  elite:   "text-emerald-400 border-emerald-400/20 bg-emerald-400/5",
+};
+
+// ─── Activity stats ───────────────────────────────────────────────────────────
 
 const USER_STATS: Record<string, {
   sessions: number; streak: number; longestStreak: number;
@@ -106,14 +119,17 @@ const USER_STATS: Record<string, {
   member:  { sessions: 12, streak: 2,  longestStreak: 7,  compliance: 61, lastActive: "Yesterday", joinedLabel: "Nov 2024" },
 };
 
-type ClientSummary = { name: string; lastActive: string; streak: number; compliance: number; plan: Plan };
+// Default last-action labels shown before any real action is recorded
+const DEFAULT_LAST_ACTION: Record<string, string> = {
+  master:  "Platform review",
+  trainer: "Client check-in reviewed",
+  client:  "Workout logged",
+  member:  "Breathwork session",
+};
 
-const MOCK_CLIENTS: ClientSummary[] = [
-  { name: "Kai Nakamura", lastActive: "Today",  streak: 6,  compliance: 82, plan: "pro"     },
-  { name: "Sam Torres",   lastActive: "2d ago", streak: 1,  compliance: 71, plan: "starter" },
-  { name: "Maya Lin",     lastActive: "Today",  streak: 12, compliance: 94, plan: "elite"   },
-  { name: "Jordan Park",  lastActive: "5d ago", streak: 0,  compliance: 45, plan: "starter" },
-];
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ClientRow = PlatformUser & ClientTrainingData;
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -130,15 +146,9 @@ function SettingsCard({ children, className }: { children: React.ReactNode; clas
 }
 
 function SettingsRow({
-  label,
-  description,
-  children,
-  last,
+  label, description, children, last,
 }: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-  last?: boolean;
+  label: string; description?: string; children: React.ReactNode; last?: boolean;
 }) {
   return (
     <div className={cn(
@@ -155,9 +165,7 @@ function SettingsRow({
 }
 
 function PillToggle<T extends string>({
-  options,
-  value,
-  onChange,
+  options, value, onChange,
 }: {
   options: { value: T; label: string }[];
   value: T;
@@ -196,18 +204,40 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
   );
 }
 
+// ─── Stat block ───────────────────────────────────────────────────────────────
+
+function StatBlock({
+  label, value, unit, bar, barColor,
+}: {
+  label: string; value: string | number; unit?: string;
+  bar?: number; barColor?: string;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] text-white/25 uppercase tracking-[0.15em]">{label}</p>
+      <p className="text-2xl font-light text-white/80 tabular-nums mt-1.5">
+        {value}
+        {unit && <span className="text-sm text-white/35 ml-1">{unit}</span>}
+      </p>
+      {bar !== undefined && (
+        <div className="h-0.5 rounded-full bg-white/8 mt-2">
+          <div
+            className={cn("h-full rounded-full", barColor ?? "bg-[#B48B40]")}
+            style={{ width: `${bar}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Push level slider ────────────────────────────────────────────────────────
 
 function PushLevelSlider({
-  value,
-  onChange,
-  changesUsed,
-  coachOverride,
+  value, onChange, changesUsed, coachOverride,
 }: {
-  value: number;
-  onChange: (v: number) => void;
-  changesUsed: number;
-  coachOverride?: number;
+  value: number; onChange: (v: number) => void;
+  changesUsed: number; coachOverride?: number;
 }) {
   const isCoachSet  = coachOverride !== undefined;
   const isLimitHit  = changesUsed >= PUSH_CHANGE_LIMIT;
@@ -229,28 +259,17 @@ function PushLevelSlider({
           <p className="text-xs text-white/30 mt-0.5">How hard the AI pushes your training load.</p>
         </div>
         <div className="text-right">
-          <span className={cn("text-sm font-semibold tabular-nums", cfg.color)}>
-            {displayVal}
-          </span>
+          <span className={cn("text-sm font-semibold tabular-nums", cfg.color)}>{displayVal}</span>
           <span className="text-xs text-white/30 ml-1">— {cfg.label}</span>
         </div>
       </div>
 
       <div className={cn("relative", isDisabled && "opacity-40 pointer-events-none")}>
         <div className="relative h-1.5 rounded-full bg-white/8">
-          <div
-            className="absolute left-0 top-0 h-full rounded-full bg-[#B48B40] transition-all"
-            style={{ width: `${fillPct}%` }}
-          />
+          <div className="absolute left-0 top-0 h-full rounded-full bg-[#B48B40] transition-all" style={{ width: `${fillPct}%` }} />
           <input
-            type="range"
-            min={1}
-            max={10}
-            step={1}
-            value={displayVal}
-            onChange={(e) => {
-              if (!isDisabled) onChange(Number(e.target.value));
-            }}
+            type="range" min={1} max={10} step={1} value={displayVal}
+            onChange={(e) => { if (!isDisabled) onChange(Number(e.target.value)); }}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             style={{ margin: 0 }}
           />
@@ -259,15 +278,9 @@ function PushLevelSlider({
             style={{ left: `calc(${fillPct}% - 8px)` }}
           />
         </div>
-
         <div className="relative mt-3 h-4">
           {PUSH_BAND_LABELS.map(({ label, pos }) => (
-            <span
-              key={label}
-              className={cn("absolute text-[10px] text-white/18 -translate-x-1/2", pos)}
-            >
-              {label}
-            </span>
+            <span key={label} className={cn("absolute text-[10px] text-white/18 -translate-x-1/2", pos)}>{label}</span>
           ))}
         </div>
       </div>
@@ -302,8 +315,7 @@ async function compressImage(file: File): Promise<string> {
           else { width = Math.round(width * MAX / height); height = MAX; }
         }
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = width; canvas.height = height;
         canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL("image/jpeg", 0.85));
       };
@@ -315,11 +327,33 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 2)  return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24)   return `${diffH}h ago`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD === 1)  return "Yesterday";
+    if (diffD < 7)    return `${diffD}d ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return "Unknown";
+  }
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
   const { user } = useUser();
 
+  // ── Settings state ────────────────────────────────────────────────────────
   const [pushLevel,        setPushLevel]        = useState(user.pushLevel ?? 6);
   const [pushChangesUsed,  setPushChangesUsed]  = useState(0);
   const [coachingTone,     setCoachingTone]     = useLocalStorage<string>("coach-tone",        "direct");
@@ -334,22 +368,52 @@ export default function ProfilePage() {
   const [savedFlash,       setSavedFlash]       = useState(false);
 
   // ── Identity ──────────────────────────────────────────────────────────────
-  // Key is user-scoped so each role keeps its own avatar.
-  // Value is a compressed JPEG data-URL (≤400px, 0.85q) — small enough for
-  // localStorage now, structured as a URL for easy swap to cloud storage later.
   const [localAvatar,   setLocalAvatar]   = useLocalStorage<string>(`profile-avatar-${user.id}`, "");
-  const [bio,           setBio]           = useLocalStorage<string>("profile-bio",    "");
-  const [editingBio,    setEditingBio]    = useState(false);
-  const [bioInput,      setBioInput]      = useState("");
+  const [displayName,   setDisplayName]   = useLocalStorage<string>(`profile-name-${user.id}`, "");
+  const [bio,           setBio]           = useLocalStorage<string>(`profile-bio-${user.id}`, "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarError,   setAvatarError]   = useState<string | null>(null);
+  const [editingBio,    setEditingBio]    = useState(false);
+  const [bioInput,      setBioInput]      = useState("");
+  const [editingName,   setEditingName]   = useState(false);
+  const [nameInput,     setNameInput]     = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const statusCfg   = STATUS_CONFIG[user.status];
-  const initials    = user.name.split(" ").map((n) => n[0]).join("").toUpperCase();
+  // ── Activity tracking ─────────────────────────────────────────────────────
+  const [lastLoginTs,  setLastLoginTs]  = useLocalStorage<string>(`flowstate-last-login-${user.id}`, "");
+  const [lastActionTs, setLastActionTs] = useLocalStorage<string>(`flowstate-last-action-${user.id}`, "");
+  const [lastActionType]                = useLocalStorage<string>(`flowstate-last-action-type-${user.id}`, "");
+  const [prevLogin,    setPrevLogin]    = useState<string>("");
+
+  // ── Real client data (trainer / master) ───────────────────────────────────
+  const [clients, setClients] = useState<ClientRow[]>([]);
+
+  const statusCfg     = STATUS_CONFIG[user.status];
+  const initials      = (displayName || user.name).split(" ").map((n) => n[0]).join("").toUpperCase();
+  const resolvedName  = displayName || user.name;
   const displayAvatar = localAvatar || user.avatarUrl;
-  const stats       = USER_STATS[user.role] ?? USER_STATS.member;
-  const isCoach     = user.role === "trainer" || user.role === "master";
+  const stats         = USER_STATS[user.role] ?? USER_STATS.member;
+  const isCoach       = user.role === "trainer" || user.role === "master";
+
+  // Record this login and read previous
+  useEffect(() => {
+    const now = new Date().toISOString();
+    setPrevLogin(lastLoginTs || "");
+    setLastLoginTs(now);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load real clients
+  useEffect(() => {
+    if (!isCoach) return;
+    initStore();
+    try {
+      const raw = getClients(user.role, user.id);
+      setClients(raw.map((c) => ({ ...c, ...getClientTrainingData(c.id) })));
+    } catch { /* permission error — shouldn't happen for coach */ }
+  }, [isCoach, user.role, user.id]);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   function handlePushChange(v: number) {
     if (pushChangesUsed >= PUSH_CHANGE_LIMIT) return;
@@ -369,8 +433,7 @@ export default function ProfilePage() {
     setAvatarError(null);
     if (!file.type.startsWith("image/")) {
       setAvatarError("Select a jpg or png image.");
-      e.target.value = "";
-      return;
+      e.target.value = ""; return;
     }
     try {
       const compressed = await compressImage(file);
@@ -384,256 +447,279 @@ export default function ProfilePage() {
   function confirmAvatar() {
     if (avatarPreview) { setLocalAvatar(avatarPreview); setAvatarPreview(null); }
   }
+  function cancelAvatar() { setAvatarPreview(null); setAvatarError(null); }
 
-  function cancelAvatar() {
-    setAvatarPreview(null);
-    setAvatarError(null);
+  function startEditBio() { setBioInput(bio); setEditingBio(true); }
+  function saveBio()      { setBio(bioInput.trim()); setEditingBio(false); }
+
+  function startEditName() { setNameInput(resolvedName); setEditingName(true); }
+  function saveName() {
+    const trimmed = nameInput.trim();
+    if (trimmed) setDisplayName(trimmed);
+    setEditingName(false);
   }
 
-  function startEditBio() {
-    setBioInput(bio);
-    setEditingBio(true);
-  }
+  // ── Derived display ────────────────────────────────────────────────────────
 
-  function saveBio() {
-    setBio(bioInput.trim());
-    setEditingBio(false);
-  }
+  const complianceColor =
+    stats.compliance >= 80 ? "bg-[#B48B40]" :
+    stats.compliance >= 60 ? "bg-amber-500/60" : "bg-red-500/50";
+
+  const lastLoginDisplay = prevLogin ? formatTimestamp(prevLogin) : "First session";
+  const lastActionDisplay = lastActionTs
+    ? `${lastActionType || DEFAULT_LAST_ACTION[user.role]} · ${formatTimestamp(lastActionTs)}`
+    : DEFAULT_LAST_ACTION[user.role];
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto space-y-8 text-white">
 
-      {/* ── Profile header ──────────────────────────────────────────── */}
-      <div className="flex items-start gap-5">
-        <div className="flex flex-col items-center gap-1.5 shrink-0">
-          <div className="relative">
-            <div className={cn(
-              "w-20 h-20 rounded-full ring-2 ring-offset-2 ring-offset-[#0A0A0A] flex items-center justify-center bg-[#1C1C1C] border border-white/8",
-              avatarPreview ? "ring-[#B48B40]/60" : statusCfg.ring
-            )}>
-              {(avatarPreview ?? displayAvatar)
-                ? <img src={avatarPreview ?? displayAvatar ?? ""} alt={user.name} className="w-full h-full rounded-full object-cover" />
-                : <span className="text-xl font-semibold text-white/60 tracking-tight">{initials}</span>
-              }
+      {/* ── Profile card ─────────────────────────────────────────────── */}
+      <SettingsCard>
+
+        {/* Top: avatar + identity */}
+        <div className="px-5 pt-5 pb-4 flex items-start gap-4">
+
+          {/* Avatar column */}
+          <div className="flex flex-col items-center gap-1.5 shrink-0">
+            <div className="relative">
+              <div className={cn(
+                "w-[72px] h-[72px] rounded-full ring-2 ring-offset-2 ring-offset-[#111111] flex items-center justify-center bg-[#1C1C1C] border border-white/8",
+                avatarPreview ? "ring-[#B48B40]/60" : statusCfg.ring
+              )}>
+                {(avatarPreview ?? displayAvatar)
+                  ? <img src={avatarPreview ?? displayAvatar ?? ""} alt={resolvedName} className="w-full h-full rounded-full object-cover" />
+                  : <span className="text-lg font-semibold text-white/60 tracking-tight">{initials}</span>
+                }
+              </div>
+              {!avatarPreview && (
+                <button
+                  onClick={() => { setAvatarError(null); fileInputRef.current?.click(); }}
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#1C1C1C] border border-white/12 flex items-center justify-center hover:bg-[#222] transition-colors"
+                  title="Change photo"
+                >
+                  <Camera className="w-3 h-3 text-white/40" strokeWidth={1.5} />
+                </button>
+              )}
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} />
+              {!avatarPreview && (
+                <span className={cn("absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#111111]", statusCfg.dot)} />
+              )}
             </div>
-            {!avatarPreview && (
-              <button
-                onClick={() => { setAvatarError(null); fileInputRef.current?.click(); }}
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#1C1C1C] border border-white/12 flex items-center justify-center hover:bg-[#222] transition-colors"
-                title="Change photo"
-              >
-                <Camera className="w-3.5 h-3.5 text-white/40" strokeWidth={1.5} />
-              </button>
+
+            {avatarPreview && (
+              <div className="flex items-center gap-1">
+                <button onClick={confirmAvatar} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/22 transition-all">Save</button>
+                <button onClick={cancelAvatar} className="px-2 py-0.5 rounded-md text-[10px] text-white/30 hover:text-white/55 transition-colors">✕</button>
+              </div>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={handleAvatarUpload}
-            />
-            {!avatarPreview && (
-              <span className={cn("absolute top-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-[#0A0A0A]", statusCfg.dot)} />
+            {avatarError && !avatarPreview && (
+              <p className="text-[9px] text-red-400/70 text-center max-w-[4.5rem] leading-tight">{avatarError}</p>
             )}
           </div>
 
-          {/* Preview confirm / cancel */}
-          {avatarPreview && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={confirmAvatar}
-                className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/22 transition-all"
-              >
-                Save
-              </button>
-              <button
-                onClick={cancelAvatar}
-                className="px-2.5 py-1 rounded-lg text-[10px] text-white/30 hover:text-white/55 transition-colors"
-              >
-                Cancel
-              </button>
+          {/* Identity column */}
+          <div className="flex-1 min-w-0 pt-0.5">
+
+            {/* Name row */}
+            <div className="flex items-center gap-2 group">
+              {editingName ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+                    className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1 text-base font-semibold text-white/90 outline-none focus:border-white/20 flex-1 min-w-0"
+                    autoFocus
+                  />
+                  <button onClick={saveName} className="text-emerald-400/80 hover:text-emerald-400 transition-colors"><Check className="w-4 h-4" strokeWidth={2} /></button>
+                  <button onClick={() => setEditingName(false)} className="text-white/25 hover:text-white/50 transition-colors"><X className="w-4 h-4" strokeWidth={1.5} /></button>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-lg font-semibold tracking-tight text-white/90 truncate">{resolvedName}</h1>
+                  <button
+                    onClick={startEditName}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-white/25 hover:text-white/55 hover:bg-white/[0.04] transition-all"
+                    title="Edit name"
+                  >
+                    <Pencil className="w-3 h-3" strokeWidth={1.5} />
+                  </button>
+                </>
+              )}
             </div>
-          )}
 
-          {/* Upload error */}
-          {avatarError && !avatarPreview && (
-            <p className="text-[9px] text-red-400/70 text-center max-w-[5rem] leading-tight">{avatarError}</p>
-          )}
-        </div>
+            {/* Badges row */}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <span className={cn("text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border", ROLE_COLOR[user.role])}>
+                {ROLE_LABELS[user.role]}
+              </span>
+              <span className={cn("text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border", PLAN_BADGE[user.plan as Plan])}>
+                {PLAN_LABELS[user.plan as Plan]}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className={cn("w-1.5 h-1.5 rounded-full", statusCfg.dot)} />
+                <span className="text-[10px] text-white/30">{statusCfg.label}</span>
+              </span>
+            </div>
 
-        <div className="min-w-0 pt-1">
-          <h1 className="text-xl font-semibold tracking-tight text-white/90">{user.name}</h1>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className={cn(
-              "text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border",
-              ROLE_COLOR[user.role]
-            )}>
-              {ROLE_LABELS[user.role]}
-            </span>
-            <span className="text-xs text-white/28">{statusCfg.label}</span>
-          </div>
-          {user.role === "client" && (
-            <p className="text-xs text-white/28 mt-1">Coached by Alex Rivera</p>
-          )}
-          {user.role !== "client" && (
-            <p className="text-xs text-white/35 mt-1.5">{ROLE_DESCRIPTIONS[user.role]}</p>
-          )}
-        </div>
-      </div>
-
-      {/* ── Identity ────────────────────────────────────────────────── */}
-      <div>
-        <SectionLabel>Identity</SectionLabel>
-        <SettingsCard>
-          <div className="px-5 py-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                {editingBio ? (
+            {/* Bio */}
+            <div className="mt-3">
+              {editingBio ? (
+                <div>
                   <textarea
                     value={bioInput}
                     onChange={(e) => setBioInput(e.target.value)}
                     rows={3}
                     placeholder={BIO_PLACEHOLDER[user.role] ?? ""}
-                    className="w-full bg-transparent text-sm text-white/70 leading-relaxed resize-none outline-none placeholder:text-white/20"
+                    className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white/70 leading-relaxed resize-none outline-none focus:border-white/14 placeholder:text-white/20"
                     autoFocus
                   />
-                ) : (
-                  <p className={cn("text-sm leading-relaxed", bio ? "text-white/65" : "text-white/22 italic")}>
+                  <div className="flex items-center gap-2 mt-2 justify-end">
+                    <button onClick={() => setEditingBio(false)} className="px-3 py-1.5 rounded-lg text-xs text-white/35 hover:text-white/55 transition-colors">Cancel</button>
+                    <button onClick={saveBio} className="px-3 py-1.5 rounded-lg bg-[#B48B40]/15 border border-[#B48B40]/25 text-xs text-[#B48B40]/80 hover:text-[#B48B40] transition-all">Save</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 group/bio">
+                  <p className={cn("flex-1 text-sm leading-relaxed", bio ? "text-white/60" : "text-white/22 italic")}>
                     {bio || BIO_PLACEHOLDER[user.role]}
                   </p>
-                )}
-              </div>
-              {!editingBio && (
-                <button
-                  onClick={startEditBio}
-                  className="shrink-0 p-1.5 rounded-lg text-white/22 hover:text-white/55 hover:bg-white/[0.04] transition-all"
-                >
-                  <Edit3 className="w-3.5 h-3.5" strokeWidth={1.5} />
-                </button>
+                  <button
+                    onClick={startEditBio}
+                    className="shrink-0 opacity-0 group-hover/bio:opacity-100 p-1 rounded-md text-white/22 hover:text-white/55 hover:bg-white/[0.04] transition-all mt-0.5"
+                    title="Edit bio"
+                  >
+                    <Edit3 className="w-3 h-3" strokeWidth={1.5} />
+                  </button>
+                </div>
               )}
             </div>
-            {editingBio && (
-              <div className="flex items-center gap-2 mt-3 justify-end">
-                <button
-                  onClick={() => setEditingBio(false)}
-                  className="px-3 py-1.5 rounded-lg text-xs text-white/35 hover:text-white/55 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveBio}
-                  className="px-3 py-1.5 rounded-lg bg-[#B48B40]/15 border border-[#B48B40]/25 text-xs text-[#B48B40]/80 hover:text-[#B48B40] transition-all"
-                >
-                  Save
-                </button>
-              </div>
-            )}
           </div>
+        </div>
 
+        {/* Metadata strip */}
+        <div className="border-t border-white/[0.05] px-5 py-3 flex items-center gap-5 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-white/25">Joined</span>
+            <span className="text-[10px] font-medium text-white/45">{stats.joinedLabel}</span>
+          </div>
           {user.role === "client" && (
-            <div className="border-t border-white/[0.045] px-5 py-3.5 flex items-center justify-between">
-              <p className="text-xs text-white/35">Assigned trainer</p>
-              <p className="text-xs font-medium text-white/55">Alex Rivera</p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-white/25">Trainer</span>
+              <span className="text-[10px] font-medium text-white/45">Alex Rivera</span>
             </div>
           )}
-
-          <div className={cn("border-t border-white/[0.045] px-5 py-3.5 flex items-center justify-between", user.role !== "client" && "rounded-b-2xl")}>
-            <p className="text-xs text-white/35">Member since</p>
-            <p className="text-xs font-medium text-white/50">{stats.joinedLabel}</p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-white/25">Last active</span>
+            <span className="text-[10px] font-medium text-white/45">{stats.lastActive}</span>
           </div>
-        </SettingsCard>
-      </div>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-[10px] text-white/22">{ROLE_DESCRIPTIONS[user.role]}</span>
+          </div>
+        </div>
+      </SettingsCard>
 
-      {/* ── Activity ────────────────────────────────────────────────── */}
+      {/* ── Activity ─────────────────────────────────────────────────── */}
       <div>
         <SectionLabel>Activity</SectionLabel>
         <SettingsCard>
-          <div className="px-5 py-5 grid grid-cols-2 gap-x-6 gap-y-5">
-            <div>
-              <p className="text-[10px] text-white/25 uppercase tracking-[0.15em]">Sessions</p>
-              <p className="text-2xl font-light text-white/80 tabular-nums mt-1.5">{stats.sessions}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-white/25 uppercase tracking-[0.15em]">Current streak</p>
-              <p className="text-2xl font-light text-white/80 tabular-nums mt-1.5">
-                {stats.streak}
-                <span className="text-sm text-white/35 ml-1">days</span>
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-white/25 uppercase tracking-[0.15em]">Longest streak</p>
-              <p className="text-2xl font-light text-white/80 tabular-nums mt-1.5">
-                {stats.longestStreak}
-                <span className="text-sm text-white/35 ml-1">days</span>
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-white/25 uppercase tracking-[0.15em]">Compliance · 30d</p>
-              <p className="text-2xl font-light text-white/80 tabular-nums mt-1.5">
-                {stats.compliance}
-                <span className="text-sm text-white/35">%</span>
-              </p>
-              <div className="h-0.5 rounded-full bg-white/8 mt-2">
-                <div
-                  className={cn(
-                    "h-full rounded-full",
-                    stats.compliance >= 80 ? "bg-[#B48B40]" :
-                    stats.compliance >= 60 ? "bg-amber-500/60" : "bg-red-500/50"
-                  )}
-                  style={{ width: `${stats.compliance}%` }}
-                />
-              </div>
-            </div>
+          <div className="px-5 py-5 grid grid-cols-2 gap-x-8 gap-y-5">
+            <StatBlock label="Sessions" value={stats.sessions} />
+            <StatBlock label="Current streak" value={stats.streak} unit="days" />
+            <StatBlock label="Longest streak"  value={stats.longestStreak} unit="days" />
+            <StatBlock
+              label="Compliance · 30d"
+              value={stats.compliance} unit="%"
+              bar={stats.compliance}
+              barColor={complianceColor}
+            />
           </div>
-          <div className="border-t border-white/[0.045] px-5 py-3 flex items-center justify-between">
-            <p className="text-xs text-white/30">Last active</p>
-            <p className="text-xs font-medium text-white/50">{stats.lastActive}</p>
+
+          {/* Tracking rows */}
+          <div className="border-t border-white/[0.045] divide-y divide-white/[0.04]">
+            <div className="px-5 py-3 flex items-center justify-between">
+              <p className="text-xs text-white/30">Last login</p>
+              <p className="text-xs font-medium text-white/50">{lastLoginDisplay}</p>
+            </div>
+            <div className="px-5 py-3 flex items-center justify-between">
+              <p className="text-xs text-white/30">Last action</p>
+              <p className="text-xs font-medium text-white/50">{lastActionDisplay}</p>
+            </div>
           </div>
         </SettingsCard>
       </div>
 
-      {/* ── Clients (trainer / master only) ─────────────────────────── */}
+      {/* ── My clients (trainer / master) ────────────────────────────── */}
       {isCoach && (
         <div>
-          <SectionLabel>Clients</SectionLabel>
+          <SectionLabel>
+            {user.role === "master" ? "Platform clients" : "My clients"}
+          </SectionLabel>
           <SettingsCard>
             <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.045]">
-              <p className="text-sm text-white/55">{MOCK_CLIENTS.length} active</p>
-              <span className="text-[10px] text-white/22 uppercase tracking-[0.15em]">Compliance · 30d</span>
+              <p className="text-sm text-white/55">
+                {clients.filter((c) => c.status === "active").length} active
+                <span className="text-white/25 ml-1">/ {clients.length} total</span>
+              </p>
+              <span className="text-[10px] text-white/22 uppercase tracking-[0.15em]">Compliance</span>
             </div>
-            {MOCK_CLIENTS.map((client, i) => {
-              const clientInitials = client.name.split(" ").map((n) => n[0]).join("");
+
+            {clients.length === 0 && (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-white/25">No clients assigned yet.</p>
+              </div>
+            )}
+
+            {clients.map((client, i) => {
+              const ci = client.name.split(" ").map((n) => n[0]).join("");
+              const isInactive = client.status === "paused" || client.status === "churned";
               const compColor =
-                client.compliance >= 80 ? "text-[#B48B40]" :
-                client.compliance >= 60 ? "text-amber-500/70" : "text-red-400/70";
+                client.adherence >= 80 ? "text-[#B48B40]" :
+                client.adherence >= 60 ? "text-amber-500/70" : "text-red-400/70";
+              const statusDot =
+                client.status === "active"    ? "bg-emerald-400" :
+                client.status === "at-risk"   ? "bg-amber-400" :
+                client.status === "trial"     ? "bg-blue-400" : "bg-white/20";
               return (
                 <div
-                  key={client.name}
+                  key={client.id}
                   className={cn(
-                    "px-5 py-3.5 flex items-center justify-between",
-                    i < MOCK_CLIENTS.length - 1 && "border-b border-white/[0.04]"
+                    "px-5 py-3.5 flex items-center justify-between gap-3",
+                    i < clients.length - 1 && "border-b border-white/[0.04]"
                   )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-[#1C1C1C] border border-white/8 flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-medium text-white/40">{clientInitials}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full border flex items-center justify-center shrink-0",
+                      isInactive ? "bg-[#1A1A1A] border-white/5" : "bg-[#1C1C1C] border-white/8"
+                    )}>
+                      <span className={cn("text-[10px] font-semibold", isInactive ? "text-white/25" : "text-white/40")}>{ci}</span>
                     </div>
-                    <div>
-                      <p className="text-sm text-white/70">{client.name}</p>
-                      <p className="text-[10px] text-white/28 mt-0.5">
-                        Active {client.lastActive}
-                        {" · "}
-                        {client.streak > 0 ? `${client.streak}d streak` : "no streak"}
-                        {" · "}
-                        <span className={cn("capitalize", PLAN_COLOR[client.plan])}>
-                          {PLAN_LABELS[client.plan]}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDot)} />
+                        <p className={cn("text-sm font-medium truncate", isInactive ? "text-white/40" : "text-white/75")}>{client.name}</p>
+                        <span className={cn("text-[9px] font-semibold uppercase tracking-wider shrink-0", PLAN_COLOR[client.plan as Plan])}>
+                          {client.plan}
                         </span>
+                      </div>
+                      <p className="text-[10px] text-white/28 mt-0.5 truncate">
+                        {client.program}
+                        {" · "}Last active {client.lastActive}
+                        {" · "}Joined {client.joinDate}
                       </p>
                     </div>
                   </div>
-                  <p className={cn("text-sm font-semibold tabular-nums", compColor)}>
-                    {client.compliance}%
-                  </p>
+                  <div className="shrink-0 text-right">
+                    <p className={cn("text-sm font-semibold tabular-nums", isInactive ? "text-white/18" : compColor)}>
+                      {isInactive ? "—" : `${client.adherence}%`}
+                    </p>
+                    <p className="text-[10px] text-white/20 mt-0.5">
+                      {isInactive ? client.status : `${client.checkInCompletion}% check-ins`}
+                    </p>
+                  </div>
                 </div>
               );
             })}
@@ -641,30 +727,19 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── Role ────────────────────────────────────────────────────── */}
+      {/* ── Role ─────────────────────────────────────────────────────── */}
       <div>
         <SectionLabel>Role</SectionLabel>
         <SettingsCard>
-          <SettingsRow
-            label="Access level"
-            description={ROLE_DESCRIPTIONS[user.role]}
-            last={user.role !== "master"}
-          >
-            <span className={cn(
-              "text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border",
-              ROLE_COLOR[user.role]
-            )}>
+          <SettingsRow label="Access level" description={ROLE_DESCRIPTIONS[user.role]} last={user.role !== "master"}>
+            <span className={cn("text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border", ROLE_COLOR[user.role])}>
               {ROLE_LABELS[user.role]}
             </span>
           </SettingsRow>
-
           {user.role === "master" && (
             <div className="px-5 py-3.5 flex items-center justify-between">
               <p className="text-xs text-white/30">Manage user roles in the operator dashboard.</p>
-              <Link
-                href="/admin"
-                className="flex items-center gap-1.5 text-xs text-[#B48B40]/70 hover:text-[#B48B40] transition-colors"
-              >
+              <Link href="/admin" className="flex items-center gap-1.5 text-xs text-[#B48B40]/70 hover:text-[#B48B40] transition-colors">
                 <LayoutDashboard className="w-3 h-3" strokeWidth={1.5} />
                 Open
               </Link>
@@ -673,56 +748,38 @@ export default function ProfilePage() {
         </SettingsCard>
       </div>
 
-      {/* ── Coaching ────────────────────────────────────────────────── */}
+      {/* ── Coaching ─────────────────────────────────────────────────── */}
       <div>
         <SectionLabel>Coaching</SectionLabel>
         <SettingsCard>
           <SettingsRow label="Coaching tone" description="How your AI coach communicates with you.">
             <PillToggle options={COACHING_TONES} value={coachingTone} onChange={setCoachingTone} />
           </SettingsRow>
-
-          <SettingsRow
-            label="Profanity"
-            description="Mild uses natural, light language. Never rude or excessive."
-          >
+          <SettingsRow label="Profanity" description="Mild uses natural, light language. Never rude or excessive.">
             <PillToggle options={PROFANITY_OPTIONS} value={profanity ?? "off"} onChange={setProfanity} />
           </SettingsRow>
-
-          <PushLevelSlider
-            value={pushLevel}
-            onChange={handlePushChange}
-            changesUsed={pushChangesUsed}
-            coachOverride={user.coachOverridePushLevel}
-          />
-
-          <SettingsRow
-            label="Explanation style"
-            description="Lite is shorter and direct. Pro is detailed and analytical."
-          >
+          <PushLevelSlider value={pushLevel} onChange={handlePushChange} changesUsed={pushChangesUsed} coachOverride={user.coachOverridePushLevel} />
+          <SettingsRow label="Explanation style" description="Lite is shorter and direct. Pro is detailed and analytical.">
             <PillToggle options={STYLE_OPTIONS} value={coachStyle ?? "pro"} onChange={setCoachStyle} />
           </SettingsRow>
 
-          {/* Live sample preview */}
+          {/* Live preview */}
           <div className="px-5 py-4 border-t border-white/[0.045]">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[10px] uppercase tracking-[0.18em] text-white/22">Sample output</span>
               <span className="text-[10px] text-white/15">·</span>
               <span className="text-[10px] text-white/18 italic">
                 {coachingTone === "direct" ? "Direct" : coachingTone === "supportive" ? "Supportive" : "Analytical"}
-                {" · "}
-                {(profanity ?? "off") === "mild" ? "Mild" : "No profanity"}
-                {" · "}
-                {(coachStyle ?? "pro") === "lite" ? "Lite" : "Pro"}
+                {" · "}{(profanity ?? "off") === "mild" ? "Mild" : "No profanity"}
+                {" · "}{(coachStyle ?? "pro") === "lite" ? "Lite" : "Pro"}
               </span>
             </div>
-
             <div className="space-y-2">
               <div className="flex justify-end">
                 <div className="rounded-2xl rounded-tr-sm bg-[#B48B40]/10 border border-[#B48B40]/15 px-3.5 py-2 max-w-[70%]">
                   <p className="text-xs text-white/55">&ldquo;Simplify today&rsquo;s session.&rdquo;</p>
                 </div>
               </div>
-
               <div className="flex items-start gap-2">
                 <div className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#B48B40]/20 flex items-center justify-center shrink-0 mt-0.5">
                   <span className="text-[#B48B40] text-[8px] leading-none">◈</span>
@@ -734,7 +791,6 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-
             {coachingTone !== "direct" && (
               <p className="text-[10px] text-white/18 mt-2.5 pl-7">
                 Profanity and style apply across all tones. The sample above uses the Direct tone for the clearest contrast.
@@ -748,7 +804,7 @@ export default function ProfilePage() {
         </SettingsCard>
       </div>
 
-      {/* ── Display ─────────────────────────────────────────────────── */}
+      {/* ── Display ──────────────────────────────────────────────────── */}
       <div>
         <SectionLabel>Display</SectionLabel>
         <SettingsCard>
@@ -758,7 +814,7 @@ export default function ProfilePage() {
         </SettingsCard>
       </div>
 
-      {/* ── Notifications ───────────────────────────────────────────── */}
+      {/* ── Notifications ────────────────────────────────────────────── */}
       <div>
         <SectionLabel>Notifications</SectionLabel>
         <SettingsCard>
@@ -777,7 +833,7 @@ export default function ProfilePage() {
         </SettingsCard>
       </div>
 
-      {/* ── Account ─────────────────────────────────────────────────── */}
+      {/* ── Account ──────────────────────────────────────────────────── */}
       <div>
         <SectionLabel>Account</SectionLabel>
         <SettingsCard>
@@ -794,8 +850,7 @@ export default function ProfilePage() {
                   href="/pricing"
                   className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#B48B40] border border-[#B48B40]/30 bg-[#B48B40]/8 rounded-lg px-2 py-1 hover:bg-[#B48B40]/14 transition-colors"
                 >
-                  Upgrade
-                  <ArrowUpRight className="w-3 h-3" strokeWidth={2} />
+                  Upgrade <ArrowUpRight className="w-3 h-3" strokeWidth={2} />
                 </Link>
               )}
             </div>
@@ -803,7 +858,7 @@ export default function ProfilePage() {
         </SettingsCard>
       </div>
 
-      {/* ── Save ────────────────────────────────────────────────────── */}
+      {/* ── Save ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pt-2 pb-8">
         <p className="text-xs text-white/22">Changes save to your profile immediately.</p>
         <button

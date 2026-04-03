@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Wind } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DEMO_USERS } from "@/context/UserContext";
+import { useUser } from "@/context/UserContext";
 import { BreathingTimer } from "@/components/breathwork/BreathingTimer";
+import { recordActivity } from "@/lib/activity";
 import {
   loadSettings, saveSettings,
   loadSessions, saveSession,
@@ -76,6 +77,7 @@ function BarChart({
 
 export default function BreathworkPage() {
   const router    = useRouter();
+  const { user }  = useUser();
   const [ready,   setReady]   = useState(false);
   const [tab,     setTab]     = useState<Tab>("configure");
   const [settings, setSettings] = useState<BreathworkSettings>(DEFAULT_SETTINGS);
@@ -90,7 +92,8 @@ export default function BreathworkPage() {
           || sessionStorage.getItem("flowstate-session-role");
     } catch { /* ignore */ }
 
-    if (!role || !DEMO_USERS[role]) {
+    const VALID_ROLES = ["master", "trainer", "client", "member"];
+    if (!role || !VALID_ROLES.includes(role)) {
       router.replace("/login");
       return;
     }
@@ -112,6 +115,7 @@ export default function BreathworkPage() {
         completedAt: new Date().toISOString(),
       };
       saveSession(session);
+      recordActivity(user.id, "Breathwork session");
       const updated = [...sessions, session];
       setSessions(updated);
       setAnalytics(computeAnalytics(updated));
