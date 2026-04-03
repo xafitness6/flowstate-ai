@@ -8,22 +8,25 @@ import { SPEED_INTERVAL_MS } from "@/lib/breathwork/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Phase = "idle" | "breathing" | "hold" | "recovery" | "complete";
+type Phase    = "idle" | "breathing" | "hold" | "recovery" | "complete";
+type SubPhase = "inhale" | "exhale";
 
 type SessionState = {
-  phase: Phase;
-  currentRound: number;
-  currentBreath: number;    // 1-indexed; odd = inhale, even = exhale
-  holdSeconds: number;      // elapsed seconds during hold
-  recoverySeconds: number;  // remaining seconds during recovery
-  paused: boolean;
-  holdTimes: number[];
+  phase:          Phase;
+  subPhase:       SubPhase;   // explicit — not derived from a counter
+  currentRound:   number;
+  breathCycle:    number;     // 1-indexed: which inhale+exhale pair we're on
+  totalCycles:    number;     // breathsPerRound / 2
+  holdSeconds:    number;     // elapsed during hold
+  recoverySeconds: number;   // remaining during recovery
+  paused:         boolean;
+  holdTimes:      number[];
 };
 
 type Props = {
-  settings: BreathworkSettings;
+  settings:   BreathworkSettings;
   onComplete: (session: Omit<BreathworkSession, "id" | "completedAt">) => void;
-  onEnd: () => void;
+  onEnd:      () => void;
 };
 
 const TICK_MS = 100;
@@ -33,70 +36,103 @@ const TICK_MS = 100;
 export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
   const { rounds, breathsPerRound, recoveryDuration, speed } = settings;
   const breathIntervalMs = SPEED_INTERVAL_MS[speed];
+  // Each full breath = 1 inhale + 1 exhale. Odd breathsPerRound → extra inhale at end.
+  const totalCycles = Math.max(1, Math.floor(breathsPerRound / 2));
 
   const [state, setState] = useState<SessionState>({
-    phase: "idle",
-    currentRound: 1,
-    currentBreath: 0,
-    holdSeconds: 0,
+    phase:          "idle",
+    subPhase:       "inhale",
+    currentRound:   1,
+    breathCycle:    1,
+    totalCycles,
+    holdSeconds:    0,
     recoverySeconds: recoveryDuration,
-    paused: false,
-    holdTimes: [],
+    paused:         false,
+    holdTimes:      [],
   });
 
-  const intervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  // One ref handles both setTimeout (breathing) and setInterval (hold/recovery).
+  // clearTimeout/clearInterval are both safe to call on either type.
+  const timerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
 
-  const clearTimer = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  function clearTimer() {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      clearInterval(timerRef.current as unknown as ReturnType<typeof setInterval>);
+      timerRef.current = null;
     }
-  };
+  }
 
   // ─── Start ──────────────────────────────────────────────────────────────────
+
   const startSession = useCallback(() => {
     sessionStartRef.current = Date.now();
-    setState((s) => ({ ...s, phase: "breathing", currentBreath: 1 }));
+    setState((s) => ({
+      ...s,
+      phase:       "breathing",
+      subPhase:    "inhale",
+      breathCycle: 1,
+    }));
   }, []);
 
-  // ─── Breathing phase ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (state.phase !== "breathing" || state.paused) { clearTimer(); return; }
+  // ─── Breathing ──────────────────────────────────────────────────────────────
+  // Each half-breath gets its own setTimeout keyed on subPhase.
+  // The effect re-runs every time subPhase changes, creating a fresh timer that
+  // starts only AFTER the previous half-breath's DOM update has committed.
+  // This guarantees CSS transitions always start from a stable painted value.
 
-    intervalRef.current = setInterval(() => {
+  useEffect(() => {
+    if (state.phase !== "breathing" || state.paused) {
+      clearTimer();
+      return;
+    }
+
+    timerRef.current = setTimeout(() => {
       setState((s) => {
-        if (s.paused || s.phase !== "breathing") return s;
-        const next = s.currentBreath + 1;
-        if (next > breathsPerRound) return { ...s, phase: "hold", holdSeconds: 0 };
-        return { ...s, currentBreath: next };
+        if (s.phase !== "breathing" || s.paused) return s;
+
+        if (s.subPhase === "inhale") {
+          // Inhale done → exhale
+          return { ...s, subPhase: "exhale" };
+        } else {
+          // Exhale done → next cycle or hold
+          const nextCycle = s.breathCycle + 1;
+          if (nextCycle > s.totalCycles) {
+            return { ...s, phase: "hold", holdSeconds: 0 };
+          }
+          return { ...s, subPhase: "inhale", breathCycle: nextCycle };
+        }
       });
     }, breathIntervalMs);
 
     return clearTimer;
+  // subPhase is a dep so a new timer is created on every half-breath.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase, state.paused, breathsPerRound, breathIntervalMs]);
+  }, [state.phase, state.subPhase, state.paused, breathIntervalMs]);
 
-  // ─── Hold phase ─────────────────────────────────────────────────────────────
+  // ─── Hold ───────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (state.phase !== "hold" || state.paused) { clearTimer(); return; }
 
-    intervalRef.current = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setState((s) => {
         if (s.paused || s.phase !== "hold") return s;
         return { ...s, holdSeconds: s.holdSeconds + TICK_MS / 1000 };
       });
-    }, TICK_MS);
+    }, TICK_MS) as unknown as ReturnType<typeof setTimeout>;
 
     return clearTimer;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.paused]);
 
-  // ─── Recovery phase ─────────────────────────────────────────────────────────
+  // ─── Recovery ───────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (state.phase !== "recovery" || state.paused) { clearTimer(); return; }
 
-    intervalRef.current = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setState((s) => {
         if (s.paused || s.phase !== "recovery") return s;
         const next = s.recoverySeconds - TICK_MS / 1000;
@@ -104,44 +140,46 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
           if (s.currentRound >= rounds) return { ...s, phase: "complete", recoverySeconds: 0 };
           return {
             ...s,
-            phase: "breathing",
-            currentRound: s.currentRound + 1,
-            currentBreath: 1,
+            phase:          "breathing",
+            subPhase:       "inhale",
+            currentRound:   s.currentRound + 1,
+            breathCycle:    1,
             recoverySeconds: recoveryDuration,
           };
         }
         return { ...s, recoverySeconds: next };
       });
-    }, TICK_MS);
+    }, TICK_MS) as unknown as ReturnType<typeof setTimeout>;
 
     return clearTimer;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.paused, rounds, recoveryDuration]);
 
   // ─── Complete ────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (state.phase !== "complete") return;
     const totalDuration = Math.round((Date.now() - sessionStartRef.current) / 1000);
     onComplete({
-      date: new Date().toISOString().slice(0, 10),
+      date:            new Date().toISOString().slice(0, 10),
       settings,
       roundsCompleted: state.currentRound,
-      totalBreaths: state.currentRound * breathsPerRound,
-      holdTimes: state.holdTimes,
+      totalBreaths:    state.currentRound * breathsPerRound,
+      holdTimes:       state.holdTimes,
       totalDuration,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase]);
 
   // ─── Controls ────────────────────────────────────────────────────────────────
+
   const endHold = useCallback(() => {
     setState((s) => {
       if (s.phase !== "hold") return s;
-      const holdTime = Math.round(s.holdSeconds);
       return {
         ...s,
-        phase: "recovery",
-        holdTimes: [...s.holdTimes, holdTime],
+        phase:          "recovery",
+        holdTimes:      [...s.holdTimes, Math.round(s.holdSeconds)],
         recoverySeconds: recoveryDuration,
       };
     });
@@ -151,43 +189,42 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
     setState((s) => ({ ...s, paused: !s.paused }));
   }, []);
 
-  // ─── Derived display values ───────────────────────────────────────────────────
-  const isInhale       = state.currentBreath % 2 !== 0;
-  const holdDisplay    = Math.floor(state.holdSeconds);
+  // ─── Derived display ─────────────────────────────────────────────────────────
+
+  const isInhale        = state.phase === "breathing" && state.subPhase === "inhale";
+  const holdDisplay     = Math.floor(state.holdSeconds);
   const recoveryDisplay = Math.ceil(state.recoverySeconds);
-  const totalBreathsInRound = breathsPerRound;
-  // Count of complete breath cycles (each cycle = 1 inhale + 1 exhale)
-  const breathCycle    = Math.ceil(state.currentBreath / 2);
-  const totalCycles    = Math.ceil(totalBreathsInRound / 2);
 
   // ─── Circle animation ─────────────────────────────────────────────────────────
-  // Scale: idle=0.7, inhale=1.0, exhale/recovery=0.72, hold=1.0, complete=0.85
+  // subPhase is now the direct driver of the target scale, not a derived value.
+
   const circleTarget = (() => {
-    if (state.phase === "idle")      return 0.72;
-    if (state.phase === "breathing") return isInhale ? 1.0 : 0.72;
+    if (state.phase === "idle")      return 0.68;
+    if (state.phase === "breathing") return isInhale ? 1.0 : 0.68;
     if (state.phase === "hold")      return 1.0;
-    if (state.phase === "recovery")  return 0.72;
+    if (state.phase === "recovery")  return 0.68;
     if (state.phase === "complete")  return 0.85;
-    return 0.72;
+    return 0.68;
   })();
 
+  // ease-in-out gives a symmetric, natural breathing feel — slow at the
+  // extremes, faster through the middle — unlike Material ease which
+  // decelerates hard at the end and makes the circle look stuck.
   const circleTransitionMs = (() => {
-    // Use the full breath interval so the circle fills each phase without
-    // a visible pause at peak/trough. CSS handles mid-transition state
-    // changes gracefully — the next transition starts from current position.
     if (state.phase === "breathing") return breathIntervalMs;
     if (state.phase === "recovery")  return Math.min(recoveryDuration * 1000 * 0.5, 1800);
     return 700;
   })();
 
   const glowColor = (() => {
-    if (state.phase === "hold")      return "rgba(180,139,64,0.20)";
-    if (state.phase === "breathing" && isInhale) return "rgba(180,139,64,0.08)";
-    if (state.phase === "complete")  return "rgba(74,222,128,0.12)";
+    if (state.phase === "hold")                      return "rgba(180,139,64,0.22)";
+    if (state.phase === "breathing" && isInhale)     return "rgba(180,139,64,0.09)";
+    if (state.phase === "complete")                  return "rgba(74,222,128,0.12)";
     return "transparent";
   })();
 
   // ─── Phase label ─────────────────────────────────────────────────────────────
+
   const phaseLabel = (() => {
     if (state.phase === "idle")      return "Ready";
     if (state.phase === "breathing") return isInhale ? "Inhale" : "Exhale";
@@ -198,12 +235,13 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
   })();
 
   const phaseLabelColor = (() => {
-    if (state.phase === "hold")      return "text-[#B48B40]";
-    if (state.phase === "complete")  return "text-emerald-400";
+    if (state.phase === "hold")     return "text-[#B48B40]";
+    if (state.phase === "complete") return "text-emerald-400";
     return "text-white/50";
   })();
 
   // ─── Render ──────────────────────────────────────────────────────────────────
+
   return (
     <div className="flex flex-col items-center gap-8 py-6 select-none">
 
@@ -233,18 +271,18 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
 
       {/* Breathing circle */}
       <div className="relative flex items-center justify-center">
-        {/* Outer glow ring */}
+        {/* Outer glow */}
         <div
-          className="absolute inset-0 rounded-full transition-[box-shadow] duration-1000"
+          className="absolute inset-0 rounded-full transition-[box-shadow] duration-700"
           style={{ boxShadow: `0 0 80px 20px ${glowColor}` }}
         />
 
-        {/* Main circle — GPU-accelerated via will-change */}
+        {/* Main circle */}
         <div
           className="relative flex items-center justify-center w-56 h-56 rounded-full border border-white/[0.07] bg-white/[0.025]"
           style={{
-            transform: `scale(${circleTarget})`,
-            transition: `transform ${circleTransitionMs}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+            transform:  `scale(${circleTarget})`,
+            transition: `transform ${circleTransitionMs}ms ease-in-out`,
             willChange: "transform",
           }}
         >
@@ -260,14 +298,14 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
             {state.phase === "breathing" && (
               <div>
                 <p className={cn(
-                  "text-[11px] uppercase tracking-[0.25em] font-medium mb-2",
+                  "text-[11px] uppercase tracking-[0.25em] font-medium mb-2 transition-colors duration-300",
                   isInhale ? "text-white/55" : "text-white/28"
                 )}>
                   {isInhale ? "Inhale" : "Exhale"}
                 </p>
                 <p className="text-4xl font-extralight text-white/80 tabular-nums leading-none">
-                  {breathCycle}
-                  <span className="text-lg text-white/22">/{totalCycles}</span>
+                  {state.breathCycle}
+                  <span className="text-lg text-white/22">/{state.totalCycles}</span>
                 </p>
               </div>
             )}
@@ -348,8 +386,8 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
               className="flex items-center justify-center w-12 h-12 rounded-full border border-white/10 bg-white/[0.04] text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all"
             >
               {state.paused
-                ? <Play className="w-4 h-4 ml-0.5" strokeWidth={1.5} />
-                : <Pause className="w-4 h-4" strokeWidth={1.5} />}
+                ? <Play  className="w-4 h-4 ml-0.5" strokeWidth={1.5} />
+                : <Pause className="w-4 h-4"         strokeWidth={1.5} />}
             </button>
             <button
               onClick={onEnd}
