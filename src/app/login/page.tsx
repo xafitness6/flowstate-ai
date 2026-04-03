@@ -99,12 +99,10 @@ export default function LoginPage() {
   const usernameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-      const ls = localStorage.getItem(LS_KEY);
-      const ss = sessionStorage.getItem(SS_KEY);
-      if (ls || ss) { router.replace(postLoginRoute(ls ?? ss ?? "member")); return; }
-    } catch { /* ignore */ }
-
+    // Do NOT auto-redirect based on stored session.
+    // If LS_KEY has a stale "master" (or any other role) from a previous session,
+    // that must not silently send all users to /admin. The login page always renders.
+    // Session persistence for "already logged in" users is handled at layout level.
     setChecking(false);
     setBioLabel(getBiometricLabel());
 
@@ -116,9 +114,8 @@ export default function LoginPage() {
       isPlatformAuthenticatorAvailable().then(setBioAvailable);
     }
 
-    // Auto-focus username
     setTimeout(() => usernameRef.current?.focus(), 50);
-  }, [router]);
+  }, []);
 
   if (checking) return null;
 
