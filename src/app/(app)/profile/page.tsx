@@ -8,13 +8,6 @@ import type { Plan } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import {
-  initStore,
-  getClients,
-  getClientTrainingData,
-  type PlatformUser,
-  type ClientTrainingData,
-} from "@/lib/data/store";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -126,10 +119,6 @@ const DEFAULT_LAST_ACTION: Record<string, string> = {
   client:  "Workout logged",
   member:  "Breathwork session",
 };
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ClientRow = PlatformUser & ClientTrainingData;
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -385,15 +374,11 @@ export default function ProfilePage() {
   const [lastActionType]                = useLocalStorage<string>(`flowstate-last-action-type-${user.id}`, "");
   const [prevLogin,    setPrevLogin]    = useState<string>("");
 
-  // ── Real client data (trainer / master) ───────────────────────────────────
-  const [clients, setClients] = useState<ClientRow[]>([]);
-
   const statusCfg     = STATUS_CONFIG[user.status];
   const initials      = (displayName || user.name).split(" ").map((n) => n[0]).join("").toUpperCase();
   const resolvedName  = displayName || user.name;
   const displayAvatar = localAvatar || user.avatarUrl;
   const stats         = USER_STATS[user.role] ?? USER_STATS.member;
-  const isCoach       = user.role === "trainer" || user.role === "master";
 
   // Record this login and read previous
   useEffect(() => {
@@ -402,16 +387,6 @@ export default function ProfilePage() {
     setLastLoginTs(now);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Load real clients
-  useEffect(() => {
-    if (!isCoach) return;
-    initStore();
-    try {
-      const raw = getClients(user.role, user.id);
-      setClients(raw.map((c) => ({ ...c, ...getClientTrainingData(c.id) })));
-    } catch { /* permission error — shouldn't happen for coach */ }
-  }, [isCoach, user.role, user.id]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -650,82 +625,6 @@ export default function ProfilePage() {
           </div>
         </SettingsCard>
       </div>
-
-      {/* ── My clients (trainer / master) ────────────────────────────── */}
-      {isCoach && (
-        <div>
-          <SectionLabel>
-            {user.role === "master" ? "Platform clients" : "My clients"}
-          </SectionLabel>
-          <SettingsCard>
-            <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.045]">
-              <p className="text-sm text-white/55">
-                {clients.filter((c) => c.status === "active").length} active
-                <span className="text-white/25 ml-1">/ {clients.length} total</span>
-              </p>
-              <span className="text-[10px] text-white/22 uppercase tracking-[0.15em]">Compliance</span>
-            </div>
-
-            {clients.length === 0 && (
-              <div className="px-5 py-8 text-center">
-                <p className="text-sm text-white/25">No clients assigned yet.</p>
-              </div>
-            )}
-
-            {clients.map((client, i) => {
-              const ci = client.name.split(" ").map((n) => n[0]).join("");
-              const isInactive = client.status === "paused" || client.status === "churned";
-              const compColor =
-                client.adherence >= 80 ? "text-[#B48B40]" :
-                client.adherence >= 60 ? "text-amber-500/70" : "text-red-400/70";
-              const statusDot =
-                client.status === "active"    ? "bg-emerald-400" :
-                client.status === "at-risk"   ? "bg-amber-400" :
-                client.status === "trial"     ? "bg-blue-400" : "bg-white/20";
-              return (
-                <div
-                  key={client.id}
-                  className={cn(
-                    "px-5 py-3.5 flex items-center justify-between gap-3",
-                    i < clients.length - 1 && "border-b border-white/[0.04]"
-                  )}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full border flex items-center justify-center shrink-0",
-                      isInactive ? "bg-[#1A1A1A] border-white/5" : "bg-[#1C1C1C] border-white/8"
-                    )}>
-                      <span className={cn("text-[10px] font-semibold", isInactive ? "text-white/25" : "text-white/40")}>{ci}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDot)} />
-                        <p className={cn("text-sm font-medium truncate", isInactive ? "text-white/40" : "text-white/75")}>{client.name}</p>
-                        <span className={cn("text-[9px] font-semibold uppercase tracking-wider shrink-0", PLAN_COLOR[client.plan as Plan])}>
-                          {client.plan}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-white/28 mt-0.5 truncate">
-                        {client.program}
-                        {" · "}Last active {client.lastActive}
-                        {" · "}Joined {client.joinDate}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className={cn("text-sm font-semibold tabular-nums", isInactive ? "text-white/18" : compColor)}>
-                      {isInactive ? "—" : `${client.adherence}%`}
-                    </p>
-                    <p className="text-[10px] text-white/20 mt-0.5">
-                      {isInactive ? client.status : `${client.checkInCompletion}% check-ins`}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </SettingsCard>
-        </div>
-      )}
 
       {/* ── Role ─────────────────────────────────────────────────────── */}
       <div>

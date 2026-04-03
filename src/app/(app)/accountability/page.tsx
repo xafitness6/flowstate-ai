@@ -329,6 +329,157 @@ function TrajectoryChart({ habits, logs, activeCats }: {
   );
 }
 
+// ─── Activity Heatmap ─────────────────────────────────────────────────────────
+
+function ActivityHeatmap({ habits, logs, activeCats }: {
+  habits: Habit[]; logs: Logs; activeCats: HabitCategory[];
+}) {
+  const [tip, setTip] = useState<{
+    dateKey: string; score: number; count: number; x: number; y: number;
+  } | null>(null);
+
+  // Build 52-week grid aligned to Sunday
+  const end   = new Date();
+  const start = new Date(end);
+  start.setDate(end.getDate() - 364);
+  const startDow = start.getDay();
+  if (startDow > 0) start.setDate(start.getDate() - startDow);
+
+  const weeks: Array<Array<{ dateKey: string; score: number; isFuture: boolean }>> = [];
+  const cur = new Date(start);
+  const endMs = end.getTime();
+
+  while (cur.getTime() <= endMs + 6 * 86400000) {
+    const week: Array<{ dateKey: string; score: number; isFuture: boolean }> = [];
+    for (let d = 0; d < 7; d++) {
+      const dateKey  = cur.toISOString().slice(0, 10);
+      const isFuture = cur.getTime() > endMs;
+      const log      = logs[dateKey];
+      const score    = (!isFuture && log && log.completedHabits.length > 0)
+        ? computeScore(habits, log.completedHabits, activeCats) : -1;
+      week.push({ dateKey, score, isFuture });
+      cur.setDate(cur.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  // Month labels: mark the first week a new month starts
+  const monthLabels: Array<{ weekIdx: number; label: string }> = [];
+  let lastMonth = -1;
+  weeks.forEach((week, wi) => {
+    const m = new Date(week[0].dateKey + "T00:00:00").getMonth();
+    if (m !== lastMonth) {
+      monthLabels.push({
+        weekIdx: wi,
+        label: new Date(week[0].dateKey + "T00:00:00").toLocaleDateString("en-US", { month: "short" }),
+      });
+      lastMonth = m;
+    }
+  });
+
+  function cellColor(score: number, isFuture: boolean): string {
+    if (isFuture || score < 0) return "bg-white/[0.04]";
+    if (score === 0) return "bg-white/[0.04]";
+    if (score <= 25) return "bg-[#B48B40]/15";
+    if (score <= 50) return "bg-[#B48B40]/30";
+    if (score <= 75) return "bg-[#B48B40]/55";
+    return "bg-[#B48B40]";
+  }
+
+  const DOW_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+
+  return (
+    <div className="relative">
+      {tip && (
+        <div
+          className="fixed z-50 pointer-events-none bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 shadow-xl"
+          style={{ left: tip.x + 14, top: tip.y - 52 }}
+        >
+          <p className="text-xs font-medium text-white/80">{tip.dateKey}</p>
+          <p className="text-[11px] text-white/40 mt-0.5">
+            {tip.count > 0 ? `${tip.count} habit${tip.count !== 1 ? "s" : ""} completed` : "No data"}
+          </p>
+          {tip.score >= 0 && (
+            <p className={cn("text-[11px] font-semibold mt-0.5", scoreGrade(tip.score).color)}>
+              Score {tip.score}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="overflow-x-auto pb-1">
+        <div className="inline-flex gap-0">
+          {/* Day-of-week labels */}
+          <div className="flex flex-col gap-[3px] mr-[7px] pt-5">
+            {DOW_LABELS.map((d, i) => (
+              <div key={i} className="h-[10px] flex items-center justify-end">
+                {[1, 3, 5].includes(i)
+                  ? <span className="text-[8px] text-white/20 leading-none">{d}</span>
+                  : <span className="text-[8px] leading-none invisible">{d}</span>
+                }
+              </div>
+            ))}
+          </div>
+
+          <div>
+            {/* Month labels */}
+            <div className="flex gap-[3px] mb-[5px] h-4 items-end">
+              {weeks.map((week, wi) => {
+                const ml = monthLabels.find((m) => m.weekIdx === wi);
+                return (
+                  <div key={wi} className="w-[10px] shrink-0 relative">
+                    {ml && (
+                      <span className="absolute left-0 text-[8px] text-white/25 whitespace-nowrap leading-none">
+                        {ml.label}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Cell grid */}
+            <div className="flex gap-[3px]">
+              {weeks.map((week, wi) => (
+                <div key={wi} className="flex flex-col gap-[3px]">
+                  {week.map((day) => {
+                    const log   = logs[day.dateKey];
+                    const count = log ? log.completedHabits.length : 0;
+                    return (
+                      <div
+                        key={day.dateKey}
+                        className={cn(
+                          "w-[10px] h-[10px] rounded-[2px] transition-opacity",
+                          cellColor(day.score, day.isFuture),
+                          !day.isFuture && "cursor-default hover:opacity-70"
+                        )}
+                        onMouseEnter={(e) => {
+                          if (day.isFuture) return;
+                          setTip({ dateKey: day.dateKey, score: day.score, count, x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseLeave={() => setTip(null)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-1.5 mt-3 justify-end">
+        <span className="text-[9px] text-white/20">Less</span>
+        {(["bg-white/[0.04]", "bg-[#B48B40]/15", "bg-[#B48B40]/30", "bg-[#B48B40]/55", "bg-[#B48B40]"] as const).map(
+          (c, i) => <div key={i} className={cn("w-[10px] h-[10px] rounded-[2px]", c)} />
+        )}
+        <span className="text-[9px] text-white/20">More</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
@@ -961,6 +1112,17 @@ export default function AccountabilityPage() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ── Activity heatmap ─────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Activity</p>
+          <span className="text-[10px] text-white/18">Past 12 months</span>
+        </div>
+        <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-4 pt-4 pb-3">
+          <ActivityHeatmap habits={habits} logs={logs} activeCats={activeCats} />
         </div>
       </div>
 
