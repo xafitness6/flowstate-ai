@@ -866,40 +866,35 @@ export default function ProfilePage() {
           <SettingsRow label="Email">
             <span className="text-xs text-white/30 font-mono">xavier@flowstate.ai</span>
           </SettingsRow>
-          <SettingsRow label="Plan" last>
-            <div className="flex items-center gap-3">
-              <span className={cn("text-xs font-semibold tracking-wide uppercase", PLAN_COLOR[user.plan as Plan])}>
-                {PLAN_LABELS[user.plan as Plan] ?? user.plan}
-              </span>
-              {user.role !== "master" && PLAN_HIERARCHY[user.plan as Plan] < PLAN_HIERARCHY[MAX_PLAN_FOR_ROLE[user.role]] && (
-                <Link
-                  href="/pricing"
-                  className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#B48B40] border border-[#B48B40]/30 bg-[#B48B40]/8 rounded-lg px-2 py-1 hover:bg-[#B48B40]/14 transition-colors"
-                >
-                  Upgrade <ArrowUpRight className="w-3 h-3" strokeWidth={2} />
-                </Link>
-              )}
-              {user.plan !== "foundation" && (
-                <button
-                  onClick={async () => {
-                    const res = await fetch("/api/stripe/portal", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        customerId: `demo_${user.id}`,
-                        returnUrl: window.location.href,
-                      }),
-                    });
-                    const data = await res.json() as { url?: string };
-                    if (data.url) window.location.href = data.url;
-                  }}
-                  className="text-[10px] text-white/30 hover:text-white/55 transition-colors underline underline-offset-2"
-                >
-                  Manage subscription
-                </button>
-              )}
-            </div>
-          </SettingsRow>
+          {user.role === "master" ? (
+            <SettingsRow label="Plan" last>
+              <span className="text-xs text-white/30">Platform admin — no personal subscription</span>
+            </SettingsRow>
+          ) : (
+            <SettingsRow label="Plan" last>
+              <div className="flex items-center gap-3">
+                <span className={cn("text-xs font-semibold tracking-wide uppercase", PLAN_COLOR[user.plan as Plan])}>
+                  {PLAN_LABELS[user.plan as Plan] ?? user.plan}
+                </span>
+                {PLAN_HIERARCHY[user.plan as Plan] < PLAN_HIERARCHY[MAX_PLAN_FOR_ROLE[user.role]] && (
+                  <Link
+                    href="/pricing"
+                    className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#B48B40] border border-[#B48B40]/30 bg-[#B48B40]/8 rounded-lg px-2 py-1 hover:bg-[#B48B40]/14 transition-colors"
+                  >
+                    Upgrade <ArrowUpRight className="w-3 h-3" strokeWidth={2} />
+                  </Link>
+                )}
+                {user.plan !== "foundation" && (
+                  <Link
+                    href="/pricing"
+                    className="text-[10px] text-white/30 hover:text-white/55 transition-colors underline underline-offset-2"
+                  >
+                    Manage subscription
+                  </Link>
+                )}
+              </div>
+            </SettingsRow>
+          )}
         </SettingsCard>
       </div>
 
