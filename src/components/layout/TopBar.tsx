@@ -99,9 +99,11 @@ export function TopBar() {
               <p className="text-xs font-semibold text-white/75 truncate">{user.name}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <p className="text-[10px] text-white/28 capitalize">{user.role}</p>
-                <span className="text-[8px] uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-md bg-[#B48B40]/15 text-[#B48B40]/70 border border-[#B48B40]/20">
-                  {PLAN_LABELS[user.plan]}
-                </span>
+                {user.role !== "master" && (
+                  <span className="text-[8px] uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-md bg-[#B48B40]/15 text-[#B48B40]/70 border border-[#B48B40]/20">
+                    {PLAN_LABELS[user.plan]}
+                  </span>
+                )}
               </div>
             </div>
 
