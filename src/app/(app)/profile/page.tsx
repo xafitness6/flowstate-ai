@@ -559,9 +559,11 @@ export default function ProfilePage() {
               <span className={cn("text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border", ROLE_COLOR[user.role])}>
                 {ROLE_LABELS[user.role]}
               </span>
-              <span className={cn("text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border", PLAN_BADGE[user.plan as Plan])}>
-                {PLAN_LABELS[user.plan as Plan]}
-              </span>
+              {user.role !== "master" && (
+                <span className={cn("text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border", PLAN_BADGE[user.plan as Plan])}>
+                  {PLAN_LABELS[user.plan as Plan]}
+                </span>
+              )}
               <span className="flex items-center gap-1.5">
                 <span className={cn("w-1.5 h-1.5 rounded-full", statusCfg.dot)} />
                 <span className="text-[10px] text-white/30">{statusCfg.label}</span>
