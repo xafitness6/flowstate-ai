@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import type { MockUser, Plan, Role } from "@/types";
+import { clearBiometric } from "@/lib/biometric";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
@@ -50,18 +51,22 @@ const PLAN_KEY      = (id: string) => `flowstate-plan-${id}`;
 export type ViewMode = "operator" | "personal";
 
 function loadUser(): MockUser {
-  if (typeof window === "undefined") return DEMO_USERS.master;
+  // Safe fallback: never grant master privileges to an unauthenticated state.
+  const SAFE_DEFAULT = DEMO_USERS.member;
+  if (typeof window === "undefined") return SAFE_DEFAULT;
   try {
+    // Prefer sessionStorage (current session) over localStorage (remember-me).
+    // This order must match useAdminGuard and AppShell.
     const ss = sessionStorage.getItem(SS_KEY) as keyof typeof DEMO_USERS | null;
     const ls = localStorage.getItem(LS_KEY) as keyof typeof DEMO_USERS | null;
     const key = (ss && DEMO_USERS[ss]) ? ss : (ls && DEMO_USERS[ls]) ? ls : null;
-    if (!key) return DEMO_USERS.master;
+    if (!key) return SAFE_DEFAULT;
     const base = DEMO_USERS[key];
     // Restore persisted plan override (set after Stripe checkout)
     const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
     return savedPlan ? { ...base, plan: savedPlan } : base;
   } catch { /* ignore */ }
-  return DEMO_USERS.master;
+  return SAFE_DEFAULT;
 }
 
 type UserContextValue = {
@@ -77,7 +82,7 @@ type UserContextValue = {
 const UserContext = createContext<UserContextValue | null>(null);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [user,     setUser]          = useState<MockUser>(DEMO_USERS.master);
+  const [user,     setUser]          = useState<MockUser>(DEMO_USERS.member);
   const [viewMode, setViewModeState] = useState<ViewMode>("operator");
 
   useEffect(() => {
@@ -105,10 +110,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
+    // Reset context state immediately so no component sees stale master state.
+    setUser(DEMO_USERS.member);
+    setViewModeState("operator");
     try {
+      // Clear both keys from both storages — belt-and-suspenders.
+      // Prevents stale master state if the role was ever written to the wrong store.
       localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(SS_KEY);
       sessionStorage.removeItem(SS_KEY);
+      sessionStorage.removeItem(LS_KEY);
       localStorage.removeItem(VIEW_MODE_KEY);
+      sessionStorage.removeItem(VIEW_MODE_KEY);
+      // Clear biometric credentials so a prior admin session's biometric
+      // cannot silently re-authenticate the next user as master.
+      clearBiometric();
     } catch { /* ignore */ }
     window.location.href = "/login";
   }

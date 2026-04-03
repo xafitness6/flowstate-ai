@@ -22,7 +22,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const role = localStorage.getItem(AUTH_KEY) || sessionStorage.getItem(SS_KEY);
+      // Prefer sessionStorage (current session) over localStorage (remember-me).
+      // Must match the priority order in loadUser() and useAdminGuard.
+      const role = sessionStorage.getItem(SS_KEY) || localStorage.getItem(AUTH_KEY);
       if (!role) {
         router.replace("/login");
         return;

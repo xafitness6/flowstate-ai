@@ -17,7 +17,9 @@ export function useAdminGuard(): boolean {
 
   useEffect(() => {
     try {
-      const role = localStorage.getItem(LS_KEY) || sessionStorage.getItem(SS_KEY);
+      // Prefer sessionStorage (current session) over localStorage (remember-me).
+      // Must match the priority order in loadUser() and AppShell.
+      const role = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
       if (role === "master") {
         setReady(true);
       } else {

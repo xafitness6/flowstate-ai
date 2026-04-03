@@ -22,22 +22,13 @@ const LS_KEY        = "flowstate-active-role";
 const SS_KEY        = "flowstate-session-role";
 const ONBOARDED_KEY = "flowstate-onboarded";
 
-// Role is inferred from credentials — never picked by the user.
-// ADMIN credentials are not shown in the UI.
+// Role is resolved from credentials only — never selected by the user.
 const CREDENTIALS: Record<string, { username: string; password: string; role: string }> = {
   master:  { username: "ADMIN",  password: "ADMIN",      role: "master"  },
   trainer: { username: "alex",   password: "flowstate",  role: "trainer" },
   client:  { username: "kai",    password: "flowstate",  role: "client"  },
   member:  { username: "luca",   password: "flowstate",  role: "member"  },
 };
-
-// Quick-access role cards shown to regular users on the login screen.
-// Admin entry is hidden — only accessible via the credentials form.
-const QUICK_ACCESS = [
-  { key: "member",  label: "Member",  sub: "Training & accountability"     },
-  { key: "client",  label: "Client",  sub: "Full coaching & nutrition"      },
-  { key: "trainer", label: "Trainer", sub: "Client management & programs"   },
-] as const;
 
 function resolveRole(username: string, password: string): string | null {
   for (const entry of Object.values(CREDENTIALS)) {
@@ -84,7 +75,6 @@ export default function LoginPage() {
 
   const [checking,     setChecking]     = useState(true);
   const [step,         setStep]         = useState<Step>("credentials");
-  const [loginMode,    setLoginMode]    = useState<"roles" | "credentials">("roles");
   const [resolvedRole, setResolvedRole] = useState<string | null>(null);
   const [username,     setUsername]     = useState("");
   const [password,     setPassword]     = useState("");
@@ -99,10 +89,8 @@ export default function LoginPage() {
   const usernameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Do NOT auto-redirect based on stored session.
-    // If LS_KEY has a stale "master" (or any other role) from a previous session,
-    // that must not silently send all users to /admin. The login page always renders.
-    // Session persistence for "already logged in" users is handled at layout level.
+    // Do NOT auto-redirect based on stored session — the login page always renders.
+    // Session persistence for already-logged-in users is handled at layout level.
     setChecking(false);
     setBioLabel(getBiometricLabel());
 
@@ -142,12 +130,6 @@ export default function LoginPage() {
   }
 
   // ── Actions ──────────────────────────────────────────────────────────────────
-
-  function handleQuickLogin(roleKey: string) {
-    setResolvedRole(roleKey);
-    setLoading(true);
-    afterLogin(roleKey);
-  }
 
   function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -207,40 +189,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* ── Role selection (default view) ──────────────────────────────────── */}
-        {step === "credentials" && loginMode === "roles" && (
-          <div className="space-y-3">
-            {QUICK_ACCESS.map(({ key, label, sub }) => (
-              <button
-                key={key}
-                onClick={() => handleQuickLogin(key)}
-                disabled={loading}
-                className="w-full rounded-2xl border border-white/8 bg-white/[0.02] px-5 py-4 text-left hover:border-white/15 hover:bg-white/[0.04] transition-all group disabled:opacity-40"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-white/80">{label}</p>
-                    <p className="text-xs text-white/30 mt-0.5">{sub}</p>
-                  </div>
-                  <ArrowRight
-                    className="w-4 h-4 text-white/18 group-hover:text-white/45 transition-colors shrink-0"
-                    strokeWidth={1.5}
-                  />
-                </div>
-              </button>
-            ))}
-
-            <button
-              onClick={() => setLoginMode("credentials")}
-              className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-2"
-            >
-              Admin access
-            </button>
-          </div>
-        )}
-
-        {/* ── Credentials form (admin access) ────────────────────────────────── */}
-        {step === "credentials" && loginMode === "credentials" && (
+        {/* ── Credentials form ────────────────────────────────────────────────── */}
+        {step === "credentials" && (
           <form onSubmit={handleSignIn} className="space-y-4">
 
             {/* Username */}
@@ -344,13 +294,6 @@ export default function LoginPage() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => { setLoginMode("roles"); setAuthError(false); }}
-              className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
-            >
-              ← Back
-            </button>
           </form>
         )}
 
