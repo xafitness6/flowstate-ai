@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { computeActivityScore, scoreToIntensity } from "@/lib/data/activity";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -330,12 +331,31 @@ function TrajectoryChart({ habits, logs, activeCats }: {
 }
 
 // ─── Activity Heatmap ─────────────────────────────────────────────────────────
+// Scoring: workout completed +40 · steps goal hit +20 · calories logged +20 ·
+//          check-in (journal saved) +20.  Cap: 100 per day.
+// Intensity bands: 0=empty · 1–30=low · 31–70=medium · 71–100=high
+//
+// Role-visibility note: trainer/master views that show client heatmaps will
+// require DB-backed activity records (GET /api/activity/:userId).
+// Currently only the active user's own logs are shown.
 
-function ActivityHeatmap({ habits, logs, activeCats }: {
-  habits: Habit[]; logs: Logs; activeCats: HabitCategory[];
-}) {
+function activityScoreFromLog(log: DailyLog | undefined): number {
+  if (!log) return -1;
+  const actions = {
+    workoutCompleted: log.completedHabits.includes("training"),
+    stepsGoalHit:     log.completedHabits.includes("steps"),
+    caloriesLogged:   log.completedHabits.includes("calories"),
+    checkInCompleted: log.journalSaved === true,
+  };
+  const score = computeActivityScore(actions);
+  // No actions → -1 (empty cell)
+  if (score === 0 && !Object.values(actions).some(Boolean)) return -1;
+  return score;
+}
+
+function ActivityHeatmap({ logs }: { habits: Habit[]; logs: Logs; activeCats: HabitCategory[] }) {
   const [tip, setTip] = useState<{
-    dateKey: string; score: number; count: number; x: number; y: number;
+    dateKey: string; score: number; actions: string[]; x: number; y: number;
   } | null>(null);
 
   // Build 52-week grid aligned to Sunday
@@ -354,9 +374,7 @@ function ActivityHeatmap({ habits, logs, activeCats }: {
     for (let d = 0; d < 7; d++) {
       const dateKey  = cur.toISOString().slice(0, 10);
       const isFuture = cur.getTime() > endMs;
-      const log      = logs[dateKey];
-      const score    = (!isFuture && log && log.completedHabits.length > 0)
-        ? computeScore(habits, log.completedHabits, activeCats) : -1;
+      const score    = isFuture ? -1 : activityScoreFromLog(logs[dateKey]);
       week.push({ dateKey, score, isFuture });
       cur.setDate(cur.getDate() + 1);
     }
@@ -378,12 +396,22 @@ function ActivityHeatmap({ habits, logs, activeCats }: {
   });
 
   function cellColor(score: number, isFuture: boolean): string {
-    if (isFuture || score < 0) return "bg-white/[0.04]";
-    if (score === 0) return "bg-white/[0.04]";
-    if (score <= 25) return "bg-[#B48B40]/15";
-    if (score <= 50) return "bg-[#B48B40]/30";
-    if (score <= 75) return "bg-[#B48B40]/55";
+    if (isFuture) return "bg-white/[0.04]";
+    const band = scoreToIntensity(score);
+    if (band === "empty")  return "bg-white/[0.04]";
+    if (band === "low")    return "bg-[#B48B40]/20";
+    if (band === "medium") return "bg-[#B48B40]/50";
     return "bg-[#B48B40]";
+  }
+
+  function tipActions(log: DailyLog | undefined): string[] {
+    if (!log) return [];
+    const parts: string[] = [];
+    if (log.completedHabits.includes("training")) parts.push("Workout +40");
+    if (log.completedHabits.includes("steps"))    parts.push("Steps +20");
+    if (log.completedHabits.includes("calories")) parts.push("Calories +20");
+    if (log.journalSaved)                         parts.push("Check-in +20");
+    return parts;
   }
 
   const DOW_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -396,13 +424,17 @@ function ActivityHeatmap({ habits, logs, activeCats }: {
           style={{ left: tip.x + 14, top: tip.y - 52 }}
         >
           <p className="text-xs font-medium text-white/80">{tip.dateKey}</p>
-          <p className="text-[11px] text-white/40 mt-0.5">
-            {tip.count > 0 ? `${tip.count} habit${tip.count !== 1 ? "s" : ""} completed` : "No data"}
-          </p>
-          {tip.score >= 0 && (
-            <p className={cn("text-[11px] font-semibold mt-0.5", scoreGrade(tip.score).color)}>
-              Score {tip.score}
-            </p>
+          {tip.score >= 0 ? (
+            <>
+              <p className={cn("text-[11px] font-semibold mt-0.5", scoreGrade(tip.score).color)}>
+                Score {tip.score}
+              </p>
+              {tip.actions.length > 0 && (
+                <p className="text-[10px] text-white/35 mt-0.5">{tip.actions.join(" · ")}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-[11px] text-white/35 mt-0.5">No activity</p>
           )}
         </div>
       )}
@@ -443,8 +475,7 @@ function ActivityHeatmap({ habits, logs, activeCats }: {
               {weeks.map((week, wi) => (
                 <div key={wi} className="flex flex-col gap-[3px]">
                   {week.map((day) => {
-                    const log   = logs[day.dateKey];
-                    const count = log ? log.completedHabits.length : 0;
+                    const log = logs[day.dateKey];
                     return (
                       <div
                         key={day.dateKey}
@@ -455,7 +486,7 @@ function ActivityHeatmap({ habits, logs, activeCats }: {
                         )}
                         onMouseEnter={(e) => {
                           if (day.isFuture) return;
-                          setTip({ dateKey: day.dateKey, score: day.score, count, x: e.clientX, y: e.clientY });
+                          setTip({ dateKey: day.dateKey, score: day.score, actions: tipActions(log), x: e.clientX, y: e.clientY });
                         }}
                         onMouseLeave={() => setTip(null)}
                       />
@@ -469,12 +500,18 @@ function ActivityHeatmap({ habits, logs, activeCats }: {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-1.5 mt-3 justify-end">
-        <span className="text-[9px] text-white/20">Less</span>
-        {(["bg-white/[0.04]", "bg-[#B48B40]/15", "bg-[#B48B40]/30", "bg-[#B48B40]/55", "bg-[#B48B40]"] as const).map(
-          (c, i) => <div key={i} className={cn("w-[10px] h-[10px] rounded-[2px]", c)} />
-        )}
-        <span className="text-[9px] text-white/20">More</span>
+      <div className="flex items-center gap-3 mt-3 justify-end">
+        {([
+          { label: "None",   cls: "bg-white/[0.04]"   },
+          { label: "Low",    cls: "bg-[#B48B40]/20"   },
+          { label: "Medium", cls: "bg-[#B48B40]/50"   },
+          { label: "High",   cls: "bg-[#B48B40]"      },
+        ] as const).map(({ label, cls }) => (
+          <div key={label} className="flex items-center gap-1">
+            <div className={cn("w-[10px] h-[10px] rounded-[2px]", cls)} />
+            <span className="text-[9px] text-white/20">{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

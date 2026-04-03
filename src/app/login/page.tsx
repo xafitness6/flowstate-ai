@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Zap, Fingerprint, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -290,10 +291,18 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Error */}
-            {authError && (
-              <p className="text-xs text-red-400/70">Incorrect username or password.</p>
-            )}
+            {/* Error + forgot password */}
+            <div className="flex items-center justify-between min-h-[18px]">
+              {authError
+                ? <p className="text-xs text-red-400/70">Incorrect username or password.</p>
+                : <span />}
+              <Link
+                href="/forgot-password"
+                className="text-xs text-white/22 hover:text-white/45 transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             {/* Remember me */}
             <label className="flex items-center gap-2.5 cursor-pointer group">

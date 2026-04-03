@@ -37,16 +37,22 @@ import {
 type SortKey = "name" | "role" | "plan" | "status" | "lastActive";
 type SortDir = "asc" | "desc";
 
-// ─── Static platform-level stats (aggregate, not from seed users) ─────────────
+// ─── Pricing ──────────────────────────────────────────────────────────────────
 
-const REVENUE_POINTS = [18400, 19200, 20100, 21800, 22400, 23650, 24840];
-const USER_GROWTH    = [610, 648, 672, 695, 718, 741, 762, 791, 812, 831, 841, 847];
+const TIER_PRICE: Record<string, number> = {
+  elite:   60,
+  pro:     20,
+  starter: 0,
+};
 
-const TIERS: { plan: PlatformUser["plan"]; label: string; count: number; color: string; mrr: number }[] = [
-  { plan: "elite",   label: "Elite",   count: 234, color: "bg-[#B48B40]",    mrr: 14040 },
-  { plan: "pro",     label: "Pro",     count: 489, color: "bg-[#93C5FD]/70", mrr: 9780  },
-  { plan: "starter", label: "Starter", count: 124, color: "bg-white/12",     mrr: 0     },
-];
+const TIER_COLOR: Record<string, string> = {
+  elite:   "bg-[#B48B40]",
+  pro:     "bg-[#93C5FD]/70",
+  starter: "bg-white/12",
+};
+
+// Revenue sparkline shape — kept as a growth trend; endpoint will be computed MRR.
+const REVENUE_SHAPE = [0.74, 0.77, 0.81, 0.88, 0.90, 0.95, 1.0];
 
 // ─── Config maps ──────────────────────────────────────────────────────────────
 
@@ -251,7 +257,31 @@ export default function AdminDashboard() {
   const totalUsers   = users.length;
   const activeUsers  = users.filter((u) => u.status === "active").length;
   const atRiskUsers  = users.filter((u) => u.status === "at-risk").length;
+  const churnedUsers = users.filter((u) => u.status === "churned").length;
+  const trialUsers   = users.filter((u) => u.status === "trial").length;
+  const pausedUsers  = users.filter((u) => u.status === "paused").length;
   const totalClients = users.filter((u) => u.role === "client").length;
+
+  // Tier breakdown and revenue — derived from real users
+  const tierData = (["elite", "pro", "starter"] as const).map((plan) => {
+    const count = users.filter((u) => u.plan === plan).length;
+    const mrr   = count * TIER_PRICE[plan];
+    return { plan, label: plan.charAt(0).toUpperCase() + plan.slice(1), count, mrr, color: TIER_COLOR[plan] };
+  });
+  const totalMrr     = tierData.reduce((s, t) => s + t.mrr, 0);
+  const tierTotal    = totalUsers;
+  const paidUsers    = tierData.filter((t) => t.plan !== "starter").reduce((s, t) => s + t.count, 0);
+  const arppu        = paidUsers > 0 ? (totalMrr / paidUsers).toFixed(2) : "0.00";
+  const retentionPct = totalUsers > 0 ? ((totalUsers - churnedUsers) / totalUsers * 100).toFixed(1) : "100.0";
+  const churnPct     = totalUsers > 0 ? (churnedUsers / totalUsers * 100).toFixed(1) : "0.0";
+
+  // Revenue sparkline scaled to real MRR endpoint
+  const revenuePoints = REVENUE_SHAPE.map((r) => Math.round(r * totalMrr));
+
+  // User growth sparkline — shape kept, endpoint anchored to real total
+  const userGrowth = [0.51, 0.54, 0.56, 0.58, 0.60, 0.62, 0.66, 0.66, 0.68, 0.69, 0.70, 1.0].map(
+    (r) => Math.max(1, Math.round(r * totalUsers))
+  );
 
   // Derive assignment summary from store data
   const assignments = (() => {
@@ -316,8 +346,6 @@ export default function AdminDashboard() {
       return sortDir === "asc" ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     });
 
-  const tierTotal = TIERS.reduce((s, t) => s + t.count, 0);
-
   const ROLE_FILTER_LABELS: Record<string, string> = {
     all: "All", master: "Admin", trainer: "Trainer", client: "Client", member: "Member",
   };
@@ -350,17 +378,17 @@ export default function AdminDashboard() {
 
       {/* ── KPI row ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <StatCard label="Total users"   value="847"     delta={4}  deltaLabel="vs last month"
-          icon={Users}       chart={<BarChart points={USER_GROWTH} color="#B48B40" />} accent />
-        <StatCard label="Active users"  value={`${activeUsers}`} delta={2}
+        <StatCard label="Total users"   value={`${totalUsers}`} deltaLabel="platform members"
+          icon={Users}       chart={<BarChart points={userGrowth} color="#B48B40" />} accent />
+        <StatCard label="Active users"  value={`${activeUsers}`}
           deltaLabel={totalUsers > 0 ? `${Math.round((activeUsers / totalUsers) * 100)}% of total` : "—"}
-          icon={Activity}    chart={<Sparkline points={[580,595,601,610,612,608,612]} color="#4ADE80" height={36} />} />
-        <StatCard label="Monthly revenue" value="$24,840" delta={6} deltaLabel="MRR growth"
-          icon={DollarSign}  chart={<Sparkline points={REVENUE_POINTS} color="#B48B40" height={36} />} accent />
-        <StatCard label="Retention"     value="94.2%"   delta={1}  deltaLabel="30-day average"  icon={TrendingUp}   />
-        <StatCard label="Churn rate"    value="2.1%"    delta={-1} deltaLabel="Month over month" icon={TrendingDown} />
+          icon={Activity}    chart={<Sparkline points={userGrowth.slice(-7)} color="#4ADE80" height={36} />} />
+        <StatCard label="Monthly revenue" value={`$${totalMrr.toLocaleString()}`} deltaLabel="MRR"
+          icon={DollarSign}  chart={<Sparkline points={revenuePoints} color="#B48B40" height={36} />} accent />
+        <StatCard label="Retention"     value={`${retentionPct}%`} deltaLabel="excl. churned"  icon={TrendingUp}   />
+        <StatCard label="Churn rate"    value={`${churnPct}%`}     deltaLabel="of total users" icon={TrendingDown} />
         <StatCard label="Client assignments" value={`${totalClients}`}
-          deltaLabel={`${assignments.length} active trainers`} icon={Users} />
+          deltaLabel={`${assignments.length} active trainer${assignments.length !== 1 ? "s" : ""}`} icon={Users} />
       </div>
 
       {/* ── Middle row ──────────────────────────────────────────────── */}
@@ -376,8 +404,8 @@ export default function AdminDashboard() {
             <p className="text-xs text-white/28">{tierTotal} total</p>
           </div>
           <div className="space-y-4">
-            {TIERS.map((t) => {
-              const pct = Math.round((t.count / tierTotal) * 100);
+            {tierData.map((t) => {
+              const pct = tierTotal > 0 ? Math.round((t.count / tierTotal) * 100) : 0;
               return (
                 <div key={t.plan}>
                   <div className="flex items-center justify-between mb-2">
@@ -386,7 +414,7 @@ export default function AdminDashboard() {
                       <span className="text-sm text-white/70">{t.label}</span>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className="text-xs text-white/30 tabular-nums">{t.count} users</span>
+                      <span className="text-xs text-white/30 tabular-nums">{t.count} user{t.count !== 1 ? "s" : ""}</span>
                       {t.mrr > 0 && (
                         <span className="text-xs text-white/28 tabular-nums w-20 text-right">${t.mrr.toLocaleString()}/mo</span>
                       )}
@@ -403,15 +431,15 @@ export default function AdminDashboard() {
           <div className="pt-2 border-t border-white/5 flex items-center gap-6">
             <div>
               <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-0.5">MRR</p>
-              <p className="text-sm font-semibold text-[#B48B40]">$24,840</p>
+              <p className="text-sm font-semibold text-[#B48B40]">${totalMrr.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-0.5">ARR (projected)</p>
-              <p className="text-sm font-semibold text-white/60">$298,080</p>
+              <p className="text-sm font-semibold text-white/60">${(totalMrr * 12).toLocaleString()}</p>
             </div>
             <div className="ml-auto">
               <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-0.5">ARPPU</p>
-              <p className="text-sm font-semibold text-white/60">$34.22</p>
+              <p className="text-sm font-semibold text-white/60">${arppu}</p>
             </div>
           </div>
         </div>
@@ -445,15 +473,31 @@ export default function AdminDashboard() {
             <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Alerts</p>
             <div className="space-y-2.5">
               {[
-                { color: "bg-amber-400", text: `${atRiskUsers} user${atRiskUsers !== 1 ? "s" : ""} at risk of churning` },
-                { color: "bg-[#93C5FD]", text: "1 user in free trial (day 6 of 7)"                                       },
-                { color: "bg-white/20",  text: "1 account paused — no activity in 8d"                                     },
-              ].map((a, i) => (
+                atRiskUsers > 0 && {
+                  color: "bg-amber-400",
+                  text: `${atRiskUsers} user${atRiskUsers !== 1 ? "s" : ""} at risk of churning`,
+                },
+                trialUsers > 0 && {
+                  color: "bg-[#93C5FD]",
+                  text: `${trialUsers} user${trialUsers !== 1 ? "s" : ""} in free trial`,
+                },
+                pausedUsers > 0 && {
+                  color: "bg-white/20",
+                  text: `${pausedUsers} account${pausedUsers !== 1 ? "s" : ""} paused — no recent activity`,
+                },
+                churnedUsers > 0 && {
+                  color: "bg-[#F87171]",
+                  text: `${churnedUsers} user${churnedUsers !== 1 ? "s" : ""} churned`,
+                },
+              ].filter(Boolean).map((a, i) => (
                 <div key={i} className="flex items-start gap-2.5">
-                  <span className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", a.color)} />
-                  <p className="text-xs text-white/42 leading-relaxed">{a.text}</p>
+                  <span className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", (a as {color:string;text:string}).color)} />
+                  <p className="text-xs text-white/42 leading-relaxed">{(a as {color:string;text:string}).text}</p>
                 </div>
               ))}
+              {atRiskUsers === 0 && trialUsers === 0 && pausedUsers === 0 && churnedUsers === 0 && (
+                <p className="text-xs text-white/25">No active alerts.</p>
+              )}
             </div>
           </div>
         </div>
