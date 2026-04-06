@@ -240,9 +240,17 @@ export default function AdminDashboard() {
   const [openMenuId,   setOpenMenuId  ] = useState<string | null>(null);
 
   useEffect(() => {
+    // Wait for the admin guard to confirm access before loading any data.
+    // Without this guard, the effect fires on the initial render when
+    // UserContext still holds the default DEMO_USERS.member, causing
+    // getUsers("member") to throw PermissionError and show "Access denied."
+    if (!adminReady) return;
+    setError(null);
     initStore();
     try {
-      setUsers(getUsers(user.role));
+      // This page is master-only — always pass "master" directly rather than
+      // user.role, which may still be the default "member" during hydration.
+      setUsers(getUsers("master"));
     } catch (e) {
       if (e instanceof PermissionError) setError("Access denied.");
     }
@@ -255,7 +263,7 @@ export default function AdminDashboard() {
         })
       );
     } catch { /* ignore */ }
-  }, [user.role, user.id]);
+  }, [adminReady, user.id]);
 
   const totalUsers   = users.length;
   const activeUsers  = users.filter((u) => u.status === "active").length;
