@@ -2,43 +2,49 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { loadOnboardingState } from "@/lib/onboarding";
 
-// File: src/app/page.tsx
-// Controls: the live root URL "/"
-// This is the only file that determines where the app entry point lands.
-// No dev UI, no seed controls, no showcase content renders here.
+const LS_KEY = "flowstate-active-role";
+const SS_KEY = "flowstate-session-role";
 
-const LS_KEY        = "flowstate-active-role";
-const SS_KEY        = "flowstate-session-role";
-const ONBOARDED_KEY = "flowstate-onboarded";
+const ROLE_TO_USER_ID: Record<string, string> = {
+  master: "usr_001", trainer: "u4", client: "u1", member: "u6",
+};
 
+// Root entry point — deterministic routing based on session + onboarding state.
 export default function Root() {
   const router = useRouter();
 
   useEffect(() => {
     try {
-      const role = localStorage.getItem(LS_KEY) || sessionStorage.getItem(SS_KEY);
+      const sessionKey = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
 
-      // 1. No session → login
-      if (!role) {
-        router.replace("/login");
+      // No session → role selection (public entry point)
+      if (!sessionKey) {
+        router.replace("/welcome");
         return;
       }
 
-      // 2. Master (operator) → admin dashboard
-      if (role === "master") {
+      // Master (platform admin) → admin dashboard
+      if (sessionKey === "master") {
         router.replace("/admin");
         return;
       }
 
-      // 3. Normal user → onboarding check
-      const onboarded = localStorage.getItem(ONBOARDED_KEY) === "true";
-      router.replace(onboarded ? "/dashboard" : "/onboarding");
+      // Normal user → deterministic onboarding check
+      const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
+      const s = loadOnboardingState(userId);
+
+      if (!s.starterComplete)    { router.replace("/onboarding/quick-start");   return; }
+      if (!s.onboardingComplete) { router.replace("/onboarding/calibration");   return; }
+      if (!s.tutorialComplete)   { router.replace("/onboarding/tutorial");      return; }
+      if (!s.profileComplete)    { router.replace("/onboarding/profile-setup"); return; }
+
+      router.replace("/dashboard");
     } catch {
-      // Storage unavailable (private browsing, etc.) → login
-      router.replace("/login");
+      router.replace("/welcome");
     }
   }, [router]);
 
-  return null;
+  return <div className="min-h-screen bg-[#0A0A0A]" />;
 }

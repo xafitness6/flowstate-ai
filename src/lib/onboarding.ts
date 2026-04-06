@@ -1,22 +1,36 @@
 // ─── Onboarding state management ─────────────────────────────────────────────
-// Tracks 2-phase onboarding. localStorage adapter — replace with DB calls in production.
+// Tracks 4-phase onboarding. localStorage adapter — replace with DB calls in production.
 //
-// Phase 1 — Quick Start (required, low friction):
+// Phase 1 — Starter Questions (5 quick questions, required):
 //   primaryGoal, experience, daysPerWeek, mainStruggle, equipment
-//   → completes immediately, user enters app
 //
-// Phase 2 — Deep Calibration (progressive, required soon after):
+// Phase 2 — Full Onboarding Questionnaire (deep calibration, required):
 //   body stats, nutrition, schedule, injuries, sleep, preferences
-//   → prompted in-app after quick start
+//
+// Phase 3 — Tutorial (feature walkthrough, required once):
+//   Introduces dashboard, program, nutrition, accountability, AI coach, profile
+//
+// Phase 4 — Profile Setup (avatar + bio, skippable):
+//   Profile picture and short bio
 
 export type OnboardingState = {
-  hasStarted:              boolean;
-  hasCompletedQuickStart:  boolean;
-  hasCompletedDeepCal:     boolean;
-  quickStartData:          QuickStartData | null;
-  startedAt:               string | null;
-  quickStartCompletedAt:   string | null;
-  deepCalCompletedAt:      string | null;
+  hasStarted:           boolean;
+  // Phase completion flags (canonical)
+  starterComplete:      boolean;
+  onboardingComplete:   boolean;
+  tutorialComplete:     boolean;
+  profileComplete:      boolean;
+  // Legacy aliases kept for backward compat
+  hasCompletedQuickStart: boolean;
+  hasCompletedDeepCal:    boolean;
+  // Data
+  quickStartData:       QuickStartData | null;
+  // Timestamps
+  startedAt:            string | null;
+  starterCompletedAt:   string | null;
+  onboardingCompletedAt: string | null;
+  tutorialCompletedAt:  string | null;
+  profileCompletedAt:   string | null;
 };
 
 export type QuickStartData = {
@@ -31,12 +45,18 @@ const KEY = (userId: string) => `flowstate-onboarding-${userId}`;
 
 const DEFAULT_STATE: OnboardingState = {
   hasStarted:             false,
+  starterComplete:        false,
+  onboardingComplete:     false,
+  tutorialComplete:       false,
+  profileComplete:        false,
   hasCompletedQuickStart: false,
   hasCompletedDeepCal:    false,
   quickStartData:         null,
   startedAt:              null,
-  quickStartCompletedAt:  null,
-  deepCalCompletedAt:     null,
+  starterCompletedAt:     null,
+  onboardingCompletedAt:  null,
+  tutorialCompletedAt:    null,
+  profileCompletedAt:     null,
 };
 
 export function loadOnboardingState(userId: string): OnboardingState {
@@ -44,7 +64,11 @@ export function loadOnboardingState(userId: string): OnboardingState {
   try {
     const raw = localStorage.getItem(KEY(userId));
     if (!raw) return { ...DEFAULT_STATE };
-    return { ...DEFAULT_STATE, ...JSON.parse(raw) } as OnboardingState;
+    const stored = JSON.parse(raw);
+    // Normalize legacy flags → canonical names on read
+    if (stored.hasCompletedQuickStart) stored.starterComplete = true;
+    if (stored.hasCompletedDeepCal)    stored.onboardingComplete = true;
+    return { ...DEFAULT_STATE, ...stored } as OnboardingState;
   } catch { return { ...DEFAULT_STATE }; }
 }
 
@@ -63,25 +87,54 @@ export function markOnboardingStarted(userId: string): void {
 export function completeQuickStart(userId: string, data: QuickStartData): void {
   saveOnboardingState(userId, {
     hasStarted:             true,
+    starterComplete:        true,
     hasCompletedQuickStart: true,
     quickStartData:         data,
-    quickStartCompletedAt:  new Date().toISOString(),
+    starterCompletedAt:     new Date().toISOString(),
   });
-  // Legacy key for backward compat with postLoginRoute check
+  // Legacy key for backward compat
   try { localStorage.setItem("flowstate-onboarded", "true"); } catch { /* ignore */ }
 }
 
-export function completeDeepCalibration(userId: string): void {
+export function completeOnboarding(userId: string): void {
+  // TODO: Replace with PATCH /api/onboarding/:userId
   saveOnboardingState(userId, {
-    hasCompletedDeepCal:  true,
-    deepCalCompletedAt:   new Date().toISOString(),
+    onboardingComplete:    true,
+    hasCompletedDeepCal:   true,
+    onboardingCompletedAt: new Date().toISOString(),
   });
 }
 
+/** @deprecated Use completeOnboarding() */
+export function completeDeepCalibration(userId: string): void {
+  completeOnboarding(userId);
+}
+
+export function completeTutorial(userId: string): void {
+  saveOnboardingState(userId, {
+    tutorialComplete:    true,
+    tutorialCompletedAt: new Date().toISOString(),
+  });
+}
+
+export function completeProfileSetup(userId: string): void {
+  saveOnboardingState(userId, {
+    profileComplete:    true,
+    profileCompletedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Returns the next incomplete onboarding route for a user, or null if fully onboarded.
+ * Used by login routing and AppShell guards.
+ */
 export function getOnboardingRoute(userId: string): string | null {
-  const state = loadOnboardingState(userId);
-  if (!state.hasCompletedQuickStart) return "/onboarding";
-  return null; // fully onboarded enough to enter app
+  const s = loadOnboardingState(userId);
+  if (!s.starterComplete)    return "/onboarding/quick-start";
+  if (!s.onboardingComplete) return "/onboarding/calibration";
+  if (!s.tutorialComplete)   return "/onboarding/tutorial";
+  if (!s.profileComplete)    return "/onboarding/profile-setup";
+  return null;
 }
 
 // Data retention guard — NEVER call this on plan change. Only on explicit user delete.

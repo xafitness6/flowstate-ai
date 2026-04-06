@@ -90,7 +90,7 @@ export default function QuickStartPage() {
       equipment,
     };
     completeQuickStart(user.id, data);
-    router.push("/dashboard");
+    router.push("/onboarding/calibration");
   }
 
   function handleBack() {

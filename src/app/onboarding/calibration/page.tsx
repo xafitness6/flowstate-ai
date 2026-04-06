@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { saveIntake, type IntakeData } from "../../../lib/data/intake";
+import { completeOnboarding } from "../../../lib/onboarding";
 import { DEMO_USERS } from "../../../context/UserContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -142,9 +143,11 @@ function toggle<T>(arr: T[], item: T): T[] {
 
 function getActiveUserId(): string {
   try {
-    const roleKey = localStorage.getItem("flowstate-active-role") || "";
-    return DEMO_USERS[roleKey as keyof typeof DEMO_USERS]?.id || "anonymous";
-  } catch { return "anonymous"; }
+    const key = sessionStorage.getItem("flowstate-session-role") || localStorage.getItem("flowstate-active-role") || "";
+    if (DEMO_USERS[key as keyof typeof DEMO_USERS]) return DEMO_USERS[key as keyof typeof DEMO_USERS].id;
+    if (key.startsWith("usr_")) return key; // dynamically created account
+  } catch { /* ignore */ }
+  return "anonymous";
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -1023,6 +1026,7 @@ function CompletePanel({
         completedAt:     new Date().toISOString(),
       };
       saveIntake(userId, intake);
+      completeOnboarding(userId);
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1249,7 +1253,7 @@ export default function CalibrationPage() {
           {step === "sleep"        && <SleepPanel data={data} setData={setData} />}
           {step === "food"         && <FoodPanel data={data} setData={setData} />}
           {step === "limitations"  && <LimitationsPanel data={data} setData={setData} />}
-          {step === "complete"     && <CompletePanel data={data} onFinish={() => router.push("/")} />}
+          {step === "complete"     && <CompletePanel data={data} onFinish={() => router.push("/onboarding/tutorial")} />}
         </div>
       </div>
 
@@ -1258,7 +1262,7 @@ export default function CalibrationPage() {
         <div className="shrink-0 px-4 md:px-6 pb-6 pt-3 border-t border-white/5 bg-[#0A0A0A]">
           <div className="max-w-lg mx-auto flex items-center gap-3">
             <button
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/dashboard")}
               className="text-xs text-white/22 hover:text-white/45 transition-colors"
             >
               Exit
