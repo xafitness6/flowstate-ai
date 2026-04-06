@@ -269,15 +269,9 @@ export default function LoginPage() {
     e.preventDefault();
     setSiError(null);
 
-    // ── Admin path: email-based, Trainer portal only ───────────────────────
+    // ── Admin path: email-based, any portal ────────────────────────────────
     if (isAdminEmail(siUsername)) {
-      if (selectedRole !== "trainer") {
-        setSiError("That email is not valid for this access level.");
-        return;
-      }
-      // Trainer + admin email → check password
       if (!hasAdminPassword()) {
-        // First login — prompt password creation
         setStep("admin-create-password");
         return;
       }
@@ -585,11 +579,11 @@ export default function LoginPage() {
             {(mode === "signin" || !showTabs) && (
               <form onSubmit={handleSignIn} className="space-y-4">
                 <TextField
-                  label={selectedRole === "trainer" ? "Email or username" : "Username"}
+                  label="Email or username"
                   value={siUsername}
                   onChange={(v) => { setSiUsername(v); setSiError(null); }}
                   autoComplete="username"
-                  type={selectedRole === "trainer" ? "email" : "text"}
+                  type="text"
                   error={!!siError}
                   inputRef={siUsernameRef}
                 />

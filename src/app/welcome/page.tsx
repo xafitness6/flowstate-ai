@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Zap, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
@@ -118,7 +119,15 @@ export default function WelcomePage() {
           ))}
         </div>
 
-        {/* No admin link here — admin logs in through Trainer portal with ADMIN credentials */}
+        {/* Subtle admin sign-in link — no label, no prominence */}
+        <div className="text-center pt-2">
+          <Link
+            href="/login"
+            className="text-[11px] text-white/18 hover:text-white/35 transition-colors"
+          >
+            Sign in
+          </Link>
+        </div>
 
       </div>
     </div>
