@@ -2,34 +2,19 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { loadOnboardingState } from "@/lib/onboarding";
+import { getSessionKey, resolvePostLoginRoute } from "@/lib/routing";
 
-const LS_KEY = "flowstate-active-role";
-const SS_KEY = "flowstate-session-role";
-const ROLE_TO_USER_ID: Record<string, string> = {
-  master: "usr_001", trainer: "u4", client: "u1", member: "u6",
-};
-
-// /onboarding is now a smart router — sends users to their next incomplete step.
+// /onboarding smart router — sends the user to their next incomplete step.
+// All routing logic lives in resolvePostLoginRoute().
 export default function OnboardingRouter() {
   const router = useRouter();
 
   useEffect(() => {
     try {
-      const sessionKey = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
-      if (!sessionKey) { router.replace("/welcome"); return; }
-      if (sessionKey === "master") { router.replace("/admin"); return; }
-
-      const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
-      const s = loadOnboardingState(userId);
-
-      if (!s.starterComplete)              { router.replace("/onboarding/quick-start");    return; }
-      if (!s.onboardingComplete)           { router.replace("/onboarding/calibration");    return; }
-      if (!s.planningConversationComplete) { router.replace("/onboarding/coach-planning"); return; }
-      if (!s.tutorialComplete)             { router.replace("/onboarding/tutorial");       return; }
-      if (!s.profileComplete)              { router.replace("/onboarding/profile-setup");  return; }
-
-      router.replace("/dashboard");
+      const key = getSessionKey();
+      if (!key) { router.replace("/welcome"); return; }
+      const next = resolvePostLoginRoute(key);
+      router.replace(next);
     } catch {
       router.replace("/welcome");
     }

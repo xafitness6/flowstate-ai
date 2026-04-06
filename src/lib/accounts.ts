@@ -1,5 +1,5 @@
 // Manages dynamically created user accounts, persisted in localStorage.
-// Hardcoded demo credentials (ADMIN, alex, kai, luca) are separate and handled in login/page.tsx.
+// Hardcoded demo credentials (alex, kai, luca) are separate and handled in login/page.tsx.
 
 import type { MockUser, Role, Plan } from "@/types";
 
@@ -11,9 +11,12 @@ export interface StoredAccount {
   password:         string; // plain text — demo only, no real backend
   role:             Exclude<Role, "master">;
   name:             string;
+  email:            string;
   plan:             Plan;
   defaultDashboard: string;
   createdAt:        number;
+  inviteToken?:     string; // token used to accept invite (if applicable)
+  assignedTrainerId?: string;
 }
 
 const ROLE_DEFAULTS: Record<Exclude<Role, "master">, { plan: Plan; defaultDashboard: string }> = {
@@ -54,11 +57,21 @@ export function getAccountByUsername(username: string): StoredAccount | null {
   }
 }
 
-/** Returns the account if credentials match, or null. */
-export function resolveAccount(username: string, password: string): StoredAccount | null {
-  const account = getAccountByUsername(username);
-  if (!account || account.password !== password) return null;
-  return account;
+export function getAccountByEmail(email: string): StoredAccount | null {
+  try {
+    return loadAccounts().find((a) => a.email?.toLowerCase() === email.toLowerCase()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the account if credentials match (username or email), or null. */
+export function resolveAccount(usernameOrEmail: string, password: string): StoredAccount | null {
+  const byUsername = getAccountByUsername(usernameOrEmail);
+  if (byUsername && byUsername.password === password) return byUsername;
+  const byEmail = getAccountByEmail(usernameOrEmail);
+  if (byEmail && byEmail.password === password) return byEmail;
+  return null;
 }
 
 /** Creates a new account. Returns the account on success, or { error } on conflict. */
@@ -67,9 +80,14 @@ export function createAccount(
   password: string,
   role: Exclude<Role, "master">,
   name: string,
+  email = "",
+  options?: { inviteToken?: string; assignedTrainerId?: string },
 ): StoredAccount | { error: string } {
   if (getAccountByUsername(username)) {
     return { error: "Username is already taken." };
+  }
+  if (email && getAccountByEmail(email)) {
+    return { error: "An account with that email already exists." };
   }
   const id      = `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const defaults = ROLE_DEFAULTS[role];
@@ -79,9 +97,12 @@ export function createAccount(
     password,
     role,
     name,
+    email,
     plan:             defaults.plan,
     defaultDashboard: defaults.defaultDashboard,
     createdAt:        Date.now(),
+    inviteToken:      options?.inviteToken,
+    assignedTrainerId: options?.assignedTrainerId,
   };
   const accounts = loadAccounts();
   accounts.push(account);

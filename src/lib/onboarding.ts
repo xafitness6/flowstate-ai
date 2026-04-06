@@ -1,96 +1,136 @@
 // ─── Onboarding state management ─────────────────────────────────────────────
-// Tracks 5-phase onboarding. localStorage adapter — replace with DB calls in production.
+// Single unified onboarding model. localStorage adapter — swap with DB in prod.
 //
-// Phase 1 — Starter Questions (5 quick questions, required):
-//   primaryGoal, experience, daysPerWeek, mainStruggle, equipment
+// Phase 1 — Intake + Calibration (single form, no separate quick-start)
+//   All questions in one form: goals, experience, schedule, body stats,
+//   nutrition, sleep, limitations, equipment
 //
-// Phase 2 — Full Onboarding Questionnaire (deep calibration, required):
-//   body stats, nutrition, schedule, injuries, sleep, preferences
+// Phase 2 — Body Focus Selection (visual front/back diagram)
 //
-// Phase 3 — AI Coach Planning (structured conversation → workout plan, required):
-//   planDuration, planFocus, intensity, split
+// Phase 3 — AI Coach Chat (real conversation → structured plan output)
 //
-// Phase 4 — Tutorial (feature walkthrough, required once):
-//   Introduces dashboard, program, nutrition, accountability, AI coach, profile
+// Phase 4 — Program Generation (auto-build from coach output)
 //
-// Phase 5 — Profile Setup (avatar + bio, skippable):
-//   Profile picture and short bio
+// Phase 5 — Tutorial (feature walkthrough)
+//
+// Phase 6 — Profile Setup (avatar + bio)
+
+export type BodyFocusArea =
+  | "chest" | "shoulders" | "biceps" | "triceps" | "forearms"
+  | "abs" | "quads" | "hamstrings" | "calves" | "glutes"
+  | "lats" | "traps" | "upper_back" | "lower_back";
 
 export type PlanningData = {
-  planDuration:  string;   // "4_weeks" | "8_weeks" | "12_weeks" | "16_weeks"
-  planFocus:     string;   // "muscle_gain" | "fat_loss" | "strength" | "endurance" | "recomp"
-  intensity:     string;   // "low" | "moderate" | "high" | "max"
-  split:         string;   // "full_body" | "upper_lower" | "push_pull_legs" | "bro_split" | "custom"
-  coachingStyle: string;   // "direct" | "supportive" | "analytical"
+  planDuration:       string;   // "4_weeks" | "8_weeks" | "12_weeks" | "16_weeks"
+  planFocus:          string;   // "muscle_gain" | "fat_loss" | "strength" | "endurance" | "recomp"
+  intensity:          string;   // "low" | "moderate" | "high" | "max"
+  split:              string;   // "full_body" | "upper_lower" | "push_pull_legs" | "bro_split"
+  coachingStyle:      string;   // "direct" | "supportive" | "analytical"
+  weeklyTrainingDays: number;
+  sessionLength:      string;
+  bodyFocusAreas:     BodyFocusArea[];
+  primaryFocus:       BodyFocusArea | null;
+  constraints:        string;
+  programId?:         string;
 };
 
 export type OnboardingState = {
-  hasStarted:           boolean;
-  // Phase completion flags (canonical)
-  starterComplete:      boolean;
-  onboardingComplete:   boolean;
-  planningConversationComplete: boolean;
-  tutorialComplete:     boolean;
-  profileComplete:      boolean;
-  // Legacy aliases kept for backward compat
-  hasCompletedQuickStart: boolean;
-  hasCompletedDeepCal:    boolean;
+  hasStarted:                   boolean;
+  // Phase completion flags
+  onboardingComplete:           boolean;   // calibration intake done
+  bodyFocusComplete:            boolean;   // body diagram done
+  planningConversationComplete: boolean;   // AI chat done
+  programGenerated:             boolean;   // program created
+  tutorialComplete:             boolean;
+  profileComplete:              boolean;
+  // Legacy compat (never remove — existing stored state uses these)
+  starterComplete:              boolean;
+  hasCompletedQuickStart:       boolean;
+  hasCompletedDeepCal:          boolean;
   // Data
-  quickStartData:       QuickStartData | null;
-  planningData:         PlanningData | null;
+  intakeData:                   IntakeSnapshot | null;
+  bodyFocusAreas:               BodyFocusArea[];
+  primaryFocus:                 BodyFocusArea | null;
+  planningData:                 PlanningData | null;
+  generatedProgramId:           string | null;
   // Timestamps
-  startedAt:            string | null;
-  starterCompletedAt:   string | null;
-  onboardingCompletedAt: string | null;
-  planningCompletedAt:  string | null;
-  tutorialCompletedAt:  string | null;
-  profileCompletedAt:   string | null;
+  startedAt:                    string | null;
+  onboardingCompletedAt:        string | null;
+  bodyFocusCompletedAt:         string | null;
+  planningCompletedAt:          string | null;
+  programGeneratedAt:           string | null;
+  tutorialCompletedAt:          string | null;
+  profileCompletedAt:           string | null;
 };
 
+/** Snapshot of intake answers — stored inline for AI context without requiring a separate lookup */
+export type IntakeSnapshot = {
+  primaryGoal:   string;
+  experience:    string;
+  daysPerWeek:   number;
+  equipment:     string[];
+  mainStruggle:  string;
+  sessionLength: string;
+  weight:        string;
+  weightUnit:    "kg" | "lbs";
+  injuries:      string;
+};
+
+/** @deprecated use IntakeSnapshot via onboarding state */
 export type QuickStartData = {
-  primaryGoal:  string;   // "muscle_gain" | "fat_loss" | "strength" | "endurance" | "general" | "recomp"
-  experience:   string;   // "beginner" | "intermediate" | "advanced"
-  daysPerWeek:  number;   // 2–7
+  primaryGoal:  string;
+  experience:   string;
+  daysPerWeek:  number;
   mainStruggle: string;
-  equipment:    string[]; // ["barbell", "dumbbell", "cables", "machines", "bodyweight", "bands"]
+  equipment:    string[];
 };
 
 const KEY = (userId: string) => `flowstate-onboarding-${userId}`;
 
 const DEFAULT_STATE: OnboardingState = {
   hasStarted:                   false,
-  starterComplete:              false,
   onboardingComplete:           false,
+  bodyFocusComplete:            false,
   planningConversationComplete: false,
+  programGenerated:             false,
   tutorialComplete:             false,
   profileComplete:              false,
+  starterComplete:              false,
   hasCompletedQuickStart:       false,
   hasCompletedDeepCal:          false,
-  quickStartData:               null,
+  intakeData:                   null,
+  bodyFocusAreas:               [],
+  primaryFocus:                 null,
   planningData:                 null,
+  generatedProgramId:           null,
   startedAt:                    null,
-  starterCompletedAt:           null,
   onboardingCompletedAt:        null,
+  bodyFocusCompletedAt:         null,
   planningCompletedAt:          null,
+  programGeneratedAt:           null,
   tutorialCompletedAt:          null,
   profileCompletedAt:           null,
 };
 
 export function loadOnboardingState(userId: string): OnboardingState {
-  // TODO: Replace with GET /api/onboarding/:userId
   try {
     const raw = localStorage.getItem(KEY(userId));
     if (!raw) return { ...DEFAULT_STATE };
     const stored = JSON.parse(raw);
-    // Normalize legacy flags → canonical names on read
-    if (stored.hasCompletedQuickStart) stored.starterComplete = true;
-    if (stored.hasCompletedDeepCal)    stored.onboardingComplete = true;
+    // Normalize legacy flags → canonical names
+    if (stored.hasCompletedQuickStart || stored.starterComplete) {
+      stored.starterComplete = true;
+    }
+    if (stored.hasCompletedDeepCal) {
+      stored.onboardingComplete = true;
+    }
+    // Legacy: if starterComplete but not onboardingComplete, treat calibration as next
+    // (don't mark onboardingComplete just because quick-start was done — that was a separate step)
     return { ...DEFAULT_STATE, ...stored } as OnboardingState;
   } catch { return { ...DEFAULT_STATE }; }
 }
 
 export function saveOnboardingState(userId: string, state: Partial<OnboardingState>): void {
-  // TODO: Replace with PATCH /api/onboarding/:userId
   try {
     const current = loadOnboardingState(userId);
     localStorage.setItem(KEY(userId), JSON.stringify({ ...current, ...state }));
@@ -101,24 +141,36 @@ export function markOnboardingStarted(userId: string): void {
   saveOnboardingState(userId, { hasStarted: true, startedAt: new Date().toISOString() });
 }
 
-export function completeQuickStart(userId: string, data: QuickStartData): void {
+/** Complete calibration intake — marks both onboarding flags for compatibility */
+export function completeOnboarding(userId: string, intake?: IntakeSnapshot): void {
   saveOnboardingState(userId, {
-    hasStarted:             true,
+    onboardingComplete:     true,
     starterComplete:        true,
     hasCompletedQuickStart: true,
-    quickStartData:         data,
-    starterCompletedAt:     new Date().toISOString(),
+    hasCompletedDeepCal:    true,
+    intakeData:             intake ?? null,
+    onboardingCompletedAt:  new Date().toISOString(),
   });
-  // Legacy key for backward compat
   try { localStorage.setItem("flowstate-onboarded", "true"); } catch { /* ignore */ }
 }
 
-export function completeOnboarding(userId: string): void {
-  // TODO: Replace with PATCH /api/onboarding/:userId
+/** @deprecated Use completeOnboarding() */
+export function completeQuickStart(userId: string, data: QuickStartData): void {
   saveOnboardingState(userId, {
-    onboardingComplete:    true,
-    hasCompletedDeepCal:   true,
-    onboardingCompletedAt: new Date().toISOString(),
+    starterComplete:        true,
+    hasCompletedQuickStart: true,
+    intakeData: {
+      primaryGoal:   data.primaryGoal,
+      experience:    data.experience,
+      daysPerWeek:   data.daysPerWeek,
+      equipment:     data.equipment,
+      mainStruggle:  data.mainStruggle,
+      sessionLength: "60",
+      weight:        "",
+      weightUnit:    "lbs",
+      injuries:      "",
+    },
+    startedAt: new Date().toISOString(),
   });
 }
 
@@ -127,11 +179,32 @@ export function completeDeepCalibration(userId: string): void {
   completeOnboarding(userId);
 }
 
+export function completeBodyFocus(
+  userId: string,
+  areas: BodyFocusArea[],
+  primaryFocus: BodyFocusArea | null,
+): void {
+  saveOnboardingState(userId, {
+    bodyFocusComplete:    true,
+    bodyFocusAreas:       areas,
+    primaryFocus,
+    bodyFocusCompletedAt: new Date().toISOString(),
+  });
+}
+
 export function completePlanningConversation(userId: string, data: PlanningData): void {
   saveOnboardingState(userId, {
     planningConversationComplete: true,
     planningData:                 data,
     planningCompletedAt:          new Date().toISOString(),
+  });
+}
+
+export function completeProgramGeneration(userId: string, programId: string): void {
+  saveOnboardingState(userId, {
+    programGenerated:    true,
+    generatedProgramId:  programId,
+    programGeneratedAt:  new Date().toISOString(),
   });
 }
 
@@ -150,20 +223,20 @@ export function completeProfileSetup(userId: string): void {
 }
 
 /**
- * Returns the next incomplete onboarding route for a user, or null if fully onboarded.
- * Used by login routing and AppShell guards.
+ * Returns the next incomplete onboarding route, or null if fully onboarded.
+ * Delegates to resolvePostLoginRoute for single source of truth.
  */
 export function getOnboardingRoute(userId: string): string | null {
   const s = loadOnboardingState(userId);
-  if (!s.starterComplete)              return "/onboarding/quick-start";
   if (!s.onboardingComplete)           return "/onboarding/calibration";
+  if (!s.bodyFocusComplete)            return "/onboarding/body-focus";
   if (!s.planningConversationComplete) return "/onboarding/coach-planning";
+  if (!s.programGenerated)             return "/onboarding/program-generation";
   if (!s.tutorialComplete)             return "/onboarding/tutorial";
   if (!s.profileComplete)              return "/onboarding/profile-setup";
   return null;
 }
 
-// Data retention guard — NEVER call this on plan change. Only on explicit user delete.
 export function clearOnboardingData(userId: string): void {
   try { localStorage.removeItem(KEY(userId)); } catch { /* ignore */ }
 }

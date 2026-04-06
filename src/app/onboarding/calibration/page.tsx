@@ -1026,7 +1026,17 @@ function CompletePanel({
         completedAt:     new Date().toISOString(),
       };
       saveIntake(userId, intake);
-      completeOnboarding(userId);
+      completeOnboarding(userId, {
+        primaryGoal:   data.primaryGoal   ?? "",
+        experience:    data.experience    ?? "",
+        daysPerWeek:   Number(data.daysPerWeek) || 4,
+        equipment:     Array.isArray(data.equipment) ? data.equipment : [],
+        mainStruggle:  data.mainStruggle  ?? "",
+        sessionLength: String(data.sessionLength ?? "60"),
+        weight:        String(data.weight ?? ""),
+        weightUnit:    (data.weightUnit === "kg" ? "kg" : "lbs") as "kg" | "lbs",
+        injuries:      data.injuries      ?? "none",
+      });
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1253,7 +1263,7 @@ export default function CalibrationPage() {
           {step === "sleep"        && <SleepPanel data={data} setData={setData} />}
           {step === "food"         && <FoodPanel data={data} setData={setData} />}
           {step === "limitations"  && <LimitationsPanel data={data} setData={setData} />}
-          {step === "complete"     && <CompletePanel data={data} onFinish={() => router.push("/onboarding/coach-planning")} />}
+          {step === "complete"     && <CompletePanel data={data} onFinish={() => router.push("/onboarding/body-focus")} />}
         </div>
       </div>
 

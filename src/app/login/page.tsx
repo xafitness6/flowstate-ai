@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
-import { loadOnboardingState } from "@/lib/onboarding";
+import { resolvePostLoginRoute } from "@/lib/routing";
 import {
   isAdminEmail,
   hasAdminPassword,
@@ -52,32 +52,18 @@ const ROLE_TO_USER_ID: Record<string, string> = {
 // ─── Module-level helpers ─────────────────────────────────────────────────────
 
 /** Resolves non-admin credentials only. Admin is handled at component level. */
-function resolveCredentials(username: string, password: string): { sessionKey: string } | null {
+function resolveCredentials(usernameOrEmail: string, password: string): { sessionKey: string } | null {
   for (const [key, entry] of Object.entries(DEMO_CREDENTIALS)) {
     if (
-      username.trim().toLowerCase() === entry.username.toLowerCase() &&
+      usernameOrEmail.trim().toLowerCase() === entry.username.toLowerCase() &&
       password === entry.password
     ) {
       return { sessionKey: key };
     }
   }
-  const account = resolveAccount(username, password);
+  const account = resolveAccount(usernameOrEmail, password);
   if (account) return { sessionKey: account.id };
   return null;
-}
-
-function postLoginRoute(sessionKey: string): string {
-  if (sessionKey === "master") return "/admin";
-  const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
-  try {
-    const s = loadOnboardingState(userId);
-    if (!s.starterComplete)              return "/onboarding/quick-start";
-    if (!s.onboardingComplete)           return "/onboarding/calibration";
-    if (!s.planningConversationComplete) return "/onboarding/coach-planning";
-    if (!s.tutorialComplete)             return "/onboarding/tutorial";
-    if (!s.profileComplete)              return "/onboarding/profile-setup";
-  } catch { /* ignore */ }
-  return "/dashboard";
 }
 
 // ─── Stable sub-components ────────────────────────────────────────────────────
@@ -207,6 +193,7 @@ export default function LoginPage() {
 
   // Create account fields
   const [caName,        setCaName]       = useState("");
+  const [caEmail,       setCaEmail]      = useState("");
   const [caUsername,    setCaUsername]   = useState("");
   const [caPassword,    setCaPassword]   = useState("");
   const [caConfirm,     setCaConfirm]    = useState("");
@@ -260,7 +247,7 @@ export default function LoginPage() {
     // Admin never uses biometric — clear any stale credential and go straight to dashboard
     if (sessionKey === "master") {
       clearBiometric();
-      router.replace(postLoginRoute(sessionKey));
+      router.replace(resolvePostLoginRoute(sessionKey));
       return;
     }
 
@@ -268,7 +255,7 @@ export default function LoginPage() {
       setLoading(false);
       setStep("enable-biometric");
     } else {
-      router.replace(postLoginRoute(sessionKey));
+      router.replace(resolvePostLoginRoute(sessionKey));
     }
   }
 
@@ -329,13 +316,15 @@ export default function LoginPage() {
     const role = selectedRole as Exclude<Role, "master"> | null;
     if (!role)                        { setCaError("No role selected — go back and choose one.");  return; }
     if (!caName.trim())               { setCaError("Please enter your name.");                     return; }
+    if (!caEmail.trim())              { setCaError("Please enter your email.");                    return; }
+    if (!caEmail.includes("@"))       { setCaError("Enter a valid email address.");                return; }
     if (!caUsername.trim())           { setCaError("Please choose a username.");                   return; }
     if (caUsername.trim().length < 3) { setCaError("Username must be at least 3 characters.");    return; }
     if (caPassword.length < 6)        { setCaError("Password must be at least 6 characters.");    return; }
     if (caPassword !== caConfirm)     { setCaError("Passwords don't match.");                      return; }
 
     setLoading(true);
-    const result = createAccount(caUsername.trim(), caPassword, role, caName.trim());
+    const result = createAccount(caUsername.trim(), caPassword, role, caName.trim(), caEmail.trim().toLowerCase());
     if ("error" in result) { setCaError(result.error); setLoading(false); return; }
     afterLogin(result.id);
   }
@@ -346,7 +335,7 @@ export default function LoginPage() {
     const savedKey = await authenticateWithBiometric();
     if (savedKey) {
       try { localStorage.setItem(LS_KEY, savedKey); } catch { /* ignore */ }
-      router.replace(postLoginRoute(savedKey));
+      router.replace(resolvePostLoginRoute(savedKey));
     } else {
       setLoading(false);
       setBioError(true);
@@ -358,7 +347,7 @@ export default function LoginPage() {
     setLoading(true);
     await registerBiometric(resolvedKey);
     setLoading(false);
-    router.replace(postLoginRoute(resolvedKey));
+    router.replace(resolvePostLoginRoute(resolvedKey));
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -459,7 +448,7 @@ export default function LoginPage() {
                 onClick={() => {
                   // Read from storage directly — avoids stale resolvedKey state
                   const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY) || "member";
-                  router.replace(postLoginRoute(key));
+                  router.replace(resolvePostLoginRoute(key));
                 }}
                 className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
               >
@@ -650,6 +639,15 @@ export default function LoginPage() {
                 />
 
                 <TextField
+                  label="Email"
+                  value={caEmail}
+                  onChange={(v) => { setCaEmail(v); setCaError(null); }}
+                  autoComplete="email"
+                  type="email"
+                  error={!!caError}
+                />
+
+                <TextField
                   label="Username"
                   value={caUsername}
                   onChange={(v) => { setCaUsername(v); setCaError(null); }}
@@ -684,10 +682,10 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={!caName || !caUsername || !caPassword || !caConfirm || loading}
+                  disabled={!caName || !caEmail || !caUsername || !caPassword || !caConfirm || loading}
                   className={cn(
                     "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2",
-                    caName && caUsername && caPassword && caConfirm && !loading
+                    caName && caEmail && caUsername && caPassword && caConfirm && !loading
                       ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
                       : "bg-white/5 text-white/25 cursor-default"
                   )}

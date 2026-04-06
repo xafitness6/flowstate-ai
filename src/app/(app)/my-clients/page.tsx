@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Trash2, ExternalLink, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Users, Trash2, ExternalLink, TrendingUp, AlertTriangle, CheckCircle2, UserPlus, X, Copy, Check, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import {
@@ -15,6 +15,13 @@ import {
   PermissionError,
 } from "@/lib/data/store";
 import { canTrainerViewAssignedClients } from "@/lib/roles";
+import {
+  createInvite,
+  getInvitesByTrainer,
+  revokeInvite,
+  getInviteUrl,
+  type Invite,
+} from "@/lib/invites";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,10 +80,21 @@ export default function MyClientsPage() {
   const router       = useRouter();
   const { user }     = useUser();
 
-  const [clients,  setClients ] = useState<ClientRow[]>([]);
-  const [filter,   setFilter  ] = useState<FilterKey>("all");
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [error,    setError   ] = useState<string | null>(null);
+  const [clients,     setClients    ] = useState<ClientRow[]>([]);
+  const [invites,     setInvites    ] = useState<Invite[]>([]);
+  const [filter,      setFilter     ] = useState<FilterKey>("all");
+  const [deleting,    setDeleting   ] = useState<string | null>(null);
+  const [error,       setError      ] = useState<string | null>(null);
+  const [showInvite,  setShowInvite ] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // Invite form
+  const [invFirst,    setInvFirst  ] = useState("");
+  const [invLast,     setInvLast   ] = useState("");
+  const [invEmail,    setInvEmail  ] = useState("");
+  const [invMessage,  setInvMessage] = useState("");
+  const [invError,    setInvError  ] = useState<string | null>(null);
+  const [invCreated,  setInvCreated] = useState<Invite | null>(null);
 
   useEffect(() => {
     initStore();
@@ -88,6 +106,7 @@ export default function MyClientsPage() {
       const raw = getMyClients(user.role, user.id);
       const rows: ClientRow[] = raw.map((c) => ({ ...c, ...getClientTrainingData(c.id) }));
       setClients(rows);
+      setInvites(getInvitesByTrainer(user.id));
     } catch (e) {
       if (e instanceof PermissionError) router.replace("/");
     }
@@ -139,17 +158,220 @@ export default function MyClientsPage() {
     }
   }
 
+  // ── Invite ─────────────────────────────────────────────────────────────────
+  function handleSendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInvError(null);
+    if (!invFirst.trim()) { setInvError("First name required."); return; }
+    if (!invLast.trim())  { setInvError("Last name required.");  return; }
+    if (!invEmail.trim() || !invEmail.includes("@")) { setInvError("Valid email required."); return; }
+
+    const inv = createInvite({
+      firstName:           invFirst.trim(),
+      lastName:            invLast.trim(),
+      inviteEmail:         invEmail.trim(),
+      message:             invMessage.trim(),
+      invitedByUserId:     user.id,
+      invitedByName:       user.name,
+      assignedTrainerId:   user.id,
+      assignedTrainerName: user.name,
+    });
+    setInvites((prev) => [inv, ...prev]);
+    setInvCreated(inv);
+    setInvFirst(""); setInvLast(""); setInvEmail(""); setInvMessage("");
+  }
+
+  async function handleCopyLink(token: string) {
+    const url = getInviteUrl(token);
+    try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  }
+
+  function handleRevokeInvite(inviteId: string) {
+    revokeInvite(inviteId);
+    setInvites((prev) => prev.map((i) => i.inviteId === inviteId ? { ...i, inviteStatus: "revoked" } : i));
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="px-5 md:px-8 py-6 max-w-5xl mx-auto space-y-6">
 
       {/* Header */}
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-1">My Clients</p>
-        <h1 className="text-xl font-light text-white/90">
-          {clients.length > 0 ? `${clients.length} assigned client${clients.length !== 1 ? "s" : ""}` : "No clients assigned"}
-        </h1>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-1">My Clients</p>
+          <h1 className="text-xl font-light text-white/90">
+            {clients.length > 0 ? `${clients.length} assigned client${clients.length !== 1 ? "s" : ""}` : "No clients assigned"}
+          </h1>
+        </div>
+        <button
+          onClick={() => { setShowInvite(true); setInvCreated(null); setInvError(null); }}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B48B40]/12 border border-[#B48B40]/25 text-[#B48B40] text-xs font-semibold hover:bg-[#B48B40]/20 transition-all"
+        >
+          <UserPlus className="w-3.5 h-3.5" strokeWidth={2} />
+          Invite Client
+        </button>
       </div>
+
+      {/* ── Invite modal ────────────────────────────────────────────────────── */}
+      {showInvite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-[#111111] border border-white/8 rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <p className="text-sm font-semibold text-white/80">Invite Client</p>
+              <button onClick={() => setShowInvite(false)} className="text-white/30 hover:text-white/60 transition-colors">
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <div className="px-5 py-5">
+              {invCreated ? (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center shrink-0">
+                      <Check className="w-4 h-4 text-emerald-400" strokeWidth={2} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white/80">Invite created</p>
+                      <p className="text-xs text-white/35">{invCreated.firstName} {invCreated.lastName} · {invCreated.inviteEmail}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/30">Invite link</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5 min-w-0">
+                        <p className="text-xs text-white/40 truncate">{getInviteUrl(invCreated.inviteToken)}</p>
+                      </div>
+                      <button
+                        onClick={() => handleCopyLink(invCreated.inviteToken)}
+                        className={cn(
+                          "shrink-0 w-9 h-9 rounded-xl border flex items-center justify-center transition-all",
+                          copiedToken === invCreated.inviteToken
+                            ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
+                            : "border-white/10 bg-white/[0.04] text-white/40 hover:text-white/70"
+                        )}
+                      >
+                        {copiedToken === invCreated.inviteToken
+                          ? <Check className="w-3.5 h-3.5" strokeWidth={2} />
+                          : <Copy className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-white/22">Expires in 7 days · Share this link with your client</p>
+                  </div>
+
+                  <button
+                    onClick={() => { setInvCreated(null); }}
+                    className="w-full text-center text-xs text-white/30 hover:text-white/50 transition-colors py-1"
+                  >
+                    Send another invite
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSendInvite} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">First name</label>
+                      <input
+                        type="text"
+                        value={invFirst}
+                        onChange={(e) => { setInvFirst(e.target.value); setInvError(null); }}
+                        className="w-full bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/20 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Last name</label>
+                      <input
+                        type="text"
+                        value={invLast}
+                        onChange={(e) => { setInvLast(e.target.value); setInvError(null); }}
+                        className="w-full bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/20 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Email</label>
+                    <input
+                      type="email"
+                      value={invEmail}
+                      onChange={(e) => { setInvEmail(e.target.value); setInvError(null); }}
+                      className="w-full bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/20 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Message <span className="normal-case text-white/20">(optional)</span></label>
+                    <textarea
+                      value={invMessage}
+                      onChange={(e) => setInvMessage(e.target.value)}
+                      rows={2}
+                      placeholder="Add a personal message…"
+                      className="w-full bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/18 outline-none focus:border-white/20 transition-all resize-none"
+                    />
+                  </div>
+
+                  {invError && <p className="text-xs text-red-400/70">{invError}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={!invFirst || !invLast || !invEmail}
+                    className={cn(
+                      "w-full rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-all",
+                      invFirst && invLast && invEmail
+                        ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
+                        : "bg-white/5 text-white/25 cursor-default"
+                    )}
+                  >
+                    <Mail className="w-4 h-4" strokeWidth={2} />
+                    Create invite link
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pending invites ──────────────────────────────────────────────────── */}
+      {invites.filter((i) => i.inviteStatus === "pending" || i.inviteStatus === "sent").length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/22">Pending invites</p>
+          <div className="rounded-2xl border border-white/6 bg-[#111111] divide-y divide-white/[0.04]">
+            {invites
+              .filter((i) => i.inviteStatus === "pending" || i.inviteStatus === "sent")
+              .map((inv) => (
+                <div key={inv.inviteId} className="flex items-center justify-between px-5 py-3.5">
+                  <div>
+                    <p className="text-sm text-white/70">{inv.firstName} {inv.lastName}</p>
+                    <p className="text-xs text-white/30">{inv.inviteEmail}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleCopyLink(inv.inviteToken)}
+                      className={cn(
+                        "text-xs px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5",
+                        copiedToken === inv.inviteToken
+                          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
+                          : "border-white/10 text-white/35 hover:text-white/60"
+                      )}
+                    >
+                      {copiedToken === inv.inviteToken
+                        ? <><Check className="w-3 h-3" strokeWidth={2} /> Copied</>
+                        : <><Copy className="w-3 h-3" strokeWidth={1.5} /> Copy link</>}
+                    </button>
+                    <button
+                      onClick={() => handleRevokeInvite(inv.inviteId)}
+                      className="text-white/18 hover:text-red-400/60 transition-colors"
+                      title="Revoke invite"
+                    >
+                      <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       {clients.length > 0 && (
