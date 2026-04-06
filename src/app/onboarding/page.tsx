@@ -18,7 +18,7 @@ export default function OnboardingRouter() {
     try {
       const sessionKey = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
       if (!sessionKey) { router.replace("/welcome"); return; }
-      if (sessionKey === "master") { router.replace("/master"); return; }
+      if (sessionKey === "master") { router.replace("/admin"); return; }
 
       const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
       const s = loadOnboardingState(userId);

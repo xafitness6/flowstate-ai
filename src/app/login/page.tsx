@@ -67,7 +67,7 @@ function resolveCredentials(username: string, password: string): { sessionKey: s
 }
 
 function postLoginRoute(sessionKey: string): string {
-  if (sessionKey === "master") return "/master";
+  if (sessionKey === "master") return "/admin";
   const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
   try {
     const s = loadOnboardingState(userId);
@@ -256,6 +256,13 @@ export default function LoginPage() {
     setResolvedKey(sessionKey);
     saveSession(sessionKey);
     try { sessionStorage.removeItem(SELECTED_ROLE_KEY); } catch { /* ignore */ }
+
+    // Admin never uses biometric — clear any stale credential and go straight to dashboard
+    if (sessionKey === "master") {
+      clearBiometric();
+      router.replace(postLoginRoute(sessionKey));
+      return;
+    }
 
     if (bioAvailable && !hasSavedCredential()) {
       setLoading(false);
@@ -449,7 +456,11 @@ export default function LoginPage() {
               </button>
 
               <button
-                onClick={() => router.replace(postLoginRoute(resolvedKey ?? "member"))}
+                onClick={() => {
+                  // Read from storage directly — avoids stale resolvedKey state
+                  const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY) || "member";
+                  router.replace(postLoginRoute(key));
+                }}
                 className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
               >
                 Not now
