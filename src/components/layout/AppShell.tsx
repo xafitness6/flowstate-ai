@@ -45,10 +45,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       // 4. Deterministic onboarding routing — no loops
       const s = loadOnboardingState(userId);
-      if (!s.starterComplete)    { router.replace("/onboarding/quick-start");   return; }
-      if (!s.onboardingComplete) { router.replace("/onboarding/calibration");   return; }
-      if (!s.tutorialComplete)   { router.replace("/onboarding/tutorial");      return; }
-      if (!s.profileComplete)    { router.replace("/onboarding/profile-setup"); return; }
+      if (!s.starterComplete)              { router.replace("/onboarding/quick-start");   return; }
+      if (!s.onboardingComplete)           { router.replace("/onboarding/calibration");   return; }
+      if (!s.planningConversationComplete) { router.replace("/onboarding/coach-planning"); return; }
+      if (!s.tutorialComplete)             { router.replace("/onboarding/tutorial");      return; }
+      if (!s.profileComplete)              { router.replace("/onboarding/profile-setup"); return; }
 
       // 5. Fully onboarded — render the app shell
       setReady(true);

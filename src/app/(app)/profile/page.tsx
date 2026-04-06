@@ -8,7 +8,7 @@ import type { Plan } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { getAdminCredentials, updateAdminCredentials } from "@/lib/adminCredentials";
+import { getAdminEmail, updateAdminPassword } from "@/lib/adminCredentials";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -443,10 +443,12 @@ export default function ProfilePage() {
   function handleUpdatePlatformCredentials(e: React.FormEvent) {
     e.preventDefault();
     setPcError(null);
-    if (!pcUsername.trim())       { setPcError("Username cannot be empty."); return; }
-    if (pcPassword.length < 6)    { setPcError("Password must be at least 6 characters."); return; }
+    if (pcPassword.length < 8)    { setPcError("Password must be at least 8 characters."); return; }
     if (pcPassword !== pcConfirm) { setPcError("Passwords do not match."); return; }
-    updateAdminCredentials(pcUsername, pcPassword);
+    try { updateAdminPassword(pcPassword); } catch (err) {
+      setPcError(err instanceof Error ? err.message : "Failed to update password.");
+      return;
+    }
     setPcSuccess(true);
     setPcUsername(""); setPcPassword(""); setPcConfirm("");
     setTimeout(() => setPcSuccess(false), 3000);
@@ -890,26 +892,9 @@ export default function ProfilePage() {
             <form onSubmit={handleUpdatePlatformCredentials}>
               <div className="px-5 pt-5 pb-4 space-y-3">
                 <p className="text-xs text-white/30 leading-relaxed">
-                  Change the admin username and password used to access the platform.<br />
-                  Current: <span className="font-mono text-white/40">{getAdminCredentials().username}</span>
+                  Update the password for your admin account.<br />
+                  Email: <span className="font-mono text-white/40">{getAdminEmail()}</span>
                 </p>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
-                    New username
-                  </label>
-                  <input
-                    type="text"
-                    value={pcUsername}
-                    onChange={(e) => { setPcUsername(e.target.value); setPcError(null); }}
-                    autoComplete="username"
-                    placeholder="e.g. ADMIN"
-                    className={cn(
-                      "w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/18 outline-none transition-all",
-                      pcError ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20"
-                    )}
-                  />
-                </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
@@ -962,12 +947,12 @@ export default function ProfilePage() {
                 <div className="flex justify-end pt-1">
                   <button
                     type="submit"
-                    disabled={!pcUsername || !pcPassword || !pcConfirm}
+                    disabled={!pcPassword || !pcConfirm}
                     className={cn(
                       "rounded-xl px-5 py-2 text-xs font-semibold tracking-wide transition-all",
                       pcSuccess
                         ? "bg-emerald-500/20 text-emerald-400 border border-emerald-400/25"
-                        : pcUsername && pcPassword && pcConfirm
+                        : pcPassword && pcConfirm
                           ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
                           : "bg-white/5 text-white/25 cursor-default"
                     )}

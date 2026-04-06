@@ -18,15 +18,16 @@ export default function OnboardingRouter() {
     try {
       const sessionKey = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
       if (!sessionKey) { router.replace("/welcome"); return; }
-      if (sessionKey === "master") { router.replace("/admin"); return; }
+      if (sessionKey === "master") { router.replace("/master"); return; }
 
       const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
       const s = loadOnboardingState(userId);
 
-      if (!s.starterComplete)    { router.replace("/onboarding/quick-start");   return; }
-      if (!s.onboardingComplete) { router.replace("/onboarding/calibration");   return; }
-      if (!s.tutorialComplete)   { router.replace("/onboarding/tutorial");      return; }
-      if (!s.profileComplete)    { router.replace("/onboarding/profile-setup"); return; }
+      if (!s.starterComplete)              { router.replace("/onboarding/quick-start");    return; }
+      if (!s.onboardingComplete)           { router.replace("/onboarding/calibration");    return; }
+      if (!s.planningConversationComplete) { router.replace("/onboarding/coach-planning"); return; }
+      if (!s.tutorialComplete)             { router.replace("/onboarding/tutorial");       return; }
+      if (!s.profileComplete)              { router.replace("/onboarding/profile-setup");  return; }
 
       router.replace("/dashboard");
     } catch {

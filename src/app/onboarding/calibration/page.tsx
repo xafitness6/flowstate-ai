@@ -1253,7 +1253,7 @@ export default function CalibrationPage() {
           {step === "sleep"        && <SleepPanel data={data} setData={setData} />}
           {step === "food"         && <FoodPanel data={data} setData={setData} />}
           {step === "limitations"  && <LimitationsPanel data={data} setData={setData} />}
-          {step === "complete"     && <CompletePanel data={data} onFinish={() => router.push("/onboarding/tutorial")} />}
+          {step === "complete"     && <CompletePanel data={data} onFinish={() => router.push("/onboarding/coach-planning")} />}
         </div>
       </div>
 

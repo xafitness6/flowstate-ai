@@ -1,36 +1,44 @@
 // ─── Admin credential management ─────────────────────────────────────────────
-// Stores the master/admin login credentials in localStorage.
-// Defaults to ADMIN / ADMIN on first use.
-// Only readable/writable client-side. Server routes should use env vars in prod.
+// Admin identity is locked to a single email address.
+// Password is created on first login and stored locally for dev use.
 //
-// TODO: Replace with a secure server-side credential store in production.
+// TODO: Replace localStorage with a secure server-side credential store in production.
 //       Never expose admin credentials over an unauthenticated API endpoint.
 
-const ADMIN_CREDS_KEY = "flowstate-admin-credentials";
+const ADMIN_EMAIL        = "xavellis4@gmail.com";
+const ADMIN_PASSWORD_KEY = "flowstate-admin-password";
 
-const DEFAULTS = { username: "ADMIN", password: "ADMIN" } as const;
-
-export type AdminCredentials = { username: string; password: string };
-
-export function getAdminCredentials(): AdminCredentials {
-  if (typeof window === "undefined") return { ...DEFAULTS };
-  try {
-    const raw = localStorage.getItem(ADMIN_CREDS_KEY);
-    if (!raw) return { ...DEFAULTS };
-    const parsed = JSON.parse(raw) as Partial<AdminCredentials>;
-    return {
-      username: parsed.username || DEFAULTS.username,
-      password: parsed.password || DEFAULTS.password,
-    };
-  } catch {
-    return { ...DEFAULTS };
-  }
+/** The canonical admin email. Cannot be changed at runtime. */
+export function getAdminEmail(): string {
+  return ADMIN_EMAIL;
 }
 
-export function updateAdminCredentials(username: string, password: string): void {
+/** Case-insensitive check — true if input matches the admin email. */
+export function isAdminEmail(input: string): boolean {
+  return input.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+}
+
+/** True if an admin password has already been created. */
+export function hasAdminPassword(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return !!localStorage.getItem(ADMIN_PASSWORD_KEY); } catch { return false; }
+}
+
+/** Verify a candidate password against the stored admin password. */
+export function verifyAdminPassword(password: string): boolean {
+  if (typeof window === "undefined") return false;
+  try { return localStorage.getItem(ADMIN_PASSWORD_KEY) === password; } catch { return false; }
+}
+
+/** Store the admin password on first setup. Throws if already set. */
+export function createAdminPassword(password: string): void {
   // TODO: Replace with POST /api/admin/credentials (authenticated, server-side)
-  try {
-    if (!username.trim() || !password) throw new Error("Invalid credentials");
-    localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username: username.trim(), password }));
-  } catch { /* ignore */ }
+  if (!password || password.length < 8) throw new Error("Password must be at least 8 characters.");
+  try { localStorage.setItem(ADMIN_PASSWORD_KEY, password); } catch { /* ignore */ }
+}
+
+/** Update the admin password (requires current password for validation at call site). */
+export function updateAdminPassword(newPassword: string): void {
+  if (!newPassword || newPassword.length < 8) throw new Error("Password must be at least 8 characters.");
+  try { localStorage.setItem(ADMIN_PASSWORD_KEY, newPassword); } catch { /* ignore */ }
 }

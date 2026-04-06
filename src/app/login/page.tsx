@@ -3,11 +3,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { loadOnboardingState } from "@/lib/onboarding";
-import { getAdminCredentials } from "@/lib/adminCredentials";
+import {
+  isAdminEmail,
+  hasAdminPassword,
+  verifyAdminPassword,
+  createAdminPassword,
+} from "@/lib/adminCredentials";
 import {
   isPlatformAuthenticatorAvailable,
   hasSavedCredential,
@@ -20,15 +25,14 @@ import type { Role } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type AuthStep = "form" | "biometric-prompt" | "enable-biometric";
+type AuthStep = "form" | "biometric-prompt" | "enable-biometric" | "admin-create-password";
 type AuthMode = "signin" | "create";
 
 const LS_KEY            = "flowstate-active-role";
 const SS_KEY            = "flowstate-session-role";
 const SELECTED_ROLE_KEY = "flowstate-selected-role";
 
-// Demo credentials for non-admin accounts. Master/admin credentials are checked
-// dynamically via getAdminCredentials() so they can be updated from Settings.
+// Demo credentials for non-admin accounts.
 const DEMO_CREDENTIALS: Record<string, { username: string; password: string }> = {
   trainer: { username: "alex",  password: "flowstate" },
   client:  { username: "kai",   password: "flowstate" },
@@ -45,18 +49,10 @@ const ROLE_TO_USER_ID: Record<string, string> = {
   master: "usr_001", trainer: "u4", client: "u1", member: "u6",
 };
 
-// ─── Module-level helpers (pure functions, no component state) ────────────────
+// ─── Module-level helpers ─────────────────────────────────────────────────────
 
+/** Resolves non-admin credentials only. Admin is handled at component level. */
 function resolveCredentials(username: string, password: string): { sessionKey: string } | null {
-  // Check admin credentials first (dynamically loaded — can be changed from Settings)
-  const adminCreds = getAdminCredentials();
-  if (
-    username.trim().toLowerCase() === adminCreds.username.toLowerCase() &&
-    password === adminCreds.password
-  ) {
-    return { sessionKey: "master" };
-  }
-  // Demo non-admin accounts
   for (const [key, entry] of Object.entries(DEMO_CREDENTIALS)) {
     if (
       username.trim().toLowerCase() === entry.username.toLowerCase() &&
@@ -71,38 +67,38 @@ function resolveCredentials(username: string, password: string): { sessionKey: s
 }
 
 function postLoginRoute(sessionKey: string): string {
-  if (sessionKey === "master") return "/admin";
+  if (sessionKey === "master") return "/master";
   const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
   try {
     const s = loadOnboardingState(userId);
-    if (!s.starterComplete)    return "/onboarding/quick-start";
-    if (!s.onboardingComplete) return "/onboarding/calibration";
-    if (!s.tutorialComplete)   return "/onboarding/tutorial";
-    if (!s.profileComplete)    return "/onboarding/profile-setup";
+    if (!s.starterComplete)              return "/onboarding/quick-start";
+    if (!s.onboardingComplete)           return "/onboarding/calibration";
+    if (!s.planningConversationComplete) return "/onboarding/coach-planning";
+    if (!s.tutorialComplete)             return "/onboarding/tutorial";
+    if (!s.profileComplete)              return "/onboarding/profile-setup";
   } catch { /* ignore */ }
   return "/dashboard";
 }
 
-// ─── Stable sub-components (MUST live at module scope, never inside a component)
-// Defining components inside another component causes React to unmount/remount
-// them on every parent render, destroying focus and input state.
+// ─── Stable sub-components ────────────────────────────────────────────────────
 
 interface TextFieldProps {
   label: string;
   value: string;
   onChange: (v: string) => void;
   autoComplete?: string;
+  type?: string;
   error?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
-function TextField({ label, value, onChange, autoComplete, error, inputRef }: TextFieldProps) {
+function TextField({ label, value, onChange, autoComplete, type = "text", error, inputRef }: TextFieldProps) {
   return (
     <div className="space-y-1.5">
       <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">{label}</label>
       <input
         ref={inputRef as React.RefObject<HTMLInputElement> | undefined}
-        type="text"
+        type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
@@ -202,6 +198,13 @@ export default function LoginPage() {
   const [siShowPass,   setSiShowPass]  = useState(false);
   const [siError,      setSiError]     = useState<string | null>(null);
 
+  // Admin first-time password creation
+  const [adminNewPass,     setAdminNewPass]     = useState("");
+  const [adminConfirmPass, setAdminConfirmPass] = useState("");
+  const [adminShowNew,     setAdminShowNew]     = useState(false);
+  const [adminShowConfirm, setAdminShowConfirm] = useState(false);
+  const [adminError,       setAdminError]       = useState<string | null>(null);
+
   // Create account fields
   const [caName,        setCaName]       = useState("");
   const [caUsername,    setCaUsername]   = useState("");
@@ -265,10 +268,57 @@ export default function LoginPage() {
   function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setSiError(null);
+
+    // ── Admin path: email-based, Trainer portal only ───────────────────────
+    if (isAdminEmail(siUsername)) {
+      if (selectedRole !== "trainer") {
+        setSiError("That email is not valid for this access level.");
+        return;
+      }
+      // Trainer + admin email → check password
+      if (!hasAdminPassword()) {
+        // First login — prompt password creation
+        setStep("admin-create-password");
+        return;
+      }
+      if (!verifyAdminPassword(siPassword)) {
+        setSiError("Incorrect password.");
+        return;
+      }
+      setLoading(true);
+      afterLogin("master");
+      return;
+    }
+
+    // ── Non-admin path ─────────────────────────────────────────────────────
     const result = resolveCredentials(siUsername, siPassword);
     if (!result) { setSiError("Incorrect username or password."); return; }
     setLoading(true);
     afterLogin(result.sessionKey);
+  }
+
+  function handleAdminCreatePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setAdminError(null);
+
+    if (adminNewPass.length < 8) {
+      setAdminError("Password must be at least 8 characters.");
+      return;
+    }
+    if (adminNewPass !== adminConfirmPass) {
+      setAdminError("Passwords don't match.");
+      return;
+    }
+
+    try {
+      createAdminPassword(adminNewPass);
+    } catch (err) {
+      setAdminError(err instanceof Error ? err.message : "Failed to create password.");
+      return;
+    }
+
+    setLoading(true);
+    afterLogin("master");
   }
 
   function handleCreateAccount(e: React.FormEvent) {
@@ -312,8 +362,8 @@ export default function LoginPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const roleInfo   = selectedRole ? ROLE_LABELS[selectedRole] : null;
-  const showTabs   = !!roleInfo; // only show tabs when a public role was selected
+  const roleInfo = selectedRole ? ROLE_LABELS[selectedRole] : null;
+  const showTabs = !!roleInfo;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 md:px-8 py-16 text-white">
@@ -414,6 +464,71 @@ export default function LoginPage() {
           </>
         )}
 
+        {/* ── Admin: first-time password creation ──────────────────────────── */}
+        {step === "admin-create-password" && (
+          <>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
+                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate AI</p>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <Shield className="w-4 h-4 text-white/40" strokeWidth={1.5} />
+                <h1 className="text-2xl font-semibold tracking-tight">Create your password</h1>
+              </div>
+              <p className="text-sm text-white/40">
+                This is your first time signing in. Set a secure password for your account.
+              </p>
+            </div>
+
+            <form onSubmit={handleAdminCreatePassword} className="space-y-4">
+              <PasswordField
+                label="New password"
+                value={adminNewPass}
+                onChange={(v) => { setAdminNewPass(v); setAdminError(null); }}
+                show={adminShowNew}
+                onToggle={() => setAdminShowNew((v) => !v)}
+                autoComplete="new-password"
+                placeholder="At least 8 characters"
+                error={!!adminError}
+              />
+
+              <PasswordField
+                label="Confirm password"
+                value={adminConfirmPass}
+                onChange={(v) => { setAdminConfirmPass(v); setAdminError(null); }}
+                show={adminShowConfirm}
+                onToggle={() => setAdminShowConfirm((v) => !v)}
+                autoComplete="new-password"
+                error={!!adminError}
+              />
+
+              {adminError && <p className="text-xs text-red-400/70">{adminError}</p>}
+
+              <button
+                type="submit"
+                disabled={!adminNewPass || !adminConfirmPass || loading}
+                className={cn(
+                  "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all duration-200 mt-2",
+                  adminNewPass && adminConfirmPass && !loading
+                    ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
+                    : "bg-white/5 text-white/25 cursor-default"
+                )}
+              >
+                {loading ? "Setting up…" : <>Set password <ArrowRight className="w-4 h-4" strokeWidth={2} /></>}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setStep("form"); setAdminNewPass(""); setAdminConfirmPass(""); setAdminError(null); }}
+                className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
+              >
+                Back
+              </button>
+            </form>
+          </>
+        )}
+
         {/* ── Main auth form ────────────────────────────────────────────────── */}
         {step === "form" && (
           <>
@@ -470,10 +585,11 @@ export default function LoginPage() {
             {(mode === "signin" || !showTabs) && (
               <form onSubmit={handleSignIn} className="space-y-4">
                 <TextField
-                  label="Username"
+                  label={selectedRole === "trainer" ? "Email or username" : "Username"}
                   value={siUsername}
                   onChange={(v) => { setSiUsername(v); setSiError(null); }}
                   autoComplete="username"
+                  type={selectedRole === "trainer" ? "email" : "text"}
                   error={!!siError}
                   inputRef={siUsernameRef}
                 />

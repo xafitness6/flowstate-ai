@@ -1,5 +1,5 @@
 // ─── Onboarding state management ─────────────────────────────────────────────
-// Tracks 4-phase onboarding. localStorage adapter — replace with DB calls in production.
+// Tracks 5-phase onboarding. localStorage adapter — replace with DB calls in production.
 //
 // Phase 1 — Starter Questions (5 quick questions, required):
 //   primaryGoal, experience, daysPerWeek, mainStruggle, equipment
@@ -7,17 +7,29 @@
 // Phase 2 — Full Onboarding Questionnaire (deep calibration, required):
 //   body stats, nutrition, schedule, injuries, sleep, preferences
 //
-// Phase 3 — Tutorial (feature walkthrough, required once):
+// Phase 3 — AI Coach Planning (structured conversation → workout plan, required):
+//   planDuration, planFocus, intensity, split
+//
+// Phase 4 — Tutorial (feature walkthrough, required once):
 //   Introduces dashboard, program, nutrition, accountability, AI coach, profile
 //
-// Phase 4 — Profile Setup (avatar + bio, skippable):
+// Phase 5 — Profile Setup (avatar + bio, skippable):
 //   Profile picture and short bio
+
+export type PlanningData = {
+  planDuration:  string;   // "4_weeks" | "8_weeks" | "12_weeks" | "16_weeks"
+  planFocus:     string;   // "muscle_gain" | "fat_loss" | "strength" | "endurance" | "recomp"
+  intensity:     string;   // "low" | "moderate" | "high" | "max"
+  split:         string;   // "full_body" | "upper_lower" | "push_pull_legs" | "bro_split" | "custom"
+  coachingStyle: string;   // "direct" | "supportive" | "analytical"
+};
 
 export type OnboardingState = {
   hasStarted:           boolean;
   // Phase completion flags (canonical)
   starterComplete:      boolean;
   onboardingComplete:   boolean;
+  planningConversationComplete: boolean;
   tutorialComplete:     boolean;
   profileComplete:      boolean;
   // Legacy aliases kept for backward compat
@@ -25,10 +37,12 @@ export type OnboardingState = {
   hasCompletedDeepCal:    boolean;
   // Data
   quickStartData:       QuickStartData | null;
+  planningData:         PlanningData | null;
   // Timestamps
   startedAt:            string | null;
   starterCompletedAt:   string | null;
   onboardingCompletedAt: string | null;
+  planningCompletedAt:  string | null;
   tutorialCompletedAt:  string | null;
   profileCompletedAt:   string | null;
 };
@@ -44,19 +58,22 @@ export type QuickStartData = {
 const KEY = (userId: string) => `flowstate-onboarding-${userId}`;
 
 const DEFAULT_STATE: OnboardingState = {
-  hasStarted:             false,
-  starterComplete:        false,
-  onboardingComplete:     false,
-  tutorialComplete:       false,
-  profileComplete:        false,
-  hasCompletedQuickStart: false,
-  hasCompletedDeepCal:    false,
-  quickStartData:         null,
-  startedAt:              null,
-  starterCompletedAt:     null,
-  onboardingCompletedAt:  null,
-  tutorialCompletedAt:    null,
-  profileCompletedAt:     null,
+  hasStarted:                   false,
+  starterComplete:              false,
+  onboardingComplete:           false,
+  planningConversationComplete: false,
+  tutorialComplete:             false,
+  profileComplete:              false,
+  hasCompletedQuickStart:       false,
+  hasCompletedDeepCal:          false,
+  quickStartData:               null,
+  planningData:                 null,
+  startedAt:                    null,
+  starterCompletedAt:           null,
+  onboardingCompletedAt:        null,
+  planningCompletedAt:          null,
+  tutorialCompletedAt:          null,
+  profileCompletedAt:           null,
 };
 
 export function loadOnboardingState(userId: string): OnboardingState {
@@ -110,6 +127,14 @@ export function completeDeepCalibration(userId: string): void {
   completeOnboarding(userId);
 }
 
+export function completePlanningConversation(userId: string, data: PlanningData): void {
+  saveOnboardingState(userId, {
+    planningConversationComplete: true,
+    planningData:                 data,
+    planningCompletedAt:          new Date().toISOString(),
+  });
+}
+
 export function completeTutorial(userId: string): void {
   saveOnboardingState(userId, {
     tutorialComplete:    true,
@@ -130,10 +155,11 @@ export function completeProfileSetup(userId: string): void {
  */
 export function getOnboardingRoute(userId: string): string | null {
   const s = loadOnboardingState(userId);
-  if (!s.starterComplete)    return "/onboarding/quick-start";
-  if (!s.onboardingComplete) return "/onboarding/calibration";
-  if (!s.tutorialComplete)   return "/onboarding/tutorial";
-  if (!s.profileComplete)    return "/onboarding/profile-setup";
+  if (!s.starterComplete)              return "/onboarding/quick-start";
+  if (!s.onboardingComplete)           return "/onboarding/calibration";
+  if (!s.planningConversationComplete) return "/onboarding/coach-planning";
+  if (!s.tutorialComplete)             return "/onboarding/tutorial";
+  if (!s.profileComplete)              return "/onboarding/profile-setup";
   return null;
 }
 
