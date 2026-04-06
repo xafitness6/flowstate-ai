@@ -23,10 +23,10 @@ export function useAdminGuard(): boolean {
       if (role === "master") {
         setReady(true);
       } else {
-        router.replace("/");
+        router.replace("/welcome");
       }
     } catch {
-      router.replace("/");
+      router.replace("/welcome");
     }
   }, [router]);
 

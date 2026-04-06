@@ -8,6 +8,7 @@ import type { Plan } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { getAdminCredentials, updateAdminCredentials } from "@/lib/adminCredentials";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -379,6 +380,14 @@ export default function ProfilePage() {
   const [cpSuccess,     setCpSuccess]    = useState(false);
   const [cpLoading,     setCpLoading]    = useState(false);
 
+  // ── Platform credentials (master only) ────────────────────────────────────
+  const [pcUsername,    setPcUsername]   = useState("");
+  const [pcPassword,    setPcPassword]   = useState("");
+  const [pcConfirm,     setPcConfirm]    = useState("");
+  const [pcShowPass,    setPcShowPass]   = useState(false);
+  const [pcError,       setPcError]      = useState<string | null>(null);
+  const [pcSuccess,     setPcSuccess]    = useState(false);
+
   // ── Activity tracking ─────────────────────────────────────────────────────
   const [lastLoginTs,  setLastLoginTs]  = useLocalStorage<string>(`flowstate-last-login-${user.id}`, "");
   const [lastActionTs, setLastActionTs] = useLocalStorage<string>(`flowstate-last-action-${user.id}`, "");
@@ -429,6 +438,18 @@ export default function ProfilePage() {
       setCpCurrent(""); setCpNew(""); setCpConfirm("");
       setTimeout(() => setCpSuccess(false), 3000);
     }, 600);
+  }
+
+  function handleUpdatePlatformCredentials(e: React.FormEvent) {
+    e.preventDefault();
+    setPcError(null);
+    if (!pcUsername.trim())       { setPcError("Username cannot be empty."); return; }
+    if (pcPassword.length < 6)    { setPcError("Password must be at least 6 characters."); return; }
+    if (pcPassword !== pcConfirm) { setPcError("Passwords do not match."); return; }
+    updateAdminCredentials(pcUsername, pcPassword);
+    setPcSuccess(true);
+    setPcUsername(""); setPcPassword(""); setPcConfirm("");
+    setTimeout(() => setPcSuccess(false), 3000);
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -860,6 +881,105 @@ export default function ProfilePage() {
           </form>
         </SettingsCard>
       </div>
+
+      {/* ── Platform Credentials (master only) ───────────────────────── */}
+      {user.role === "master" && (
+        <div>
+          <SectionLabel>Platform Credentials</SectionLabel>
+          <SettingsCard>
+            <form onSubmit={handleUpdatePlatformCredentials}>
+              <div className="px-5 pt-5 pb-4 space-y-3">
+                <p className="text-xs text-white/30 leading-relaxed">
+                  Change the admin username and password used to access the platform.<br />
+                  Current: <span className="font-mono text-white/40">{getAdminCredentials().username}</span>
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                    New username
+                  </label>
+                  <input
+                    type="text"
+                    value={pcUsername}
+                    onChange={(e) => { setPcUsername(e.target.value); setPcError(null); }}
+                    autoComplete="username"
+                    placeholder="e.g. ADMIN"
+                    className={cn(
+                      "w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/18 outline-none transition-all",
+                      pcError ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20"
+                    )}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                    New password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={pcShowPass ? "text" : "password"}
+                      value={pcPassword}
+                      onChange={(e) => { setPcPassword(e.target.value); setPcError(null); }}
+                      autoComplete="new-password"
+                      placeholder="Min. 6 characters"
+                      className={cn(
+                        "w-full bg-white/[0.04] border rounded-xl px-4 py-3 pr-10 text-sm text-white placeholder:text-white/18 outline-none transition-all",
+                        pcError ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20"
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPcShowPass((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/22 hover:text-white/50 transition-colors"
+                      tabIndex={-1}
+                    >
+                      {pcShowPass
+                        ? <EyeOff className="w-4 h-4" strokeWidth={1.5} />
+                        : <Eye    className="w-4 h-4" strokeWidth={1.5} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                    Confirm new password
+                  </label>
+                  <input
+                    type={pcShowPass ? "text" : "password"}
+                    value={pcConfirm}
+                    onChange={(e) => { setPcConfirm(e.target.value); setPcError(null); }}
+                    autoComplete="new-password"
+                    placeholder="Re-enter password"
+                    className={cn(
+                      "w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/18 outline-none transition-all",
+                      pcError ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20"
+                    )}
+                  />
+                </div>
+
+                {pcError && <p className="text-xs text-red-400/70">{pcError}</p>}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={!pcUsername || !pcPassword || !pcConfirm}
+                    className={cn(
+                      "rounded-xl px-5 py-2 text-xs font-semibold tracking-wide transition-all",
+                      pcSuccess
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-400/25"
+                        : pcUsername && pcPassword && pcConfirm
+                          ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
+                          : "bg-white/5 text-white/25 cursor-default"
+                    )}
+                  >
+                    {pcSuccess ? <><Check className="inline w-3 h-3 mr-1 -mt-0.5" strokeWidth={2.5} />Updated</> : "Update credentials"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </SettingsCard>
+        </div>
+      )}
 
       {/* ── Account ──────────────────────────────────────────────────── */}
       <div>

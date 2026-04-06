@@ -7,6 +7,7 @@ import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { loadOnboardingState } from "@/lib/onboarding";
+import { getAdminCredentials } from "@/lib/adminCredentials";
 import {
   isPlatformAuthenticatorAvailable,
   hasSavedCredential,
@@ -26,11 +27,9 @@ const LS_KEY            = "flowstate-active-role";
 const SS_KEY            = "flowstate-session-role";
 const SELECTED_ROLE_KEY = "flowstate-selected-role";
 
-// Demo credentials — master credentials are checked first regardless of which
-// role the user selected on the welcome page. Selecting "Trainer" and entering
-// ADMIN/ADMIN will log in as master and route to /admin.
+// Demo credentials for non-admin accounts. Master/admin credentials are checked
+// dynamically via getAdminCredentials() so they can be updated from Settings.
 const DEMO_CREDENTIALS: Record<string, { username: string; password: string }> = {
-  master:  { username: "ADMIN", password: "ADMIN"     },
   trainer: { username: "alex",  password: "flowstate" },
   client:  { username: "kai",   password: "flowstate" },
   member:  { username: "luca",  password: "flowstate" },
@@ -49,6 +48,15 @@ const ROLE_TO_USER_ID: Record<string, string> = {
 // ─── Module-level helpers (pure functions, no component state) ────────────────
 
 function resolveCredentials(username: string, password: string): { sessionKey: string } | null {
+  // Check admin credentials first (dynamically loaded — can be changed from Settings)
+  const adminCreds = getAdminCredentials();
+  if (
+    username.trim().toLowerCase() === adminCreds.username.toLowerCase() &&
+    password === adminCreds.password
+  ) {
+    return { sessionKey: "master" };
+  }
+  // Demo non-admin accounts
   for (const [key, entry] of Object.entries(DEMO_CREDENTIALS)) {
     if (
       username.trim().toLowerCase() === entry.username.toLowerCase() &&
