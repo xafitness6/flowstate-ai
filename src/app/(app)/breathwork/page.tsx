@@ -8,7 +8,7 @@ import { recordActivity } from "@/lib/activity";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ModeId = "basics" | "power" | "box" | "478" | "endurance";
+type ModeId = "basics" | "power" | "box" | "478" | "endurance" | "freestyle";
 type BreathPhase = "inhale" | "hold1" | "exhale" | "hold2";
 type Screen = "select" | "breathing" | "retention" | "complete";
 
@@ -16,7 +16,7 @@ interface Mode {
   id: ModeId;
   name: string;
   description: string;
-  difficulty: "Beginner" | "Intermediate" | "Advanced";
+  difficulty: "Beginner" | "Intermediate" | "Advanced" | "Custom";
   pattern: string;
   defaultBreaths: number;
   defaultRounds: number;
@@ -98,6 +98,20 @@ const MODES: Mode[] = [
     hold2Ms: 0,
     hasRetention: true,
   },
+  {
+    id: "freestyle",
+    name: "Free Style",
+    description: "Build your own pattern — full control over every timing.",
+    difficulty: "Custom",
+    pattern: "your rules",
+    defaultBreaths: 20,
+    defaultRounds: 3,
+    inhaleMs: 5000,
+    hold1Ms: 0,
+    exhaleMs: 5000,
+    hold2Ms: 0,
+    hasRetention: false,
+  },
 ];
 
 function fmtTime(s: number): string {
@@ -175,6 +189,36 @@ export default function BreathworkPage() {
   const [screen, setScreen] = useState<Screen>("select");
   const [selectedMode, setSelectedMode] = useState<Mode>(MODES[0]);
   const [rounds, setRounds] = useState(MODES[0].defaultRounds);
+
+  // ── Freestyle config ──────────────────────────────────────────────────────────
+  const [fsBreaths, setFsBreaths]   = useState(20);
+  const [fsInhale, setFsInhale]     = useState(5);   // seconds
+  const [fsExhale, setFsExhale]     = useState(5);
+  const [fsHold1, setFsHold1]       = useState(0);   // hold after inhale
+  const [fsHold2, setFsHold2]       = useState(0);   // hold after exhale
+  const [fsRetention, setFsRetention] = useState(false);
+
+  // Builds a Mode object from current freestyle config
+  function buildFreestyleMode(): Mode {
+    const patternParts = [`${fsInhale}s in`];
+    if (fsHold1 > 0) patternParts.push(`${fsHold1}s hold`);
+    patternParts.push(`${fsExhale}s out`);
+    if (fsHold2 > 0) patternParts.push(`${fsHold2}s hold`);
+    return {
+      id: "freestyle",
+      name: "Free Style",
+      description: "Custom",
+      difficulty: "Custom",
+      pattern: patternParts.join(" / "),
+      defaultBreaths: fsBreaths,
+      defaultRounds: rounds,
+      inhaleMs:  fsInhale * 1000,
+      hold1Ms:   fsHold1 * 1000,
+      exhaleMs:  fsExhale * 1000,
+      hold2Ms:   fsHold2 * 1000,
+      hasRetention: fsRetention,
+    };
+  }
 
   // ── Breathing session state ───────────────────────────────────────────────────
   const [subPhase, setSubPhase] = useState<BreathPhase>("inhale");
@@ -306,7 +350,7 @@ export default function BreathworkPage() {
 
   // ── Begin / Release / End ─────────────────────────────────────────────────────
   function beginSession() {
-    modeRef.current = selectedMode;
+    modeRef.current = selectedMode.id === "freestyle" ? buildFreestyleMode() : selectedMode;
     totalRoundsRef.current = rounds;
     holdTimesRef.current = [];
     sessionStartRef.current = Date.now();
@@ -390,8 +434,8 @@ export default function BreathworkPage() {
         {/* Mode cards */}
         <div className="space-y-3 mb-6">
           {MODES.map((mode) => (
+          <div key={mode.id} className="flex flex-col gap-0">
             <button
-              key={mode.id}
               onClick={() => {
                 setSelectedMode(mode);
                 setRounds(mode.defaultRounds);
@@ -414,6 +458,8 @@ export default function BreathworkPage() {
                       ? "bg-emerald-500/15 text-emerald-400/70"
                       : mode.difficulty === "Intermediate"
                       ? "bg-amber-500/15 text-amber-400/70"
+                      : mode.difficulty === "Custom"
+                      ? "bg-[#1a5c6b]/30 text-[#a8c8cf]/80"
                       : "bg-red-500/15 text-red-400/70",
                   ].join(" ")}
                 >
@@ -421,11 +467,148 @@ export default function BreathworkPage() {
                 </span>
               </div>
               <p className="text-xs text-white/38 mb-1.5">{mode.description}</p>
-              <p className="text-[10px] font-mono text-[#a8c8cf]/50">
-                {mode.pattern}
-              </p>
+              {mode.id !== "freestyle" && (
+                <p className="text-[10px] font-mono text-[#a8c8cf]/50">
+                  {mode.pattern}
+                </p>
+              )}
             </button>
-          ))}
+
+            {/* Freestyle inline config — shown when freestyle is selected */}
+            {mode.id === "freestyle" && selectedMode.id === "freestyle" && (
+              <div
+                className="rounded-2xl border border-[#1a5c6b]/30 bg-[#1a5c6b]/5 px-5 py-4 -mt-1 space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Breaths per round */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-white/45">Breaths per round</span>
+                    <span className="text-xs font-semibold text-white/70 tabular-nums w-6 text-right">{fsBreaths}</span>
+                  </div>
+                  <input
+                    type="range" min={5} max={60} step={5}
+                    value={fsBreaths}
+                    onChange={(e) => setFsBreaths(Number(e.target.value))}
+                    className="w-full h-1 rounded-full accent-[#1a5c6b]"
+                  />
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[9px] text-white/20">5</span>
+                    <span className="text-[9px] text-white/20">60</span>
+                  </div>
+                </div>
+
+                {/* Inhale / Exhale durations */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-white/45">Inhale</span>
+                      <span className="text-xs font-semibold text-white/70 tabular-nums">{fsInhale}s</span>
+                    </div>
+                    <input
+                      type="range" min={1} max={12} step={1}
+                      value={fsInhale}
+                      onChange={(e) => setFsInhale(Number(e.target.value))}
+                      className="w-full h-1 rounded-full accent-[#1a5c6b]"
+                    />
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[9px] text-white/20">1s</span>
+                      <span className="text-[9px] text-white/20">12s</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-white/45">Exhale</span>
+                      <span className="text-xs font-semibold text-white/70 tabular-nums">{fsExhale}s</span>
+                    </div>
+                    <input
+                      type="range" min={1} max={12} step={1}
+                      value={fsExhale}
+                      onChange={(e) => setFsExhale(Number(e.target.value))}
+                      className="w-full h-1 rounded-full accent-[#1a5c6b]"
+                    />
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[9px] text-white/20">1s</span>
+                      <span className="text-[9px] text-white/20">12s</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hold after inhale / Hold after exhale */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-white/45">Hold (after in)</span>
+                      <span className="text-xs font-semibold text-white/70 tabular-nums">
+                        {fsHold1 > 0 ? `${fsHold1}s` : "off"}
+                      </span>
+                    </div>
+                    <input
+                      type="range" min={0} max={10} step={1}
+                      value={fsHold1}
+                      onChange={(e) => setFsHold1(Number(e.target.value))}
+                      className="w-full h-1 rounded-full accent-[#1a5c6b]"
+                    />
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[9px] text-white/20">off</span>
+                      <span className="text-[9px] text-white/20">10s</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-white/45">Hold (after out)</span>
+                      <span className="text-xs font-semibold text-white/70 tabular-nums">
+                        {fsHold2 > 0 ? `${fsHold2}s` : "off"}
+                      </span>
+                    </div>
+                    <input
+                      type="range" min={0} max={10} step={1}
+                      value={fsHold2}
+                      onChange={(e) => setFsHold2(Number(e.target.value))}
+                      className="w-full h-1 rounded-full accent-[#1a5c6b]"
+                    />
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[9px] text-white/20">off</span>
+                      <span className="text-[9px] text-white/20">10s</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Retention hold toggle */}
+                <div className="flex items-center justify-between pt-1 border-t border-white/6">
+                  <div>
+                    <p className="text-xs text-white/50">Breath retention hold</p>
+                    <p className="text-[10px] text-white/25 mt-0.5">Hold after each round, tap to release</p>
+                  </div>
+                  <button
+                    onClick={() => setFsRetention((v) => !v)}
+                    className={[
+                      "relative w-10 h-5.5 rounded-full transition-colors duration-200 shrink-0 ml-4",
+                      fsRetention ? "bg-[#1a5c6b]" : "bg-white/10",
+                    ].join(" ")}
+                    style={{ height: 22, width: 40 }}
+                  >
+                    <span
+                      className="absolute top-[3px] left-[3px] w-4 h-4 rounded-full bg-white transition-transform duration-200"
+                      style={{ transform: fsRetention ? "translateX(18px)" : "translateX(0px)" }}
+                    />
+                  </button>
+                </div>
+
+                {/* Live pattern preview */}
+                <p className="text-[10px] font-mono text-[#a8c8cf]/45 text-center pt-1">
+                  {[
+                    `${fsInhale}s inhale`,
+                    ...(fsHold1 > 0 ? [`${fsHold1}s hold`] : []),
+                    `${fsExhale}s exhale`,
+                    ...(fsHold2 > 0 ? [`${fsHold2}s hold`] : []),
+                    ...(fsRetention ? ["retention hold"] : []),
+                  ].join(" → ")}
+                </p>
+              </div>
+            )}
+          </div>
+        ))}
         </div>
 
         {/* Rounds selector */}
