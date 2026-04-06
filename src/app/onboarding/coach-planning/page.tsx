@@ -177,10 +177,11 @@ export default function CoachPlanningPage() {
   const [wizardStep, setWizardStep] = useState<WizardStep>("greeting");
   const [messageVisible, setMessageVisible] = useState(false);
 
-  const [duration,  setDuration]  = useState<Duration | null>(null);
-  const [focus,     setFocus]     = useState<Focus | null>(null);
-  const [intensity, setIntensity] = useState<Intensity | null>(null);
-  const [split,     setSplit]     = useState<Split | null>(null);
+  const [duration,      setDuration]      = useState<Duration | null>(null);
+  const [focus,         setFocus]         = useState<Focus | null>(null);
+  const [focusFromIntake, setFocusFromIntake] = useState(false); // true if pre-filled from quick-start
+  const [intensity,     setIntensity]     = useState<Intensity | null>(null);
+  const [split,         setSplit]         = useState<Split | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -195,6 +196,19 @@ export default function CoachPlanningPage() {
 
       const s = loadOnboardingState(uid);
       setQuickStart(s.quickStartData);
+
+      // Auto-populate focus from quick-start so we don't ask the same question twice
+      const GOAL_TO_FOCUS: Record<string, Focus> = {
+        muscle_gain: "muscle_gain",
+        fat_loss:    "fat_loss",
+        strength:    "strength",
+        endurance:   "endurance",
+        recomp:      "recomp",
+      };
+      if (s.quickStartData?.primaryGoal) {
+        const mapped = GOAL_TO_FOCUS[s.quickStartData.primaryGoal];
+        if (mapped) { setFocus(mapped); setFocusFromIntake(true); }
+      }
 
       // Best-effort name from UserContext / localStorage
       try {
@@ -258,24 +272,29 @@ export default function CoachPlanningPage() {
 
   // ── Advance handlers ────────────────────────────────────────────────────────
 
+  // Skip focus step if it was pre-filled from quick-start intake
+  const stepOrder: WizardStep[] = focusFromIntake
+    ? ["greeting", "duration", "intensity", "split", "review", "generating", "complete"]
+    : ["greeting", "duration", "focus", "intensity", "split", "review", "generating", "complete"];
+
   function advance() {
-    const order: WizardStep[] = ["greeting", "duration", "focus", "intensity", "split", "review", "generating", "complete"];
-    const idx = order.indexOf(wizardStep);
-    if (idx < order.length - 1) setWizardStep(order[idx + 1]);
+    const idx = stepOrder.indexOf(wizardStep);
+    if (idx < stepOrder.length - 1) setWizardStep(stepOrder[idx + 1]);
   }
 
   function canAdvance(): boolean {
-    if (wizardStep === "greeting") return true;
-    if (wizardStep === "duration") return !!duration;
-    if (wizardStep === "focus")    return !!focus;
+    if (wizardStep === "greeting")  return true;
+    if (wizardStep === "duration")  return !!duration;
+    if (wizardStep === "focus")     return !!focus;
     if (wizardStep === "intensity") return !!intensity;
-    if (wizardStep === "split")    return !!split;
+    if (wizardStep === "split")     return !!split;
+    if (wizardStep === "review")    return true;
     return false;
   }
 
   // ── Progress indicator ──────────────────────────────────────────────────────
 
-  const STEPS: WizardStep[] = ["greeting", "duration", "focus", "intensity", "split", "review"];
+  const STEPS = stepOrder.filter((s) => s !== "generating" && s !== "complete") as WizardStep[];
   const progressIdx = Math.min(STEPS.indexOf(wizardStep), STEPS.length - 1);
 
   // ── Render ──────────────────────────────────────────────────────────────────
