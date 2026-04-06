@@ -118,15 +118,7 @@ export default function WelcomePage() {
           ))}
         </div>
 
-        {/* Admin access — very subtle, not for regular users */}
-        <div className="text-center">
-          <button
-            onClick={() => router.push("/login")}
-            className="text-[11px] text-white/15 hover:text-white/30 transition-colors"
-          >
-            Admin access
-          </button>
-        </div>
+        {/* No admin link here — admin logs in through Trainer portal with ADMIN credentials */}
 
       </div>
     </div>
