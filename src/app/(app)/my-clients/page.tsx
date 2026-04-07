@@ -22,6 +22,8 @@ import {
   getInviteUrl,
   type Invite,
 } from "@/lib/invites";
+import { getOpenLeads, type StoredAccount } from "@/lib/accounts";
+import { loadOnboardingState } from "@/lib/onboarding";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,13 +82,15 @@ export default function MyClientsPage() {
   const router       = useRouter();
   const { user }     = useUser();
 
-  const [clients,     setClients    ] = useState<ClientRow[]>([]);
-  const [invites,     setInvites    ] = useState<Invite[]>([]);
-  const [filter,      setFilter     ] = useState<FilterKey>("all");
-  const [deleting,    setDeleting   ] = useState<string | null>(null);
-  const [error,       setError      ] = useState<string | null>(null);
-  const [showInvite,  setShowInvite ] = useState(false);
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [clients,         setClients        ] = useState<ClientRow[]>([]);
+  const [invites,         setInvites        ] = useState<Invite[]>([]);
+  const [leads,           setLeads          ] = useState<StoredAccount[]>([]);
+  const [filter,          setFilter         ] = useState<FilterKey>("all");
+  const [deleting,        setDeleting       ] = useState<string | null>(null);
+  const [error,           setError          ] = useState<string | null>(null);
+  const [showInvite,      setShowInvite     ] = useState(false);
+  const [copiedToken,     setCopiedToken    ] = useState<string | null>(null);
+  const [copiedOpenLink,  setCopiedOpenLink ] = useState(false);
 
   // Invite form
   const [invFirst,    setInvFirst  ] = useState("");
@@ -107,6 +111,7 @@ export default function MyClientsPage() {
       const rows: ClientRow[] = raw.map((c) => ({ ...c, ...getClientTrainingData(c.id) }));
       setClients(rows);
       setInvites(getInvitesByTrainer(user.id));
+      setLeads(getOpenLeads(user.id));
     } catch (e) {
       if (e instanceof PermissionError) router.replace("/");
     }
@@ -188,6 +193,31 @@ export default function MyClientsPage() {
     setTimeout(() => setCopiedToken(null), 2000);
   }
 
+  async function handleCopyOpenLink() {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/join?trainer=${user.id}`;
+    try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
+    setCopiedOpenLink(true);
+    setTimeout(() => setCopiedOpenLink(false), 2000);
+  }
+
+  function getLeadStatus(lead: StoredAccount): { label: string; badge: string } {
+    const s = loadOnboardingState(lead.id);
+    if (s.programGenerated) return { label: "Active",        badge: "text-emerald-400 border-emerald-400/20 bg-emerald-400/8" };
+    if (s.onboardingComplete) return { label: "In onboarding", badge: "text-amber-400 border-amber-400/20 bg-amber-400/8" };
+    return { label: "New lead", badge: "text-blue-400 border-blue-400/20 bg-blue-400/8" };
+  }
+
+  function relativeTime(ts: number): string {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+
   function handleRevokeInvite(inviteId: string) {
     revokeInvite(inviteId);
     setInvites((prev) => prev.map((i) => i.inviteId === inviteId ? { ...i, inviteStatus: "revoked" } : i));
@@ -205,13 +235,28 @@ export default function MyClientsPage() {
             {clients.length > 0 ? `${clients.length} assigned client${clients.length !== 1 ? "s" : ""}` : "No clients assigned"}
           </h1>
         </div>
-        <button
-          onClick={() => { setShowInvite(true); setInvCreated(null); setInvError(null); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B48B40]/12 border border-[#B48B40]/25 text-[#B48B40] text-xs font-semibold hover:bg-[#B48B40]/20 transition-all"
-        >
-          <UserPlus className="w-3.5 h-3.5" strokeWidth={2} />
-          Invite Client
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopyOpenLink}
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all",
+              copiedOpenLink
+                ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
+                : "border-white/10 bg-white/[0.04] text-white/40 hover:text-white/70 hover:border-white/18"
+            )}
+          >
+            {copiedOpenLink
+              ? <><Check className="w-3.5 h-3.5" strokeWidth={2} /> Copied</>
+              : <><Copy className="w-3.5 h-3.5" strokeWidth={1.5} /> Open invite link</>}
+          </button>
+          <button
+            onClick={() => { setShowInvite(true); setInvCreated(null); setInvError(null); }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B48B40]/12 border border-[#B48B40]/25 text-[#B48B40] text-xs font-semibold hover:bg-[#B48B40]/20 transition-all"
+          >
+            <UserPlus className="w-3.5 h-3.5" strokeWidth={2} />
+            Invite Client
+          </button>
+        </div>
       </div>
 
       {/* ── Invite modal ────────────────────────────────────────────────────── */}
@@ -369,6 +414,42 @@ export default function MyClientsPage() {
                   </div>
                 </div>
               ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Open invite leads ────────────────────────────────────────────────── */}
+      {leads.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/22">Open invite leads</p>
+            <span className="text-[10px] text-white/22">{leads.length} lead{leads.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="rounded-2xl border border-white/6 bg-[#111111] divide-y divide-white/[0.04]">
+            {leads.map((lead) => {
+              const { label, badge } = getLeadStatus(lead);
+              const initials = (lead.name || `${lead.firstName ?? ""} ${lead.lastName ?? ""}`.trim() || "?")
+                .split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+              return (
+                <div key={lead.id} className="flex items-center justify-between px-5 py-3.5 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-[#1C1C1C] border border-white/8 flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-semibold text-white/40">{initials}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm text-white/75 font-medium truncate">{lead.name || `${lead.firstName ?? ""} ${lead.lastName ?? ""}`.trim()}</p>
+                      <p className="text-xs text-white/30 truncate">{lead.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={cn("text-[10px] font-medium tracking-[0.06em] uppercase px-1.5 py-0.5 rounded-md border", badge)}>
+                      {label}
+                    </span>
+                    <span className="text-[11px] text-white/22">{relativeTime(lead.createdAt)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
