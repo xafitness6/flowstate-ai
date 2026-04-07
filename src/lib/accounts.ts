@@ -15,8 +15,16 @@ export interface StoredAccount {
   plan:             Plan;
   defaultDashboard: string;
   createdAt:        number;
-  inviteToken?:     string; // token used to accept invite (if applicable)
+  inviteToken?:     string; // token used to accept personalized invite
   assignedTrainerId?: string;
+  // Lead tracking
+  signupSource?:    "direct" | "open_invite" | "personalized_invite";
+  isOpenInvite?:   boolean;
+  firstName?:      string;
+  lastName?:       string;
+  joinGoal?:       string;
+  leadSource?:     string;    // e.g. "dm", "landing_page", "instagram"
+  campaignSource?: string;    // future-ready UTM attribution
 }
 
 const ROLE_DEFAULTS: Record<Exclude<Role, "master">, { plan: Plan; defaultDashboard: string }> = {
@@ -74,6 +82,18 @@ export function resolveAccount(usernameOrEmail: string, password: string): Store
   return null;
 }
 
+export type CreateAccountOptions = {
+  inviteToken?:      string;
+  assignedTrainerId?: string;
+  signupSource?:     "direct" | "open_invite" | "personalized_invite";
+  isOpenInvite?:    boolean;
+  firstName?:       string;
+  lastName?:        string;
+  joinGoal?:        string;
+  leadSource?:      string;
+  campaignSource?:  string;
+};
+
 /** Creates a new account. Returns the account on success, or { error } on conflict. */
 export function createAccount(
   username: string,
@@ -81,7 +101,7 @@ export function createAccount(
   role: Exclude<Role, "master">,
   name: string,
   email = "",
-  options?: { inviteToken?: string; assignedTrainerId?: string },
+  options?: CreateAccountOptions,
 ): StoredAccount | { error: string } {
   if (getAccountByUsername(username)) {
     return { error: "Username is already taken." };
@@ -89,7 +109,7 @@ export function createAccount(
   if (email && getAccountByEmail(email)) {
     return { error: "An account with that email already exists." };
   }
-  const id      = `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const id       = `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const defaults = ROLE_DEFAULTS[role];
   const account: StoredAccount = {
     id,
@@ -98,16 +118,31 @@ export function createAccount(
     role,
     name,
     email,
-    plan:             defaults.plan,
-    defaultDashboard: defaults.defaultDashboard,
-    createdAt:        Date.now(),
-    inviteToken:      options?.inviteToken,
+    plan:              defaults.plan,
+    defaultDashboard:  defaults.defaultDashboard,
+    createdAt:         Date.now(),
+    inviteToken:       options?.inviteToken,
     assignedTrainerId: options?.assignedTrainerId,
+    signupSource:      options?.signupSource,
+    isOpenInvite:      options?.isOpenInvite,
+    firstName:         options?.firstName,
+    lastName:          options?.lastName,
+    joinGoal:          options?.joinGoal,
+    leadSource:        options?.leadSource,
+    campaignSource:    options?.campaignSource,
   };
   const accounts = loadAccounts();
   accounts.push(account);
   saveAccounts(accounts);
   return account;
+}
+
+/** Returns all accounts that signed up through the open invite link. */
+export function getOpenLeads(assignedTrainerId?: string): StoredAccount[] {
+  return loadAccounts().filter(
+    (a) => a.isOpenInvite === true &&
+      (!assignedTrainerId || a.assignedTrainerId === assignedTrainerId)
+  );
 }
 
 /** Converts a StoredAccount to the MockUser shape UserContext expects. */
