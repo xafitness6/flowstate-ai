@@ -11,7 +11,13 @@ import {
   AlertCircle,
   TrendingUp,
   Sparkles,
+  Mic,
+  Check,
 } from "lucide-react";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { VoiceReviewModal } from "@/components/voice/VoiceReviewModal";
+import { parseMealFromTranscript, type ParsedMeal } from "@/lib/voiceParser";
+import { saveVoiceEntry } from "@/lib/voiceLogs";
 import { cn } from "@/lib/utils";
 import { AIFoodAnalysis } from "@/components/nutrition/AIFoodAnalysis";
 import { SuggestionApproval } from "@/components/ai/SuggestionApproval";
@@ -234,15 +240,33 @@ function MealCard({ meal }: { meal: Meal }) {
 export default function NutritionPage() {
   const { user } = useUser();
   const canEdit = hasAccess(user.role, "trainer");
+  const voice   = useVoiceInput();
 
-  const [travelMode, setTravelMode]       = useState(false);
-  const [hydration, setHydration]         = useState(1400); // ml
-  const [note, setNote]                   = useState("");
-  const [noteOpen, setNoteOpen]           = useState(false);
-  const [regenerating, setRegenerating]   = useState(false);
+  const [travelMode, setTravelMode]           = useState(false);
+  const [hydration, setHydration]             = useState(1400); // ml
+  const [note, setNote]                       = useState("");
+  const [noteOpen, setNoteOpen]               = useState(false);
+  const [regenerating, setRegenerating]       = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(true);
-  const [analysisOpen, setAnalysisOpen]   = useState(false);
+  const [analysisOpen, setAnalysisOpen]       = useState(false);
   const [approvalSuggestion, setApprovalSuggestion] = useState<ApprovalSuggestion | null>(null);
+  const [showVoiceMeal, setShowVoiceMeal]     = useState(false);
+  const [loggedMeals, setLoggedMeals]         = useState<ParsedMeal[]>([]);
+
+  function handleVoiceMealConfirm() {
+    if (!voice.transcript.trim()) return;
+    const parsed = parseMealFromTranscript(voice.transcript);
+    saveVoiceEntry(user.id, {
+      userId:     user.id,
+      entryType:  "meal_log",
+      transcript: voice.transcript,
+      confidence: voice.confidence,
+      parsedData: parsed,
+    });
+    setLoggedMeals((prev) => [parsed, ...prev]);
+    setShowVoiceMeal(false);
+    voice.reset();
+  }
 
   const hydrationTarget = 3000;
   const hydrationPct = Math.min((hydration / hydrationTarget) * 100, 100);
@@ -307,6 +331,55 @@ export default function NutritionPage() {
               </div>
               <ChevronDown className="w-4 h-4 text-white/20 -rotate-90 shrink-0" strokeWidth={1.5} />
             </button>
+
+            {/* Voice log meal */}
+            <button
+              onClick={() => setShowVoiceMeal(true)}
+              className="w-full flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.035] hover:border-white/12 px-5 py-4 transition-all text-left group"
+            >
+              <div className="w-8 h-8 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center shrink-0">
+                <Mic className="w-3.5 h-3.5 text-white/40" strokeWidth={1.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white/60 group-hover:text-white/80 transition-colors">
+                  Voice log meal
+                </p>
+                <p className="text-xs text-white/28 mt-0.5">
+                  Say what you ate — parsed automatically
+                </p>
+              </div>
+              <ChevronDown className="w-4 h-4 text-white/20 -rotate-90 shrink-0" strokeWidth={1.5} />
+            </button>
+
+            {/* Logged voice meals (today) */}
+            {loggedMeals.length > 0 && (
+              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4 space-y-3">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Voice logged today</p>
+                {loggedMeals.map((meal, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-3 h-3 text-emerald-400 shrink-0" strokeWidth={2.5} />
+                      <p className="text-sm text-white/70 font-medium">{meal.name}</p>
+                      {meal.mealType && (
+                        <span className="text-[10px] text-white/30 capitalize">{meal.mealType}</span>
+                      )}
+                    </div>
+                    {meal.items.slice(0, 4).map((item, j) => (
+                      <div key={j} className="flex items-center gap-2 pl-5">
+                        <span className="w-1 h-1 rounded-full bg-white/20 shrink-0" />
+                        <span className="text-xs text-white/50">
+                          {item.quantity ? `${item.quantity}${item.unit ?? ""} ` : ""}{item.food}
+                        </span>
+                      </div>
+                    ))}
+                    {meal.items.length > 4 && (
+                      <p className="text-[10px] text-white/25 pl-5">+{meal.items.length - 4} more</p>
+                    )}
+                    <p className="text-[10px] text-white/20 pl-5 italic">"{meal.rawTranscript.slice(0, 80)}{meal.rawTranscript.length > 80 ? "…" : ""}"</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* AI Suggestions */}
             <section>
@@ -594,6 +667,25 @@ export default function NutritionPage() {
       </div>
 
       <AIFoodAnalysis open={analysisOpen} onClose={() => setAnalysisOpen(false)} />
+
+      {showVoiceMeal && (
+        <VoiceReviewModal
+          status={voice.status}
+          transcript={voice.transcript}
+          interim={voice.interim}
+          confidence={voice.confidence}
+          error={voice.error}
+          isSupported={voice.isSupported}
+          label="Voice meal log"
+          placeholder="e.g. 'I had 3 eggs, 100g oats, and a black coffee for breakfast'"
+          onStart={voice.start}
+          onStop={voice.stop}
+          onReset={voice.reset}
+          onTranscriptChange={voice.setTranscript}
+          onConfirm={handleVoiceMealConfirm}
+          onCancel={() => { setShowVoiceMeal(false); voice.reset(); }}
+        />
+      )}
 
       {approvalSuggestion && (
         <SuggestionApproval

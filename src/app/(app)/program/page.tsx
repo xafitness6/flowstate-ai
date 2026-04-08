@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Dumbbell, Play, ChevronRight, Flame, Calendar,
-  TrendingUp, Zap, Plus, Clock, CheckCircle2, BarChart2,
+  TrendingUp, Zap, Plus, Clock, CheckCircle2, BarChart2, Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -380,7 +380,7 @@ export default function ProgramPage() {
         )}
 
         {/* ── Action links ── */}
-        <div className="grid grid-cols-2 gap-3 pb-4">
+        <div className="grid grid-cols-3 gap-3 pb-4">
           <Link
             href="/program/generate"
             className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5 flex items-center gap-2.5 hover:border-white/12 transition-all"
@@ -394,6 +394,13 @@ export default function ProgramPage() {
           >
             <Plus className="w-4 h-4 text-white/35" strokeWidth={2} />
             <span className="text-sm text-white/55 font-medium">Build</span>
+          </Link>
+          <Link
+            href="/program/workout/freestyle"
+            className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5 flex items-center gap-2.5 hover:border-white/12 transition-all"
+          >
+            <Mic className="w-4 h-4 text-white/35" strokeWidth={1.5} />
+            <span className="text-sm text-white/55 font-medium">Freestyle</span>
           </Link>
         </div>
 

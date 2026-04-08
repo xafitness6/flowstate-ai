@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, ChevronDown } from "lucide-react";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { VoiceMic } from "@/components/voice/VoiceMic";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 
@@ -117,6 +119,13 @@ export default function CoachPage() {
   const [loading,     setLoading    ] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [promptsUsed, setPromptsUsed] = useState(false);
+
+  const voice = useVoiceInput();
+
+  // When voice finishes a final chunk, append it to the text input
+  useEffect(() => {
+    if (voice.transcript) setInput(voice.transcript);
+  }, [voice.transcript]);
 
   const [tone     ] = useLocalStorage<Tone>     ("coach-tone",      "direct");
   const [profanity] = useLocalStorage<Profanity>("coach-profanity", "off");
@@ -297,27 +306,36 @@ export default function CoachPage() {
           input ? "border-[#B48B40]/30" : "border-white/8"
         )}>
           <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={voice.status === "listening" ? (input + (voice.interim ? ` ${voice.interim}` : "")) : input}
+            onChange={(e) => { setInput(e.target.value); if (voice.status !== "listening") voice.reset(); }}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything..."
+            placeholder={voice.status === "listening" ? "Listening…" : "Ask anything..."}
             rows={1}
             disabled={loading}
             className="flex-1 bg-transparent text-sm text-white/80 placeholder:text-white/22 resize-none outline-none leading-relaxed max-h-32 disabled:opacity-50"
             style={{ scrollbarWidth: "none" }}
           />
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || loading}
-            className={cn(
-              "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all mb-0.5",
-              input.trim() && !loading
-                ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
-                : "bg-white/5 text-white/20 cursor-not-allowed"
-            )}
-          >
-            <Send className="w-3.5 h-3.5" strokeWidth={2} />
-          </button>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <VoiceMic
+              status={voice.status}
+              isSupported={voice.isSupported}
+              onStart={voice.start}
+              onStop={() => { voice.stop(); }}
+              size="sm"
+            />
+            <button
+              onClick={() => { sendMessage(input); voice.reset(); }}
+              disabled={!input.trim() || loading}
+              className={cn(
+                "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all",
+                input.trim() && !loading
+                  ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
+                  : "bg-white/5 text-white/20 cursor-not-allowed"
+              )}
+            >
+              <Send className="w-3.5 h-3.5" strokeWidth={2} />
+            </button>
+          </div>
         </div>
         <p className="text-[10px] text-white/18 text-center mt-2">
           Shift + Enter for new line · {TONE_LABELS[activeTone]} · {STYLE_LABELS[activeStyle]}

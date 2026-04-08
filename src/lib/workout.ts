@@ -76,18 +76,26 @@ export type ExerciseLog = {
   note?:      string;
 };
 
+export type WorkoutLogType = "prescribed" | "modified" | "freestyle" | "coach_note";
+
 export type WorkoutLog = {
-  logId:          string;
-  workoutId:      string;
-  workoutName:    string;
-  userId:         string;
-  startedAt:      number;
-  completedAt:    number;
-  durationMins:   number;
-  setsCompleted:  number;
-  exercises:      ExerciseLog[];
-  difficulty?:    number;
-  notes?:         string;
+  logId:             string;
+  workoutId:         string;
+  workoutName:       string;
+  userId:            string;
+  startedAt:         number;
+  completedAt:       number;
+  durationMins:      number;
+  setsCompleted:     number;
+  exercises:         ExerciseLog[];
+  difficulty?:       number;
+  notes?:            string;
+  // Voice / log type fields
+  logType?:          WorkoutLogType;  // defaults to "prescribed" when absent
+  voiceTranscript?:  string;          // raw transcript if voice-logged
+  voiceEntryId?:     string;          // reference to VoiceEntry in voiceLogs
+  parsedConfidence?: number;          // parser confidence 0–1
+  bodyFocus?:        string;          // for freestyle logs
 };
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────

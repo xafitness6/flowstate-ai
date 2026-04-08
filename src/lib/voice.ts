@@ -43,13 +43,16 @@ export class WebSpeechProvider implements VoiceProvider {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = ((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition) as
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       new () => {
         continuous:      boolean;
         interimResults:  boolean;
         lang:            string;
         maxAlternatives: number;
-        onresult:        ((e: SpeechRecognitionEvent) => void) | null;
-        onerror:         ((e: SpeechRecognitionErrorEvent) => void) | null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onresult:        ((e: any) => void) | null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onerror:         ((e: any) => void) | null;
         onend:           (() => void) | null;
         start():         void;
         stop():          void;
@@ -61,7 +64,8 @@ export class WebSpeechProvider implements VoiceProvider {
     this.rec.lang            = "en-US";
     this.rec.maxAlternatives = 1;
 
-    this.rec.onresult = (event: SpeechRecognitionEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.rec.onresult = (event: any) => {
       let finalText   = "";
       let interimText = "";
       let conf        = -1;
@@ -83,17 +87,18 @@ export class WebSpeechProvider implements VoiceProvider {
       }
     };
 
-    this.rec.onerror = (event: SpeechRecognitionErrorEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.rec.onerror = (event: any) => {
       const MESSAGES: Record<string, string> = {
-        "not-allowed":      "Microphone access denied. Enable it in browser settings.",
-        "no-speech":        "No speech detected. Try again.",
-        "network":          "Network error during transcription.",
-        "aborted":          "",   // intentional stop — not an error
-        "audio-capture":    "No microphone found.",
+        "not-allowed":         "Microphone access denied. Enable it in browser settings.",
+        "no-speech":           "No speech detected. Try again.",
+        "network":             "Network error during transcription.",
+        "aborted":             "",   // intentional stop — not an error
+        "audio-capture":       "No microphone found.",
         "service-not-allowed": "Speech service not allowed.",
       };
-      const msg = MESSAGES[event.error];
-      if (msg !== "") onError(msg ?? `Speech error: ${event.error}`);
+      const msg = MESSAGES[event.error as string];
+      if (msg !== "") onError(msg ?? `Speech error: ${event.error as string}`);
     };
 
     this.rec.onend = () => {
