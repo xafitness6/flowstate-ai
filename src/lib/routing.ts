@@ -25,14 +25,23 @@ export function getSessionKey(): string | null {
  * Resolves the correct destination for a given session key.
  *
  * Rules (evaluated in order):
- *  1. No session  → /welcome
- *  2. master      → /admin (no personal onboarding)
+ *  1. No session          → /welcome
+ *  2. master + onboarded  → /admin
+ *  2. master + not onboarded → /onboarding/calibration (so master can set up their own profile)
  *  3. Incomplete onboarding steps in order
- *  4. Fully onboarded → /dashboard
+ *  4. Fully onboarded     → /dashboard
  */
 export function resolvePostLoginRoute(sessionKey: string | null): string {
   if (!sessionKey) return "/welcome";
-  if (sessionKey === "master") return "/admin";
+  if (sessionKey === "master") {
+    // Master still goes through personal onboarding if not completed —
+    // this lets the admin test/use the real app flow.
+    try {
+      const s = loadOnboardingState(ROLE_TO_USER_ID.master);
+      if (!s.onboardingComplete) return "/onboarding/calibration";
+    } catch { /* ignore */ }
+    return "/admin";
+  }
 
   const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
 

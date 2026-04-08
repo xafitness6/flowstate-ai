@@ -31,6 +31,8 @@ import {
   type TrainerMetrics,
   PermissionError,
 } from "@/lib/data/store";
+import { resetAccountLocalData, sessionKeyToUserId } from "@/lib/resetAccount";
+import { getSessionKey } from "@/lib/routing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -753,6 +755,75 @@ export default function AdminDashboard() {
           {filtered.length === 0 && (
             <div className="px-5 py-10 text-center">
               <p className="text-sm text-white/25">No users match the current filters.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Dev Tools: Account Reset ─────────────────────────────────────── */}
+      <AccountResetPanel />
+    </div>
+  );
+}
+
+// ─── Account Reset Panel ──────────────────────────────────────────────────────
+
+function AccountResetPanel() {
+  const router = useRouter();
+  const [confirm, setConfirm] = useState(false);
+  const [done,    setDone]    = useState(false);
+
+  function handleReset() {
+    const sessionKey = getSessionKey();
+    if (!sessionKey) return;
+    const userId = sessionKeyToUserId(sessionKey);
+    resetAccountLocalData(userId);
+    setDone(true);
+    setTimeout(() => {
+      // Clear session keys so routing re-evaluates from scratch
+      try {
+        localStorage.removeItem("flowstate-active-role");
+        sessionStorage.removeItem("flowstate-session-role");
+      } catch { /* ignore */ }
+      router.replace("/login");
+    }, 1200);
+  }
+
+  return (
+    <div className="mt-8 rounded-2xl border border-red-400/12 bg-red-400/[0.03] px-6 py-5">
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <p className="text-sm font-semibold text-white/60 mb-1">Developer — Reset My Account</p>
+          <p className="text-xs text-white/30 leading-relaxed max-w-lg">
+            Clears all onboarding progress, intake data, workout logs, programs, nutrition logs, streaks,
+            and analytics for your account only. Your identity, admin access, and role are preserved.
+            After reset, you&apos;ll be sent through onboarding from the beginning.
+          </p>
+        </div>
+        <div className="shrink-0">
+          {done ? (
+            <p className="text-xs text-emerald-400/70 font-medium">Reset complete. Redirecting…</p>
+          ) : !confirm ? (
+            <button
+              onClick={() => setConfirm(true)}
+              className="text-xs font-semibold text-red-400/60 border border-red-400/20 bg-red-400/[0.04] hover:bg-red-400/[0.08] rounded-xl px-4 py-2 transition-all"
+            >
+              Reset my account data
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setConfirm(false)}
+                className="text-xs text-white/30 hover:text-white/55 transition-colors px-2 py-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReset}
+                className="text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 rounded-xl px-4 py-2 transition-all"
+              >
+                Confirm reset
+              </button>
             </div>
           )}
         </div>
