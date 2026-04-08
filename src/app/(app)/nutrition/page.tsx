@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   RefreshCw,
   Plane,
@@ -24,6 +24,8 @@ import { SuggestionApproval } from "@/components/ai/SuggestionApproval";
 import type { AISuggestion as ApprovalSuggestion } from "@/components/ai/SuggestionApproval";
 import { useUser } from "@/context/UserContext";
 import { hasAccess } from "@/lib/roles";
+import { loadIntake } from "@/lib/data/intake";
+import { calculateNutritionTargets, type NutritionTargets } from "@/lib/nutrition";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,11 +50,7 @@ type AISuggestion = {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
-const MACROS: Macro[] = [
-  { label: "Protein", grams: 142, target: 185, color: "bg-[#B48B40]" },
-  { label: "Carbs",   grams: 210, target: 280, color: "bg-white/40" },
-  { label: "Fats",    grams: 48,  target: 70,  color: "bg-[#93C5FD]/60" },
-];
+const MACRO_COLORS = ["bg-[#B48B40]", "bg-white/40", "bg-[#93C5FD]/60"];
 
 const STANDARD_MEALS: Meal[] = [
   {
@@ -155,8 +153,10 @@ const SUGGESTION_STYLE: Record<AISuggestion["type"], { icon: typeof AlertCircle;
   positive: { icon: TrendingUp,  color: "text-emerald-400", bg: "bg-emerald-400/6", border: "border-emerald-400/20" },
 };
 
-const CALORIE_TARGET = 2330;
-const CALORIE_CONSUMED = 1330;
+// Fallback targets when no intake data is available
+const FALLBACK_TARGETS: NutritionTargets = {
+  calories: 2500, proteinG: 185, carbsG: 280, fatG: 70, waterMl: 3000,
+};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -242,8 +242,10 @@ export default function NutritionPage() {
   const canEdit = hasAccess(user.role, "trainer");
   const voice   = useVoiceInput();
 
+  const [targets, setTargets]                 = useState<NutritionTargets>(FALLBACK_TARGETS);
+  const [hasIntake, setHasIntake]             = useState(false);
   const [travelMode, setTravelMode]           = useState(false);
-  const [hydration, setHydration]             = useState(1400); // ml
+  const [hydration, setHydration]             = useState(0); // ml — starts at 0
   const [note, setNote]                       = useState("");
   const [noteOpen, setNoteOpen]               = useState(false);
   const [regenerating, setRegenerating]       = useState(false);
@@ -252,6 +254,30 @@ export default function NutritionPage() {
   const [approvalSuggestion, setApprovalSuggestion] = useState<ApprovalSuggestion | null>(null);
   const [showVoiceMeal, setShowVoiceMeal]     = useState(false);
   const [loggedMeals, setLoggedMeals]         = useState<ParsedMeal[]>([]);
+
+  // Load nutrition targets from onboarding intake
+  useEffect(() => {
+    const intake = loadIntake(user.id);
+    if (intake) {
+      const calc = calculateNutritionTargets(intake);
+      if (calc) {
+        setTargets(calc);
+        setHasIntake(true);
+        return;
+      }
+    }
+    setHasIntake(false);
+  }, [user.id]);
+
+  // Derive consumed calories from voice-logged meals (parser provides totalCals when detectable)
+  const calorieConsumed = loggedMeals.reduce((sum, m) => sum + (m.totalCals ?? 0), 0);
+  const proteinConsumed = 0; // requires food DB lookup — tracked qualitatively via voice logs
+
+  const macros: Macro[] = [
+    { label: "Protein", grams: proteinConsumed, target: targets.proteinG, color: MACRO_COLORS[0] },
+    { label: "Carbs",   grams: 0,               target: targets.carbsG,   color: MACRO_COLORS[1] },
+    { label: "Fats",    grams: 0,               target: targets.fatG,     color: MACRO_COLORS[2] },
+  ];
 
   function handleVoiceMealConfirm() {
     if (!voice.transcript.trim()) return;
@@ -268,9 +294,8 @@ export default function NutritionPage() {
     voice.reset();
   }
 
-  const hydrationTarget = 3000;
-  const hydrationPct = Math.min((hydration / hydrationTarget) * 100, 100);
-  const caloriePct = Math.min((CALORIE_CONSUMED / CALORIE_TARGET) * 100, 100);
+  const hydrationPct = Math.min((hydration / targets.waterMl) * 100, 100);
+  const caloriePct = Math.min((calorieConsumed / targets.calories) * 100, 100);
   const meals = travelMode ? TRAVEL_MEALS : STANDARD_MEALS;
 
   function handleRegenerate() {
@@ -279,7 +304,7 @@ export default function NutritionPage() {
   }
 
   function addWater(ml: number) {
-    setHydration((v) => Math.min(v + ml, hydrationTarget));
+    setHydration((v) => Math.min(v + ml, targets.waterMl));
   }
 
   return (
@@ -307,6 +332,22 @@ export default function NutritionPage() {
             {travelMode ? "Travel mode on" : "Travel mode"}
           </button>
         </div>
+
+        {/* No intake banner */}
+        {!hasIntake && (
+          <div className="mb-4 rounded-2xl border border-[#B48B40]/20 bg-[#B48B40]/[0.04] px-5 py-4 flex items-center gap-4">
+            <AlertCircle className="w-4 h-4 text-[#B48B40]/70 shrink-0" strokeWidth={1.5} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-white/60">Showing estimated targets — complete your intake to personalise.</p>
+            </div>
+            <Link
+              href="/onboarding/calibration"
+              className="shrink-0 text-xs font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors"
+            >
+              Complete intake →
+            </Link>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4">
 
@@ -539,15 +580,15 @@ export default function NutritionPage() {
                 <div className="flex items-end justify-between mb-4">
                   <div>
                     <p className="text-3xl font-semibold tabular-nums text-white/90">
-                      {CALORIE_CONSUMED.toLocaleString()}
+                      {calorieConsumed.toLocaleString()}
                     </p>
                     <p className="text-xs text-white/30 mt-1">
-                      of {CALORIE_TARGET.toLocaleString()} kcal
+                      of {targets.calories.toLocaleString()} kcal
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-white/50 tabular-nums">
-                      {(CALORIE_TARGET - CALORIE_CONSUMED).toLocaleString()}
+                      {Math.max(0, targets.calories - calorieConsumed).toLocaleString()}
                     </p>
                     <p className="text-xs text-white/25">remaining</p>
                   </div>
@@ -572,7 +613,7 @@ export default function NutritionPage() {
                 Macros
               </p>
               <div className="rounded-2xl border border-white/7 bg-[#111111] px-5 py-4 space-y-4">
-                {MACROS.map((m) => <MacroBar key={m.label} macro={m} />)}
+                {macros.map((m) => <MacroBar key={m.label} macro={m} />)}
               </div>
             </section>
 
@@ -587,7 +628,7 @@ export default function NutritionPage() {
                     <p className="text-2xl font-semibold tabular-nums text-white/88">
                       {(hydration / 1000).toFixed(1)}L
                     </p>
-                    <p className="text-xs text-white/25 mt-0.5">of {hydrationTarget / 1000}L target</p>
+                    <p className="text-xs text-white/25 mt-0.5">of {(targets.waterMl / 1000).toFixed(1)}L target</p>
                   </div>
                   <Droplets
                     className={cn(
@@ -620,7 +661,7 @@ export default function NutritionPage() {
                   ))}
                 </div>
 
-                {hydration >= hydrationTarget && (
+                {hydration >= targets.waterMl && (
                   <p className="text-xs text-[#93C5FD]/70 text-center mt-3">
                     Daily target reached.
                   </p>
@@ -635,7 +676,7 @@ export default function NutritionPage() {
               </p>
               <div className="rounded-2xl border border-white/7 bg-[#111111] px-5 py-4 space-y-3">
                 {meals.map((meal) => {
-                  const pct = (meal.calories / CALORIE_TARGET) * 100;
+                  const pct = (meal.calories / targets.calories) * 100;
                   return (
                     <div key={meal.id}>
                       <div className="flex items-center justify-between mb-1">

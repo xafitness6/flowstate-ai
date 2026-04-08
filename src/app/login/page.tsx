@@ -7,6 +7,8 @@ import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft, Shield } from "lu
 import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { resolvePostLoginRoute } from "@/lib/routing";
+import { createClient } from "@/lib/supabase/client";
+import { resolveOnboardingRoute } from "@/lib/db/onboarding";
 import {
   isAdminEmail,
   hasAdminPassword,
@@ -259,7 +261,7 @@ export default function LoginPage() {
     }
   }
 
-  function handleSignIn(e: React.FormEvent) {
+  async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setSiError(null);
 
@@ -278,11 +280,35 @@ export default function LoginPage() {
       return;
     }
 
-    // ── Non-admin path ─────────────────────────────────────────────────────
+    // ── Demo / local account path ──────────────────────────────────────────
     const result = resolveCredentials(siUsername, siPassword);
-    if (!result) { setSiError("Incorrect username or password."); return; }
-    setLoading(true);
-    afterLogin(result.sessionKey);
+    if (result) {
+      setLoading(true);
+      afterLogin(result.sessionKey);
+      return;
+    }
+
+    // ── Supabase real account path (email sign-in) ─────────────────────────
+    if (siUsername.includes("@")) {
+      setLoading(true);
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email:    siUsername.trim().toLowerCase(),
+        password: siPassword,
+      });
+      if (error || !data.user) {
+        setSiError("Incorrect email or password.");
+        setLoading(false);
+        return;
+      }
+      // UserContext will pick up the session via onAuthStateChange.
+      // Resolve route from DB onboarding state.
+      const onboardingRoute = await resolveOnboardingRoute(data.user.id);
+      router.replace(onboardingRoute ?? "/dashboard");
+      return;
+    }
+
+    setSiError("Incorrect username or password.");
   }
 
   function handleAdminCreatePassword(e: React.FormEvent) {

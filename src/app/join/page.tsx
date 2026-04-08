@@ -6,6 +6,8 @@ import { Zap, ArrowRight, Eye, EyeOff, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { resolvePostLoginRoute } from "@/lib/routing";
+import { createClient } from "@/lib/supabase/client";
+import { updateInviteStatusInDB } from "@/lib/db/invites";
 
 // ─── Storage keys ──────────────────────────────────────────────────────────────
 
@@ -39,6 +41,7 @@ function JoinForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const trainerParam = searchParams?.get("trainer") ?? null;
+  const tokenParam   = searchParams?.get("token")   ?? null;
 
   const [firstName,   setFirstName]   = useState("");
   const [lastName,    setLastName]    = useState("");
@@ -54,7 +57,7 @@ function JoinForm() {
 
   useEffect(() => { setTimeout(() => setVisible(true), 60); }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -67,8 +70,57 @@ function JoinForm() {
     setLoading(true);
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
-    const username = makeUsername(firstName.trim(), lastName.trim(), email.trim());
 
+    // ── Supabase path (when env vars are configured) ──────────────────────────
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (supabaseUrl) {
+      const supabase = createClient();
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email:    email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            full_name:           fullName,
+            first_name:          firstName.trim(),
+            last_name:           lastName.trim(),
+            role:                "client",
+            assigned_trainer_id: trainerParam ?? null,
+            join_goal:           joinGoal || null,
+            signup_source:       tokenParam ? "personalized_invite" : "open_invite",
+          },
+        },
+      });
+
+      if (signUpError) {
+        // Email already registered — try signing in
+        if (signUpError.message.toLowerCase().includes("already registered")) {
+          const { data: siData, error: siErr } = await supabase.auth.signInWithPassword({
+            email: email.trim().toLowerCase(), password,
+          });
+          if (!siErr && siData.user) {
+            router.replace("/onboarding/calibration");
+            return;
+          }
+          setError("An account with that email already exists. Check your password.");
+        } else {
+          setError(signUpError.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Mark invite as accepted if a token was provided
+      if (tokenParam && data.user) {
+        await updateInviteStatusInDB(tokenParam, "accepted", data.user.id);
+      }
+
+      // New Supabase user → start onboarding
+      router.replace("/onboarding/calibration");
+      return;
+    }
+
+    // ── Legacy localStorage path (dev / no Supabase configured) ──────────────
+    const username = makeUsername(firstName.trim(), lastName.trim(), email.trim());
     const result = createAccount(
       username,
       password,
@@ -76,18 +128,18 @@ function JoinForm() {
       fullName,
       email.trim().toLowerCase(),
       {
-        signupSource:      "open_invite",
-        isOpenInvite:      true,
+        signupSource:      tokenParam ? "personalized_invite" : "open_invite",
+        isOpenInvite:      !tokenParam,
         firstName:         firstName.trim(),
         lastName:          lastName.trim(),
         joinGoal:          joinGoal || undefined,
         assignedTrainerId: trainerParam ?? undefined,
         leadSource:        "open_invite_link",
+        inviteToken:       tokenParam ?? undefined,
       },
     );
 
     if ("error" in result) {
-      // Email already exists — try signing in
       const existing = resolveAccount(email.trim().toLowerCase(), password);
       if (existing) {
         try { localStorage.setItem(LS_KEY, existing.id); } catch { /* ignore */ }

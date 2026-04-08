@@ -87,6 +87,9 @@ export type QuickStartData = {
 
 const KEY = (userId: string) => `flowstate-onboarding-${userId}`;
 
+// UUID v4 pattern — used to detect real Supabase user IDs vs demo IDs ("u1", "usr_001", etc.)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const DEFAULT_STATE: OnboardingState = {
   hasStarted:                   false,
   onboardingComplete:           false,
@@ -135,6 +138,21 @@ export function saveOnboardingState(userId: string, state: Partial<OnboardingSta
     const current = loadOnboardingState(userId);
     localStorage.setItem(KEY(userId), JSON.stringify({ ...current, ...state }));
   } catch { /* ignore */ }
+
+  // Write-through: sync to Supabase for real accounts (UUID IDs only)
+  if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    import("@/lib/db/onboarding").then(({ upsertOnboardingState }) => {
+      upsertOnboardingState(userId, {
+        onboarding_complete:            state.onboardingComplete,
+        body_focus_complete:            state.bodyFocusComplete,
+        planning_conversation_complete: state.planningConversationComplete,
+        program_generated:              state.programGenerated,
+        tutorial_complete:              state.tutorialComplete,
+        profile_complete:               state.profileComplete,
+        raw_answers:                    state.intakeData as Record<string, unknown> ?? undefined,
+      }).catch(() => { /* non-blocking */ });
+    }).catch(() => { /* non-blocking */ });
+  }
 }
 
 export function markOnboardingStarted(userId: string): void {

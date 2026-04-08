@@ -63,6 +63,8 @@ function generateToken(): string {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+const _INVITE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function createInvite(input: CreateInviteInput): Invite {
   const now     = new Date();
   const expires = new Date(now.getTime() + EXPIRE_MS);
@@ -85,6 +87,14 @@ export function createInvite(input: CreateInviteInput): Invite {
   const invites = loadInvites();
   invites.push(invite);
   saveInvites(invites);
+
+  // Write-through: sync to Supabase for real accounts
+  if (_INVITE_UUID_RE.test(input.invitedByUserId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    import("@/lib/db/invites").then(({ createInviteInDB }) => {
+      createInviteInDB(input).catch(() => { /* non-blocking */ });
+    }).catch(() => { /* non-blocking */ });
+  }
+
   return invite;
 }
 

@@ -325,6 +325,8 @@ export function getWorkoutLogs(userId: string): WorkoutLog[] {
   }
 }
 
+const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function saveWorkoutLog(userId: string, log: WorkoutLog): void {
   try {
     const logs = getWorkoutLogs(userId);
@@ -332,6 +334,13 @@ export function saveWorkoutLog(userId: string, log: WorkoutLog): void {
     if (idx >= 0) logs[idx] = log; else logs.push(log);
     localStorage.setItem(LOGS_KEY(userId), JSON.stringify(logs));
   } catch { /* ignore */ }
+
+  // Write-through: sync to Supabase for real accounts
+  if (_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    import("@/lib/db/workoutLogs").then(({ syncWorkoutLog }) => {
+      syncWorkoutLog(log).catch(() => { /* non-blocking */ });
+    }).catch(() => { /* non-blocking */ });
+  }
 }
 
 export function getLogsThisWeek(userId: string): WorkoutLog[] {

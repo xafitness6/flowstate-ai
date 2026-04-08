@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect } from "react";
 import type { MockUser, Plan, Role } from "@/types";
 import { clearBiometric } from "@/lib/biometric";
 import { getAccountById, accountToMockUser } from "@/lib/accounts";
+import { createClient } from "@/lib/supabase/client";
+import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
@@ -51,15 +53,12 @@ const PLAN_KEY      = (id: string) => `flowstate-plan-${id}`;
 
 export type ViewMode = "operator" | "personal";
 
-function loadUser(): MockUser {
-  // Safe fallback: never grant master privileges to an unauthenticated state.
-  const SAFE_DEFAULT = DEMO_USERS.member;
-  if (typeof window === "undefined") return SAFE_DEFAULT;
+/** Load a demo/local user from storage — used only when no Supabase session exists. */
+function loadDemoUser(): MockUser | null {
+  if (typeof window === "undefined") return null;
   try {
-    // Prefer sessionStorage (current session) over localStorage (remember-me).
-    // This order must match useAdminGuard and AppShell.
     const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
-    if (!key) return SAFE_DEFAULT;
+    if (!key) return null;
 
     // 1. Demo accounts: key is a role name ("master", "client", etc.)
     if (DEMO_USERS[key]) {
@@ -68,7 +67,7 @@ function loadUser(): MockUser {
       return savedPlan ? { ...base, plan: savedPlan } : base;
     }
 
-    // 2. Dynamically created accounts: key is an account ID ("usr_…")
+    // 2. Dynamically created local accounts: key is an account ID ("usr_…")
     const account = getAccountById(key);
     if (account) {
       const base = accountToMockUser(account);
@@ -76,40 +75,81 @@ function loadUser(): MockUser {
       return savedPlan ? { ...base, plan: savedPlan } : base;
     }
   } catch { /* ignore */ }
-  return SAFE_DEFAULT;
+  return null;
 }
 
 type UserContextValue = {
-  user:       MockUser;
-  setRole:    (role: Role) => void;
-  switchUser: (demoKey: keyof typeof DEMO_USERS) => void;
-  logout:     () => void;
-  viewMode:   ViewMode;
-  setViewMode:(m: ViewMode) => void;
-  updatePlan: (plan: Plan) => void;
+  user:        MockUser;
+  isSupabase:  boolean;  // true when session is from Supabase Auth
+  setRole:     (role: Role) => void;
+  switchUser:  (demoKey: keyof typeof DEMO_USERS) => void;
+  logout:      () => void;
+  viewMode:    ViewMode;
+  setViewMode: (m: ViewMode) => void;
+  updatePlan:  (plan: Plan) => void;
 };
 
 const UserContext = createContext<UserContextValue | null>(null);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [user,     setUser]          = useState<MockUser>(DEMO_USERS.member);
-  const [viewMode, setViewModeState] = useState<ViewMode>("operator");
+  const [user,        setUser]          = useState<MockUser>(DEMO_USERS.member);
+  const [isSupabase,  setIsSupabase]    = useState(false);
+  const [viewMode,    setViewModeState] = useState<ViewMode>("operator");
 
   useEffect(() => {
-    setUser(loadUser());
+    // Restore view mode preference
     try {
       const saved = localStorage.getItem(VIEW_MODE_KEY) as ViewMode | null;
       if (saved === "personal" || saved === "operator") setViewModeState(saved);
     } catch { /* ignore */ }
+
+    const supabase = createClient();
+
+    // Initial session check
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const profile = await getMyProfile();
+        if (profile) {
+          setUser(profileToMockUser(profile));
+          setIsSupabase(true);
+          return;
+        }
+      }
+      // No Supabase session — fall back to demo/local accounts
+      const demo = loadDemoUser();
+      if (demo) setUser(demo);
+    });
+
+    // Listen for auth state changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          const profile = await getMyProfile();
+          if (profile) {
+            setUser(profileToMockUser(profile));
+            setIsSupabase(true);
+            return;
+          }
+        }
+        // Session ended — check for demo fallback
+        setIsSupabase(false);
+        const demo = loadDemoUser();
+        setUser(demo ?? DEMO_USERS.member);
+      }
+    );
+
+    return () => { subscription.unsubscribe(); };
   }, []);
 
   function setRole(role: Role) {
+    if (isSupabase) return; // don't allow role switching on real accounts
     const match = Object.values(DEMO_USERS).find((u) => u.role === role) ?? { ...user, role };
     setUser(match);
     try { localStorage.setItem(LS_KEY, role); } catch { /* ignore */ }
   }
 
   function switchUser(demoKey: keyof typeof DEMO_USERS) {
+    if (isSupabase) return; // don't allow demo switching on real accounts
     const next = DEMO_USERS[demoKey];
     if (!next) return;
     const savedPlan = (() => {
@@ -119,23 +159,28 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(LS_KEY, demoKey); } catch { /* ignore */ }
   }
 
-  function logout() {
+  async function logout() {
     // Reset context state immediately so no component sees stale master state.
     setUser(DEMO_USERS.member);
+    setIsSupabase(false);
     setViewModeState("operator");
+
+    // Sign out from Supabase if we have a real session
+    if (isSupabase) {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    }
+
     try {
-      // Clear both keys from both storages — belt-and-suspenders.
-      // Prevents stale master state if the role was ever written to the wrong store.
       localStorage.removeItem(LS_KEY);
       localStorage.removeItem(SS_KEY);
       sessionStorage.removeItem(SS_KEY);
       sessionStorage.removeItem(LS_KEY);
       localStorage.removeItem(VIEW_MODE_KEY);
       sessionStorage.removeItem(VIEW_MODE_KEY);
-      // Clear biometric credentials so a prior admin session's biometric
-      // cannot silently re-authenticate the next user as master.
       clearBiometric();
     } catch { /* ignore */ }
+
     window.location.href = "/login";
   }
 
@@ -145,13 +190,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }
 
   function updatePlan(plan: Plan) {
-    // Persist plan — survives page reload. NEVER deletes user data.
     setUser((prev) => ({ ...prev, plan }));
-    try { localStorage.setItem(PLAN_KEY(user.id), plan); } catch { /* ignore */ }
+    if (!isSupabase) {
+      // Only persist to localStorage for demo accounts; Supabase accounts update via profile
+      try { localStorage.setItem(PLAN_KEY(user.id), plan); } catch { /* ignore */ }
+    }
   }
 
   return (
-    <UserContext.Provider value={{ user, setRole, switchUser, logout, viewMode, setViewMode, updatePlan }}>
+    <UserContext.Provider value={{ user, isSupabase, setRole, switchUser, logout, viewMode, setViewMode, updatePlan }}>
       {children}
     </UserContext.Provider>
   );
