@@ -103,6 +103,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (saved === "personal" || saved === "operator") setViewModeState(saved);
     } catch { /* ignore */ }
 
+    // Only initialize Supabase when env vars are configured
+    const supabaseConfigured =
+      !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseConfigured) {
+      // No Supabase — load demo/local user from storage and stop
+      const demo = loadDemoUser();
+      if (demo) setUser(demo);
+      return;
+    }
+
     const supabase = createClient();
 
     // Initial session check
@@ -166,7 +178,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setViewModeState("operator");
 
     // Sign out from Supabase if we have a real session
-    if (isSupabase) {
+    if (isSupabase && process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const supabase = createClient();
       await supabase.auth.signOut();
     }
