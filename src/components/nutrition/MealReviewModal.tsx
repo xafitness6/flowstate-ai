@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Check, Trash2, ChevronDown } from "lucide-react";
+import { X, Check, Trash2, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveMeal } from "@/lib/nutrition/store";
 import type {
@@ -16,17 +16,18 @@ import type {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EditableItem {
-  id:       string;
-  name:     string;
-  quantity: number | null;
-  unit:     string | null;
-  grams:    number | null;
-  calories: number | null;
-  protein:  number | null;
-  carbs:    number | null;
-  fat:      number | null;
+  id:         string;
+  name:       string;
+  quantity:   number | null;
+  unit:       string | null;
+  grams:      number | null;
+  calories:   number | null;
+  protein:    number | null;
+  carbs:      number | null;
+  fat:        number | null;
   confidence: number;
-  removed:  boolean;
+  removed:    boolean;
+  _expanded:  boolean;
 }
 
 interface Props {
@@ -34,27 +35,32 @@ interface Props {
   rawTranscript: string | null;
   source:        NutritionLogSource;
   userId:        string;
-  initialSlot?:  string | null; // optional hint from which slot opened voice
+  initialSlot?:  string | null;
   onSave:        (meal: LoggedMeal) => void;
   onCancel:      () => void;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
-  breakfast: "Breakfast",
-  lunch:     "Lunch",
-  dinner:    "Dinner",
-  snack:     "Snack",
-  unknown:   "Meal",
+  breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
+  snack: "Snack",         unknown: "Meal",
 };
-
 const MEAL_TYPE_OPTIONS: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+const UNIT_OPTIONS = ["g", "oz", "ml", "cup", "tbsp", "tsp", "item", "slice", "scoop"];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatItemLabel(item: EditableItem): string {
-  const qty = item.quantity != null ? `${item.quantity}` : "";
+  const qty  = item.quantity != null ? `${item.quantity}` : "";
   const unit = item.unit && item.unit !== "item" ? item.unit : "";
   return [qty, unit, item.name].filter(Boolean).join(" ");
+}
+
+function numField(v: number | null): string { return v != null ? String(v) : ""; }
+function parseNum(s: string): number | null {
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
 }
 
 function recalcTotals(items: EditableItem[]): MealTotals {
@@ -78,13 +84,14 @@ export function MealReviewModal({
   rawTranscript,
   source,
   userId,
-  initialSlot,
   onSave,
   onCancel,
 }: Props) {
-  const [mealType, setMealType]     = useState<MealType>(parseResult.mealType === "unknown" ? "snack" : parseResult.mealType);
-  const [typeOpen, setTypeOpen]     = useState(false);
-  const [items, setItems]           = useState<EditableItem[]>(
+  const [mealType, setMealType] = useState<MealType>(
+    parseResult.mealType === "unknown" ? "snack" : parseResult.mealType,
+  );
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [items, setItems]       = useState<EditableItem[]>(
     parseResult.items.map((item, i) => ({
       id:         `rev_${i}`,
       name:       item.name,
@@ -97,18 +104,25 @@ export function MealReviewModal({
       fat:        item.fat,
       confidence: item.confidence,
       removed:    false,
+      _expanded:  false,
     })),
   );
 
-  const activeItems = items.filter((i) => !i.removed);
-  const totals      = recalcTotals(items);
+  const activeItems  = items.filter((i) => !i.removed);
+  const removedItems = items.filter((i) => i.removed);
+  const totals       = recalcTotals(items);
 
   function removeItem(id: string) {
-    setItems((prev) => prev.map((i) => i.id === id ? { ...i, removed: true } : i));
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, removed: true, _expanded: false } : i));
   }
-
   function restoreItem(id: string) {
     setItems((prev) => prev.map((i) => i.id === id ? { ...i, removed: false } : i));
+  }
+  function toggleItem(id: string) {
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, _expanded: !i._expanded } : i));
+  }
+  function updateItem(id: string, patch: Partial<EditableItem>) {
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, ...patch } : i));
   }
 
   function handleSave() {
@@ -144,14 +158,10 @@ export function MealReviewModal({
     onSave(meal);
   }
 
-  const removedItems = items.filter((i) => i.removed);
-
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
 
-      {/* Sheet */}
       <div
         className="relative w-full sm:max-w-md bg-[#0D0D0D] border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: "88dvh" }}
@@ -161,7 +171,7 @@ export function MealReviewModal({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold text-white/80 tracking-tight">Review meal</h2>
-              <p className="text-[11px] text-white/30 mt-0.5">Confirm or edit before saving</p>
+              <p className="text-[11px] text-white/30 mt-0.5">Edit, remove, or confirm before saving</p>
             </div>
             <button
               onClick={onCancel}
@@ -172,10 +182,10 @@ export function MealReviewModal({
           </div>
         </div>
 
-        {/* Scrollable body */}
+        {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5" style={{ scrollbarWidth: "none" }}>
 
-          {/* Meal type selector */}
+          {/* Meal type */}
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-2">Meal type</p>
             <div className="relative">
@@ -217,26 +227,110 @@ export function MealReviewModal({
                 item.removed ? null : (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5"
+                    className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
                   >
-                    <Check className="w-3 h-3 text-emerald-400/50 shrink-0" strokeWidth={2.5} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white/70 truncate">{formatItemLabel(item)}</p>
-                      {item.calories != null && (
-                        <p className="text-[10px] text-white/25 mt-0.5 tabular-nums">
-                          {item.calories} kcal
-                          {item.protein != null && ` · ${item.protein}g P`}
-                          {item.carbs   != null && ` · ${item.carbs}g C`}
-                          {item.fat     != null && ` · ${item.fat}g F`}
-                        </p>
-                      )}
+                    {/* Compact header */}
+                    <div className="flex items-center gap-2 px-3.5 py-2.5">
+                      <Check className="w-3 h-3 text-emerald-400/50 shrink-0" strokeWidth={2.5} />
+                      <button
+                        onClick={() => toggleItem(item.id)}
+                        className="flex-1 flex items-center gap-2 text-left min-w-0"
+                      >
+                        <span className="text-sm text-white/70 truncate">{formatItemLabel(item)}</span>
+                        {item.calories != null && (
+                          <span className="text-[10px] text-white/25 tabular-nums shrink-0">{item.calories} kcal</span>
+                        )}
+                        {item._expanded
+                          ? <ChevronUp   className="w-3 h-3 text-white/18 shrink-0" strokeWidth={1.5} />
+                          : <ChevronDown className="w-3 h-3 text-white/18 shrink-0" strokeWidth={1.5} />}
+                      </button>
+                      <button
+                        onClick={() => toggleItem(item.id)}
+                        className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-white/18 hover:text-white/55 hover:bg-white/[0.04] transition-all"
+                        title="Edit item"
+                      >
+                        <Pencil className="w-3 h-3" strokeWidth={1.5} />
+                      </button>
+                      <button
+                        onClick={() => removeItem(item.id)}
+                        className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-white/18 hover:text-[#EF4444]/60 hover:bg-[#EF4444]/8 transition-all"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-3 h-3" strokeWidth={1.5} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-white/20 hover:text-[#EF4444]/60 hover:bg-[#EF4444]/8 transition-all"
-                    >
-                      <Trash2 className="w-3 h-3" strokeWidth={1.5} />
-                    </button>
+
+                    {/* Expanded edit fields */}
+                    {item._expanded && (
+                      <div className="border-t border-white/[0.05] px-3.5 pb-3.5 pt-3 space-y-2.5">
+                        {/* Name */}
+                        <div>
+                          <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Name</label>
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => updateItem(item.id, { name: e.target.value })}
+                            placeholder="e.g. chicken breast"
+                            className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm text-white/75 placeholder:text-white/20 outline-none focus:border-[#B48B40]/30 transition-colors"
+                          />
+                        </div>
+                        {/* Qty + Unit */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Quantity</label>
+                            <input
+                              type="number" min="0" step="any"
+                              value={numField(item.quantity)}
+                              onChange={(e) => updateItem(item.id, { quantity: parseNum(e.target.value) })}
+                              placeholder="e.g. 3"
+                              className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm text-white/75 placeholder:text-white/20 outline-none focus:border-[#B48B40]/30 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Unit</label>
+                            <select
+                              value={item.unit ?? ""}
+                              onChange={(e) => updateItem(item.id, { unit: e.target.value || null })}
+                              className="w-full bg-[#111111] border border-white/[0.07] rounded-lg px-3 py-2 text-sm text-white/75 outline-none focus:border-[#B48B40]/30 transition-colors"
+                            >
+                              <option value="">—</option>
+                              {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        {/* Grams */}
+                        <div>
+                          <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Grams (weight)</label>
+                          <input
+                            type="number" min="0" step="any"
+                            value={numField(item.grams)}
+                            onChange={(e) => updateItem(item.id, { grams: parseNum(e.target.value) })}
+                            placeholder="e.g. 150"
+                            className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm text-white/75 placeholder:text-white/20 outline-none focus:border-[#B48B40]/30 transition-colors"
+                          />
+                        </div>
+                        {/* Macros */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { key: "calories" as const, label: "Calories",  placeholder: "e.g. 210" },
+                            { key: "protein"  as const, label: "Protein",   placeholder: "e.g. 18"  },
+                            { key: "carbs"    as const, label: "Carbs",     placeholder: "e.g. 30"  },
+                            { key: "fat"      as const, label: "Fat",       placeholder: "e.g. 8"   },
+                          ].map(({ key, label, placeholder }) => (
+                            <div key={key}>
+                              <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">{label}</label>
+                              <input
+                                type="number" min="0" step="any"
+                                value={numField(item[key])}
+                                onChange={(e) => updateItem(item.id, { [key]: parseNum(e.target.value) })}
+                                placeholder={placeholder}
+                                className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm text-white/75 placeholder:text-white/20 outline-none focus:border-[#B48B40]/30 transition-colors"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ),
               )}
@@ -246,7 +340,7 @@ export function MealReviewModal({
               )}
             </div>
 
-            {/* Removed items — restore option */}
+            {/* Removed items — restore */}
             {removedItems.length > 0 && (
               <div className="mt-3 space-y-1.5">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-white/15 px-1">Removed</p>
@@ -299,7 +393,7 @@ export function MealReviewModal({
           )}
         </div>
 
-        {/* Footer actions */}
+        {/* Footer */}
         <div className="px-5 pb-6 pt-4 border-t border-white/[0.05] shrink-0 flex gap-3">
           <button
             onClick={onCancel}
