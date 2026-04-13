@@ -5,7 +5,7 @@ import {
   Mic, Camera, Plus, Sparkles, Droplets, Flame,
   ChevronDown, ChevronUp, AlertCircle, TrendingUp,
   X, Clock, ChevronLeft, ChevronRight, Loader2, Trash2,
-  Pencil, RotateCcw, CalendarDays,
+  Pencil, RotateCcw, CalendarDays, Search,
 } from "lucide-react";
 import { useVoiceInput }      from "@/hooks/useVoiceInput";
 import { VoiceReviewModal }   from "@/components/voice/VoiceReviewModal";
@@ -14,6 +14,7 @@ import { MealEditModal }      from "@/components/nutrition/MealEditModal";
 import { AIFoodAnalysis }     from "@/components/nutrition/AIFoodAnalysis";
 import { CalendarOverlay }    from "@/components/nutrition/CalendarOverlay";
 import { NutritionAnalytics } from "@/components/nutrition/NutritionAnalytics";
+import { FoodSearchModal }    from "@/components/nutrition/FoodSearchModal";
 import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
 import { loadIntake }         from "@/lib/data/intake";
@@ -808,8 +809,9 @@ export default function NutritionPage() {
   // Edit flow
   const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
 
-  // Calendar overlay
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  // Overlay state
+  const [calendarOpen,   setCalendarOpen]   = useState(false);
+  const [foodSearchOpen, setFoodSearchOpen] = useState(false);
 
   // Voice → parse → review flow
   const [parsing,           setParsing]           = useState(false);
@@ -1194,8 +1196,8 @@ export default function NutritionPage() {
               onClick={() => setAnalysisOpen(true)}
             />
             <QuickActionTile
-              icon={Plus}     label="Add manually"     description="Enter foods directly"
-              onClick={() => openVoiceForSlot(null)}
+              icon={Search}   label="Food search"      description="Search & quick add"
+              onClick={() => setFoodSearchOpen(true)}
             />
           </div>
         </div>
@@ -1429,6 +1431,14 @@ export default function NutritionPage() {
           selectedDate={selectedDate}
           onSelect={(date) => { setSelectedDate(date); setViewWeek(false); }}
           onClose={() => setCalendarOpen(false)}
+        />
+      )}
+
+      {foodSearchOpen && (
+        <FoodSearchModal
+          userId={user.id}
+          onMealLogged={addMealToState}
+          onClose={() => setFoodSearchOpen(false)}
         />
       )}
 
