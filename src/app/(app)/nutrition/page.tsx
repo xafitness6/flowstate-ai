@@ -333,12 +333,6 @@ function SuggestionCard({ s, onDismiss }: { s: Suggestion; onDismiss: () => void
 
 const CARD_UNIT_OPTIONS = ["g", "oz", "ml", "cup", "tbsp", "tsp", "item", "slice", "scoop"];
 
-function cardNumField(v: number | null): string { return v != null ? String(v) : ""; }
-function cardParseNum(s: string): number | null {
-  const n = parseFloat(s);
-  return isNaN(n) ? null : n;
-}
-
 function isWaterItem(item: LoggedFoodItem) {
   return item.name.toLowerCase().includes("water") && (item.calories == null || item.calories === 0);
 }
@@ -355,6 +349,7 @@ function MealCard({
   onDelete,
   onVoiceLog,
   onItemChange,
+  onItemAdd,
   onHydrationAdjust,
 }: {
   meal:               LoggedMeal | null;
@@ -363,10 +358,13 @@ function MealCard({
   onDelete:           (meal: LoggedMeal) => void;
   onVoiceLog:         () => void;
   onItemChange:       (mealId: string, itemId: string, patch: Partial<LoggedFoodItem>) => void;
+  onItemAdd:          (mealId: string, item: LoggedFoodItem) => void;
   onHydrationAdjust:  (deltaMl: number) => void;
 }) {
-  const [expanded,   setExpanded]   = useState(false);
-  const [editingId,  setEditingId]  = useState<string | null>(null);
+  const [expanded,  setExpanded]  = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Draft holds raw string values for inputs so number typing ("1.5") doesn't fight React re-renders
+  const [draft, setDraft] = useState<Record<string, string>>({});
 
   if (!meal) {
     return (
@@ -385,27 +383,82 @@ function MealCard({
   const timeStr     = new Date(meal.eatenAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const displayName = mealDisplayName(meal);
 
-  function handleItemEdit(item: LoggedFoodItem, patch: Partial<LoggedFoodItem>) {
+  function startEdit(item: LoggedFoodItem) {
+    setEditingId(item.id);
+    setDraft({
+      name:     item.name,
+      quantity: item.quantity != null ? String(item.quantity) : "",
+      unit:     item.unit ?? "",
+      grams:    item.grams     != null ? String(item.grams)     : "",
+      calories: item.calories  != null ? String(item.calories)  : "",
+      protein:  item.protein   != null ? String(item.protein)   : "",
+      carbs:    item.carbs     != null ? String(item.carbs)     : "",
+      fat:      item.fat       != null ? String(item.fat)       : "",
+    });
+  }
+
+  function closeEdit() {
+    setEditingId(null);
+    setDraft({});
+  }
+
+  function handleDraftChange(item: LoggedFoodItem, field: string, value: string) {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+
+    let patch: Partial<LoggedFoodItem>;
+    if (field === "name") {
+      patch = { name: value };
+    } else if (field === "unit") {
+      patch = { unit: value || null };
+    } else {
+      const num = parseFloat(value);
+      const parsed = isNaN(num) ? null : num;
+      patch = { [field]: parsed } as Partial<LoggedFoodItem>;
+      // Keep hydration in sync when grams change on a water item
+      if (field === "grams" && isWaterItem(item) && parsed != null) {
+        const delta = parsed - (item.grams ?? 250);
+        if (delta !== 0) onHydrationAdjust(delta);
+      }
+    }
     onItemChange(meal!.id, item.id, patch);
   }
 
-  function handleItemDelete(item: LoggedFoodItem) {
-    if (editingId === item.id) setEditingId(null);
+  function handleDeleteItem(item: LoggedFoodItem) {
+    if (editingId === item.id) closeEdit();
     onItemChange(meal!.id, item.id, { deletedAt: new Date().toISOString() });
     if (isWaterItem(item)) onHydrationAdjust(-estimateWaterMl(item));
   }
 
-  function handleItemRestore(item: LoggedFoodItem) {
+  function handleRestoreItem(item: LoggedFoodItem) {
     onItemChange(meal!.id, item.id, { deletedAt: null });
     if (isWaterItem(item)) onHydrationAdjust(estimateWaterMl(item));
+  }
+
+  function handleAddItem() {
+    const newItem: LoggedFoodItem = {
+      id:         `fi_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      name:       "",
+      quantity:   null,
+      unit:       null,
+      grams:      null,
+      calories:   null,
+      protein:    null,
+      carbs:      null,
+      fat:        null,
+      confidence: 1,
+      source:     meal!.source,
+      deletedAt:  null,
+    };
+    onItemAdd(meal!.id, newItem);
+    startEdit(newItem);
   }
 
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-[#111111] overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3">
+      <div className="flex items-center gap-1.5 px-4 py-3">
         <button
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => { setExpanded((v) => !v); if (editingId) closeEdit(); }}
           className="flex-1 flex items-center gap-2.5 text-left min-w-0"
         >
           <div className="flex-1 min-w-0">
@@ -425,7 +478,7 @@ function MealCard({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {meal.totals.calories > 0 && (
               <span className="text-sm tabular-nums text-white/40">
                 {Math.round(meal.totals.calories)} kcal
@@ -437,13 +490,14 @@ function MealCard({
           </div>
         </button>
 
-        {/* Meal-level actions */}
+        {/* Edit Meal — opens MealEditModal for type / time / notes */}
         <button
           onClick={(e) => { e.stopPropagation(); onEdit(meal); }}
-          className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:text-white/55 hover:bg-white/[0.05] transition-all"
-          title="Edit meal"
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-[11px] font-medium text-white/35 hover:text-white/65 hover:border-white/15 hover:bg-white/[0.04] transition-all"
+          title="Edit meal type, time and notes"
         >
-          <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
+          <Pencil className="w-3 h-3" strokeWidth={1.5} />
+          Edit
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(meal); }}
@@ -462,11 +516,12 @@ function MealCard({
               item.quantity != null ? `${item.quantity}` : "",
               item.unit && item.unit !== "item" ? item.unit : "",
               item.name,
-            ].filter(Boolean).join(" ") || "Item";
+            ].filter(Boolean).join(" ") || "New item";
 
             const isDeleted = !!item.deletedAt;
             const isEditing = editingId === item.id;
 
+            // ── Soft-deleted row ──────────────────────────────────────────────
             if (isDeleted) {
               return (
                 <div
@@ -475,40 +530,56 @@ function MealCard({
                 >
                   <span className="flex-1 text-sm text-white/35 line-through truncate">{label}</span>
                   <button
-                    onClick={() => handleItemRestore(item)}
-                    className="text-[10px] text-white/30 hover:text-white/60 transition-colors shrink-0"
+                    onClick={() => handleRestoreItem(item)}
+                    className="text-[10px] text-[#B48B40]/60 hover:text-[#B48B40] transition-colors shrink-0 font-medium"
                   >
-                    Restore
+                    Undo
                   </button>
                 </div>
               );
             }
 
+            // ── Active row ────────────────────────────────────────────────────
             return (
-              <div key={item.id} className="rounded-xl border border-white/[0.06] bg-white/[0.015] overflow-hidden">
-                {/* Item row */}
+              <div key={item.id} className={cn(
+                "rounded-xl border overflow-hidden transition-colors",
+                isEditing
+                  ? "border-[#B48B40]/20 bg-[#B48B40]/[0.03]"
+                  : "border-white/[0.06] bg-white/[0.015]",
+              )}>
+                {/* Compact row */}
                 <div className="flex items-center gap-2 px-3 py-2">
                   <span className="w-1 h-1 rounded-full bg-white/25 shrink-0 mt-px" />
                   <button
-                    onClick={() => setEditingId(isEditing ? null : item.id)}
+                    onClick={() => isEditing ? closeEdit() : startEdit(item)}
                     className="flex-1 flex items-center gap-2 text-left min-w-0"
                   >
-                    <span className="text-sm text-white/60 flex-1 truncate">{label}</span>
-                    {item.calories != null && (
+                    <span className={cn(
+                      "text-sm flex-1 truncate transition-colors",
+                      isEditing ? "text-white/80" : "text-white/60",
+                    )}>
+                      {label}
+                    </span>
+                    {!isEditing && item.calories != null && (
                       <span className="text-[10px] text-white/22 tabular-nums shrink-0">
                         {Math.round(item.calories)} kcal
                       </span>
                     )}
                   </button>
                   <button
-                    onClick={() => setEditingId(isEditing ? null : item.id)}
-                    className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-white/18 hover:text-white/55 hover:bg-white/[0.04] transition-all"
-                    title="Edit item"
+                    onClick={() => isEditing ? closeEdit() : startEdit(item)}
+                    className={cn(
+                      "shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-all",
+                      isEditing
+                        ? "text-[#B48B40]/70 bg-[#B48B40]/10"
+                        : "text-white/18 hover:text-white/55 hover:bg-white/[0.04]",
+                    )}
+                    title={isEditing ? "Done editing" : "Edit item"}
                   >
                     <Pencil className="w-3 h-3" strokeWidth={1.5} />
                   </button>
                   <button
-                    onClick={() => handleItemDelete(item)}
+                    onClick={() => handleDeleteItem(item)}
                     className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-white/18 hover:text-[#EF4444]/60 hover:bg-[#EF4444]/8 transition-all"
                     title="Remove item"
                   >
@@ -516,80 +587,111 @@ function MealCard({
                   </button>
                 </div>
 
-                {/* Inline edit fields */}
+                {/* ── Inline edit panel ──────────────────────────────────────── */}
                 {isEditing && (
-                  <div className="border-t border-white/[0.05] px-3 pb-3 pt-2.5 space-y-2">
+                  <div className="border-t border-[#B48B40]/10 px-3 pb-3 pt-2.5 space-y-2">
                     {/* Name */}
                     <div>
-                      <label className="text-[10px] uppercase tracking-[0.12em] text-white/20 mb-1 block">Name</label>
+                      <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Name</label>
                       <input
+                        autoFocus
                         type="text"
-                        value={item.name}
-                        onChange={(e) => handleItemEdit(item, { name: e.target.value })}
-                        className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/75 placeholder:text-white/20 outline-none focus:border-[#B48B40]/30 transition-colors"
+                        value={draft.name ?? ""}
+                        onChange={(e) => handleDraftChange(item, "name", e.target.value)}
+                        placeholder="e.g. blueberries"
+                        className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-[#B48B40]/35 transition-colors"
                       />
                     </div>
+
                     {/* Qty + Unit */}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] uppercase tracking-[0.12em] text-white/20 mb-1 block">Qty</label>
+                        <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Qty</label>
                         <input
-                          type="number" min="0" step="any"
-                          value={cardNumField(item.quantity)}
-                          onChange={(e) => handleItemEdit(item, { quantity: cardParseNum(e.target.value) })}
-                          className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/75 outline-none focus:border-[#B48B40]/30 transition-colors"
+                          type="text"
+                          inputMode="decimal"
+                          value={draft.quantity ?? ""}
+                          onChange={(e) => handleDraftChange(item, "quantity", e.target.value)}
+                          placeholder="e.g. 1.5"
+                          className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-[#B48B40]/35 transition-colors"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] uppercase tracking-[0.12em] text-white/20 mb-1 block">Unit</label>
+                        <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Unit</label>
                         <select
-                          value={item.unit ?? ""}
-                          onChange={(e) => handleItemEdit(item, { unit: e.target.value || null })}
-                          className="w-full bg-[#0D0D0D] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/75 outline-none focus:border-[#B48B40]/30 transition-colors"
+                          value={draft.unit ?? ""}
+                          onChange={(e) => handleDraftChange(item, "unit", e.target.value)}
+                          className="w-full bg-[#0D0D0D] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/80 outline-none focus:border-[#B48B40]/35 transition-colors"
                         >
                           <option value="">—</option>
                           {CARD_UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
                       </div>
                     </div>
+
                     {/* Grams */}
                     <div>
-                      <label className="text-[10px] uppercase tracking-[0.12em] text-white/20 mb-1 block">Grams</label>
+                      <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Grams (weight)</label>
                       <input
-                        type="number" min="0" step="any"
-                        value={cardNumField(item.grams)}
-                        onChange={(e) => handleItemEdit(item, { grams: cardParseNum(e.target.value) })}
-                        className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/75 outline-none focus:border-[#B48B40]/30 transition-colors"
+                        type="text"
+                        inputMode="decimal"
+                        value={draft.grams ?? ""}
+                        onChange={(e) => handleDraftChange(item, "grams", e.target.value)}
+                        placeholder="e.g. 150"
+                        className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-[#B48B40]/35 transition-colors"
                       />
                     </div>
-                    {/* Macros */}
+
+                    {/* Macros 2×2 */}
                     <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { key: "calories" as const, label: "Calories" },
-                        { key: "protein"  as const, label: "Protein"  },
-                        { key: "carbs"    as const, label: "Carbs"    },
-                        { key: "fat"      as const, label: "Fat"      },
-                      ].map(({ key, label }) => (
+                      {([
+                        { key: "calories", label: "Calories" },
+                        { key: "protein",  label: "Protein"  },
+                        { key: "carbs",    label: "Carbs"    },
+                        { key: "fat",      label: "Fat"      },
+                      ] as { key: keyof typeof draft; label: string }[]).map(({ key, label }) => (
                         <div key={key}>
-                          <label className="text-[10px] uppercase tracking-[0.12em] text-white/20 mb-1 block">{label}</label>
+                          <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">{label}</label>
                           <input
-                            type="number" min="0" step="any"
-                            value={cardNumField(item[key])}
-                            onChange={(e) => handleItemEdit(item, { [key]: cardParseNum(e.target.value) })}
-                            className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/75 outline-none focus:border-[#B48B40]/30 transition-colors"
+                            type="text"
+                            inputMode="decimal"
+                            value={draft[key] ?? ""}
+                            onChange={(e) => handleDraftChange(item, key, e.target.value)}
+                            placeholder="—"
+                            className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-2.5 py-1.5 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-[#B48B40]/35 transition-colors"
                           />
                         </div>
                       ))}
                     </div>
+
+                    {/* Done button */}
+                    <button
+                      onClick={closeEdit}
+                      className="w-full py-1.5 rounded-lg bg-[#B48B40]/10 border border-[#B48B40]/20 text-xs font-semibold text-[#B48B40]/80 hover:bg-[#B48B40]/16 hover:text-[#B48B40] transition-all"
+                    >
+                      Done
+                    </button>
                   </div>
                 )}
               </div>
             );
           })}
 
+          {/* Add food item */}
+          <button
+            onClick={handleAddItem}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.07] py-2 text-xs text-white/28 hover:text-white/50 hover:border-white/14 transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Add food item
+          </button>
+
           {/* Totals row */}
-          {activeItems.length > 0 && (meal.totals.protein > 0 || meal.totals.carbs > 0 || meal.totals.calories > 0) && (
-            <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04] mt-1">
+          {activeItems.length > 0 && (meal.totals.calories > 0 || meal.totals.protein > 0) && (
+            <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04] mt-0.5">
+              <span className="text-[10px] text-white/20 font-medium tabular-nums">
+                {Math.round(meal.totals.calories)} kcal
+              </span>
               {[
                 { label: "P", value: meal.totals.protein,  color: "text-[#B48B40]/70"   },
                 { label: "C", value: meal.totals.carbs,    color: "text-[#93C5FD]/60"   },
@@ -927,6 +1029,19 @@ export default function NutritionPage() {
     setHydration((v) => Math.max(0, v + deltaMl));
   }
 
+  function handleItemAdd(mealId: string, newItem: LoggedFoodItem) {
+    setMeals((prev) =>
+      prev.map((m) => {
+        if (m.id !== mealId) return m;
+        const newItems  = [...m.items, newItem];
+        const newTotals = recalcMealTotals(newItems.filter((i) => !i.deletedAt));
+        const updated   = { ...m, items: newItems, totals: newTotals, updatedAt: new Date().toISOString() };
+        updateMeal(user.id, mealId, { items: newItems, totals: newTotals });
+        return updated;
+      }),
+    );
+  }
+
   // ── Edit handlers ───────────────────────────────────────────────────────────
 
   function handleEditSave(updated: LoggedMeal) {
@@ -1140,6 +1255,7 @@ export default function NutritionPage() {
                             onDelete={handleDelete}
                             onVoiceLog={() => openVoiceForSlot(slotKey)}
                             onItemChange={handleItemChange}
+                            onItemAdd={handleItemAdd}
                             onHydrationAdjust={handleHydrationAdjust}
                           />
                         ))}
@@ -1151,6 +1267,7 @@ export default function NutritionPage() {
                             onDelete={() => {}}
                             onVoiceLog={() => openVoiceForSlot(slotKey)}
                             onItemChange={handleItemChange}
+                            onItemAdd={handleItemAdd}
                             onHydrationAdjust={handleHydrationAdjust}
                           />
                         )}
