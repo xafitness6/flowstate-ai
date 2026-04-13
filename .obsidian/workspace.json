@@ -178,19 +178,19 @@
   },
   "active": "77d65f5bb2b6d010",
   "lastOpenFiles": [
+    "src/components/nutrition/BarcodeScanner.tsx",
+    "src/components/nutrition/FoodSearchModal.tsx",
+    "src/components/nutrition/NutritionAnalytics.tsx",
+    "src/components/nutrition/CalendarOverlay.tsx",
+    "src/lib/nutrition/analytics.ts",
+    "src/lib/nutrition/recentFoods.ts",
+    "src/lib/nutrition/barcodeService.ts",
+    "src/lib/nutrition/foodSearch.ts",
     "src/components/nutrition/MealEditModal.tsx",
     "src/lib/nutrition/waterParser.ts",
     "src/lib/nutrition/hydration.ts",
-    "src/components/nutrition/MealReviewModal.tsx",
-    "src/app/api/ai/nutrition/route.ts",
-    "src/app/api/ai/nutrition",
-    "src/lib/nutrition/store.ts",
-    "src/lib/nutrition/types.ts",
-    "src/lib/nutrition",
     "CLAUDE.md",
     "Untitled.canvas",
-    "docs/app/api-reference/file-conventions/page.md",
-    "docs/app/api-reference/file-conventions",
-    "docs/app/api-reference"
+    "docs/app/api-reference/file-conventions/page.md"
   ]
 }

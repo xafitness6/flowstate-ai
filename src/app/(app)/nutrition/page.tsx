@@ -5,13 +5,17 @@ import {
   Mic, Camera, Plus, Sparkles, Droplets, Flame,
   ChevronDown, ChevronUp, AlertCircle, TrendingUp,
   X, Clock, ChevronLeft, ChevronRight, Loader2, Trash2,
-  Pencil, RotateCcw,
+  Pencil, RotateCcw, CalendarDays, Barcode, Search,
 } from "lucide-react";
 import { useVoiceInput }      from "@/hooks/useVoiceInput";
 import { VoiceReviewModal }   from "@/components/voice/VoiceReviewModal";
 import { MealReviewModal }    from "@/components/nutrition/MealReviewModal";
 import { MealEditModal }      from "@/components/nutrition/MealEditModal";
 import { AIFoodAnalysis }     from "@/components/nutrition/AIFoodAnalysis";
+import { CalendarOverlay }    from "@/components/nutrition/CalendarOverlay";
+import { NutritionAnalytics } from "@/components/nutrition/NutritionAnalytics";
+import { FoodSearchModal }    from "@/components/nutrition/FoodSearchModal";
+import { BarcodeScanner }     from "@/components/nutrition/BarcodeScanner";
 import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
 import { loadIntake }         from "@/lib/data/intake";
@@ -806,6 +810,11 @@ export default function NutritionPage() {
   // Edit flow
   const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
 
+  // New overlay/modal state
+  const [calendarOpen,   setCalendarOpen]   = useState(false);
+  const [foodSearchOpen, setFoodSearchOpen] = useState(false);
+  const [barcodeOpen,    setBarcodeOpen]    = useState(false);
+
   // Voice → parse → review flow
   const [parsing,           setParsing]           = useState(false);
   const [pendingParse,      setPendingParse]       = useState<NutritionParseResult | null>(null);
@@ -1146,6 +1155,13 @@ export default function NutritionPage() {
             </button>
           )}
           <button
+            onClick={() => setCalendarOpen(true)}
+            className="w-8 h-8 rounded-xl border border-white/[0.08] bg-white/[0.02] flex items-center justify-center text-white/30 hover:text-white/60 hover:border-white/15 transition-all shrink-0"
+            title="Open calendar"
+          >
+            <CalendarDays className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+          <button
             onClick={() => setViewWeek((v) => !v)}
             className={cn(
               "px-3 py-1.5 rounded-xl border text-[11px] font-medium transition-all shrink-0",
@@ -1168,23 +1184,34 @@ export default function NutritionPage() {
         {/* ── Quick actions ─────────────────────────────────────────────────── */}
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">Quick actions</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
-            <QuickActionTile
-              icon={Mic}      label="Voice log meal"   description="Say what you ate"
-              onClick={() => openVoiceForSlot(null)}  primary
-            />
-            <QuickActionTile
-              icon={Camera}   label="Photo scan"       description="Snap your plate"
-              onClick={() => setAnalysisOpen(true)}
-            />
-            <QuickActionTile
-              icon={Sparkles} label="AI food analysis" description="Analyze · portion guidance"
-              onClick={() => setAnalysisOpen(true)}
-            />
-            <QuickActionTile
-              icon={Plus}     label="Add manually"     description="Enter foods directly"
-              onClick={() => openVoiceForSlot(null)}
-            />
+          <div className="grid grid-cols-4 gap-2">
+            {([
+              { Icon: Barcode,  label: "Barcode",  onClick: () => setBarcodeOpen(true)         },
+              { Icon: Mic,      label: "Voice",    onClick: () => openVoiceForSlot(null), primary: true },
+              { Icon: Camera,   label: "Scan",     onClick: () => setAnalysisOpen(true)         },
+              { Icon: Search,   label: "Search",   onClick: () => setFoodSearchOpen(true)       },
+            ] as { Icon: React.ElementType; label: string; onClick: () => void; primary?: boolean }[]).map(({ Icon, label, onClick, primary }) => (
+              <button
+                key={label}
+                onClick={onClick}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-2 rounded-2xl border py-4 transition-all active:scale-95",
+                  primary
+                    ? "border-[#B48B40]/22 bg-[#B48B40]/[0.05] hover:bg-[#B48B40]/[0.09] hover:border-[#B48B40]/32"
+                    : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/12",
+                )}
+              >
+                <div className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center border",
+                  primary ? "bg-[#B48B40]/10 border-[#B48B40]/22" : "bg-white/[0.04] border-white/[0.08]",
+                )}>
+                  <Icon className={cn("w-4 h-4", primary ? "text-[#B48B40]/80" : "text-white/40")} strokeWidth={1.5} />
+                </div>
+                <span className={cn("text-[11px] font-medium", primary ? "text-white/65" : "text-white/40")}>
+                  {label}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -1323,6 +1350,9 @@ export default function NutritionPage() {
           </div>
         )}
 
+        {/* ── Analytics & trends ───────────────────────────────────────────── */}
+        <NutritionAnalytics userId={user.id} targets={targets} today={todayISO()} />
+
         {/* ── Nutrition notes ───────────────────────────────────────────────── */}
         <div>
           <button
@@ -1405,6 +1435,31 @@ export default function NutritionPage() {
           userId={user.id}
           onSave={handleEditSave}
           onCancel={() => setEditingMeal(null)}
+        />
+      )}
+
+      {calendarOpen && (
+        <CalendarOverlay
+          userId={user.id}
+          selectedDate={selectedDate}
+          onSelect={(date) => { setSelectedDate(date); setViewWeek(false); }}
+          onClose={() => setCalendarOpen(false)}
+        />
+      )}
+
+      {foodSearchOpen && (
+        <FoodSearchModal
+          userId={user.id}
+          onMealLogged={(meal) => { handleMealLogged(meal); setFoodSearchOpen(false); }}
+          onClose={() => setFoodSearchOpen(false)}
+        />
+      )}
+
+      {barcodeOpen && (
+        <BarcodeScanner
+          userId={user.id}
+          onMealLogged={(meal) => { handleMealLogged(meal); setBarcodeOpen(false); }}
+          onClose={() => setBarcodeOpen(false)}
         />
       )}
     </div>
