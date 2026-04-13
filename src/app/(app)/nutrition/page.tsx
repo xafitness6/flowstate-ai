@@ -526,13 +526,14 @@ function MealCard({
               return (
                 <div
                   key={item.id}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-white/[0.04] bg-white/[0.01] opacity-40"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-white/[0.04] bg-white/[0.01]"
                 >
-                  <span className="flex-1 text-sm text-white/35 line-through truncate">{label}</span>
+                  <span className="flex-1 text-sm text-white/25 line-through truncate">{label}</span>
                   <button
                     onClick={() => handleRestoreItem(item)}
-                    className="text-[10px] text-[#B48B40]/60 hover:text-[#B48B40] transition-colors shrink-0 font-medium"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-[#B48B40]/25 bg-[#B48B40]/8 text-[11px] font-semibold text-[#B48B40]/80 hover:text-[#B48B40] hover:bg-[#B48B40]/14 transition-all shrink-0"
                   >
+                    <RotateCcw className="w-2.5 h-2.5" strokeWidth={2} />
                     Undo
                   </button>
                 </div>
@@ -548,7 +549,7 @@ function MealCard({
                   : "border-white/[0.06] bg-white/[0.015]",
               )}>
                 {/* Compact row */}
-                <div className="flex items-center gap-2 px-3 py-2">
+                <div className="flex items-center gap-1.5 px-3 py-2">
                   <span className="w-1 h-1 rounded-full bg-white/25 shrink-0 mt-px" />
                   <button
                     onClick={() => isEditing ? closeEdit() : startEdit(item)}
@@ -561,26 +562,29 @@ function MealCard({
                       {label}
                     </span>
                     {!isEditing && item.calories != null && (
-                      <span className="text-[10px] text-white/22 tabular-nums shrink-0">
+                      <span className="text-[10px] text-white/30 tabular-nums shrink-0">
                         {Math.round(item.calories)} kcal
                       </span>
                     )}
                   </button>
+                  {/* Edit button — always visible */}
                   <button
                     onClick={() => isEditing ? closeEdit() : startEdit(item)}
                     className={cn(
-                      "shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-all",
+                      "shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-medium transition-all",
                       isEditing
-                        ? "text-[#B48B40]/70 bg-[#B48B40]/10"
-                        : "text-white/18 hover:text-white/55 hover:bg-white/[0.04]",
+                        ? "text-[#B48B40] bg-[#B48B40]/12 border border-[#B48B40]/25"
+                        : "text-white/45 hover:text-white/75 hover:bg-white/[0.05] border border-transparent",
                     )}
-                    title={isEditing ? "Done editing" : "Edit item"}
+                    title={isEditing ? "Done" : "Edit"}
                   >
                     <Pencil className="w-3 h-3" strokeWidth={1.5} />
+                    <span>{isEditing ? "Done" : "Edit"}</span>
                   </button>
+                  {/* Delete button — always visible */}
                   <button
                     onClick={() => handleDeleteItem(item)}
-                    className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-white/18 hover:text-[#EF4444]/60 hover:bg-[#EF4444]/8 transition-all"
+                    className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-white/35 hover:text-[#EF4444]/70 hover:bg-[#EF4444]/8 border border-transparent hover:border-[#EF4444]/15 transition-all"
                     title="Remove item"
                   >
                     <Trash2 className="w-3 h-3" strokeWidth={1.5} />
