@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  X, ChevronDown, Plus, Trash2, ChevronUp, Check,
+  X, ChevronDown, Plus, Trash2, ChevronUp, Check, Pencil,
 } from "lucide-react";
 import { cn }         from "@/lib/utils";
 import { updateMeal, recalcMealTotals } from "@/lib/nutrition/store";
@@ -120,6 +120,7 @@ function ItemRow({
           onClick={() => onToggle(item.id)}
           className="flex-1 flex items-center gap-2 text-left min-w-0"
         >
+          <Pencil className="w-3 h-3 text-white/25 shrink-0" strokeWidth={1.5} />
           <span className="text-sm text-white/70 truncate">{label}</span>
           {item.calories != null && (
             <span className="text-[10px] text-white/25 tabular-nums shrink-0">{item.calories} kcal</span>
@@ -258,7 +259,7 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
   const [saving,    setSaving]    = useState(false);
 
   const [items, setItems] = useState<EditItem[]>(
-    meal.items.map((item) => ({ ...item, _expanded: false })),
+    meal.items.map((item) => ({ ...item, _expanded: true })),
   );
 
   const totals = displayTotals(items);
