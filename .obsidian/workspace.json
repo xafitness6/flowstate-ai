@@ -178,6 +178,12 @@
   },
   "active": "77d65f5bb2b6d010",
   "lastOpenFiles": [
+    "src/components/nutrition/MealReviewModal.tsx",
+    "src/app/api/ai/nutrition/route.ts",
+    "src/app/api/ai/nutrition",
+    "src/lib/nutrition/store.ts",
+    "src/lib/nutrition/types.ts",
+    "src/lib/nutrition",
     "CLAUDE.md",
     "Untitled.canvas",
     "docs/app/api-reference/file-conventions/page.md",
