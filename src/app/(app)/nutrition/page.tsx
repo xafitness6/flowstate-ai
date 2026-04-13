@@ -13,6 +13,7 @@ import { MealReviewModal }    from "@/components/nutrition/MealReviewModal";
 import { MealEditModal }      from "@/components/nutrition/MealEditModal";
 import { AIFoodAnalysis }     from "@/components/nutrition/AIFoodAnalysis";
 import { CalendarOverlay }    from "@/components/nutrition/CalendarOverlay";
+import { NutritionAnalytics } from "@/components/nutrition/NutritionAnalytics";
 import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
 import { loadIntake }         from "@/lib/data/intake";
@@ -1333,6 +1334,9 @@ export default function NutritionPage() {
             )}
           </div>
         )}
+
+        {/* ── Analytics & trends ───────────────────────────────────────────── */}
+        <NutritionAnalytics userId={user.id} targets={targets} today={todayISO()} />
 
         {/* ── Nutrition notes ───────────────────────────────────────────────── */}
         <div>

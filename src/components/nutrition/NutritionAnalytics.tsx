@@ -14,7 +14,7 @@ interface Props {
   today:   string;   // YYYY-MM-DD — anchor for range calculations
 }
 
-type Range = "7D" | "14D" | "30D" | "90D";
+type Range = "7D" | "30D";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ function offsetDate(base: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-const RANGE_DAYS: Record<Range, number> = { "7D": 7, "14D": 14, "30D": 30, "90D": 90 };
+const RANGE_DAYS: Record<Range, number> = { "7D": 7, "30D": 30 };
 
 // ─── SVG Sparkline (area chart with gradient) ─────────────────────────────────
 
@@ -196,7 +196,7 @@ export function NutritionAnalytics({ userId, targets, today }: Props) {
         <div className="border-t border-white/[0.05] px-5 pb-6 pt-4 space-y-6">
           {/* Range selector */}
           <div className="flex gap-1.5">
-            {(["7D", "14D", "30D", "90D"] as Range[]).map((r) => (
+            {(["7D", "30D"] as Range[]).map((r) => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
