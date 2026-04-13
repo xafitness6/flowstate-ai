@@ -178,6 +178,9 @@
   },
   "active": "77d65f5bb2b6d010",
   "lastOpenFiles": [
+    "src/components/nutrition/MealEditModal.tsx",
+    "src/lib/nutrition/waterParser.ts",
+    "src/lib/nutrition/hydration.ts",
     "src/components/nutrition/MealReviewModal.tsx",
     "src/app/api/ai/nutrition/route.ts",
     "src/app/api/ai/nutrition",
@@ -188,7 +191,6 @@
     "Untitled.canvas",
     "docs/app/api-reference/file-conventions/page.md",
     "docs/app/api-reference/file-conventions",
-    "docs/app/api-reference",
-    "docs/app"
+    "docs/app/api-reference"
   ]
 }

@@ -19,10 +19,10 @@ const RESPONSE_SCHEMA = `
 Return ONLY valid JSON matching this exact shape — no markdown, no explanation:
 {
   "mealType": "breakfast" | "lunch" | "dinner" | "snack" | "unknown",
-  "cleanTranscript": "short clean description of what was eaten",
+  "cleanTranscript": "short clean description of what was eaten (exclude water)",
   "items": [
     {
-      "name": "food name in lowercase singular (e.g. 'egg', 'oat', 'banana')",
+      "name": "food name in lowercase singular (e.g. 'egg', 'oat', 'banana'). Do NOT include plain water as a food item.",
       "quantity": number or null,
       "unit": "g" | "oz" | "ml" | "cup" | "tbsp" | "tsp" | "item" | "slice" | "scoop" | null,
       "grams": estimated weight in grams as number or null,
@@ -34,7 +34,9 @@ Return ONLY valid JSON matching this exact shape — no markdown, no explanation
     }
   ],
   "totals": { "calories": number, "protein": number, "carbs": number, "fat": number },
-  "confidence": 0.0 to 1.0
+  "confidence": 0.0 to 1.0,
+  "hydrationMl": total plain water in ml as a number, or null if no water mentioned,
+  "hydrationConfidence": 0.0 to 1.0 or null
 }`;
 
 const PARSE_SYSTEM = `You are a precise nutrition data parser. Extract food items and estimate macronutrients.
@@ -47,6 +49,9 @@ Rules:
 - Overall confidence: high (≥0.8) when portions are clearly stated, medium (0.5–0.79) when typical, low (<0.5) when very vague
 - Round calories to nearest 5, macros to nearest gram
 - DO NOT invent items not mentioned in the transcript
+- Plain water (still or sparkling) must NOT be in the items array — put it in hydrationMl instead
+- Beverages with calories (coffee with milk, juice, protein shake, milk, soda) STAY in items
+- Unit conversions for water: 1 glass = 250 ml, 1 cup = 240 ml, 1 bottle = 500 ml, 1 litre = 1000 ml
 ${RESPONSE_SCHEMA}`;
 
 const ANALYZE_SYSTEM = `You are a nutrition analyst examining food photos. Identify every food item visible, estimate portions, and calculate macros.

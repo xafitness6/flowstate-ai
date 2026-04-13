@@ -1,25 +1,36 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Mic, Camera, Plus, Sparkles, Droplets, Flame,
   ChevronDown, ChevronUp, AlertCircle, TrendingUp,
   X, Clock, ChevronLeft, ChevronRight, Loader2, Trash2,
+  Pencil, RotateCcw,
 } from "lucide-react";
-import { useVoiceInput }           from "@/hooks/useVoiceInput";
-import { VoiceReviewModal }        from "@/components/voice/VoiceReviewModal";
-import { MealReviewModal }         from "@/components/nutrition/MealReviewModal";
-import { AIFoodAnalysis }          from "@/components/nutrition/AIFoodAnalysis";
-import { cn }                      from "@/lib/utils";
-import { useUser }                 from "@/context/UserContext";
-import { loadIntake }              from "@/lib/data/intake";
-import { calculateNutritionTargets, type NutritionTargets } from "@/lib/nutrition";
+import { useVoiceInput }      from "@/hooks/useVoiceInput";
+import { VoiceReviewModal }   from "@/components/voice/VoiceReviewModal";
+import { MealReviewModal }    from "@/components/nutrition/MealReviewModal";
+import { MealEditModal }      from "@/components/nutrition/MealEditModal";
+import { AIFoodAnalysis }     from "@/components/nutrition/AIFoodAnalysis";
+import { cn }                 from "@/lib/utils";
+import { useUser }            from "@/context/UserContext";
+import { loadIntake }         from "@/lib/data/intake";
+import {
+  calculateNutritionTargets,
+  type NutritionTargets,
+} from "@/lib/nutrition";
 import {
   saveMeal,
   getMealsForDate,
   getMealsForRange,
-  deleteMeal as storageDeleteMeal,
+  softDeleteMeal,
+  restoreMeal,
 } from "@/lib/nutrition/store";
+import {
+  saveHydrationLog,
+  getTotalHydrationForDate,
+} from "@/lib/nutrition/hydration";
+import { parseWaterFromTranscript } from "@/lib/nutrition/waterParser";
 import type {
   LoggedMeal,
   MealType,
@@ -33,12 +44,7 @@ import Link from "next/link";
 type MealSlotKey = "breakfast" | "pre_workout" | "lunch" | "post_workout" | "dinner" | "snack";
 type SuggType    = "warning" | "info" | "positive";
 
-type Suggestion = {
-  id:    string;
-  type:  SuggType;
-  label: string;
-  body:  string;
-};
+type Suggestion = { id: string; type: SuggType; label: string; body: string };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -54,36 +60,31 @@ const SLOT_META: Record<MealSlotKey, { label: string; time: string; icon: string
   dinner:       { label: "Dinner",       time: "7:00 – 8:00 pm",   icon: "🌙" },
   snack:        { label: "Snack",        time: "As needed",         icon: "🍎" },
 };
-
 const SLOT_ORDER: MealSlotKey[] = [
   "breakfast", "pre_workout", "lunch", "post_workout", "dinner", "snack",
 ];
-
-// Map MealType to slot
 const MEAL_TYPE_TO_SLOT: Record<MealType, MealSlotKey> = {
-  breakfast: "breakfast",
-  lunch:     "lunch",
-  dinner:    "dinner",
-  snack:     "snack",
-  unknown:   "snack",
+  breakfast: "breakfast", lunch: "lunch", dinner: "dinner",
+  snack: "snack",         unknown: "snack",
+};
+const SLOT_TO_MEAL_TYPE: Record<MealSlotKey, MealType> = {
+  breakfast:    "breakfast",
+  pre_workout:  "snack",
+  lunch:        "lunch",
+  post_workout: "snack",
+  dinner:       "dinner",
+  snack:        "snack",
 };
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-function toDateISO(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function todayISO(): string {
-  return toDateISO(new Date());
-}
-
+const toDateISO     = (d: Date) => d.toISOString().slice(0, 10);
+const todayISO      = ()        => toDateISO(new Date());
 function offsetDate(base: string, days: number): string {
   const d = new Date(base + "T12:00:00");
   d.setDate(d.getDate() + days);
   return toDateISO(d);
 }
-
 function formatDateLabel(iso: string): string {
   const today     = todayISO();
   const yesterday = offsetDate(today, -1);
@@ -93,17 +94,13 @@ function formatDateLabel(iso: string): string {
     weekday: "short", month: "short", day: "numeric",
   });
 }
+const getLast7Start = () => offsetDate(todayISO(), -6);
 
-function getLast7Start(): string {
-  return offsetDate(todayISO(), -6);
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Meal helpers ─────────────────────────────────────────────────────────────
 
 function mealToSlot(meal: LoggedMeal): MealSlotKey {
   const type = meal.mealType;
   if (type && type in MEAL_TYPE_TO_SLOT) return MEAL_TYPE_TO_SLOT[type];
-  // fallback: infer from time
   const h = new Date(meal.eatenAt).getHours();
   if (h <  9) return "breakfast";
   if (h < 12) return "pre_workout";
@@ -125,9 +122,20 @@ function sumTotals(meals: LoggedMeal[]): MealTotals {
   );
 }
 
+function mealDisplayName(meal: LoggedMeal): string {
+  if (meal.cleanTranscript) return meal.cleanTranscript;
+  const names = meal.items
+    .filter((i) => !i.deletedAt)
+    .slice(0, 2)
+    .map((i) => i.name);
+  return names.length ? names.join(", ") : "Logged meal";
+}
+
+// ─── Suggestions ──────────────────────────────────────────────────────────────
+
 function buildSuggestions(
   targets: NutritionTargets,
-  totals:  MealTotals,
+  totals: MealTotals,
   hydration: number,
   mealCount: number,
 ): Suggestion[] {
@@ -136,45 +144,30 @@ function buildSuggestions(
   const out: Suggestion[] = [];
 
   if (mealCount === 0) {
-    out.push({
-      id: "start", type: "info",
+    out.push({ id: "start", type: "info",
       label: "Start logging your meals",
-      body: "Use voice or photo to track today's intake and get personalised suggestions.",
-    });
+      body: "Use voice or photo to track today's intake." });
   }
-
   if (waterPct < 0.45 && mealCount > 0) {
-    out.push({
-      id: "water", type: "info",
+    out.push({ id: "water", type: "info",
       label: "Increase water intake",
-      body: `${(hydration / 1000).toFixed(1)}L of ${(targets.waterMl / 1000).toFixed(1)}L target. Pace at 500ml/hr through the afternoon.`,
-    });
+      body: `${(hydration / 1000).toFixed(1)}L of ${(targets.waterMl / 1000).toFixed(1)}L target.` });
   }
-
   if (mealCount > 0 && calPct < 0.55) {
-    out.push({
-      id: "cals-low", type: "warning",
+    out.push({ id: "cals-low", type: "warning",
       label: "Calories tracking low",
-      body: `${Math.round(totals.calories).toLocaleString()} of ${targets.calories.toLocaleString()} kcal consumed.`,
-    });
+      body: `${Math.round(totals.calories).toLocaleString()} of ${targets.calories.toLocaleString()} kcal consumed.` });
   }
-
   if (mealCount > 0 && calPct >= 0.85 && calPct <= 1.0) {
-    out.push({
-      id: "on-track", type: "positive",
+    out.push({ id: "on-track", type: "positive",
       label: "Calorie balance is clean",
-      body: `${Math.round(calPct * 100)}% of daily target reached. Keep dinner on plan to finish strong.`,
-    });
+      body: `${Math.round(calPct * 100)}% of daily target reached.` });
   }
-
   if (mealCount > 0 && calPct > 1.05) {
-    out.push({
-      id: "over", type: "warning",
+    out.push({ id: "over", type: "warning",
       label: "Over daily calorie target",
-      body: `${Math.round(totals.calories - targets.calories).toLocaleString()} kcal over goal.`,
-    });
+      body: `${Math.round(totals.calories - targets.calories).toLocaleString()} kcal over goal.` });
   }
-
   return out.slice(0, 3);
 }
 
@@ -186,10 +179,7 @@ function ProgressBar({ value, max, color = "bg-[#B48B40]", height = "h-1.5" }: {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
     <div className={cn("w-full rounded-full bg-white/[0.06] overflow-hidden", height)}>
-      <div
-        className={cn("h-full rounded-full transition-all duration-700", color)}
-        style={{ width: `${pct}%` }}
-      />
+      <div className={cn("h-full rounded-full transition-all duration-700", color)} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -218,14 +208,11 @@ function CalorieCard({ consumed, target }: { consumed: number; target: number })
   );
 }
 
-function MacrosCard({ totals, targets }: {
-  totals: MealTotals;
-  targets: NutritionTargets;
-}) {
+function MacrosCard({ totals, targets }: { totals: MealTotals; targets: NutritionTargets }) {
   const rows = [
-    { label: "Protein", value: totals.protein, target: targets.proteinG, color: "bg-[#B48B40]" },
-    { label: "Carbs",   value: totals.carbs,   target: targets.carbsG,   color: "bg-white/40" },
-    { label: "Fats",    value: totals.fat,      target: targets.fatG,     color: "bg-[#93C5FD]/60" },
+    { label: "Protein", value: totals.protein, target: targets.proteinG, color: "bg-[#B48B40]"     },
+    { label: "Carbs",   value: totals.carbs,   target: targets.carbsG,   color: "bg-white/40"       },
+    { label: "Fats",    value: totals.fat,      target: targets.fatG,     color: "bg-[#93C5FD]/60"  },
   ];
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-4">
@@ -247,9 +234,9 @@ function MacrosCard({ totals, targets }: {
   );
 }
 
-function HydrationCard({ current, target, onAdd }: {
-  current: number; target: number; onAdd: (ml: number) => void;
-}) {
+function HydrationCard({
+  current, target, onAdd,
+}: { current: number; target: number; onAdd: (ml: number) => void }) {
   const done = current >= target;
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-3">
@@ -266,8 +253,7 @@ function HydrationCard({ current, target, onAdd }: {
         </div>
         {done
           ? <p className="text-xs text-[#93C5FD]/60 mt-1">Daily target reached</p>
-          : <p className="text-xs text-white/30 mt-1">{((target - current) / 1000).toFixed(1)}L remaining</p>
-        }
+          : <p className="text-xs text-white/30 mt-1">{((target - current) / 1000).toFixed(1)}L remaining</p>}
       </div>
       <ProgressBar value={current} max={target} color="bg-[#93C5FD]/60" />
       <div className="flex gap-1.5">
@@ -319,8 +305,8 @@ function QuickActionTile({
 }
 
 const SUGG_CONFIG: Record<SuggType, { Icon: typeof AlertCircle; text: string; bg: string; border: string }> = {
-  warning:  { Icon: AlertCircle, text: "text-[#FBBF24]",  bg: "bg-[#FBBF24]/5",  border: "border-[#FBBF24]/15" },
-  info:     { Icon: Droplets,    text: "text-[#93C5FD]",  bg: "bg-[#93C5FD]/5",  border: "border-[#93C5FD]/15" },
+  warning:  { Icon: AlertCircle, text: "text-[#FBBF24]",   bg: "bg-[#FBBF24]/5",  border: "border-[#FBBF24]/15" },
+  info:     { Icon: Droplets,    text: "text-[#93C5FD]",   bg: "bg-[#93C5FD]/5",  border: "border-[#93C5FD]/15" },
   positive: { Icon: TrendingUp,  text: "text-emerald-400", bg: "bg-emerald-400/5", border: "border-emerald-400/15" },
 };
 
@@ -340,14 +326,19 @@ function SuggestionCard({ s, onDismiss }: { s: Suggestion; onDismiss: () => void
   );
 }
 
+// ─── MealCard ─────────────────────────────────────────────────────────────────
+
 function MealCard({
   meal,
+  slotKey,
+  onEdit,
   onDelete,
   onVoiceLog,
 }: {
-  meal: LoggedMeal | null;  // null = empty slot
-  slotKey: MealSlotKey;
-  onDelete: (id: string) => void;
+  meal:       LoggedMeal | null;
+  slotKey:    MealSlotKey;
+  onEdit:     (meal: LoggedMeal) => void;
+  onDelete:   (meal: LoggedMeal) => void;
   onVoiceLog: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -359,75 +350,97 @@ function MealCard({
         className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-white/[0.06] text-white/20 hover:text-white/40 hover:border-white/12 transition-all text-xs"
       >
         <Mic className="w-3 h-3" strokeWidth={1.5} />
-        Log
+        Log {SLOT_META[slotKey].label.toLowerCase()}
       </button>
     );
   }
 
-  const mealLabel = meal.cleanTranscript ?? meal.items.slice(0, 2).map((i) => i.name).join(", ");
-  const timeStr   = new Date(meal.eatenAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const activeItems = meal.items.filter((i) => !i.deletedAt);
+  const timeStr     = new Date(meal.eatenAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const displayName = mealDisplayName(meal);
 
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-[#111111] overflow-hidden">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.015] transition-colors"
-      >
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white/75 truncate">{mealLabel}</p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className={cn(
-              "text-[9px] font-semibold uppercase tracking-[0.12em]",
-              meal.source === "voice" ? "text-[#B48B40]/60" : meal.source === "photo" ? "text-[#93C5FD]/60" : "text-white/25",
-            )}>
-              {meal.source}
-            </span>
-            <span className="text-[10px] text-white/22 flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5" strokeWidth={1.5} />
-              {timeStr}
-            </span>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="flex-1 flex items-center gap-2.5 text-left min-w-0"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white/75 truncate">{displayName}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={cn(
+                "text-[9px] font-semibold uppercase tracking-[0.12em]",
+                meal.source === "voice" ? "text-[#B48B40]/60"
+                : meal.source === "photo" ? "text-[#93C5FD]/60"
+                : "text-white/25",
+              )}>
+                {meal.source}
+              </span>
+              <span className="text-[10px] text-white/22 flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5" strokeWidth={1.5} />
+                {timeStr}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {meal.totals.calories > 0 && (
-            <span className="text-sm tabular-nums text-white/40">{Math.round(meal.totals.calories)} kcal</span>
-          )}
-          {expanded
-            ? <ChevronUp   className="w-4 h-4 text-white/18" strokeWidth={1.5} />
-            : <ChevronDown className="w-4 h-4 text-white/18" strokeWidth={1.5} />}
-        </div>
-      </button>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {meal.totals.calories > 0 && (
+              <span className="text-sm tabular-nums text-white/40">
+                {Math.round(meal.totals.calories)} kcal
+              </span>
+            )}
+            {expanded
+              ? <ChevronUp   className="w-3.5 h-3.5 text-white/18" strokeWidth={1.5} />
+              : <ChevronDown className="w-3.5 h-3.5 text-white/18" strokeWidth={1.5} />}
+          </div>
+        </button>
 
+        {/* Action buttons */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(meal); }}
+          className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:text-white/55 hover:bg-white/[0.05] transition-all"
+          title="Edit meal"
+        >
+          <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(meal); }}
+          className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:text-[#EF4444]/60 hover:bg-[#EF4444]/8 transition-all"
+          title="Remove meal"
+        >
+          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+        </button>
+      </div>
+
+      {/* Expanded body */}
       {expanded && (
-        <div className="border-t border-white/[0.05] px-4 pb-4 pt-3.5 space-y-3">
-          {/* Food items */}
-          <div className="space-y-1.5">
-            {meal.items.map((item) => {
-              const label = [
-                item.quantity != null ? `${item.quantity}` : "",
-                item.unit && item.unit !== "item" ? item.unit : "",
-                item.name,
-              ].filter(Boolean).join(" ");
-              return (
-                <div key={item.id} className="flex items-center gap-2.5">
-                  <span className="w-1 h-1 rounded-full bg-white/25 shrink-0" />
-                  <span className="text-sm text-white/60">{label}</span>
-                  {item.calories != null && (
-                    <span className="ml-auto text-[10px] text-white/22 tabular-nums shrink-0">
-                      {Math.round(item.calories)} kcal
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        <div className="border-t border-white/[0.05] px-4 pb-4 pt-3 space-y-2">
+          {activeItems.map((item) => {
+            const label = [
+              item.quantity != null ? `${item.quantity}` : "",
+              item.unit && item.unit !== "item" ? item.unit : "",
+              item.name,
+            ].filter(Boolean).join(" ");
+            return (
+              <div key={item.id} className="flex items-center gap-2.5">
+                <span className="w-1 h-1 rounded-full bg-white/25 shrink-0" />
+                <span className="text-sm text-white/60 flex-1">{label}</span>
+                {item.calories != null && (
+                  <span className="text-[10px] text-white/22 tabular-nums shrink-0">
+                    {Math.round(item.calories)} kcal
+                  </span>
+                )}
+              </div>
+            );
+          })}
 
           {/* Macro row */}
-          {(meal.totals.protein > 0 || meal.totals.carbs > 0 || meal.totals.fat > 0) && (
-            <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04]">
+          {(meal.totals.protein > 0 || meal.totals.carbs > 0) && (
+            <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04] mt-1">
               {[
-                { label: "P", value: meal.totals.protein, color: "text-[#B48B40]/70" },
-                { label: "C", value: meal.totals.carbs,   color: "text-[#93C5FD]/60" },
+                { label: "P", value: meal.totals.protein, color: "text-[#B48B40]/70"   },
+                { label: "C", value: meal.totals.carbs,   color: "text-[#93C5FD]/60"   },
                 { label: "F", value: meal.totals.fat,     color: "text-emerald-400/55" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex items-baseline gap-0.5">
@@ -435,13 +448,9 @@ function MealCard({
                   <span className="text-[10px] text-white/20">{label}</span>
                 </div>
               ))}
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(meal.id); }}
-                className="ml-auto flex items-center gap-1 text-[10px] text-white/18 hover:text-[#EF4444]/50 transition-colors"
-              >
-                <Trash2 className="w-3 h-3" strokeWidth={1.5} />
-                Remove
-              </button>
+              {meal.notes && (
+                <p className="ml-auto text-[10px] text-white/22 truncate max-w-[120px]">{meal.notes}</p>
+              )}
             </div>
           )}
         </div>
@@ -450,17 +459,36 @@ function MealCard({
   );
 }
 
+// ─── Undo toast ───────────────────────────────────────────────────────────────
+
+function UndoToast({ meal, onUndo, onDismiss }: {
+  meal: LoggedMeal; onUndo: () => void; onDismiss: () => void;
+}) {
+  const name = mealDisplayName(meal);
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#1A1A1A] px-4 py-3 shadow-xl">
+      <span className="text-sm text-white/55 truncate flex-1">
+        <span className="text-white/30">Removed:</span> {name}
+      </span>
+      <button
+        onClick={onUndo}
+        className="flex items-center gap-1.5 text-xs font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors shrink-0"
+      >
+        <RotateCcw className="w-3 h-3" strokeWidth={2} />
+        Undo
+      </button>
+      <button onClick={onDismiss} className="text-white/20 hover:text-white/45 transition-colors shrink-0">
+        <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+      </button>
+    </div>
+  );
+}
+
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyState({
-  dateLabel,
-  onVoiceLog,
-  onPhoto,
-}: {
-  dateLabel: string;
-  onVoiceLog: () => void;
-  onPhoto: () => void;
-}) {
+  dateLabel, onVoiceLog, onPhoto,
+}: { dateLabel: string; onVoiceLog: () => void; onPhoto: () => void }) {
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-[#0D0D0D] px-6 py-10 flex flex-col items-center text-center gap-5">
       <div className="w-12 h-12 rounded-2xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center">
@@ -468,24 +496,20 @@ function EmptyState({
       </div>
       <div>
         <p className="text-sm font-medium text-white/55">No meals logged for {dateLabel.toLowerCase()}</p>
-        <p className="text-xs text-white/28 mt-1 leading-relaxed">
-          Log your first meal to start tracking your intake
-        </p>
+        <p className="text-xs text-white/28 mt-1 leading-relaxed">Log your first meal to start tracking</p>
       </div>
       <div className="flex items-center gap-2.5">
         <button
           onClick={onVoiceLog}
           className="flex items-center gap-2 rounded-xl border border-[#B48B40]/22 bg-[#B48B40]/[0.06] px-4 py-2 text-sm font-medium text-[#B48B40]/80 hover:bg-[#B48B40]/10 hover:border-[#B48B40]/32 transition-all"
         >
-          <Mic className="w-3.5 h-3.5" strokeWidth={1.5} />
-          Voice log
+          <Mic className="w-3.5 h-3.5" strokeWidth={1.5} /> Voice log
         </button>
         <button
           onClick={onPhoto}
           className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/45 hover:text-white/65 hover:border-white/18 transition-all"
         >
-          <Camera className="w-3.5 h-3.5" strokeWidth={1.5} />
-          Photo scan
+          <Camera className="w-3.5 h-3.5" strokeWidth={1.5} /> Photo scan
         </button>
       </div>
     </div>
@@ -498,23 +522,22 @@ export default function NutritionPage() {
   const { user } = useUser();
   const voice    = useVoiceInput();
 
-  // Targets from intake
+  // Targets
   const [targets,   setTargets]   = useState<NutritionTargets>(FALLBACK);
   const [hasIntake, setHasIntake] = useState(false);
 
   // Date navigation
-  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [selectedDate, setSelectedDate] = useState(todayISO);
   const [viewWeek,     setViewWeek]     = useState(false);
 
-  // Meal data (loaded from store)
+  // Meal data
   const [meals,     setMeals]     = useState<LoggedMeal[]>([]);
-  const weekMeals                 = useMemo(() => {
-    if (!viewWeek) return [];
-    return getMealsForRange(user.id, getLast7Start(), todayISO());
-  }, [user.id, viewWeek]);
+  const [weekMeals, setWeekMeals] = useState<LoggedMeal[]>([]);
+
+  // Hydration (from store for the selected date)
+  const [hydration, setHydration] = useState(0);
 
   // UI state
-  const [hydration,     setHydration]     = useState(0);
   const [analysisOpen,  setAnalysisOpen]  = useState(false);
   const [showVoice,     setShowVoice]     = useState(false);
   const [voiceSlot,     setVoiceSlot]     = useState<MealSlotKey | null>(null);
@@ -522,12 +545,20 @@ export default function NutritionPage() {
   const [noteOpen,      setNoteOpen]      = useState(false);
   const [note,          setNote]          = useState("");
 
-  // Voice → parse → review flow
-  const [parsing,         setParsing]         = useState(false);
-  const [pendingParse,    setPendingParse]     = useState<NutritionParseResult | null>(null);
-  const [pendingTranscript, setPendingTranscript] = useState<string>("");
+  // Edit flow
+  const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
 
-  // Load targets
+  // Voice → parse → review flow
+  const [parsing,           setParsing]           = useState(false);
+  const [pendingParse,      setPendingParse]       = useState<NutritionParseResult | null>(null);
+  const [pendingTranscript, setPendingTranscript]  = useState<string>("");
+
+  // Undo state
+  const [undoMeal,     setUndoMeal]     = useState<LoggedMeal | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Load targets ────────────────────────────────────────────────────────────
+
   useEffect(() => {
     const intake = loadIntake(user.id);
     if (intake) {
@@ -537,37 +568,62 @@ export default function NutritionPage() {
     setHasIntake(false);
   }, [user.id]);
 
-  // Load meals for selected date
+  // ── Load meals & hydration when date changes ────────────────────────────────
+
   useEffect(() => {
     setMeals(getMealsForDate(user.id, selectedDate));
+    setHydration(getTotalHydrationForDate(user.id, selectedDate));
   }, [user.id, selectedDate]);
 
-  // Totals derived from real meal data
+  // ── Load week meals ─────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (viewWeek) {
+      setWeekMeals(getMealsForRange(user.id, getLast7Start(), todayISO()));
+    }
+  }, [user.id, viewWeek, meals]); // refresh when day meals change too
+
+  // ── Derived totals ──────────────────────────────────────────────────────────
+
   const totals = useMemo(() => sumTotals(viewWeek ? weekMeals : meals), [meals, weekMeals, viewWeek]);
 
-  // Suggestions
   const suggestions = useMemo(() =>
     buildSuggestions(targets, totals, hydration, meals.length)
       .filter((s) => !dismissed.includes(s.id)),
     [targets, totals, hydration, meals.length, dismissed],
   );
 
-  // Group meals by slot (for day view)
   const mealsBySlot = useMemo<Record<MealSlotKey, LoggedMeal[]>>(() => {
     const map: Record<MealSlotKey, LoggedMeal[]> = {
       breakfast: [], pre_workout: [], lunch: [],
       post_workout: [], dinner: [], snack: [],
     };
-    meals.forEach((m) => {
-      const slot = mealToSlot(m);
-      map[slot].push(m);
-    });
+    meals.forEach((m) => { map[mealToSlot(m)].push(m); });
     return map;
   }, [meals]);
 
   const isToday = selectedDate === todayISO();
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Hydration helpers ───────────────────────────────────────────────────────
+
+  function addWaterMl(ml: number) {
+    saveHydrationLog(user.id, { amountMl: ml, source: "manual" });
+    setHydration((v) => v + ml);
+  }
+
+  function applyHydration(amountMl: number, linkedMealId?: string) {
+    if (amountMl <= 0) return;
+    saveHydrationLog(user.id, {
+      amountMl,
+      source: "voice",
+      linkedMealId: linkedMealId ?? null,
+    });
+    if (selectedDate === todayISO()) {
+      setHydration((v) => v + amountMl);
+    }
+  }
+
+  // ── Voice handlers ──────────────────────────────────────────────────────────
 
   function openVoiceForSlot(slot: MealSlotKey | null = null) {
     setVoiceSlot(slot);
@@ -591,18 +647,26 @@ export default function NutritionPage() {
       if (!res.ok) throw new Error("parse failed");
       const data: NutritionParseResult = await res.json();
 
+      // Handle water separately
+      if (data.hydrationMl && data.hydrationMl > 0) {
+        applyHydration(data.hydrationMl);
+      }
+
       if (data.confidence >= 0.75) {
-        // High confidence — save directly
-        handleParseSave(data, transcript);
+        doSaveMeal(data, transcript);
       } else {
-        // Medium/low confidence — show review
         setPendingTranscript(transcript);
         setPendingParse(data);
       }
     } catch {
-      // API unavailable — save with zero macros so we at least record the event
+      // API unavailable — regex fallback
       const { parseMealFromTranscript } = await import("@/lib/voiceParser");
       const fallback = parseMealFromTranscript(transcript);
+
+      // Client-side water extraction
+      const water = parseWaterFromTranscript(transcript);
+      if (water.amountMl > 0) applyHydration(water.amountMl);
+
       const now  = new Date().toISOString();
       const meal = saveMeal(user.id, {
         userId:          user.id,
@@ -624,11 +688,13 @@ export default function NutritionPage() {
           fat:        null,
           confidence: fallback.confidence,
           source:     "voice" as const,
+          deletedAt:  null,
         })),
         totals:      { calories: 0, protein: 0, carbs: 0, fat: 0 },
         needsReview: true,
       });
-      setMeals((prev) => [meal, ...prev]);
+
+      addMealToState(meal);
     } finally {
       setParsing(false);
       setVoiceSlot(null);
@@ -636,22 +702,13 @@ export default function NutritionPage() {
     }
   }
 
-  function handleParseSave(data: NutritionParseResult, rawTranscript: string) {
-    const now = new Date().toISOString();
-    // voiceSlot is a MealSlotKey; map it to a MealType
-    const SLOT_TO_MEAL_TYPE: Record<MealSlotKey, MealType> = {
-      breakfast:    "breakfast",
-      pre_workout:  "snack",
-      lunch:        "lunch",
-      post_workout: "snack",
-      dinner:       "dinner",
-      snack:        "snack",
-    };
+  function doSaveMeal(data: NutritionParseResult, rawTranscript: string) {
+    const now      = new Date().toISOString();
     const mealType: MealType = voiceSlot
       ? SLOT_TO_MEAL_TYPE[voiceSlot]
       : data.mealType === "unknown" ? "snack" : data.mealType;
 
-    const meal: LoggedMeal = saveMeal(user.id, {
+    const meal = saveMeal(user.id, {
       userId:          user.id,
       source:          "voice",
       mealType,
@@ -671,11 +728,16 @@ export default function NutritionPage() {
         fat:        item.fat,
         confidence: item.confidence,
         source:     "voice" as const,
+        deletedAt:  null,
       })),
       totals:      data.totals,
       needsReview: false,
     });
 
+    addMealToState(meal);
+  }
+
+  function addMealToState(meal: LoggedMeal) {
     if (meal.eatenAt.slice(0, 10) === selectedDate) {
       setMeals((prev) => [meal, ...prev]);
     }
@@ -684,41 +746,73 @@ export default function NutritionPage() {
   function handleReviewSave(meal: LoggedMeal) {
     setPendingParse(null);
     setPendingTranscript("");
-    if (meal.eatenAt.slice(0, 10) === selectedDate) {
-      setMeals((prev) => [meal, ...prev]);
-    }
+    // Apply hydration if pending parse had water
+    if (pendingParse?.hydrationMl) applyHydration(pendingParse.hydrationMl, meal.id);
+    addMealToState(meal);
   }
 
   function handleMealLogged(meal: LoggedMeal) {
     setAnalysisOpen(false);
-    if (meal.eatenAt.slice(0, 10) === selectedDate) {
-      setMeals((prev) => [meal, ...prev]);
+    addMealToState(meal);
+  }
+
+  // ── Edit handlers ───────────────────────────────────────────────────────────
+
+  function handleEditSave(updated: LoggedMeal) {
+    setEditingMeal(null);
+    const updatedDate = updated.eatenAt.slice(0, 10);
+    if (updatedDate === selectedDate) {
+      // In-place update
+      setMeals((prev) => prev.map((m) => m.id === updated.id ? updated : m));
+    } else {
+      // Moved to a different date — remove from current view
+      setMeals((prev) => prev.filter((m) => m.id !== updated.id));
     }
   }
 
-  function handleDelete(mealId: string) {
-    storageDeleteMeal(user.id, mealId);
-    setMeals((prev) => prev.filter((m) => m.id !== mealId));
+  // ── Soft delete + undo ──────────────────────────────────────────────────────
+
+  function handleDelete(meal: LoggedMeal) {
+    softDeleteMeal(user.id, meal.id);
+    setMeals((prev) => prev.filter((m) => m.id !== meal.id));
+
+    // Show undo toast
+    setUndoMeal(meal);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setUndoMeal(null), 6000);
   }
 
-  function addWater(ml: number) {
-    setHydration((v) => Math.min(v + ml, targets.waterMl));
+  function handleUndo() {
+    if (!undoMeal) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    restoreMeal(user.id, undoMeal.id);
+    // Re-insert in chronological position
+    setMeals((prev) => {
+      const next = [...prev, undoMeal];
+      return next.sort((a, b) =>
+        new Date(b.eatenAt).getTime() - new Date(a.eatenAt).getTime(),
+      );
+    });
+    setUndoMeal(null);
+  }
+
+  function dismissUndo() {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoMeal(null);
   }
 
   const dateLabel = viewWeek ? "Last 7 days" : formatDateLabel(selectedDate);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="px-5 md:px-8 py-6 text-white">
       <div className="max-w-5xl mx-auto space-y-6">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h1 className="text-[2.6rem] font-semibold tracking-tight leading-none mb-2">Nutrition</h1>
-            <p className="text-white/35 text-base">{dateLabel}</p>
-          </div>
+        <div>
+          <h1 className="text-[2.6rem] font-semibold tracking-tight leading-none mb-2">Nutrition</h1>
+          <p className="text-white/35 text-base">{dateLabel}</p>
         </div>
 
         {/* ── No intake banner ────────────────────────────────────────────── */}
@@ -732,9 +826,8 @@ export default function NutritionPage() {
           </div>
         )}
 
-        {/* ── Date / range controls ───────────────────────────────────────── */}
+        {/* ── Date controls ────────────────────────────────────────────────── */}
         <div className="flex items-center gap-2.5">
-          {/* Prev day */}
           {!viewWeek && (
             <button
               onClick={() => setSelectedDate((d) => offsetDate(d, -1))}
@@ -743,8 +836,6 @@ export default function NutritionPage() {
               <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
             </button>
           )}
-
-          {/* Date label */}
           <div className="flex-1 flex items-center gap-2 min-w-0">
             <p className="text-sm font-medium text-white/60 truncate">{dateLabel}</p>
             {!isToday && !viewWeek && (
@@ -756,8 +847,6 @@ export default function NutritionPage() {
               </button>
             )}
           </div>
-
-          {/* Next day (only if not today) */}
           {!viewWeek && !isToday && (
             <button
               onClick={() => setSelectedDate((d) => offsetDate(d, 1))}
@@ -766,8 +855,6 @@ export default function NutritionPage() {
               <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
             </button>
           )}
-
-          {/* Week toggle */}
           <button
             onClick={() => setViewWeek((v) => !v)}
             className={cn(
@@ -781,45 +868,44 @@ export default function NutritionPage() {
           </button>
         </div>
 
-        {/* ── Summary cards ───────────────────────────────────────────────── */}
+        {/* ── Summary cards ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <CalorieCard consumed={totals.calories} target={targets.calories} />
           <MacrosCard  totals={totals}            targets={targets} />
-          <HydrationCard current={hydration}      target={targets.waterMl} onAdd={addWater} />
+          <HydrationCard current={hydration}      target={targets.waterMl} onAdd={addWaterMl} />
         </div>
 
-        {/* ── Quick actions ────────────────────────────────────────────────── */}
+        {/* ── Quick actions ─────────────────────────────────────────────────── */}
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">Quick actions</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
             <QuickActionTile
-              icon={Mic}      label="Voice log meal"    description="Say what you ate"
-              onClick={() => openVoiceForSlot(null)}   primary
+              icon={Mic}      label="Voice log meal"   description="Say what you ate"
+              onClick={() => openVoiceForSlot(null)}  primary
             />
             <QuickActionTile
-              icon={Camera}   label="Photo scan"        description="Snap your plate"
+              icon={Camera}   label="Photo scan"       description="Snap your plate"
               onClick={() => setAnalysisOpen(true)}
             />
             <QuickActionTile
-              icon={Sparkles} label="AI food analysis"  description="Analyze · portion guidance"
+              icon={Sparkles} label="AI food analysis" description="Analyze · portion guidance"
               onClick={() => setAnalysisOpen(true)}
             />
             <QuickActionTile
-              icon={Plus}     label="Add manually"      description="Enter foods directly"
+              icon={Plus}     label="Add manually"     description="Enter foods directly"
               onClick={() => openVoiceForSlot(null)}
             />
           </div>
         </div>
 
-        {/* ── AI suggestions ──────────────────────────────────────────────── */}
+        {/* ── AI suggestions ────────────────────────────────────────────────── */}
         {!viewWeek && suggestions.length > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">◈ AI suggestions</p>
             <div className="space-y-2">
               {suggestions.map((s) => (
                 <SuggestionCard
-                  key={s.id}
-                  s={s}
+                  key={s.id} s={s}
                   onDismiss={() => setDismissed((d) => [...d, s.id])}
                 />
               ))}
@@ -827,7 +913,7 @@ export default function NutritionPage() {
           </div>
         )}
 
-        {/* ── Parsing indicator ───────────────────────────────────────────── */}
+        {/* ── Parsing indicator ─────────────────────────────────────────────── */}
         {parsing && (
           <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex items-center gap-3">
             <Loader2 className="w-4 h-4 text-[#B48B40]/60 animate-spin shrink-0" strokeWidth={1.5} />
@@ -835,7 +921,12 @@ export default function NutritionPage() {
           </div>
         )}
 
-        {/* ── Meal timeline ────────────────────────────────────────────────── */}
+        {/* ── Undo toast ────────────────────────────────────────────────────── */}
+        {undoMeal && (
+          <UndoToast meal={undoMeal} onUndo={handleUndo} onDismiss={dismissUndo} />
+        )}
+
+        {/* ── Day: Meal timeline ────────────────────────────────────────────── */}
         {!viewWeek && (
           <div>
             <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">
@@ -849,13 +940,12 @@ export default function NutritionPage() {
                 onPhoto={() => setAnalysisOpen(true)}
               />
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {SLOT_ORDER.map((slotKey) => {
                   const slotMeals = mealsBySlot[slotKey];
                   const meta      = SLOT_META[slotKey];
                   return (
                     <div key={slotKey}>
-                      {/* Slot header */}
                       <div className="flex items-center gap-2.5 mb-2 px-1">
                         <span className="text-base select-none">{meta.icon}</span>
                         <span className="text-xs font-semibold text-white/50">{meta.label}</span>
@@ -869,24 +959,23 @@ export default function NutritionPage() {
                           </span>
                         )}
                       </div>
-
-                      {/* Meals for this slot */}
-                      <div className="space-y-2 pl-0">
+                      <div className="space-y-2">
                         {slotMeals.map((meal) => (
                           <MealCard
                             key={meal.id}
                             meal={meal}
                             slotKey={slotKey}
+                            onEdit={setEditingMeal}
                             onDelete={handleDelete}
                             onVoiceLog={() => openVoiceForSlot(slotKey)}
                           />
                         ))}
-                        {/* Empty slot "log" button */}
                         {slotMeals.length === 0 && (
                           <MealCard
                             meal={null}
                             slotKey={slotKey}
-                            onDelete={handleDelete}
+                            onEdit={() => {}}
+                            onDelete={() => {}}
                             onVoiceLog={() => openVoiceForSlot(slotKey)}
                           />
                         )}
@@ -899,12 +988,10 @@ export default function NutritionPage() {
           </div>
         )}
 
-        {/* ── Week view ────────────────────────────────────────────────────── */}
+        {/* ── Week view ─────────────────────────────────────────────────────── */}
         {viewWeek && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">
-              7-day log
-            </p>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">7-day log</p>
             {weekMeals.length === 0 ? (
               <div className="rounded-2xl border border-white/[0.06] bg-[#0D0D0D] px-6 py-8 text-center">
                 <p className="text-sm text-white/40">No meals logged in the last 7 days</p>
@@ -914,7 +1001,7 @@ export default function NutritionPage() {
                 {Array.from(new Set(weekMeals.map((m) => m.eatenAt.slice(0, 10))))
                   .sort((a, b) => b.localeCompare(a))
                   .map((date) => {
-                    const dayMeals = weekMeals.filter((m) => m.eatenAt.slice(0, 10) === date);
+                    const dayMeals  = weekMeals.filter((m) => m.eatenAt.slice(0, 10) === date);
                     const dayTotals = sumTotals(dayMeals);
                     return (
                       <div key={date} className="rounded-2xl border border-white/[0.07] bg-[#111111] overflow-hidden">
@@ -940,7 +1027,7 @@ export default function NutritionPage() {
           </div>
         )}
 
-        {/* ── Nutrition notes ──────────────────────────────────────────────── */}
+        {/* ── Nutrition notes ───────────────────────────────────────────────── */}
         <div>
           <button
             onClick={() => setNoteOpen((v) => !v)}
@@ -948,7 +1035,7 @@ export default function NutritionPage() {
           >
             <p className="text-[10px] uppercase tracking-[0.22em] text-white/25">Nutrition notes</p>
             {noteOpen
-              ? <ChevronUp className="w-3.5 h-3.5 text-white/18" strokeWidth={1.5} />
+              ? <ChevronUp   className="w-3.5 h-3.5 text-white/18" strokeWidth={1.5} />
               : <ChevronDown className="w-3.5 h-3.5 text-white/18" strokeWidth={1.5} />}
           </button>
           {noteOpen && (
@@ -971,7 +1058,8 @@ export default function NutritionPage() {
 
       </div>
 
-      {/* ── Modals ──────────────────────────────────────────────────────────── */}
+      {/* ── Modals ────────────────────────────────────────────────────────────── */}
+
       <AIFoodAnalysis
         open={analysisOpen}
         onClose={() => setAnalysisOpen(false)}
@@ -1012,6 +1100,15 @@ export default function NutritionPage() {
           initialSlot={voiceSlot}
           onSave={handleReviewSave}
           onCancel={() => { setPendingParse(null); setPendingTranscript(""); }}
+        />
+      )}
+
+      {editingMeal && (
+        <MealEditModal
+          meal={editingMeal}
+          userId={user.id}
+          onSave={handleEditSave}
+          onCancel={() => setEditingMeal(null)}
         />
       )}
     </div>

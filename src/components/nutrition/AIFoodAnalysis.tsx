@@ -143,6 +143,7 @@ function ParsedResultPanel({
       fat:        i.fat,
       confidence: i.confidence,
       source,
+      deletedAt:  null,
     }));
 
     const meal = saveMeal(userId, {
