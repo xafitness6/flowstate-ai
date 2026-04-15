@@ -87,6 +87,7 @@ export function profileToMockUser(profile: Profile) {
     id:                 profile.id,
     name:               profile.full_name ?? (`${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email),
     role:               profile.role,
+    isAdmin:            profile.is_admin,
     status:             "active" as const,
     pushLevel:          profile.push_level,
     plan:               profile.plan,

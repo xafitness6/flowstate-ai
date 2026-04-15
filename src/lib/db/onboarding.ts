@@ -37,7 +37,9 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
 /** Resolve the correct onboarding route for a user. Returns null if onboarding complete. */
 export async function resolveOnboardingRoute(userId: string): Promise<string | null> {
   const state = await getOnboardingState(userId);
-  if (!state)                              return "/onboarding/calibration";
+  // No row yet — brand-new user, start at walkthrough
+  if (!state)                              return "/onboarding/walkthrough";
+  if (!state.walkthrough_seen)             return "/onboarding/walkthrough";
   if (!state.onboarding_complete)          return "/onboarding/calibration";
   if (!state.body_focus_complete)          return "/onboarding/body-focus";
   if (!state.planning_conversation_complete) return "/onboarding/coach-planning";

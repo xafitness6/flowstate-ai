@@ -1,34 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const LS_KEY = "flowstate-active-role";
-const SS_KEY = "flowstate-session-role";
+import { useUser }   from "@/context/UserContext";
 
 /**
  * Protects admin-only pages.
- * Returns true once the role is confirmed as "master".
- * Redirects to "/" for any other role (or no session).
+ *
+ * Waits for UserContext to resolve the real user identity (isLoading),
+ * then verifies role === "master" or isAdmin directly from context.
+ * This eliminates the old localStorage-only check, which could be stale
+ * or out-of-sync with the actual Supabase profile.
+ *
+ * Returns true once the role is confirmed as master/admin.
+ * Redirects to /welcome for any other role (or while loading, holds).
  */
 export function useAdminGuard(): boolean {
-  const router  = useRouter();
-  const [ready, setReady] = useState(false);
+  const router = useRouter();
+  const { user, isLoading } = useUser();
+
+  const isAdmin = !isLoading && (user.role === "master" || !!user.isAdmin);
 
   useEffect(() => {
-    try {
-      // Prefer sessionStorage (current session) over localStorage (remember-me).
-      // Must match the priority order in loadUser() and AppShell.
-      const role = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
-      if (role === "master") {
-        setReady(true);
-      } else {
-        router.replace("/welcome");
-      }
-    } catch {
+    if (isLoading) return; // wait — don't redirect until role is resolved
+    if (!isAdmin) {
       router.replace("/welcome");
     }
-  }, [router]);
+  }, [isLoading, isAdmin, router]);
 
-  return ready;
+  return isAdmin;
 }

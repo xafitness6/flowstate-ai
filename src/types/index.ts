@@ -35,4 +35,6 @@ export type MockUser = {
   // Admin override: grants elevated feature access without changing the billing plan.
   // Not yet settable via UI — reserved for comp access, trials, manual grants.
   entitlementOverride?:   Plan;
+  // Set from profile.is_admin — lets AppShell/guards check admin without a second DB call.
+  isAdmin?:               boolean;
 };

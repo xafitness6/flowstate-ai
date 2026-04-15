@@ -39,7 +39,7 @@ export default function WelcomePage() {
         {/* CTA */}
         <div className="space-y-3">
           <Link
-            href="/login"
+            href="/login?tab=create"
             className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 bg-[#B48B40] text-black text-sm font-semibold tracking-wide hover:bg-[#c99840] active:scale-[0.98] transition-all duration-200"
           >
             Get started

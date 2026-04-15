@@ -36,6 +36,8 @@ export type PlanningData = {
 
 export type OnboardingState = {
   hasStarted:                   boolean;
+  // Pre-onboarding platform intro (shown once to new users before calibration)
+  walkthrough_seen:             boolean;
   // Phase completion flags
   onboardingComplete:           boolean;   // calibration intake done
   bodyFocusComplete:            boolean;   // body diagram done
@@ -92,6 +94,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const DEFAULT_STATE: OnboardingState = {
   hasStarted:                   false,
+  walkthrough_seen:             false,
   onboardingComplete:           false,
   bodyFocusComplete:            false,
   planningConversationComplete: false,
@@ -143,6 +146,7 @@ export function saveOnboardingState(userId: string, state: Partial<OnboardingSta
   if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
     import("@/lib/db/onboarding").then(({ upsertOnboardingState }) => {
       upsertOnboardingState(userId, {
+        walkthrough_seen:               state.walkthrough_seen,
         onboarding_complete:            state.onboardingComplete,
         body_focus_complete:            state.bodyFocusComplete,
         planning_conversation_complete: state.planningConversationComplete,
@@ -169,6 +173,7 @@ export function markOnboardingStarted(userId: string): void {
 export function completeOnboarding(userId: string, intake?: IntakeSnapshot): void {
   const now = new Date().toISOString();
   saveOnboardingState(userId, {
+    walkthrough_seen:             true, // completing onboarding implies walkthrough was seen
     onboardingComplete:           true,
     bodyFocusComplete:            true,
     planningConversationComplete: true,
@@ -187,6 +192,11 @@ export function completeOnboarding(userId: string, intake?: IntakeSnapshot): voi
     profileCompletedAt:           now,
   });
   try { localStorage.setItem("flowstate-onboarded", "true"); } catch { /* ignore */ }
+}
+
+/** Mark the platform walkthrough as seen — called on skip or completion. */
+export function markWalkthroughSeen(userId: string): void {
+  saveOnboardingState(userId, { walkthrough_seen: true });
 }
 
 /** @deprecated Use completeOnboarding() */
@@ -263,6 +273,7 @@ export function completeProfileSetup(userId: string): void {
  */
 export function getOnboardingRoute(userId: string): string | null {
   const s = loadOnboardingState(userId);
+  if (!s.walkthrough_seen)             return "/onboarding/walkthrough";
   if (!s.onboardingComplete)           return "/onboarding/calibration";
   if (!s.bodyFocusComplete)            return "/onboarding/body-focus";
   if (!s.planningConversationComplete) return "/onboarding/coach-planning";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -180,10 +180,14 @@ function RememberMe({ checked, onChange }: { checked: boolean; onChange: (v: boo
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
-  const router = useRouter();
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+
+  // Pre-select tab from query param: /login?tab=create → signup tab
+  const initialMode = searchParams.get("tab") === "create" ? "create" : "signin";
 
   const [step,     setStep]     = useState<AuthStep>("form");
-  const [mode,     setMode]     = useState<AuthMode>("signin");
+  const [mode,     setMode]     = useState<AuthMode>(initialMode);
   const [loading,  setLoading]  = useState(false);
 
   // Sign in

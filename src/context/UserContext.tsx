@@ -59,6 +59,21 @@ const PLAN_KEY      = (id: string) => `flowstate-plan-${id}`;
 
 export type ViewMode = "operator" | "personal";
 
+/**
+ * Synchronous initializer — reads storage before the first render so
+ * demo/localStorage users (including admin) never flash as "member".
+ * Supabase users always start as DEMO_USERS.member here and resolve via
+ * the async profile fetch; isLoading gates rendering until that completes.
+ */
+function getInitialUser(): MockUser {
+  if (typeof window === "undefined") return DEMO_USERS.member;
+  try {
+    const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
+    if (key && DEMO_USERS[key]) return DEMO_USERS[key];
+  } catch { /* ignore */ }
+  return DEMO_USERS.member;
+}
+
 /** Load a demo/local user from storage — used only when no Supabase session exists. */
 function loadDemoUser(): MockUser | null {
   if (typeof window === "undefined") return null;
@@ -87,6 +102,7 @@ function loadDemoUser(): MockUser | null {
 
 type UserContextValue = {
   user:        MockUser;
+  isLoading:   boolean;  // true until user identity is fully resolved (async)
   isSupabase:  boolean;  // true when session is from Supabase Auth
   setRole:     (role: Role) => void;
   switchUser:  (demoKey: keyof typeof DEMO_USERS) => void;
@@ -99,7 +115,8 @@ type UserContextValue = {
 const UserContext = createContext<UserContextValue | null>(null);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [user,        setUser]          = useState<MockUser>(DEMO_USERS.member);
+  const [user,        setUser]          = useState<MockUser>(getInitialUser);
+  const [isLoading,   setIsLoading]     = useState(true);
   const [isSupabase,  setIsSupabase]    = useState(false);
   const [viewMode,    setViewModeState] = useState<ViewMode>("operator");
 
@@ -119,24 +136,27 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       // No Supabase — load demo/local user from storage and stop
       const demo = loadDemoUser();
       if (demo) setUser(applyEarlyAccess(demo));
+      setIsLoading(false);
       return;
     }
 
     const supabase = createClient();
 
-    // Initial session check
+    // Initial session check — resolves isLoading for all non-auth-change paths
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         const profile = await getMyProfile();
         if (profile) {
           setUser(applyEarlyAccess(profileToMockUser(profile)));
           setIsSupabase(true);
+          setIsLoading(false);
           return;
         }
       }
       // No Supabase session — fall back to demo/local accounts
       const demo = loadDemoUser();
       if (demo) setUser(applyEarlyAccess(demo));
+      setIsLoading(false);
     });
 
     // Listen for auth state changes (login, logout, token refresh)
@@ -147,6 +167,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           if (profile) {
             setUser(applyEarlyAccess(profileToMockUser(profile)));
             setIsSupabase(true);
+            setIsLoading(false);
             return;
           }
         }
@@ -154,6 +175,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setIsSupabase(false);
         const demo = loadDemoUser();
         setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
+        setIsLoading(false);
       }
     );
 
@@ -216,7 +238,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <UserContext.Provider value={{ user, isSupabase, setRole, switchUser, logout, viewMode, setViewMode, updatePlan }}>
+    <UserContext.Provider value={{ user, isLoading, isSupabase, setRole, switchUser, logout, viewMode, setViewMode, updatePlan }}>
       {children}
     </UserContext.Provider>
   );

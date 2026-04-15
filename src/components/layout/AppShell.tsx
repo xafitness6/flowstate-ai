@@ -7,6 +7,7 @@ import { BottomNav } from "./BottomNav";
 import { Sidebar }   from "./Sidebar";
 import { getSessionKey, getBlockingRoute } from "@/lib/routing";
 import { EARLY_ACCESS_ENABLED }           from "@/lib/earlyAccess";
+import { useUser }                        from "@/context/UserContext";
 
 // Routes inside (app) that are accessible regardless of subscription status.
 // coach/intro IS the upgrade page; pricing lets users choose a plan;
@@ -17,11 +18,14 @@ const SUBSCRIPTION_EXEMPT = ["/coach/intro", "/pricing", "/settings/billing"];
  * AppShell wraps every route inside (app)/layout.tsx.
  *
  * Guard order:
- *  1. Supabase session check (when Supabase is configured)
+ *  1. Wait for UserContext to finish resolving user identity (isLoading).
+ *     This prevents any role-based rendering until the real role is known.
+ *  2. Master / is_admin → passes immediately (no onboarding or subscription check).
+ *  3. Supabase session check:
  *     a. No session → check demo session → /login if nothing
  *     b. Session + onboarding incomplete → first onboarding step
  *     c. Session + subscription not active (non-master) → /coach/intro
- *  2. Demo/local session check
+ *  4. Demo/local session check:
  *     a. No session → /login
  *     b. Onboarding incomplete → first onboarding step
  *
@@ -32,20 +36,30 @@ const SUBSCRIPTION_EXEMPT = ["/coach/intro", "/pricing", "/settings/billing"];
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
+  const { user, isLoading } = useUser();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Don't run guard until UserContext has resolved the real user identity.
+    if (isLoading) return;
+
     async function guard() {
+      // Admin/master always passes — no onboarding or subscription check needed.
+      if (user.role === "master" || user.isAdmin) {
+        setReady(true);
+        return;
+      }
+
       const supabaseConfigured =
         !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
         !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       if (supabaseConfigured) {
         // ── Supabase path ────────────────────────────────────────────────────
-        const { createClient }         = await import("@/lib/supabase/client");
-        const { getMyProfile }         = await import("@/lib/db/profiles");
-        const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
-
+        // UserContext already fetched the profile. Use user.id (UUID) directly
+        // for onboarding check — getBlockingRoute handles UUIDs via the
+        // `ROLE_TO_USER_ID[sessionKey] ?? sessionKey` fallback.
+        const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
 
@@ -58,19 +72,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Authenticated — check onboarding
-        const profile = await getMyProfile();
-        if (!profile) { router.replace("/login"); return; }
-
-        const onboardingRoute = await resolveOnboardingRoute(profile.id);
-        if (onboardingRoute) { router.replace(onboardingRoute); return; }
+        // Onboarding check — use user.id (UUID for Supabase users)
+        const blocker = getBlockingRoute(user.id);
+        if (blocker) { router.replace(blocker); return; }
 
         // Check subscription — skipped entirely during early access mode.
-        // master, is_admin, and exempt pages also bypass.
+        // master, is_admin, and exempt pages also bypass (master is already
+        // handled above, so this only catches explicit is_admin Supabase users).
         if (!EARLY_ACCESS_ENABLED) {
           const isExempt = SUBSCRIPTION_EXEMPT.some((p) => pathname?.startsWith(p));
-          if (!isExempt && profile.role !== "master" && !profile.is_admin) {
-            const status = profile.subscription_status ?? "inactive";
+          if (!isExempt) {
+            const status = user.subscriptionStatus ?? "inactive";
             if (status !== "active") {
               router.replace("/coach/intro");
               return;
@@ -91,7 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     guard().catch(() => router.replace("/login"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [isLoading, router]);
 
   if (!ready) {
     return <div className="min-h-screen bg-[#0A0A0A]" />;

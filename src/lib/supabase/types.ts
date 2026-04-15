@@ -37,6 +37,7 @@ export interface Profile {
 export interface OnboardingState {
   id:                            string;
   user_id:                       string;
+  walkthrough_seen:              boolean;  // pre-onboarding platform intro
   onboarding_complete:           boolean;
   body_focus_complete:           boolean;
   planning_conversation_complete: boolean;

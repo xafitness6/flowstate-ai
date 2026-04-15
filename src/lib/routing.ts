@@ -46,13 +46,15 @@ export function clearSession(): void {
 
 /** Returns the first incomplete onboarding step for a userId, or null if done.
  *
- *  Since the new short calibration form marks ALL steps complete at once,
- *  only the first gate (calibration) matters for new signups.
+ *  Walkthrough is the very first gate — shown once to new users before calibration.
+ *  Since the new short calibration form marks ALL other steps complete at once,
+ *  only walkthrough + calibration matter for new signups.
  *  The remaining step checks are preserved for users who started the old
  *  long-form onboarding so they can still finish without hitting errors.
  */
 function getOnboardingBlocker(userId: string): string | null {
   const s = loadOnboardingState(userId);
+  if (!s.walkthrough_seen) return "/onboarding/walkthrough";
   if (!s.onboardingComplete) return "/onboarding/calibration";
   // Legacy: users mid-way through the old multi-step flow still get routed correctly
   if (!s.bodyFocusComplete)            return "/onboarding/body-focus";
@@ -67,7 +69,7 @@ function getOnboardingBlocker(userId: string): string | null {
 
 function finalDestination(role: string | undefined): string {
   if (role === "trainer") return "/trainers";
-  if (role === "master")  return "/master";
+  if (role === "master")  return "/admin"; // /master just redirects here anyway
   return "/dashboard";
 }
 
@@ -96,13 +98,8 @@ export function resolvePostLoginRoute(
 
   const isMaster = sessionKey === "master" || opts?.role === "master";
 
-  if (isMaster) {
-    try {
-      const blocker = getOnboardingBlocker(ROLE_TO_USER_ID.master);
-      if (blocker) return blocker;
-    } catch { /* ignore */ }
-    return "/master";
-  }
+  // Admin/master bypasses onboarding entirely and routes directly to /admin.
+  if (isMaster) return "/admin";
 
   const userId = ROLE_TO_USER_ID[sessionKey] ?? sessionKey;
 
