@@ -98,13 +98,13 @@ export function FoodSearchModal({ userId, onMealLogged, onClose }: Props) {
     setQty("1");
   }
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!selected) return;
     const qtyNum = parseFloat(qty) || 1;
     const macros = scaleMacros(selected, qtyNum);
     const now    = new Date().toISOString();
 
-    const meal = saveMeal(userId, {
+    const meal = await saveMeal(userId, {
       userId,
       source:          "manual",
       mealType,

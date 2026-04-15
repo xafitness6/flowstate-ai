@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useEntitlement }               from "@/hooks/useEntitlement";
+import { LockedSection, FEATURES }      from "@/components/ui/PlanGate";
 import { ArrowLeft, TrendingUp, Dumbbell, BarChart2, Calendar, Flame, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -67,6 +69,7 @@ function MiniBar({ value, max, label }: { value: number; max: number; label: str
 export default function AnalyticsPage() {
   const router   = useRouter();
   const { user } = useUser();
+  const { can }  = useEntitlement();
 
   const [logs,     setLogs]     = useState<WorkoutLog[]>([]);
   const [weekLogs, setWeekLogs] = useState<WorkoutLog[]>([]);
@@ -176,7 +179,14 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        {/* Body-part load distribution */}
+        {/* Body-part load distribution — Pro feature */}
+        {!can(FEATURES.DEEP_ANALYTICS) ? (
+          <LockedSection
+            feature={FEATURES.DEEP_ANALYTICS}
+            title="Load Distribution"
+            description="See which muscle groups you're training most. Available on Pro."
+          />
+        ) : (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
           <div className="flex items-center gap-2 mb-4">
             <BarChart2 className="w-4 h-4 text-[#B48B40]" strokeWidth={1.5} />
@@ -207,9 +217,10 @@ export default function AnalyticsPage() {
             <p className="text-xs text-white/28 py-4 text-center">Log workouts to see distribution</p>
           )}
         </div>
+        )} {/* end deep analytics gate */}
 
-        {/* Adherence */}
-        {program && (
+        {/* Adherence — Pro feature */}
+        {program && can(FEATURES.DEEP_ANALYTICS) && (
           <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
             <div className="flex items-center gap-2 mb-4">
               <Calendar className="w-4 h-4 text-[#B48B40]" strokeWidth={1.5} />

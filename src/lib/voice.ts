@@ -124,6 +124,28 @@ export class NullVoiceProvider implements VoiceProvider {
   stop() { /* no-op */ }
 }
 
+// ─── Transcript cleaner ───────────────────────────────────────────────────────
+//
+// Strips common speech-to-text filler noise before showing transcripts in the
+// UI or sending them to the AI parser.
+//
+// Rules:
+//   - Only removes unambiguous fillers that cannot be food names or quantities
+//   - Leaves "like", "just", "actually" intact — too risky near food names
+//   - Call this on the raw transcript BEFORE displaying it to the user
+//   - Always store the original rawTranscript alongside the cleaned version
+
+const FILLER_RE =
+  /\b(um+|uh+|er{1,3}|hmm+|ahh?|you know|i mean|i guess|kind of|sort of|basically|you see)\b[,.]?\s*/gi;
+
+export function cleanTranscriptText(raw: string): string {
+  return raw
+    .replace(FILLER_RE, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.])/g, "$1")
+    .trim();
+}
+
 // ─── Default provider (swap here to change vendor globally) ──────────────────
 
 export function getDefaultProvider(): VoiceProvider {

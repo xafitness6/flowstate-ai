@@ -71,6 +71,41 @@ export function hasCompletedIntake(userId: string): boolean {
   return loadIntake(userId) !== null;
 }
 
+// ─── Async loader with Supabase fallback ──────────────────────────────────────
+//
+// For real Supabase users: checks onboarding_state.raw_answers first, then
+// falls back to localStorage (covers users who completed calibration before
+// the Supabase migration).
+// For demo users: localStorage only.
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function loadIntakeAsync(userId: string): Promise<IntakeData | null> {
+  // Try Supabase for real users first
+  if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("onboarding_state")
+        .select("raw_answers")
+        .eq("user_id", userId)
+        .single();
+
+      if (data?.raw_answers && typeof data.raw_answers === "object") {
+        const answers = data.raw_answers as Record<string, unknown>;
+        // Validate it has the required shape (weight field present is sufficient)
+        if (typeof answers.weight === "string") {
+          return answers as unknown as IntakeData;
+        }
+      }
+    } catch { /* fall through to localStorage */ }
+  }
+
+  // localStorage fallback
+  return loadIntake(userId);
+}
+
 // ─── Display labels ───────────────────────────────────────────────────────────
 
 export const GOAL_LABELS: Record<string, string> = {

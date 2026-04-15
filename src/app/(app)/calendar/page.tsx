@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useEntitlement }               from "@/hooks/useEntitlement";
+import { LockedPageState, FEATURES }    from "@/components/ui/PlanGate";
 import {
   ChevronLeft, ChevronRight, Dumbbell, Utensils, CheckCircle2,
   X, TrendingUp, TrendingDown, Minus, Check, AlertTriangle,
@@ -875,6 +877,17 @@ function DaySynopsisModal({ dateKey, onClose }: { dateKey: string; onClose: () =
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
+  const { can } = useEntitlement();
+
+  // Page-level gate — Core plan required
+  if (!can(FEATURES.CALENDAR)) {
+    return <LockedPageState feature={FEATURES.CALENDAR} />;
+  }
+
+  return <CalendarPageInner />;
+}
+
+function CalendarPageInner() {
   const [viewDate,   setViewDate  ] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected,   setSelected  ] = useState<string | null>(todayStr);
   const [synopsisKey, setSynopsisKey] = useState<string | null>(null);

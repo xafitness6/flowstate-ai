@@ -39,19 +39,25 @@ Return ONLY valid JSON matching this exact shape — no markdown, no explanation
   "hydrationConfidence": 0.0 to 1.0 or null
 }`;
 
-const PARSE_SYSTEM = `You are a precise nutrition data parser. Extract food items and estimate macronutrients.
+const PARSE_SYSTEM = `You are a precise nutrition data parser. Your job is to extract ONLY the food items explicitly mentioned and estimate macronutrients accurately.
 
 Rules:
 - Use standard nutritional values (USDA-style estimates)
 - For exact weights (e.g. "100g oats"), use exact values
-- For vague portions (e.g. "a coffee", "some rice"), use typical serving sizes
-- Set item confidence based on how clearly the portion was specified
-- Overall confidence: high (≥0.8) when portions are clearly stated, medium (0.5–0.79) when typical, low (<0.5) when very vague
+- For vague portions (e.g. "a coffee", "some rice"), use typical single-serving sizes
+- Set item confidence based on how clearly the portion was specified:
+  - 0.9–1.0: exact weight or count given (e.g. "3 eggs", "150g chicken")
+  - 0.7–0.89: named serving size (e.g. "a cup of oats", "a banana")
+  - 0.5–0.69: vague amount (e.g. "some rice", "a bit of olive oil")
+  - 0.3–0.49: very unclear (e.g. "a snack", "something light")
+- Overall confidence ≥ 0.85 only when ALL items have clear portions. Lower it if any item is vague.
 - Round calories to nearest 5, macros to nearest gram
-- DO NOT invent items not mentioned in the transcript
-- Plain water (still or sparkling) must NOT be in the items array — put it in hydrationMl instead
+- DO NOT invent items not mentioned. DO NOT add supplements or drinks not spoken.
+- cleanTranscript: a short, clean English description of the meal — no filler words, no "I had", no punctuation noise. e.g. "3 scrambled eggs, 100g oats with berries, black coffee"
+- mealType: use the time context if provided to infer breakfast/lunch/dinner/snack. Default to the explicit mention if present.
+- Plain water (still or sparkling) must NOT be in items — put in hydrationMl only
 - Beverages with calories (coffee with milk, juice, protein shake, milk, soda) STAY in items
-- Unit conversions for water: 1 glass = 250 ml, 1 cup = 240 ml, 1 bottle = 500 ml, 1 litre = 1000 ml
+- Water conversions: 1 glass = 250 ml, 1 cup = 240 ml, 1 bottle = 500 ml, 1 litre = 1000 ml
 ${RESPONSE_SCHEMA}`;
 
 const ANALYZE_SYSTEM = `You are a nutrition analyst examining food photos. Identify every food item visible, estimate portions, and calculate macros.
@@ -75,7 +81,7 @@ export async function POST(req: NextRequest) {
       imageMimeType?: string;
     };
 
-    const { mode, transcript, imageBase64, imageMimeType } = body;
+    const { mode, transcript, imageBase64, imageMimeType, timeContext } = body as typeof body & { timeContext?: string };
 
     if (!mode || !["parse", "analyze"].includes(mode)) {
       return NextResponse.json({ error: "mode must be 'parse' or 'analyze'" }, { status: 400 });
@@ -94,7 +100,12 @@ export async function POST(req: NextRequest) {
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: PARSE_SYSTEM },
-          { role: "user",   content: `Parse this meal log: "${transcript.trim()}"` },
+          {
+            role:    "user",
+            content: timeContext
+              ? `${timeContext}\n\nParse this meal log: "${transcript.trim()}"`
+              : `Parse this meal log: "${transcript.trim()}"`,
+          },
         ],
       });
 

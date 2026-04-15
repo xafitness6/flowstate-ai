@@ -53,13 +53,24 @@ function waterTarget(weightKg: number, daysPerWeek: number): number {
   return Math.round((base + training) / 100) * 100; // round to nearest 100ml
 }
 
+// Default targets used when weight is missing or intake is incomplete.
+// Based on a ~75kg person, moderate activity, general fitness goal.
+const INTAKE_DEFAULTS: NutritionTargets = {
+  calories: 2500,
+  proteinG: 150,
+  carbsG:   280,
+  fatG:      70,
+  waterMl: 2500,
+};
+
 /**
  * Calculate nutrition targets from onboarding intake data.
- * Returns null if weight is missing or unparseable.
+ * Returns sensible defaults when weight is missing or unparseable —
+ * never returns null.
  */
-export function calculateNutritionTargets(intake: IntakeData): NutritionTargets | null {
+export function calculateNutritionTargets(intake: IntakeData): NutritionTargets {
   const rawWeight = parseFloat(intake.weight);
-  if (!rawWeight || isNaN(rawWeight)) return null;
+  if (!rawWeight || isNaN(rawWeight)) return INTAKE_DEFAULTS;
 
   // Normalise to kg
   const weightKg = intake.weightUnit === "lbs"

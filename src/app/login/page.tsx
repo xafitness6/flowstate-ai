@@ -23,39 +23,29 @@ import {
   authenticateWithBiometric,
   clearBiometric,
 } from "@/lib/biometric";
-import type { Role } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 type AuthStep = "form" | "biometric-prompt" | "enable-biometric" | "admin-create-password";
 type AuthMode = "signin" | "create";
 
-const LS_KEY            = "flowstate-active-role";
-const SS_KEY            = "flowstate-session-role";
-const SELECTED_ROLE_KEY = "flowstate-selected-role";
+const LS_KEY = "flowstate-active-role";
+const SS_KEY = "flowstate-session-role";
 
-// Demo credentials for non-admin accounts.
-const DEMO_CREDENTIALS: Record<string, { username: string; password: string }> = {
-  trainer: { username: "alex",  password: "flowstate" },
-  client:  { username: "kai",   password: "flowstate" },
-  member:  { username: "luca",  password: "flowstate" },
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const ROLE_LABELS: Record<string, { label: string; sub: string }> = {
-  member:  { label: "Member",  sub: "Self-directed performance" },
-  client:  { label: "Client",  sub: "Full coaching experience"  },
-  trainer: { label: "Trainer", sub: "Manage and coach others"   },
-};
-
-const ROLE_TO_USER_ID: Record<string, string> = {
-  master: "usr_001", trainer: "u4", client: "u1", member: "u6",
-};
-
-// ─── Module-level helpers ─────────────────────────────────────────────────────
-
-/** Resolves non-admin credentials only. Admin is handled at component level. */
-function resolveCredentials(usernameOrEmail: string, password: string): { sessionKey: string } | null {
-  for (const [key, entry] of Object.entries(DEMO_CREDENTIALS)) {
+/** Resolve demo/local credentials. Returns session key or null. */
+function resolveDemoCredentials(
+  usernameOrEmail: string,
+  password: string,
+): { sessionKey: string } | null {
+  // Hard-coded demo accounts (alex/flowstate, kai/flowstate, luca/flowstate)
+  const DEMO: Record<string, { username: string; password: string }> = {
+    trainer: { username: "alex", password: "flowstate" },
+    client:  { username: "kai",  password: "flowstate" },
+    member:  { username: "luca", password: "flowstate" },
+  };
+  for (const [key, entry] of Object.entries(DEMO)) {
     if (
       usernameOrEmail.trim().toLowerCase() === entry.username.toLowerCase() &&
       password === entry.password
@@ -63,24 +53,33 @@ function resolveCredentials(usernameOrEmail: string, password: string): { sessio
       return { sessionKey: key };
     }
   }
+  // Dynamically created local accounts
   const account = resolveAccount(usernameOrEmail, password);
   if (account) return { sessionKey: account.id };
   return null;
 }
 
-// ─── Stable sub-components ────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-interface TextFieldProps {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
+function TextField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  type = "text",
+  error,
+  inputRef,
+  placeholder,
+}: {
+  label:        string;
+  value:        string;
+  onChange:     (v: string) => void;
   autoComplete?: string;
-  type?: string;
-  error?: boolean;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
-}
-
-function TextField({ label, value, onChange, autoComplete, type = "text", error, inputRef }: TextFieldProps) {
+  type?:        string;
+  error?:       boolean;
+  inputRef?:    React.RefObject<HTMLInputElement | null>;
+  placeholder?: string;
+}) {
   return (
     <div className="space-y-1.5">
       <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">{label}</label>
@@ -92,27 +91,37 @@ function TextField({ label, value, onChange, autoComplete, type = "text", error,
         autoComplete={autoComplete}
         autoCapitalize="none"
         spellCheck={false}
+        placeholder={placeholder}
         className={cn(
-          "w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-sm text-white outline-none transition-all",
-          error ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20"
+          "w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/20 outline-none transition-all",
+          error
+            ? "border-red-400/30 focus:border-red-400/50"
+            : "border-white/8 focus:border-white/20",
         )}
       />
     </div>
   );
 }
 
-interface PasswordFieldProps {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  show: boolean;
-  onToggle: () => void;
+function PasswordField({
+  label,
+  value,
+  onChange,
+  show,
+  onToggle,
+  autoComplete,
+  placeholder,
+  error,
+}: {
+  label:        string;
+  value:        string;
+  onChange:     (v: string) => void;
+  show:         boolean;
+  onToggle:     () => void;
   autoComplete?: string;
   placeholder?: string;
-  error?: boolean;
-}
-
-function PasswordField({ label, value, onChange, show, onToggle, autoComplete, placeholder, error }: PasswordFieldProps) {
+  error?:       boolean;
+}) {
   return (
     <div className="space-y-1.5">
       <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">{label}</label>
@@ -125,7 +134,9 @@ function PasswordField({ label, value, onChange, show, onToggle, autoComplete, p
           placeholder={placeholder ?? "••••••••"}
           className={cn(
             "w-full bg-white/[0.04] border rounded-xl px-4 py-3 pr-10 text-sm text-white placeholder:text-white/18 outline-none transition-all",
-            error ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20"
+            error
+              ? "border-red-400/30 focus:border-red-400/50"
+              : "border-white/8 focus:border-white/20",
           )}
         />
         <button
@@ -143,12 +154,7 @@ function PasswordField({ label, value, onChange, show, onToggle, autoComplete, p
   );
 }
 
-interface RememberMeProps {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}
-
-function RememberMe({ checked, onChange }: RememberMeProps) {
+function RememberMe({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="flex items-center gap-2.5 cursor-pointer group">
       <div
@@ -156,7 +162,7 @@ function RememberMe({ checked, onChange }: RememberMeProps) {
           "w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-all",
           checked
             ? "border-[#B48B40]/60 bg-[#B48B40]/20"
-            : "border-white/15 bg-transparent group-hover:border-white/25"
+            : "border-white/15 bg-transparent group-hover:border-white/25",
         )}
         onClick={() => onChange(!checked)}
       >
@@ -171,20 +177,30 @@ function RememberMe({ checked, onChange }: RememberMeProps) {
   );
 }
 
-// ─── Login page ───────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
   const router = useRouter();
 
-  const [step,         setStep]        = useState<AuthStep>("form");
-  const [mode,         setMode]        = useState<AuthMode>("signin");
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [step,     setStep]     = useState<AuthStep>("form");
+  const [mode,     setMode]     = useState<AuthMode>("signin");
+  const [loading,  setLoading]  = useState(false);
 
-  // Sign in fields
-  const [siUsername,   setSiUsername]  = useState("");
-  const [siPassword,   setSiPassword]  = useState("");
-  const [siShowPass,   setSiShowPass]  = useState(false);
-  const [siError,      setSiError]     = useState<string | null>(null);
+  // Sign in
+  const [siEmail,    setSiEmail]    = useState("");
+  const [siPassword, setSiPassword] = useState("");
+  const [siShowPass, setSiShowPass] = useState(false);
+  const [siError,    setSiError]    = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  // Create account
+  const [caName,        setCaName]        = useState("");
+  const [caEmail,       setCaEmail]       = useState("");
+  const [caPassword,    setCaPassword]    = useState("");
+  const [caConfirm,     setCaConfirm]     = useState("");
+  const [caShowPass,    setCaShowPass]    = useState(false);
+  const [caShowConfirm, setCaShowConfirm] = useState(false);
+  const [caError,       setCaError]       = useState<string | null>(null);
 
   // Admin first-time password creation
   const [adminNewPass,     setAdminNewPass]     = useState("");
@@ -193,33 +209,16 @@ export default function LoginPage() {
   const [adminShowConfirm, setAdminShowConfirm] = useState(false);
   const [adminError,       setAdminError]       = useState<string | null>(null);
 
-  // Create account fields
-  const [caName,        setCaName]       = useState("");
-  const [caEmail,       setCaEmail]      = useState("");
-  const [caUsername,    setCaUsername]   = useState("");
-  const [caPassword,    setCaPassword]   = useState("");
-  const [caConfirm,     setCaConfirm]    = useState("");
-  const [caShowPass,    setCaShowPass]   = useState(false);
-  const [caShowConfirm, setCaShowConfirm] = useState(false);
-  const [caError,       setCaError]      = useState<string | null>(null);
-
-  // Shared
-  const [loading,      setLoading]     = useState(false);
-  const [rememberMe,   setRememberMe]  = useState(true);
-  const [resolvedKey,  setResolvedKey] = useState<string | null>(null);
-  const [bioLabel,     setBioLabel]    = useState("Quick Login");
-  const [bioError,     setBioError]    = useState(false);
+  // Biometric
+  const [resolvedKey,  setResolvedKey]  = useState<string | null>(null);
+  const [bioLabel,     setBioLabel]     = useState("Quick Login");
+  const [bioError,     setBioError]     = useState(false);
   const [bioAvailable, setBioAvailable] = useState(false);
 
-  const siUsernameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setBioLabel(getBiometricLabel());
-
-    try {
-      const role = sessionStorage.getItem(SELECTED_ROLE_KEY);
-      if (role && ROLE_LABELS[role]) setSelectedRole(role);
-    } catch { /* ignore */ }
 
     if (hasSavedCredential()) {
       isPlatformAuthenticatorAvailable().then((ok) => {
@@ -229,7 +228,7 @@ export default function LoginPage() {
       isPlatformAuthenticatorAvailable().then(setBioAvailable);
     }
 
-    setTimeout(() => siUsernameRef.current?.focus(), 50);
+    setTimeout(() => emailRef.current?.focus(), 50);
   }, []);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -244,9 +243,8 @@ export default function LoginPage() {
   function afterLogin(sessionKey: string) {
     setResolvedKey(sessionKey);
     saveSession(sessionKey);
-    try { sessionStorage.removeItem(SELECTED_ROLE_KEY); } catch { /* ignore */ }
 
-    // Admin never uses biometric — clear any stale credential and go straight to dashboard
+    // Admin skips biometric
     if (sessionKey === "master") {
       clearBiometric();
       router.replace(resolvePostLoginRoute(sessionKey));
@@ -261,39 +259,35 @@ export default function LoginPage() {
     }
   }
 
+  // ── Sign in ────────────────────────────────────────────────────────────────
+
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setSiError(null);
 
-    // ── Admin path: email-based, any portal ────────────────────────────────
-    if (isAdminEmail(siUsername)) {
-      if (!hasAdminPassword()) {
-        setStep("admin-create-password");
-        return;
-      }
-      if (!verifyAdminPassword(siPassword)) {
-        setSiError("Incorrect password.");
-        return;
-      }
+    // Admin path (email-based)
+    if (isAdminEmail(siEmail)) {
+      if (!hasAdminPassword()) { setStep("admin-create-password"); return; }
+      if (!verifyAdminPassword(siPassword)) { setSiError("Incorrect password."); return; }
       setLoading(true);
       afterLogin("master");
       return;
     }
 
-    // ── Demo / local account path ──────────────────────────────────────────
-    const result = resolveCredentials(siUsername, siPassword);
-    if (result) {
+    // Demo / local account path (accepts username or email)
+    const demo = resolveDemoCredentials(siEmail, siPassword);
+    if (demo) {
       setLoading(true);
-      afterLogin(result.sessionKey);
+      afterLogin(demo.sessionKey);
       return;
     }
 
-    // ── Supabase real account path (email sign-in) ─────────────────────────
-    if (siUsername.includes("@")) {
+    // Supabase path
+    if (siEmail.includes("@")) {
       setLoading(true);
       const supabase = createClient();
       const { data, error } = await supabase.auth.signInWithPassword({
-        email:    siUsername.trim().toLowerCase(),
+        email:    siEmail.trim().toLowerCase(),
         password: siPassword,
       });
       if (error || !data.user) {
@@ -301,59 +295,104 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      // UserContext will pick up the session via onAuthStateChange.
-      // Resolve route from DB onboarding state.
+      // UserContext picks up the session via onAuthStateChange.
+      // Resolve route from DB onboarding + subscription state.
+      const { getMyProfile } = await import("@/lib/db/profiles");
+      const profile = await getMyProfile();
       const onboardingRoute = await resolveOnboardingRoute(data.user.id);
-      router.replace(onboardingRoute ?? "/dashboard");
+      if (onboardingRoute) {
+        router.replace(onboardingRoute);
+        return;
+      }
+      router.replace(
+        resolvePostLoginRoute(data.user.id, {
+          role:               profile?.role,
+          subscriptionStatus: profile?.subscription_status,
+        }),
+      );
       return;
     }
 
-    setSiError("Incorrect username or password.");
+    setSiError("Incorrect email or password.");
   }
+
+  // ── Create account ─────────────────────────────────────────────────────────
+
+  async function handleCreateAccount(e: React.FormEvent) {
+    e.preventDefault();
+    setCaError(null);
+
+    if (!caName.trim())           { setCaError("Please enter your name.");                  return; }
+    if (!caEmail.trim())          { setCaError("Please enter your email.");                 return; }
+    if (!caEmail.includes("@"))   { setCaError("Enter a valid email address.");             return; }
+    if (caPassword.length < 6)    { setCaError("Password must be at least 6 characters."); return; }
+    if (caPassword !== caConfirm) { setCaError("Passwords don't match.");                   return; }
+
+    const supabaseConfigured =
+      !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (supabaseConfigured) {
+      // Supabase signup — role is always "client" for public signups
+      setLoading(true);
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signUp({
+        email:    caEmail.trim().toLowerCase(),
+        password: caPassword,
+        options:  {
+          data: {
+            full_name: caName.trim(),
+            role:      "client", // DB trigger reads this; never allow public trainer/admin creation
+          },
+        },
+      });
+      if (error || !data.user) {
+        setCaError(error?.message ?? "Could not create account. Try a different email.");
+        setLoading(false);
+        return;
+      }
+      // New Supabase users always start at calibration (no onboarding state yet)
+      router.replace("/onboarding/calibration");
+      return;
+    }
+
+    // No Supabase — create local account.
+    // Derive a username from the email prefix for the local store.
+    setLoading(true);
+    const username = caEmail.trim().toLowerCase().split("@")[0].replace(/[^a-z0-9_]/g, "");
+    const result = createAccount(
+      username || `user_${Date.now()}`,
+      caPassword,
+      "client", // always client
+      caName.trim(),
+      caEmail.trim().toLowerCase(),
+    );
+    if ("error" in result) {
+      setCaError(result.error);
+      setLoading(false);
+      return;
+    }
+    afterLogin(result.id);
+  }
+
+  // ── Admin first-time password ──────────────────────────────────────────────
 
   function handleAdminCreatePassword(e: React.FormEvent) {
     e.preventDefault();
     setAdminError(null);
-
-    if (adminNewPass.length < 8) {
-      setAdminError("Password must be at least 8 characters.");
-      return;
-    }
-    if (adminNewPass !== adminConfirmPass) {
-      setAdminError("Passwords don't match.");
-      return;
-    }
-
+    if (adminNewPass.length < 8)     { setAdminError("Password must be at least 8 characters."); return; }
+    if (adminNewPass !== adminConfirmPass) { setAdminError("Passwords don't match.");             return; }
     try {
       createAdminPassword(adminNewPass);
     } catch (err) {
       setAdminError(err instanceof Error ? err.message : "Failed to create password.");
       return;
     }
-
     setLoading(true);
     afterLogin("master");
   }
 
-  function handleCreateAccount(e: React.FormEvent) {
-    e.preventDefault();
-    setCaError(null);
-
-    const role = selectedRole as Exclude<Role, "master"> | null;
-    if (!role)                        { setCaError("No role selected — go back and choose one.");  return; }
-    if (!caName.trim())               { setCaError("Please enter your name.");                     return; }
-    if (!caEmail.trim())              { setCaError("Please enter your email.");                    return; }
-    if (!caEmail.includes("@"))       { setCaError("Enter a valid email address.");                return; }
-    if (!caUsername.trim())           { setCaError("Please choose a username.");                   return; }
-    if (caUsername.trim().length < 3) { setCaError("Username must be at least 3 characters.");    return; }
-    if (caPassword.length < 6)        { setCaError("Password must be at least 6 characters.");    return; }
-    if (caPassword !== caConfirm)     { setCaError("Passwords don't match.");                      return; }
-
-    setLoading(true);
-    const result = createAccount(caUsername.trim(), caPassword, role, caName.trim(), caEmail.trim().toLowerCase());
-    if ("error" in result) { setCaError(result.error); setLoading(false); return; }
-    afterLogin(result.id);
-  }
+  // ── Biometric ─────────────────────────────────────────────────────────────
 
   async function handleBiometricLogin() {
     setLoading(true);
@@ -378,20 +417,17 @@ export default function LoginPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const roleInfo = selectedRole ? ROLE_LABELS[selectedRole] : null;
-  const showTabs = !!roleInfo;
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 md:px-8 py-16 text-white">
       <div className="max-w-sm w-full space-y-8">
 
-        {/* ── Biometric prompt ─────────────────────────────────────────────── */}
+        {/* ── Biometric prompt ────────────────────────────────────────────── */}
         {step === "biometric-prompt" && (
           <>
             <div className="space-y-1">
               <div className="flex items-center gap-2 mb-4">
                 <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate AI</p>
+                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
               <p className="text-sm text-white/40">Use {bioLabel} to sign in instantly.</p>
@@ -405,7 +441,7 @@ export default function LoginPage() {
                   "w-full rounded-2xl border py-5 flex flex-col items-center gap-3 transition-all duration-150",
                   loading
                     ? "border-white/6 bg-white/[0.02] cursor-default"
-                    : "border-[#B48B40]/40 bg-[#B48B40]/5 hover:bg-[#B48B40]/10 active:scale-[0.98]"
+                    : "border-[#B48B40]/40 bg-[#B48B40]/5 hover:bg-[#B48B40]/10 active:scale-[0.98]",
                 )}
               >
                 <Fingerprint
@@ -426,19 +462,19 @@ export default function LoginPage() {
                 onClick={() => { clearBiometric(); setStep("form"); setBioError(false); }}
                 className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
               >
-                Use username and password instead
+                Use email and password instead
               </button>
             </div>
           </>
         )}
 
-        {/* ── Enable biometric ──────────────────────────────────────────────── */}
+        {/* ── Enable biometric ─────────────────────────────────────────────── */}
         {step === "enable-biometric" && (
           <>
             <div className="space-y-1">
               <div className="flex items-center gap-2 mb-4">
                 <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate AI</p>
+                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">Quick Login</h1>
               <p className="text-sm text-white/40">Sign in faster next time.</p>
@@ -464,15 +500,16 @@ export default function LoginPage() {
                   "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all duration-200",
                   loading
                     ? "bg-white/5 text-white/25 cursor-default"
-                    : "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
+                    : "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]",
                 )}
               >
-                {loading ? "Setting up…" : <>{`Enable ${bioLabel}`} <ArrowRight className="w-4 h-4" strokeWidth={2} /></>}
+                {loading
+                  ? "Setting up…"
+                  : <>{`Enable ${bioLabel}`} <ArrowRight className="w-4 h-4" strokeWidth={2} /></>}
               </button>
 
               <button
                 onClick={() => {
-                  // Read from storage directly — avoids stale resolvedKey state
                   const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY) || "member";
                   router.replace(resolvePostLoginRoute(key));
                 }}
@@ -490,14 +527,14 @@ export default function LoginPage() {
             <div className="space-y-1">
               <div className="flex items-center gap-2 mb-4">
                 <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate AI</p>
+                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
               </div>
               <div className="flex items-center gap-2 mb-1">
                 <Shield className="w-4 h-4 text-white/40" strokeWidth={1.5} />
                 <h1 className="text-2xl font-semibold tracking-tight">Create your password</h1>
               </div>
               <p className="text-sm text-white/40">
-                This is your first time signing in. Set a secure password for your account.
+                First sign-in. Set a secure password for your account.
               </p>
             </div>
 
@@ -512,7 +549,6 @@ export default function LoginPage() {
                 placeholder="At least 8 characters"
                 error={!!adminError}
               />
-
               <PasswordField
                 label="Confirm password"
                 value={adminConfirmPass}
@@ -522,9 +558,7 @@ export default function LoginPage() {
                 autoComplete="new-password"
                 error={!!adminError}
               />
-
               {adminError && <p className="text-xs text-red-400/70">{adminError}</p>}
-
               <button
                 type="submit"
                 disabled={!adminNewPass || !adminConfirmPass || loading}
@@ -532,12 +566,11 @@ export default function LoginPage() {
                   "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all duration-200 mt-2",
                   adminNewPass && adminConfirmPass && !loading
                     ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
-                    : "bg-white/5 text-white/25 cursor-default"
+                    : "bg-white/5 text-white/25 cursor-default",
                 )}
               >
                 {loading ? "Setting up…" : <>Set password <ArrowRight className="w-4 h-4" strokeWidth={2} /></>}
               </button>
-
               <button
                 type="button"
                 onClick={() => { setStep("form"); setAdminNewPass(""); setAdminConfirmPass(""); setAdminError(null); }}
@@ -552,68 +585,62 @@ export default function LoginPage() {
         {/* ── Main auth form ────────────────────────────────────────────────── */}
         {step === "form" && (
           <>
-            {/* Brand + back to roles */}
+            {/* Brand */}
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                  <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate AI</p>
+                  <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
                 </div>
                 <Link
                   href="/welcome"
                   className="flex items-center gap-1 text-[11px] text-white/22 hover:text-white/45 transition-colors"
                 >
                   <ArrowLeft className="w-3 h-3" strokeWidth={1.5} />
-                  {roleInfo ? "Change role" : "Back"}
+                  Back
                 </Link>
               </div>
-
-              {roleInfo ? (
-                <>
-                  <h1 className="text-2xl font-semibold tracking-tight">Continue as {roleInfo.label}</h1>
-                  <p className="text-sm text-white/40">{roleInfo.sub}</p>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-                  <p className="text-sm text-white/40">Enter your credentials to continue.</p>
-                </>
-              )}
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {mode === "signin" ? "Welcome back" : "Create account"}
+              </h1>
+              <p className="text-sm text-white/40">
+                {mode === "signin"
+                  ? "Sign in to continue."
+                  : "Start your Flowstate journey."}
+              </p>
             </div>
 
-            {/* Tabs — only shown when a public role was selected */}
-            {showTabs && (
-              <div className="flex border-b border-white/[0.07]">
-                {(["signin", "create"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => { setMode(m); setSiError(null); setCaError(null); }}
-                    className={cn(
-                      "flex-1 py-2.5 text-xs font-semibold tracking-wide transition-all",
-                      mode === m
-                        ? "text-white border-b-2 border-[#B48B40] -mb-px"
-                        : "text-white/30 hover:text-white/55"
-                    )}
-                  >
-                    {m === "signin" ? "Sign in" : "Create account"}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Mode tabs */}
+            <div className="flex border-b border-white/[0.07]">
+              {(["signin", "create"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setSiError(null); setCaError(null); }}
+                  className={cn(
+                    "flex-1 py-2.5 text-xs font-semibold tracking-wide transition-all",
+                    mode === m
+                      ? "text-white border-b-2 border-[#B48B40] -mb-px"
+                      : "text-white/30 hover:text-white/55",
+                  )}
+                >
+                  {m === "signin" ? "Sign in" : "Create account"}
+                </button>
+              ))}
+            </div>
 
-            {/* ── Sign in form ─────────────────────────────────────────────── */}
-            {(mode === "signin" || !showTabs) && (
+            {/* ── Sign in form ──────────────────────────────────────────────── */}
+            {mode === "signin" && (
               <form onSubmit={handleSignIn} className="space-y-4">
                 <TextField
-                  label="Email or username"
-                  value={siUsername}
-                  onChange={(v) => { setSiUsername(v); setSiError(null); }}
-                  autoComplete="username"
+                  label="Email"
+                  value={siEmail}
+                  onChange={(v) => { setSiEmail(v); setSiError(null); }}
+                  autoComplete="email"
                   type="text"
                   error={!!siError}
-                  inputRef={siUsernameRef}
+                  inputRef={emailRef}
+                  placeholder="you@example.com"
                 />
-
                 <PasswordField
                   label="Password"
                   value={siPassword}
@@ -640,12 +667,12 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={!siUsername || !siPassword || loading}
+                  disabled={!siEmail || !siPassword || loading}
                   className={cn(
                     "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2",
-                    siUsername && siPassword && !loading
+                    siEmail && siPassword && !loading
                       ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
-                      : "bg-white/5 text-white/25 cursor-default"
+                      : "bg-white/5 text-white/25 cursor-default",
                   )}
                 >
                   {loading ? "Signing in…" : "Sign in"}
@@ -653,34 +680,26 @@ export default function LoginPage() {
               </form>
             )}
 
-            {/* ── Create account form ──────────────────────────────────────── */}
-            {mode === "create" && showTabs && (
+            {/* ── Create account form ───────────────────────────────────────── */}
+            {mode === "create" && (
               <form onSubmit={handleCreateAccount} className="space-y-4">
                 <TextField
                   label="Full name"
                   value={caName}
                   onChange={(v) => { setCaName(v); setCaError(null); }}
                   autoComplete="name"
+                  placeholder="Jane Smith"
                   error={!!caError}
                 />
-
                 <TextField
                   label="Email"
                   value={caEmail}
                   onChange={(v) => { setCaEmail(v); setCaError(null); }}
                   autoComplete="email"
                   type="email"
+                  placeholder="you@example.com"
                   error={!!caError}
                 />
-
-                <TextField
-                  label="Username"
-                  value={caUsername}
-                  onChange={(v) => { setCaUsername(v); setCaError(null); }}
-                  autoComplete="username"
-                  error={!!caError}
-                />
-
                 <PasswordField
                   label="Password"
                   value={caPassword}
@@ -691,7 +710,6 @@ export default function LoginPage() {
                   placeholder="At least 6 characters"
                   error={!!caError}
                 />
-
                 <PasswordField
                   label="Confirm password"
                   value={caConfirm}
@@ -708,12 +726,12 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={!caName || !caEmail || !caUsername || !caPassword || !caConfirm || loading}
+                  disabled={!caName || !caEmail || !caPassword || !caConfirm || loading}
                   className={cn(
                     "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2",
-                    caName && caEmail && caUsername && caPassword && caConfirm && !loading
+                    caName && caEmail && caPassword && caConfirm && !loading
                       ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
-                      : "bg-white/5 text-white/25 cursor-default"
+                      : "bg-white/5 text-white/25 cursor-default",
                   )}
                 >
                   {loading ? "Creating account…" : "Create account"}

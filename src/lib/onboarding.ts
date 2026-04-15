@@ -159,15 +159,32 @@ export function markOnboardingStarted(userId: string): void {
   saveOnboardingState(userId, { hasStarted: true, startedAt: new Date().toISOString() });
 }
 
-/** Complete calibration intake — marks both onboarding flags for compatibility */
+/** Complete calibration intake — marks ALL onboarding gates as done in one call.
+ *
+ *  The new short calibration form calls this after just 4 questions, and the
+ *  user goes straight to /coach/intro. All sub-step flags are set here so the
+ *  routing chain (bodyFocus, coaching, program, tutorial, profile) never fires.
+ *  Legacy users who completed the old long-form flow already have these set.
+ */
 export function completeOnboarding(userId: string, intake?: IntakeSnapshot): void {
+  const now = new Date().toISOString();
   saveOnboardingState(userId, {
-    onboardingComplete:     true,
-    starterComplete:        true,
-    hasCompletedQuickStart: true,
-    hasCompletedDeepCal:    true,
-    intakeData:             intake ?? null,
-    onboardingCompletedAt:  new Date().toISOString(),
+    onboardingComplete:           true,
+    bodyFocusComplete:            true,
+    planningConversationComplete: true,
+    programGenerated:             true,
+    tutorialComplete:             true,
+    profileComplete:              true,
+    starterComplete:              true,
+    hasCompletedQuickStart:       true,
+    hasCompletedDeepCal:          true,
+    intakeData:                   intake ?? null,
+    onboardingCompletedAt:        now,
+    bodyFocusCompletedAt:         now,
+    planningCompletedAt:          now,
+    programGeneratedAt:           now,
+    tutorialCompletedAt:          now,
+    profileCompletedAt:           now,
   });
   try { localStorage.setItem("flowstate-onboarded", "true"); } catch { /* ignore */ }
 }

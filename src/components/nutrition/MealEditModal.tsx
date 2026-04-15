@@ -294,11 +294,11 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
     setItems((prev) => [...prev, newItem(meal.source)]);
   }
 
-  function handleSave() {
+  async function handleSave() {
     setSaving(true);
     // Strip _expanded before saving
     const cleanItems = items.map(({ _expanded: _, ...rest }) => rest);
-    const updated = updateMeal(userId, meal.id, {
+    const updated = await updateMeal(userId, meal.id, {
       mealType,
       eatenAt:   localToISO(eatenAt),
       notes:     notes.trim() || null,

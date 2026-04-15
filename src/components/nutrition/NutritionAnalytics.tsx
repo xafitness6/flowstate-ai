@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { TrendingUp, ChevronDown, ChevronUp, Droplets, Flame, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { computeNutritionAnalytics, type DayData } from "@/lib/nutrition/analytics";
+import { computeNutritionAnalytics, type DayData, type AnalyticsSummary } from "@/lib/nutrition/analytics";
 import type { NutritionTargets } from "@/lib/nutrition";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -161,14 +161,22 @@ function ConsistencyRing({ logged, total }: { logged: number; total: number }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function NutritionAnalytics({ userId, targets, today }: Props) {
-  const [open,  setOpen]  = useState(false);
-  const [range, setRange] = useState<Range>("7D");
+const EMPTY_SUMMARY: AnalyticsSummary = {
+  days: [], totalDays: 0, daysLogged: 0, streak: 0,
+  avgCalories: 0, avgProtein: 0, avgCarbs: 0, avgFat: 0, avgHydration: 0,
+  calGoalPct: 0, protGoalPct: 0, carbGoalPct: 0, fatGoalPct: 0, hydGoalPct: 0,
+  insight: "",
+};
 
-  const summary = useMemo(() => {
-    const days = RANGE_DAYS[range];
+export function NutritionAnalytics({ userId, targets, today }: Props) {
+  const [open,    setOpen]    = useState(false);
+  const [range,   setRange]   = useState<Range>("7D");
+  const [summary, setSummary] = useState<AnalyticsSummary>(EMPTY_SUMMARY);
+
+  useEffect(() => {
+    const days  = RANGE_DAYS[range];
     const start = offsetDate(today, -(days - 1));
-    return computeNutritionAnalytics(userId, start, today, targets);
+    computeNutritionAnalytics(userId, start, today, targets).then(setSummary);
   }, [userId, targets, today, range]);
 
   return (

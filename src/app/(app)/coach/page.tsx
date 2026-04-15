@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, ChevronDown } from "lucide-react";
+import { useEntitlement }               from "@/hooks/useEntitlement";
+import { LockedPageState, UpgradeCard, FEATURES } from "@/components/ui/PlanGate";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { VoiceMic } from "@/components/voice/VoiceMic";
 import { cn } from "@/lib/utils";
@@ -114,6 +116,18 @@ function MessageBubble({ message }: { message: Message }) {
 const INITIAL_MESSAGE: Message = { id: "init", role: "ai", text: "What do you need?" };
 
 export default function CoachPage() {
+  const { can } = useEntitlement();
+
+  // Page-level gate — Core plan required
+  if (!can(FEATURES.COACH)) {
+    return <LockedPageState feature={FEATURES.COACH} />;
+  }
+
+  return <CoachPageInner />;
+}
+
+function CoachPageInner() {
+  const { can } = useEntitlement();
   const [messages,    setMessages   ] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input,       setInput      ] = useState("");
   const [loading,     setLoading    ] = useState(false);
@@ -296,6 +310,13 @@ export default function CoachPage() {
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Pro upgrade nudge (shown to Core users after first message) ── */}
+      {promptsUsed && !can(FEATURES.COACH_UNLIMITED) && (
+        <div className="px-4 md:px-6 pb-2 shrink-0">
+          <UpgradeCard feature={FEATURES.COACH_UNLIMITED} compact />
         </div>
       )}
 

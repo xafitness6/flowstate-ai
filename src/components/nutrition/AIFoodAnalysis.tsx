@@ -129,7 +129,7 @@ function ParsedResultPanel({
     setItems((prev) => prev.map((i) => i.id === id ? { ...i, removed: false } : i));
   }
 
-  function handleLog() {
+  async function handleLog() {
     const now = new Date().toISOString();
     const loggedItems: LoggedFoodItem[] = activeItems.map((i) => ({
       id:         i.id,
@@ -146,7 +146,7 @@ function ParsedResultPanel({
       deletedAt:  null,
     }));
 
-    const meal = saveMeal(userId, {
+    const meal = await saveMeal(userId, {
       userId,
       source,
       mealType,

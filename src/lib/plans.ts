@@ -13,9 +13,9 @@ export const PLAN_HIERARCHY: Record<Plan, number> = {
 
 export const PLAN_LABELS: Record<Plan, string> = {
   foundation:  "Foundation",
-  training:    "Training",
-  performance: "AI Performance",
-  coaching:    "Hybrid Coaching",
+  training:    "Core",
+  performance: "Pro",
+  coaching:    "Elite",
 };
 
 export const PLAN_PRICES: Record<Plan, number | null> = {
@@ -25,6 +25,13 @@ export const PLAN_PRICES: Record<Plan, number | null> = {
   coaching:    199,
 };
 
+export const PLAN_PRICES_ANNUAL: Record<Plan, number | null> = {
+  foundation:  null,
+  training:    23,
+  performance: 63,
+  coaching:    159,
+};
+
 export const PLAN_PRICE_LABELS: Record<Plan, string> = {
   foundation:  "Free",
   training:    "$29 / mo",
@@ -32,7 +39,7 @@ export const PLAN_PRICE_LABELS: Record<Plan, string> = {
   coaching:    "$199 / mo",
 };
 
-// Stripe price IDs — set in .env.local:
+// Monthly Stripe price IDs — set in .env.local:
 // STRIPE_PRICE_TRAINING=price_xxx
 // STRIPE_PRICE_PERFORMANCE=price_xxx
 // STRIPE_PRICE_COACHING=price_xxx
@@ -40,6 +47,16 @@ export const STRIPE_PRICE_IDS: Partial<Record<Plan, string>> = {
   training:    process.env.STRIPE_PRICE_TRAINING    ?? "",
   performance: process.env.STRIPE_PRICE_PERFORMANCE ?? "",
   coaching:    process.env.STRIPE_PRICE_COACHING    ?? "",
+};
+
+// Annual Stripe price IDs — set in .env.local:
+// STRIPE_PRICE_TRAINING_ANNUAL=price_xxx
+// STRIPE_PRICE_PERFORMANCE_ANNUAL=price_xxx
+// STRIPE_PRICE_COACHING_ANNUAL=price_xxx
+export const STRIPE_PRICE_IDS_ANNUAL: Partial<Record<Plan, string>> = {
+  training:    process.env.STRIPE_PRICE_TRAINING_ANNUAL    ?? "",
+  performance: process.env.STRIPE_PRICE_PERFORMANCE_ANNUAL ?? "",
+  coaching:    process.env.STRIPE_PRICE_COACHING_ANNUAL    ?? "",
 };
 
 // ─── Feature flags ────────────────────────────────────────────────────────────

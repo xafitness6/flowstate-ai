@@ -52,11 +52,15 @@ export function CalendarOverlay({ userId, selectedDate, onSelect, onClose }: Pro
 
   // Load logged days for the visible month
   useEffect(() => {
-    const start  = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-    const lastD  = new Date(year, month + 1, 0).getDate();
-    const end    = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastD).padStart(2, "0")}`;
-    const meals  = getMealsForRange(userId, start, end);
-    setLoggedDates(new Set(meals.map((m) => m.eatenAt.slice(0, 10))));
+    const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+    const lastD = new Date(year, month + 1, 0).getDate();
+    const end   = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastD).padStart(2, "0")}`;
+    getMealsForRange(userId, start, end).then((meals) => {
+      setLoggedDates(new Set(meals.map((m) => {
+        const d = new Date(m.eatenAt);
+        return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-");
+      })));
+    });
   }, [userId, year, month]);
 
   function prevMonth() {

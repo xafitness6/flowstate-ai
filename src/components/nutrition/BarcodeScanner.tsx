@@ -88,13 +88,13 @@ export function BarcodeScanner({ userId, onMealLogged, onClose }: Props) {
     }
   }
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!foundFood) return;
     const qtyNum = parseFloat(qty) || 1;
     const macros = scaleMacros(foundFood, qtyNum);
     const now    = new Date().toISOString();
 
-    const meal = saveMeal(userId, {
+    const meal = await saveMeal(userId, {
       userId,
       source:          "barcode",
       mealType,

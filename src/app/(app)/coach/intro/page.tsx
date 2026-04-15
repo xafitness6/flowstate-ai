@@ -1,435 +1,329 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Zap, CheckCircle2, Calendar, Dumbbell, Clock, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { loadStarterPlan, type StarterPlan } from "@/lib/starterPlan";
+import { DEMO_USERS } from "@/context/UserContext";
+import { createClient } from "@/lib/supabase/client";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type FeedbackKey =
-  | "too_hard"
-  | "too_easy"
-  | "no_time"
-  | "equipment"
-  | "looks_good";
+function getActiveUserId(): string {
+  try {
+    const key = sessionStorage.getItem("flowstate-session-role") || localStorage.getItem("flowstate-active-role") || "";
+    if (DEMO_USERS[key as keyof typeof DEMO_USERS]) return DEMO_USERS[key as keyof typeof DEMO_USERS].id;
+    if (key) return key;
+  } catch { /* ignore */ }
+  return "anonymous";
+}
 
-type Step = "greeting" | "plan" | "feedback" | "adjusted" | "confirmed";
-
-type PlanStat = { label: string; value: string };
-
-type PlanVersion = {
-  title: string;
-  phase: string;
-  note: string;
-  stats: PlanStat[];
-  sessions: { day: string; name: string; duration: string }[];
+const GOAL_LABELS: Record<string, string> = {
+  muscle_gain: "Muscle gain",
+  fat_loss:    "Fat loss",
+  strength:    "Strength",
+  endurance:   "Endurance",
+  recomp:      "Body recomp",
+  general:     "General fitness",
 };
 
-// ─── Plan data ────────────────────────────────────────────────────────────────
-
-const BASE_PLAN: PlanVersion = {
-  title: "Foundation Block",
-  phase: "Phase 1 · Weeks 1–4",
-  note: "Build the base before we push.",
-  stats: [
-    { label: "Days / week", value: "4" },
-    { label: "Session length", value: "~50 min" },
-    { label: "Focus", value: "Hypertrophy" },
-    { label: "Intensity", value: "Moderate" },
-  ],
-  sessions: [
-    { day: "Mon", name: "Upper · Push", duration: "50 min" },
-    { day: "Wed", name: "Lower · Squat", duration: "50 min" },
-    { day: "Fri", name: "Upper · Pull", duration: "50 min" },
-    { day: "Sat", name: "Lower · Hinge", duration: "50 min" },
-  ],
+const EXPERIENCE_LABELS: Record<string, string> = {
+  beginner:     "Beginner",
+  intermediate: "Intermediate",
+  advanced:     "Advanced",
 };
 
-const ADJUSTED_PLANS: Record<FeedbackKey, PlanVersion> = {
-  too_hard: {
-    title: "Foundation Block — Adjusted",
-    phase: "Phase 1 · Weeks 1–4",
-    note: "Reduced volume and frequency. We build from here.",
-    stats: [
-      { label: "Days / week", value: "3" },
-      { label: "Session length", value: "~40 min" },
-      { label: "Focus", value: "Hypertrophy" },
-      { label: "Intensity", value: "Lower" },
-    ],
-    sessions: [
-      { day: "Mon", name: "Full Body A", duration: "40 min" },
-      { day: "Wed", name: "Full Body B", duration: "40 min" },
-      { day: "Fri", name: "Full Body C", duration: "40 min" },
-    ],
-  },
-  too_easy: {
-    title: "Foundation Block — Advanced",
-    phase: "Phase 1 · Weeks 1–4",
-    note: "Higher volume and intensity. You've earned it.",
-    stats: [
-      { label: "Days / week", value: "5" },
-      { label: "Session length", value: "~60 min" },
-      { label: "Focus", value: "Hypertrophy" },
-      { label: "Intensity", value: "High" },
-    ],
-    sessions: [
-      { day: "Mon", name: "Upper · Push", duration: "60 min" },
-      { day: "Tue", name: "Lower · Squat", duration: "60 min" },
-      { day: "Thu", name: "Upper · Pull", duration: "60 min" },
-      { day: "Fri", name: "Lower · Hinge", duration: "60 min" },
-      { day: "Sat", name: "Arms + Core", duration: "45 min" },
-    ],
-  },
-  no_time: {
-    title: "Foundation Block — Compact",
-    phase: "Phase 1 · Weeks 1–4",
-    note: "Shorter sessions. Nothing wasted.",
-    stats: [
-      { label: "Days / week", value: "4" },
-      { label: "Session length", value: "~30 min" },
-      { label: "Focus", value: "Hypertrophy" },
-      { label: "Intensity", value: "Moderate" },
-    ],
-    sessions: [
-      { day: "Mon", name: "Upper · Push", duration: "30 min" },
-      { day: "Wed", name: "Lower · Squat", duration: "30 min" },
-      { day: "Fri", name: "Upper · Pull", duration: "30 min" },
-      { day: "Sat", name: "Lower · Hinge", duration: "30 min" },
-    ],
-  },
-  equipment: {
-    title: "Foundation Block — Home",
-    phase: "Phase 1 · Weeks 1–4",
-    note: "No gym needed. Full output, minimal setup.",
-    stats: [
-      { label: "Days / week", value: "4" },
-      { label: "Session length", value: "~40 min" },
-      { label: "Focus", value: "Hypertrophy" },
-      { label: "Equipment", value: "Bodyweight" },
-    ],
-    sessions: [
-      { day: "Mon", name: "Push · Bodyweight", duration: "40 min" },
-      { day: "Wed", name: "Legs · Bodyweight", duration: "40 min" },
-      { day: "Fri", name: "Pull · Bands", duration: "40 min" },
-      { day: "Sat", name: "Core + Cardio", duration: "35 min" },
-    ],
-  },
-  looks_good: BASE_PLAN,
-};
+// ─── Typing effect ─────────────────────────────────────────────────────────────
 
-const FEEDBACK_RESPONSES: Record<FeedbackKey, string> = {
-  too_hard:   "Got it. I've pulled back the frequency and volume. You'll still make progress — we just build more gradually.",
-  too_easy:   "Noted. I've increased the load and added a fifth day. This is the version that challenges you.",
-  no_time:    "Understood. Sessions are now under 30 minutes. Same structure, tighter execution.",
-  equipment:  "Done. I've swapped everything to bodyweight and band work. You can run this anywhere.",
-  looks_good: "Good. The plan stays as built. Let's get started.",
-};
-
-const FEEDBACK_OPTIONS: { key: FeedbackKey; label: string }[] = [
-  { key: "too_hard",   label: "Too hard" },
-  { key: "too_easy",   label: "Too easy" },
-  { key: "no_time",    label: "Not enough time" },
-  { key: "equipment",  label: "Equipment issue" },
-  { key: "looks_good", label: "Looks good" },
-];
-
-// ─── Typewriter ───────────────────────────────────────────────────────────────
-
-function Typewriter({
-  text,
-  speed = 18,
-  onDone,
-}: {
-  text: string;
-  speed?: number;
-  onDone?: () => void;
-}) {
+function useTypingText(text: string, speed = 18, startDelay = 300): string {
   const [displayed, setDisplayed] = useState("");
-  const [done, setDone] = useState(false);
-  const idx = useRef(0);
 
   useEffect(() => {
     setDisplayed("");
-    setDone(false);
-    idx.current = 0;
+    const timeout = setTimeout(() => {
+      let i = 0;
+      const interval = setInterval(() => {
+        setDisplayed(text.slice(0, i + 1));
+        i++;
+        if (i >= text.length) clearInterval(interval);
+      }, speed);
+      return () => clearInterval(interval);
+    }, startDelay);
+    return () => clearTimeout(timeout);
+  }, [text, speed, startDelay]);
 
-    const interval = setInterval(() => {
-      idx.current += 1;
-      setDisplayed(text.slice(0, idx.current));
-      if (idx.current >= text.length) {
-        clearInterval(interval);
-        setDone(true);
-        onDone?.();
-      }
-    }, speed);
+  return displayed;
+}
 
-    return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
+function StatPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <span>
-      {displayed}
-      {!done && (
-        <span className="inline-block w-0.5 h-4 bg-[#B48B40]/70 ml-0.5 animate-pulse align-middle" />
-      )}
-    </span>
+    <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3.5 py-2.5">
+      <div className="text-[#B48B40]/70 shrink-0">{icon}</div>
+      <div>
+        <p className="text-[10px] text-white/30 uppercase tracking-[0.12em]">{label}</p>
+        <p className="text-sm font-semibold text-white/80 leading-tight">{value}</p>
+      </div>
+    </div>
   );
 }
 
-// ─── Plan preview ─────────────────────────────────────────────────────────────
-
-function PlanPreview({
-  plan,
-  highlight = false,
-}: {
-  plan: PlanVersion;
-  highlight?: boolean;
-}) {
+function SessionRow({ day, name, duration }: { day: string; name: string; duration: string }) {
   return (
-    <div
-      className={cn(
-        "rounded-2xl border overflow-hidden transition-all duration-500",
-        highlight
-          ? "border-[#6f4a17]/50 bg-[#0e0d0b]"
-          : "border-white/8 bg-[#111111]"
-      )}
-    >
-      {/* Plan header */}
-      <div className="px-5 pt-5 pb-4 border-b border-white/6">
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-white/30 mb-1">
-              {plan.phase}
-            </p>
-            <h3 className="text-base font-semibold text-white/90">{plan.title}</h3>
-          </div>
-          {highlight && (
-            <span className="text-[10px] font-medium tracking-[0.1em] uppercase px-2 py-1 rounded-lg border border-[#B48B40]/30 bg-[#B48B40]/10 text-[#B48B40] shrink-0">
-              Updated
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-[#B48B40]/80 italic mt-2">&ldquo;{plan.note}&rdquo;</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-white/6 border-b border-white/6">
-        {plan.stats.map(({ label, value }) => (
-          <div key={label} className="px-4 py-3">
-            <p className="text-[10px] uppercase tracking-[0.1em] text-white/25 mb-1">{label}</p>
-            <p className="text-sm font-semibold text-white/80 tabular-nums">{value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Session list */}
-      <div className="divide-y divide-white/[0.05]">
-        {plan.sessions.map(({ day, name, duration }) => (
-          <div key={day} className="flex items-center gap-4 px-5 py-3">
-            <span className="text-xs font-medium text-white/30 w-7 shrink-0">{day}</span>
-            <span className="text-sm text-white/75 flex-1">{name}</span>
-            <span className="text-xs text-white/30 tabular-nums">{duration}</span>
-          </div>
-        ))}
-      </div>
+    <div className="flex items-center gap-3 py-2.5 border-b border-white/[0.05] last:border-0">
+      <span className="text-[11px] font-semibold text-white/30 w-7 shrink-0">{day}</span>
+      <span className="flex-1 text-sm text-white/65">{name}</span>
+      <span className="text-[11px] text-white/28 shrink-0">{duration}</span>
     </div>
   );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type Phase = "loading" | "greeting" | "plan" | "upgrade";
+
 export default function CoachIntroPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("greeting");
-  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackKey | null>(null);
+  const [phase,      setPhase]      = useState<Phase>("loading");
+  const [plan,       setPlan]       = useState<StarterPlan | null>(null);
+  const [isSupabase, setIsSupabase] = useState(false);
   const [planVisible, setPlanVisible] = useState(false);
-  const [feedbackVisible, setFeedbackVisible] = useState(false);
-  const [adjustedVisible, setAdjustedVisible] = useState(false);
-  const [adjustedResponseDone, setAdjustedResponseDone] = useState(false);
 
-  const activePlan =
-    selectedFeedback ? ADJUSTED_PLANS[selectedFeedback] : BASE_PLAN;
+  // Load plan + check auth type
+  useEffect(() => {
+    const userId = getActiveUserId();
+    const loaded  = loadStarterPlan(userId);
+    setPlan(loaded);
 
-  // Greeting → plan
-  function onGreetingDone() {
-    setTimeout(() => {
-      setStep("plan");
-      setTimeout(() => setPlanVisible(true), 200);
-      setTimeout(() => setFeedbackVisible(true), 600);
-    }, 400);
+    // Check if this is a Supabase user (affects upgrade CTA copy)
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setIsSupabase(true);
+      });
+    }
+
+    // Start greeting after brief load
+    const t = setTimeout(() => setPhase("greeting"), 600);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Advance to plan view after greeting settles
+  useEffect(() => {
+    if (phase === "greeting") {
+      const t = setTimeout(() => {
+        setPhase("plan");
+        setTimeout(() => setPlanVisible(true), 80);
+      }, 2200);
+      return () => clearTimeout(t);
+    }
+  }, [phase]);
+
+  const coachMessage = plan
+    ? `I've reviewed your answers. Based on your goal to ${GOAL_LABELS[plan.goal]?.toLowerCase() ?? "improve"} and your ${EXPERIENCE_LABELS[plan.experience]?.toLowerCase() ?? ""} background, I've built your starter block.`
+    : "I've put together your first training block based on what you shared.";
+
+  const displayedMessage = useTypingText(
+    coachMessage,
+    16,
+    phase === "greeting" ? 200 : 99999, // only type during greeting
+  );
+
+  function handleUpgrade() {
+    router.push("/pricing");
   }
 
-  // Feedback selected
-  function handleFeedback(key: FeedbackKey) {
-    if (selectedFeedback) return; // locked after first selection
-    setSelectedFeedback(key);
-    setStep("adjusted");
-    setAdjustedVisible(false);
-    setTimeout(() => {
-      setAdjustedVisible(true);
-    }, 300);
+  function handleFreeAccess() {
+    // Allow limited access — mark plan as "foundation" and route to dashboard
+    try {
+      const key = sessionStorage.getItem("flowstate-session-role") || localStorage.getItem("flowstate-active-role");
+      if (key) {
+        localStorage.setItem(`flowstate-plan-${key}`, "foundation");
+      }
+    } catch { /* ignore */ }
+    router.replace("/dashboard");
   }
 
-  // Confirm
-  function handleConfirm() {
-    setStep("confirmed");
-    setTimeout(() => router.push("/"), 1200);
+  // ── Loading ─────────────────────────────────────────────────────────────────
+
+  if (phase === "loading") {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
+        <div className="flex items-center gap-3 text-white/30">
+          <Zap className="w-4 h-4 text-[#B48B40] animate-pulse" strokeWidth={2.5} />
+          <span className="text-sm">Preparing your plan…</span>
+        </div>
+      </div>
+    );
   }
 
-  const greetingText =
-    "Hey Xavier. I've looked at your goals, your schedule, and your experience level. Here's what I've built for you.";
+  // ── Greeting ────────────────────────────────────────────────────────────────
+
+  if (phase === "greeting") {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-5 text-white">
+        <div className="max-w-md w-full space-y-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 flex items-center justify-center">
+              <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-white/25">Flowstate AI</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-[#B48B40]/60">Your coach</p>
+            <p className="text-lg text-white/80 leading-relaxed min-h-[3.5rem]">
+              {displayedMessage}
+              <span className="inline-block w-0.5 h-4 bg-[#B48B40]/60 ml-0.5 animate-pulse align-middle" />
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Plan + upgrade ──────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-start px-4 py-16">
-      <div className="w-full max-w-xl space-y-6">
+    <div className="min-h-screen bg-[#0A0A0A] text-white">
+      <div className="max-w-lg mx-auto px-5 py-10 space-y-8">
 
-        {/* Coach identity */}
-        <div className="flex items-center gap-3 mb-2">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-full bg-[#1C1C1C] border border-[#B48B40]/30 flex items-center justify-center">
-              <span className="text-[#B48B40] text-base leading-none">◈</span>
-            </div>
-            {/* Pulse ring */}
-            {step === "greeting" && (
-              <span className="absolute inset-0 rounded-full border border-[#B48B40]/20 animate-ping" />
-            )}
+        {/* Coach header */}
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#B48B40]/12 border border-[#B48B40]/22 flex items-center justify-center shrink-0">
+            <Zap className="w-4.5 h-4.5 text-[#B48B40]" strokeWidth={2.5} />
           </div>
           <div>
-            <p className="text-sm font-medium text-white/80">Flowstate Coach</p>
-            <p className="text-xs text-white/30">AI · Performance</p>
+            <p className="text-sm font-semibold text-white/80">Flowstate AI</p>
+            <p className="text-[11px] text-white/30">Your coach</p>
           </div>
         </div>
 
-        {/* Greeting bubble */}
-        <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4">
-          <p className="text-base text-white/85 leading-relaxed">
-            {step === "greeting" ? (
-              <Typewriter text={greetingText} speed={16} onDone={onGreetingDone} />
-            ) : (
-              greetingText
+        {/* Coach message */}
+        <div
+          className={cn(
+            "rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4 transition-all duration-500",
+            planVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3",
+          )}
+        >
+          <p className="text-sm text-white/65 leading-relaxed">{coachMessage}</p>
+          {plan?.coachNote && (
+            <p className="text-sm text-white/50 leading-relaxed mt-2">{plan.coachNote}</p>
+          )}
+        </div>
+
+        {/* Starter plan card */}
+        {plan && (
+          <div
+            className={cn(
+              "rounded-2xl border border-white/[0.08] bg-[#111111] overflow-hidden transition-all duration-500 delay-100",
+              planVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3",
             )}
+          >
+            {/* Card header */}
+            <div className="px-5 pt-5 pb-4 border-b border-white/[0.05]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/25 mb-1">{plan.phase}</p>
+                  <h2 className="text-lg font-semibold text-white/90">{plan.blockName}</h2>
+                  <p className="text-xs text-white/35 mt-0.5">{plan.durationWeeks} weeks · {plan.split}</p>
+                </div>
+                <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#B48B40]/10 border border-[#B48B40]/20 text-[#B48B40]/80 shrink-0">
+                  Starter
+                </span>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-2 px-5 py-4">
+              <StatPill
+                icon={<Calendar className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                label="Days / wk"
+                value={String(plan.daysPerWeek)}
+              />
+              <StatPill
+                icon={<Clock className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                label="Session"
+                value={`~${plan.sessionLength} min`}
+              />
+              <StatPill
+                icon={<Dumbbell className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                label="Goal"
+                value={GOAL_LABELS[plan.goal] ?? plan.goal}
+              />
+            </div>
+
+            {/* Sessions */}
+            <div className="px-5 pb-5">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Your week</p>
+              <div>
+                {plan.sessions.map((s, i) => (
+                  <SessionRow key={i} day={s.day} name={s.name} duration={s.duration} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* What's included with full access */}
+        <div
+          className={cn(
+            "space-y-3 transition-all duration-500 delay-200",
+            planVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3",
+          )}
+        >
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/25">With full access</p>
+          <div className="space-y-2">
+            {[
+              { label: "Adaptive programming",     sub: "Your plan adjusts based on performance and recovery"   },
+              { label: "AI coach, always on",      sub: "Chat with your coach, log sessions, get real feedback" },
+              { label: "Nutrition tracking",        sub: "Voice-log meals, hit your targets, stay on track"      },
+              { label: "Accountability system",     sub: "Streaks, check-ins, and weekly plan reviews"           },
+            ].map(({ label, sub }) => (
+              <div key={label} className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] px-4 py-3">
+                <CheckCircle2 className="w-4 h-4 text-[#B48B40]/60 shrink-0 mt-0.5" strokeWidth={1.5} />
+                <div>
+                  <p className="text-sm font-medium text-white/72">{label}</p>
+                  <p className="text-[11px] text-white/30 mt-0.5 leading-snug">{sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTAs */}
+        <div
+          className={cn(
+            "space-y-3 transition-all duration-500 delay-300",
+            planVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3",
+          )}
+        >
+          <button
+            onClick={handleUpgrade}
+            className="w-full rounded-2xl py-4 bg-[#B48B40] text-black text-sm font-semibold tracking-wide flex items-center justify-center gap-2 hover:bg-[#c99840] active:scale-[0.98] transition-all"
+          >
+            Unlock full access
+            <ArrowRight className="w-4 h-4" strokeWidth={2} />
+          </button>
+
+          <button
+            onClick={handleFreeAccess}
+            className="w-full rounded-2xl py-3.5 border border-white/8 text-sm text-white/40 hover:text-white/60 hover:border-white/15 flex items-center justify-center gap-1.5 transition-all"
+          >
+            Continue with limited access
+            <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
+
+          <p className="text-center text-[11px] text-white/18 leading-relaxed px-4">
+            Limited access includes basic tracking only.{" "}
+            {isSupabase ? "Upgrade anytime from your profile." : "No credit card required to explore."}
           </p>
         </div>
 
-        {/* Plan preview */}
-        {(step === "plan" || step === "feedback" || step === "adjusted" || step === "confirmed") && (
-          <div
-            className={cn(
-              "transition-all duration-500",
-              planVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-            )}
-          >
-            <PlanPreview
-              plan={step === "adjusted" || step === "confirmed" ? activePlan : BASE_PLAN}
-              highlight={step === "adjusted" && selectedFeedback !== "looks_good"}
-            />
-          </div>
-        )}
-
-        {/* Feedback question */}
-        {(step === "feedback" || step === "adjusted" || step === "confirmed") && (
-          <div
-            className={cn(
-              "transition-all duration-500",
-              feedbackVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-            )}
-          >
-            {/* Question */}
-            {step === "feedback" && (
-              <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4 mb-3">
-                <p className="text-base text-white/85 leading-relaxed">
-                  Does this feel realistic and doable?
-                </p>
-              </div>
-            )}
-
-            {/* Feedback pills */}
-            {step === "feedback" && (
-              <div className="flex flex-wrap gap-2">
-                {FEEDBACK_OPTIONS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => handleFeedback(key)}
-                    className={cn(
-                      "rounded-xl border px-4 py-2 text-sm font-medium transition-all",
-                      key === "looks_good"
-                        ? "border-[#B48B40]/40 bg-[#B48B40]/8 text-[#B48B40] hover:bg-[#B48B40]/15"
-                        : "border-white/10 text-white/55 hover:border-white/25 hover:text-white/80"
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* AI response to feedback */}
-        {(step === "adjusted" || step === "confirmed") && selectedFeedback && (
-          <div
-            className={cn(
-              "transition-all duration-500",
-              adjustedVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-            )}
-          >
-            {/* Echo selected feedback */}
-            <div className="flex justify-end mb-3">
-              <div className="rounded-2xl border border-[#B48B40]/15 bg-[#B48B40]/5 px-4 py-2.5 max-w-[80%]">
-                <p className="text-sm text-white/65">
-                  {FEEDBACK_OPTIONS.find((f) => f.key === selectedFeedback)?.label}
-                </p>
-              </div>
-            </div>
-
-            {/* AI response */}
-            <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4 mb-4">
-              <p className="text-base text-white/85 leading-relaxed">
-                {adjustedVisible && step === "adjusted" ? (
-                  <Typewriter
-                    text={FEEDBACK_RESPONSES[selectedFeedback]}
-                    speed={16}
-                    onDone={() => setAdjustedResponseDone(true)}
-                  />
-                ) : (
-                  FEEDBACK_RESPONSES[selectedFeedback]
-                )}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Confirm CTA — shown after feedback response is done */}
-        {adjustedResponseDone && step === "adjusted" && (
-          <div className="pt-2">
-            <button
-              onClick={handleConfirm}
-              className="w-full rounded-2xl bg-[#B48B40] py-3.5 text-sm font-semibold text-black hover:bg-[#c99840] transition-colors flex items-center justify-center gap-2"
-            >
-              This works. Let&apos;s go.
-              <ArrowRight className="w-4 h-4" strokeWidth={2} />
-            </button>
-          </div>
-        )}
-
-        {/* Confirmed state */}
-        {step === "confirmed" && (
-          <div className="flex items-center justify-center gap-2 py-4 text-emerald-400/80">
-            <Check className="w-4 h-4" strokeWidth={2} />
-            <span className="text-sm font-medium">Plan confirmed. Taking you to your dashboard.</span>
-          </div>
-        )}
-
-        {/* Initial confirm (if no feedback given yet but plan is visible) */}
-        {step === "feedback" && feedbackVisible && (
-          <div className="pt-2">
-            <p className="text-xs text-white/25 text-center">
-              Select feedback above — or confirm the plan as-is.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

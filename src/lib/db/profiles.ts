@@ -84,12 +84,16 @@ export async function getAllProfiles(): Promise<Profile[]> {
 /** Convert a Supabase Profile to the MockUser shape used throughout the app. */
 export function profileToMockUser(profile: Profile) {
   return {
-    id:               profile.id,
-    name:             profile.full_name ?? (`${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email),
-    role:             profile.role,
-    status:           "active" as const,
-    pushLevel:        profile.push_level,
-    plan:             profile.plan,
-    defaultDashboard: profile.default_dashboard,
+    id:                 profile.id,
+    name:               profile.full_name ?? (`${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email),
+    role:               profile.role,
+    status:             "active" as const,
+    pushLevel:          profile.push_level,
+    plan:               profile.plan,
+    defaultDashboard:   profile.default_dashboard,
+    subscriptionStatus:   profile.subscription_status,
+    stripeCustomerId:     profile.stripe_customer_id,
+    stripeSubscriptionId: profile.stripe_subscription_id,
+    subscriptionPeriodEnd: profile.subscription_current_period_end,
   };
 }

@@ -377,6 +377,13 @@ export default function AdminDashboard() {
           <p className="text-sm text-white/30 mt-1">Real-time platform health and user performance.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 mt-1">
+          <button
+            onClick={() => router.push("/admin/users")}
+            className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-xs text-white/45 hover:text-white/70 hover:bg-white/[0.05] transition-colors"
+          >
+            <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Manage users
+          </button>
           <span className="text-[10px] text-white/22 hidden sm:block">Updated just now</span>
           <button className="w-8 h-8 rounded-xl border border-white/8 bg-white/[0.02] flex items-center justify-center hover:bg-white/[0.05] transition-colors">
             <RefreshCw className="w-3.5 h-3.5 text-white/35" strokeWidth={1.5} />

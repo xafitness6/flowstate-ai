@@ -1,53 +1,96 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { TopBar } from "./TopBar";
+import { useRouter, usePathname } from "next/navigation";
+import { TopBar }    from "./TopBar";
 import { BottomNav } from "./BottomNav";
-import { Sidebar } from "./Sidebar";
-import { getSessionKey, resolvePostLoginRoute } from "@/lib/routing";
+import { Sidebar }   from "./Sidebar";
+import { getSessionKey, getBlockingRoute } from "@/lib/routing";
+import { EARLY_ACCESS_ENABLED }           from "@/lib/earlyAccess";
+
+// Routes inside (app) that are accessible regardless of subscription status.
+// coach/intro IS the upgrade page; pricing lets users choose a plan;
+// settings/billing lets past_due users update their payment method.
+const SUBSCRIPTION_EXEMPT = ["/coach/intro", "/pricing", "/settings/billing"];
 
 /**
  * AppShell wraps every route inside (app)/layout.tsx.
- * Enforces auth and deterministic onboarding routing.
- * Renders a blank dark screen while checking to prevent flicker.
  *
- * Routing logic lives entirely in resolvePostLoginRoute() — never add
- * route decisions here directly.
+ * Guard order:
+ *  1. Supabase session check (when Supabase is configured)
+ *     a. No session → check demo session → /login if nothing
+ *     b. Session + onboarding incomplete → first onboarding step
+ *     c. Session + subscription not active (non-master) → /coach/intro
+ *  2. Demo/local session check
+ *     a. No session → /login
+ *     b. Onboarding incomplete → first onboarding step
+ *
+ * Renders a blank dark screen while checking to prevent flicker.
+ * All routing decisions live in src/lib/routing.ts — never add route
+ * logic directly here.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const router  = useRouter();
+  const router   = useRouter();
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      const sessionKey = getSessionKey();
+    async function guard() {
+      const supabaseConfigured =
+        !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      // No session → role selection
-      if (!sessionKey) {
-        router.replace("/welcome");
-        return;
-      }
+      if (supabaseConfigured) {
+        // ── Supabase path ────────────────────────────────────────────────────
+        const { createClient }         = await import("@/lib/supabase/client");
+        const { getMyProfile }         = await import("@/lib/db/profiles");
+        const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
 
-      // Master never has personal onboarding — always allowed through
-      if (sessionKey === "master") {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          // No Supabase session — fall back to demo session check
+          const sessionKey = getSessionKey();
+          const blocker    = getBlockingRoute(sessionKey);
+          if (blocker) { router.replace(blocker); return; }
+          setReady(true);
+          return;
+        }
+
+        // Authenticated — check onboarding
+        const profile = await getMyProfile();
+        if (!profile) { router.replace("/login"); return; }
+
+        const onboardingRoute = await resolveOnboardingRoute(profile.id);
+        if (onboardingRoute) { router.replace(onboardingRoute); return; }
+
+        // Check subscription — skipped entirely during early access mode.
+        // master, is_admin, and exempt pages also bypass.
+        if (!EARLY_ACCESS_ENABLED) {
+          const isExempt = SUBSCRIPTION_EXEMPT.some((p) => pathname?.startsWith(p));
+          if (!isExempt && profile.role !== "master" && !profile.is_admin) {
+            const status = profile.subscription_status ?? "inactive";
+            if (status !== "active") {
+              router.replace("/coach/intro");
+              return;
+            }
+          }
+        }
+
         setReady(true);
         return;
       }
 
-      // All other roles: check onboarding chain via single resolver
-      const next = resolvePostLoginRoute(sessionKey);
-      if (next !== "/dashboard") {
-        // Still has an incomplete onboarding step — redirect there
-        router.replace(next);
-        return;
-      }
-
-      // Fully onboarded
+      // ── Demo / local path ─────────────────────────────────────────────────
+      const sessionKey = getSessionKey();
+      const blocker    = getBlockingRoute(sessionKey);
+      if (blocker) { router.replace(blocker); return; }
       setReady(true);
-    } catch {
-      router.replace("/welcome");
     }
+
+    guard().catch(() => router.replace("/login"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   if (!ready) {

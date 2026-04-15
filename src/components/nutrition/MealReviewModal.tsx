@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Check, Trash2, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { X, Check, Trash2, ChevronDown, ChevronUp, Pencil, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveMeal } from "@/lib/nutrition/store";
 import type {
@@ -31,13 +31,15 @@ interface EditableItem {
 }
 
 interface Props {
-  parseResult:   NutritionParseResult;
-  rawTranscript: string | null;
-  source:        NutritionLogSource;
-  userId:        string;
-  initialSlot?:  string | null;
-  onSave:        (meal: LoggedMeal) => void;
-  onCancel:      () => void;
+  parseResult:    NutritionParseResult;
+  rawTranscript:  string | null;
+  source:         NutritionLogSource;
+  userId:         string;
+  initialSlot?:   string | null;
+  // When true, shows a low-confidence warning banner prompting careful review
+  lowConfidence?: boolean;
+  onSave:         (meal: LoggedMeal) => void;
+  onCancel:       () => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -48,6 +50,16 @@ const MEAL_TYPE_LABELS: Record<MealType, string> = {
 };
 const MEAL_TYPE_OPTIONS: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 const UNIT_OPTIONS = ["g", "oz", "ml", "cup", "tbsp", "tsp", "item", "slice", "scoop"];
+
+// Map a slot key (from the nutrition timeline) to a MealType
+const SLOT_TO_MEAL_TYPE: Record<string, MealType> = {
+  breakfast:    "breakfast",
+  pre_workout:  "snack",
+  lunch:        "lunch",
+  post_workout: "snack",
+  dinner:       "dinner",
+  snack:        "snack",
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,12 +96,18 @@ export function MealReviewModal({
   rawTranscript,
   source,
   userId,
+  initialSlot,
+  lowConfidence = false,
   onSave,
   onCancel,
 }: Props) {
-  const [mealType, setMealType] = useState<MealType>(
-    parseResult.mealType === "unknown" ? "snack" : parseResult.mealType,
-  );
+  // initialSlot (e.g. "pre_workout") takes priority over AI-inferred mealType
+  const resolvedMealType: MealType = (() => {
+    if (initialSlot && SLOT_TO_MEAL_TYPE[initialSlot]) return SLOT_TO_MEAL_TYPE[initialSlot];
+    return parseResult.mealType === "unknown" ? "snack" : parseResult.mealType;
+  })();
+
+  const [mealType, setMealType] = useState<MealType>(resolvedMealType);
   const [typeOpen, setTypeOpen] = useState(false);
   const [items, setItems]       = useState<EditableItem[]>(
     parseResult.items.map((item, i) => ({
@@ -125,7 +143,7 @@ export function MealReviewModal({
     setItems((prev) => prev.map((i) => i.id === id ? { ...i, ...patch } : i));
   }
 
-  function handleSave() {
+  async function handleSave() {
     const now = new Date().toISOString();
     const loggedItems: LoggedFoodItem[] = activeItems.map((i) => ({
       id:         i.id,
@@ -142,7 +160,7 @@ export function MealReviewModal({
       deletedAt:  null,
     }));
 
-    const meal = saveMeal(userId, {
+    const meal = await saveMeal(userId, {
       userId,
       source,
       mealType,
@@ -173,13 +191,38 @@ export function MealReviewModal({
               <h2 className="text-sm font-semibold text-white/80 tracking-tight">Review meal</h2>
               <p className="text-[11px] text-white/30 mt-0.5">Edit, remove, or confirm before saving</p>
             </div>
-            <button
-              onClick={onCancel}
-              className="w-7 h-7 rounded-lg border border-white/8 bg-white/[0.03] flex items-center justify-center text-white/30 hover:text-white/65 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" strokeWidth={1.5} />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Confidence badge */}
+              {parseResult.confidence >= 0 && (
+                <span className={cn(
+                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                  parseResult.confidence >= 0.75
+                    ? "text-emerald-400/80 border-emerald-400/20 bg-emerald-400/8"
+                    : parseResult.confidence >= 0.60
+                      ? "text-amber-400/80 border-amber-400/20 bg-amber-400/8"
+                      : "text-red-400/80 border-red-400/20 bg-red-400/8",
+                )}>
+                  {Math.round(parseResult.confidence * 100)}% confident
+                </span>
+              )}
+              <button
+                onClick={onCancel}
+                className="w-7 h-7 rounded-lg border border-white/8 bg-white/[0.03] flex items-center justify-center text-white/30 hover:text-white/65 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+              </button>
+            </div>
           </div>
+
+          {/* Low-confidence warning */}
+          {lowConfidence && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 shrink-0 mt-0.5" strokeWidth={1.5} />
+              <p className="text-xs text-amber-400/70 leading-relaxed">
+                Low confidence — some foods or amounts may be missing. Please review each item before saving.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Body */}

@@ -1,11 +1,12 @@
 // ─── Nutrition Analytics ─────────────────────────────────────────────────────
 //
-// Pure computation — no side effects, no localStorage writes.
-// Takes data from store + hydration functions and returns analytics summaries.
+// Pure computation over pre-fetched meals data, plus an async convenience
+// wrapper that fetches from the store and hydration modules automatically.
 
 import { getMealsForRange } from "./store";
 import { getTotalHydrationForDate } from "./hydration";
 import type { NutritionTargets } from "@/lib/nutrition";
+import type { LoggedMeal } from "./types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,15 +23,15 @@ export interface DayData {
 
 export interface AnalyticsSummary {
   days:          DayData[];
-  totalDays:     number;   // length of requested range
-  daysLogged:    number;   // days with ≥1 meal
-  streak:        number;   // consecutive logged days ending today
+  totalDays:     number;
+  daysLogged:    number;
+  streak:        number;
   avgCalories:   number;
   avgProtein:    number;
   avgCarbs:      number;
   avgFat:        number;
   avgHydration:  number;
-  calGoalPct:    number;   // avgCalories / target.calories  (0–1+)
+  calGoalPct:    number;
   protGoalPct:   number;
   carbGoalPct:   number;
   fatGoalPct:    number;
@@ -45,14 +46,16 @@ function dateRange(startISO: string, endISO: string): string[] {
   const cur = new Date(startISO + "T12:00:00");
   const end = new Date(endISO   + "T12:00:00");
   while (cur <= end) {
-    dates.push(cur.toISOString().slice(0, 10));
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, "0");
+    const d = String(cur.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${d}`);
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
 }
 
 function computeStreak(days: DayData[]): number {
-  // Count consecutive logged days from the most recent (last) going back
   let streak = 0;
   for (let i = days.length - 1; i >= 0; i--) {
     if (days[i].logged) streak++;
@@ -72,7 +75,7 @@ function generateInsight(s: AnalyticsSummary, targets: NutritionTargets): string
 
   const parts: string[] = [];
 
-  if (daysLogged === 0)  return "No meals logged in this period.";
+  if (daysLogged === 0) return "No meals logged in this period.";
   if (daysLogged < totalDays * 0.5) {
     parts.push(`Only ${daysLogged} of ${totalDays} days logged — consistency is the key.`);
   } else if (streak >= 5) {
@@ -102,59 +105,85 @@ function generateInsight(s: AnalyticsSummary, targets: NutritionTargets): string
   return parts.slice(0, 2).join(" ") || "Looking solid — keep logging to see trends.";
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+// ─── computeNutritionSummary (pure, synchronous, from pre-fetched data) ───────
 
-export function computeNutritionAnalytics(
-  userId:    string,
-  startDate: string,
-  endDate:   string,
-  targets:   NutritionTargets,
+/**
+ * Compute analytics from pre-fetched meals and per-day hydration totals.
+ * This is the pure computation step — no I/O.
+ */
+export function computeNutritionSummary(
+  dates:          string[],
+  meals:          LoggedMeal[],
+  hydrationByDay: Record<string, number>,
+  targets:        NutritionTargets,
 ): AnalyticsSummary {
-  const dates = dateRange(startDate, endDate);
-  const meals = getMealsForRange(userId, startDate, endDate);
+  // local date of eatenAt for filtering
+  function localDateOf(iso: string) {
+    const d = new Date(iso);
+    return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-");
+  }
 
   const days: DayData[] = dates.map((date) => {
-    const dayMeals = meals.filter((m) => m.eatenAt.slice(0, 10) === date);
-    const calories = dayMeals.reduce((s, m) => s + m.totals.calories, 0);
-    const protein  = dayMeals.reduce((s, m) => s + m.totals.protein,  0);
-    const carbs    = dayMeals.reduce((s, m) => s + m.totals.carbs,    0);
-    const fat      = dayMeals.reduce((s, m) => s + m.totals.fat,      0);
-    const hydrationMl = getTotalHydrationForDate(userId, date);
+    const dayMeals = meals.filter((m) => localDateOf(m.eatenAt) === date);
     return {
       date,
-      calories, protein, carbs, fat,
-      hydrationMl,
-      mealCount: dayMeals.length,
-      logged:    dayMeals.length > 0,
+      calories:    dayMeals.reduce((s, m) => s + m.totals.calories, 0),
+      protein:     dayMeals.reduce((s, m) => s + m.totals.protein,  0),
+      carbs:       dayMeals.reduce((s, m) => s + m.totals.carbs,    0),
+      fat:         dayMeals.reduce((s, m) => s + m.totals.fat,      0),
+      hydrationMl: hydrationByDay[date] ?? 0,
+      mealCount:   dayMeals.length,
+      logged:      dayMeals.length > 0,
     };
   });
 
-  const logged     = days.filter((d) => d.logged);
-  const n          = logged.length || 1; // avoid div/0
+  const logged    = days.filter((d) => d.logged);
+  const n         = logged.length || 1;
 
-  const avgCalories   = logged.reduce((s, d) => s + d.calories,    0) / n;
-  const avgProtein    = logged.reduce((s, d) => s + d.protein,     0) / n;
-  const avgCarbs      = logged.reduce((s, d) => s + d.carbs,       0) / n;
-  const avgFat        = logged.reduce((s, d) => s + d.fat,         0) / n;
-  const avgHydration  = days.reduce((s, d) => s + d.hydrationMl,   0) / days.length;
+  const avgCalories  = logged.reduce((s, d) => s + d.calories,   0) / n;
+  const avgProtein   = logged.reduce((s, d) => s + d.protein,    0) / n;
+  const avgCarbs     = logged.reduce((s, d) => s + d.carbs,      0) / n;
+  const avgFat       = logged.reduce((s, d) => s + d.fat,        0) / n;
+  const avgHydration = days.reduce((s, d) => s + d.hydrationMl,  0) / days.length;
 
   const summary: AnalyticsSummary = {
     days,
-    totalDays:    dates.length,
-    daysLogged:   logged.length,
-    streak:       computeStreak(days),
+    totalDays:   dates.length,
+    daysLogged:  logged.length,
+    streak:      computeStreak(days),
     avgCalories,
     avgProtein,
     avgCarbs,
     avgFat,
     avgHydration,
-    calGoalPct:   targets.calories > 0 ? avgCalories   / targets.calories : 0,
-    protGoalPct:  targets.proteinG > 0 ? avgProtein    / targets.proteinG : 0,
-    carbGoalPct:  targets.carbsG   > 0 ? avgCarbs      / targets.carbsG   : 0,
-    fatGoalPct:   targets.fatG     > 0 ? avgFat        / targets.fatG     : 0,
-    hydGoalPct:   targets.waterMl  > 0 ? avgHydration  / targets.waterMl  : 0,
-    insight:      "",
+    calGoalPct:  targets.calories > 0 ? avgCalories  / targets.calories : 0,
+    protGoalPct: targets.proteinG > 0 ? avgProtein   / targets.proteinG : 0,
+    carbGoalPct: targets.carbsG   > 0 ? avgCarbs     / targets.carbsG   : 0,
+    fatGoalPct:  targets.fatG     > 0 ? avgFat       / targets.fatG     : 0,
+    hydGoalPct:  targets.waterMl  > 0 ? avgHydration / targets.waterMl  : 0,
+    insight:     "",
   };
   summary.insight = generateInsight(summary, targets);
   return summary;
+}
+
+// ─── computeNutritionAnalytics (async, fetches its own data) ─────────────────
+
+export async function computeNutritionAnalytics(
+  userId:    string,
+  startDate: string,
+  endDate:   string,
+  targets:   NutritionTargets,
+): Promise<AnalyticsSummary> {
+  const dates = dateRange(startDate, endDate);
+  const meals = await getMealsForRange(userId, startDate, endDate);
+
+  const hydrationByDay: Record<string, number> = {};
+  await Promise.all(
+    dates.map(async (date) => {
+      hydrationByDay[date] = await getTotalHydrationForDate(userId, date);
+    }),
+  );
+
+  return computeNutritionSummary(dates, meals, hydrationByDay, targets);
 }

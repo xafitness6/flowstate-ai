@@ -6,43 +6,49 @@ import { clearBiometric } from "@/lib/biometric";
 import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
+import { clearSession } from "@/lib/routing";
+import { applyEarlyAccess } from "@/lib/earlyAccess";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
-    id:               "usr_001",
-    name:             "Xavier Ellis",
-    role:             "master",
-    status:           "active",
-    pushLevel:        6,
-    defaultDashboard: "overview",
-    plan:             "coaching",
+    id:                 "usr_001",
+    name:               "Xavier Ellis",
+    role:               "master",
+    status:             "active",
+    pushLevel:          6,
+    defaultDashboard:   "overview",
+    plan:               "coaching",
+    subscriptionStatus: "active", // demo always active
   },
   trainer: {
-    id:               "u4",
-    name:             "Alex Rivera",
-    role:             "trainer",
-    status:           "active",
-    pushLevel:        7,
-    defaultDashboard: "program",
-    plan:             "performance",
+    id:                 "u4",
+    name:               "Alex Rivera",
+    role:               "trainer",
+    status:             "active",
+    pushLevel:          7,
+    defaultDashboard:   "program",
+    plan:               "performance",
+    subscriptionStatus: "active",
   },
   client: {
-    id:               "u1",
-    name:             "Kai Nakamura",
-    role:             "client",
-    status:           "active",
-    pushLevel:        5,
-    defaultDashboard: "program",
-    plan:             "training",
+    id:                 "u1",
+    name:               "Kai Nakamura",
+    role:               "client",
+    status:             "active",
+    pushLevel:          5,
+    defaultDashboard:   "program",
+    plan:               "training",
+    subscriptionStatus: "active",
   },
   member: {
-    id:               "u6",
-    name:             "Luca Ferretti",
-    role:             "member",
-    status:           "active",
-    pushLevel:        4,
-    defaultDashboard: "accountability",
-    plan:             "foundation",
+    id:                 "u6",
+    name:               "Luca Ferretti",
+    role:               "member",
+    status:             "active",
+    pushLevel:          4,
+    defaultDashboard:   "accountability",
+    plan:               "foundation",
+    subscriptionStatus: "active",
   },
 };
 
@@ -64,7 +70,7 @@ function loadDemoUser(): MockUser | null {
     if (DEMO_USERS[key]) {
       const base = DEMO_USERS[key];
       const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
-      return savedPlan ? { ...base, plan: savedPlan } : base;
+      return applyEarlyAccess(savedPlan ? { ...base, plan: savedPlan } : base);
     }
 
     // 2. Dynamically created local accounts: key is an account ID ("usr_…")
@@ -72,7 +78,8 @@ function loadDemoUser(): MockUser | null {
     if (account) {
       const base = accountToMockUser(account);
       const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
-      return savedPlan ? { ...base, plan: savedPlan } : base;
+      const resolved  = savedPlan ? { ...base, plan: savedPlan } : base;
+      return applyEarlyAccess(resolved);
     }
   } catch { /* ignore */ }
   return null;
@@ -111,7 +118,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!supabaseConfigured) {
       // No Supabase — load demo/local user from storage and stop
       const demo = loadDemoUser();
-      if (demo) setUser(demo);
+      if (demo) setUser(applyEarlyAccess(demo));
       return;
     }
 
@@ -122,14 +129,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (session) {
         const profile = await getMyProfile();
         if (profile) {
-          setUser(profileToMockUser(profile));
+          setUser(applyEarlyAccess(profileToMockUser(profile)));
           setIsSupabase(true);
           return;
         }
       }
       // No Supabase session — fall back to demo/local accounts
       const demo = loadDemoUser();
-      if (demo) setUser(demo);
+      if (demo) setUser(applyEarlyAccess(demo));
     });
 
     // Listen for auth state changes (login, logout, token refresh)
@@ -138,7 +145,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         if (session) {
           const profile = await getMyProfile();
           if (profile) {
-            setUser(profileToMockUser(profile));
+            setUser(applyEarlyAccess(profileToMockUser(profile)));
             setIsSupabase(true);
             return;
           }
@@ -146,7 +153,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         // Session ended — check for demo fallback
         setIsSupabase(false);
         const demo = loadDemoUser();
-        setUser(demo ?? DEMO_USERS.member);
+        setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
       }
     );
 
@@ -172,7 +179,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    // Reset context state immediately so no component sees stale master state.
+    // Reset context state immediately so no component sees stale data.
     setUser(DEMO_USERS.member);
     setIsSupabase(false);
     setViewModeState("operator");
@@ -183,11 +190,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut();
     }
 
+    // Clear all session storage via centralized helper
+    clearSession();
+
     try {
-      localStorage.removeItem(LS_KEY);
-      localStorage.removeItem(SS_KEY);
-      sessionStorage.removeItem(SS_KEY);
-      sessionStorage.removeItem(LS_KEY);
       localStorage.removeItem(VIEW_MODE_KEY);
       sessionStorage.removeItem(VIEW_MODE_KEY);
       clearBiometric();

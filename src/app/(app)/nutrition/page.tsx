@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Mic, Camera, Plus, Sparkles, Droplets, Flame,
   ChevronDown, ChevronUp, AlertCircle, TrendingUp,
@@ -17,7 +18,7 @@ import { NutritionAnalytics } from "@/components/nutrition/NutritionAnalytics";
 import { FoodSearchModal }    from "@/components/nutrition/FoodSearchModal";
 import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
-import { loadIntake }         from "@/lib/data/intake";
+import { loadIntakeAsync }    from "@/lib/data/intake";
 import {
   calculateNutritionTargets,
   type NutritionTargets,
@@ -44,6 +45,8 @@ import type {
   MealTotals,
 } from "@/lib/nutrition/types";
 import Link from "next/link";
+import { useEntitlement }               from "@/hooks/useEntitlement";
+import { LockedPageState, LockedSection, UpgradeButton, FEATURES } from "@/components/ui/PlanGate";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,8 +87,13 @@ const SLOT_TO_MEAL_TYPE: Record<MealSlotKey, MealType> = {
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-const toDateISO     = (d: Date) => d.toISOString().slice(0, 10);
-const todayISO      = ()        => toDateISO(new Date());
+/** Local-timezone date string — avoids UTC-shift bugs for timezones ahead of UTC. */
+const toDateISO = (d: Date) => [
+  d.getFullYear(),
+  String(d.getMonth() + 1).padStart(2, "0"),
+  String(d.getDate()).padStart(2, "0"),
+].join("-");
+const todayISO = () => toDateISO(new Date());
 function offsetDate(base: string, days: number): string {
   const d = new Date(base + "T12:00:00");
   d.setDate(d.getDate() + days);
@@ -279,24 +287,27 @@ function HydrationCard({
 }
 
 function QuickActionTile({
-  icon: Icon, label, description, onClick, primary,
+  icon: Icon, label, description, onClick, primary, locked,
 }: {
   icon: React.ElementType; label: string; description: string;
-  onClick: () => void; primary?: boolean;
+  onClick: () => void; primary?: boolean; locked?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
         "flex items-center gap-3.5 rounded-2xl border px-4 py-3.5 text-left w-full transition-all hover:scale-[1.01] active:scale-[0.98]",
-        primary
-          ? "border-[#B48B40]/22 bg-[#B48B40]/[0.04] hover:bg-[#B48B40]/[0.07] hover:border-[#B48B40]/32"
-          : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/12",
+        locked
+          ? "border-white/[0.05] bg-white/[0.01] opacity-60"
+          : primary
+            ? "border-[#B48B40]/22 bg-[#B48B40]/[0.04] hover:bg-[#B48B40]/[0.07] hover:border-[#B48B40]/32"
+            : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/12",
       )}
     >
       <div className={cn(
         "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border",
-        primary ? "bg-[#B48B40]/10 border-[#B48B40]/22" : "bg-white/[0.05] border-white/[0.08]",
+        locked   ? "bg-white/[0.03] border-white/[0.06]" :
+        primary  ? "bg-[#B48B40]/10 border-[#B48B40]/22" : "bg-white/[0.05] border-white/[0.08]",
       )}>
         <Icon className={cn("w-4 h-4", primary ? "text-[#B48B40]/80" : "text-white/40")} strokeWidth={1.5} />
       </div>
@@ -780,8 +791,15 @@ function EmptyState({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function NutritionPage() {
+  const router   = useRouter();
   const { user } = useUser();
+  const { can }  = useEntitlement();
   const voice    = useVoiceInput();
+
+  // Page-level gate — Core plan required
+  if (!can(FEATURES.NUTRITION)) {
+    return <LockedPageState feature={FEATURES.NUTRITION} />;
+  }
 
   // Targets
   const [targets,   setTargets]   = useState<NutritionTargets>(FALLBACK);
@@ -817,6 +835,10 @@ export default function NutritionPage() {
   const [parsing,           setParsing]           = useState(false);
   const [pendingParse,      setPendingParse]       = useState<NutritionParseResult | null>(null);
   const [pendingTranscript, setPendingTranscript]  = useState<string>("");
+  // Raw transcript captured the moment recording stops — before filler cleaning
+  const rawTranscriptRef = useRef<string>("");
+  // Auto-save feedback toast
+  const [saveFeedback, setSaveFeedback] = useState<{ label: string; calories: number } | null>(null);
 
   // Undo state
   const [undoMeal,     setUndoMeal]     = useState<LoggedMeal | null>(null);
@@ -825,26 +847,28 @@ export default function NutritionPage() {
   // ── Load targets ────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const intake = loadIntake(user.id);
-    if (intake) {
-      const calc = calculateNutritionTargets(intake);
-      if (calc) { setTargets(calc); setHasIntake(true); return; }
-    }
-    setHasIntake(false);
+    loadIntakeAsync(user.id).then((intake) => {
+      if (intake) {
+        setTargets(calculateNutritionTargets(intake));
+        setHasIntake(true);
+      } else {
+        setHasIntake(false);
+      }
+    });
   }, [user.id]);
 
   // ── Load meals & hydration when date changes ────────────────────────────────
 
   useEffect(() => {
-    setMeals(getMealsForDate(user.id, selectedDate));
-    setHydration(getTotalHydrationForDate(user.id, selectedDate));
+    getMealsForDate(user.id, selectedDate).then(setMeals);
+    getTotalHydrationForDate(user.id, selectedDate).then(setHydration);
   }, [user.id, selectedDate]);
 
   // ── Load week meals ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (viewWeek) {
-      setWeekMeals(getMealsForRange(user.id, getLast7Start(), todayISO()));
+      getMealsForRange(user.id, getLast7Start(), todayISO()).then(setWeekMeals);
     }
   }, [user.id, viewWeek, meals]); // refresh when day meals change too
 
@@ -872,20 +896,20 @@ export default function NutritionPage() {
   // ── Hydration helpers ───────────────────────────────────────────────────────
 
   function addWaterMl(ml: number) {
+    setHydration((v) => v + ml);  // optimistic
     saveHydrationLog(user.id, { amountMl: ml, source: "manual" });
-    setHydration((v) => v + ml);
   }
 
   function applyHydration(amountMl: number, linkedMealId?: string) {
     if (amountMl <= 0) return;
+    if (selectedDate === todayISO()) {
+      setHydration((v) => v + amountMl);  // optimistic
+    }
     saveHydrationLog(user.id, {
       amountMl,
       source: "voice",
       linkedMealId: linkedMealId ?? null,
     });
-    if (selectedDate === todayISO()) {
-      setHydration((v) => v + amountMl);
-    }
   }
 
   // ── Voice handlers ──────────────────────────────────────────────────────────
@@ -896,49 +920,71 @@ export default function NutritionPage() {
   }
 
   async function handleVoiceConfirm() {
-    const transcript = voice.transcript.trim();
-    if (!transcript) return;
+    // voice.transcript may be the filler-cleaned version (if autoClean fired).
+    // rawTranscriptRef holds what was actually spoken before any cleaning.
+    const processedTranscript = voice.transcript.trim();
+    const rawTranscript       = rawTranscriptRef.current.trim() || processedTranscript;
+    if (!processedTranscript) return;
 
     setShowVoice(false);
     setParsing(true);
+
+    // Time-of-day context helps the AI pick the right meal type
+    const hour        = new Date().getHours();
+    const timeOfDay   =
+      hour < 5  ? "night (after midnight)"   :
+      hour < 11 ? "morning"                  :
+      hour < 14 ? "midday / lunch time"      :
+      hour < 17 ? "afternoon"                :
+      hour < 21 ? "evening / dinner time"    : "night";
+    const timeContext = `Current time: ${hour}:00 (${timeOfDay})`;
 
     try {
       const res = await fetch("/api/ai/nutrition", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ mode: "parse", transcript }),
+        body:    JSON.stringify({ mode: "parse", transcript: processedTranscript, timeContext }),
       });
 
       if (!res.ok) throw new Error("parse failed");
       const data: NutritionParseResult = await res.json();
 
-      // Handle water separately
+      // Handle water separately before deciding on meal handling
       if (data.hydrationMl && data.hydrationMl > 0) {
         applyHydration(data.hydrationMl);
       }
 
-      if (data.confidence >= 0.75) {
-        doSaveMeal(data, transcript);
-      } else {
-        setPendingTranscript(transcript);
-        setPendingParse(data);
+      // ── Confidence thresholds ─────────────────────────────────────────────
+      // ≥ 0.85  → auto-save: AI is confident, no review needed
+      // 0.60–0.84 → review modal: user confirms, can edit
+      // < 0.60  → review modal with low-confidence warning
+      if (data.confidence >= 0.85) {
+        const meal = doSaveMeal(data, rawTranscript);
+        // Brief save confirmation toast
+        setSaveFeedback({ label: data.cleanTranscript ?? "Meal", calories: Math.round(data.totals.calories) });
+        setTimeout(() => setSaveFeedback(null), 3500);
+        return;
       }
-    } catch {
-      // API unavailable — regex fallback
-      const { parseMealFromTranscript } = await import("@/lib/voiceParser");
-      const fallback = parseMealFromTranscript(transcript);
 
-      // Client-side water extraction
-      const water = parseWaterFromTranscript(transcript);
+      // Below threshold → open review modal
+      setPendingTranscript(rawTranscript);
+      setPendingParse(data);
+
+    } catch {
+      // API unavailable — regex fallback → always goes to review
+      const { parseMealFromTranscript } = await import("@/lib/voiceParser");
+      const fallback = parseMealFromTranscript(processedTranscript);
+
+      const water = parseWaterFromTranscript(processedTranscript);
       if (water.amountMl > 0) applyHydration(water.amountMl);
 
       const now  = new Date().toISOString();
-      const meal = saveMeal(user.id, {
+      const meal = await saveMeal(user.id, {
         userId:          user.id,
         source:          "voice",
         mealType:        (fallback.mealType as MealType) ?? "unknown",
         eatenAt:         now,
-        rawTranscript:   transcript,
+        rawTranscript,
         cleanTranscript: fallback.name,
         notes:           null,
         items:           fallback.items.map((i, idx) => ({
@@ -963,17 +1009,18 @@ export default function NutritionPage() {
     } finally {
       setParsing(false);
       setVoiceSlot(null);
+      rawTranscriptRef.current = "";
       voice.reset();
     }
   }
 
-  function doSaveMeal(data: NutritionParseResult, rawTranscript: string) {
+  async function doSaveMeal(data: NutritionParseResult, rawTranscript: string): Promise<LoggedMeal> {
     const now      = new Date().toISOString();
     const mealType: MealType = voiceSlot
       ? SLOT_TO_MEAL_TYPE[voiceSlot]
       : data.mealType === "unknown" ? "snack" : data.mealType;
 
-    const meal = saveMeal(user.id, {
+    const meal = await saveMeal(user.id, {
       userId:          user.id,
       source:          "voice",
       mealType,
@@ -1000,10 +1047,11 @@ export default function NutritionPage() {
     });
 
     addMealToState(meal);
+    return meal;
   }
 
   function addMealToState(meal: LoggedMeal) {
-    if (meal.eatenAt.slice(0, 10) === selectedDate) {
+    if (toDateISO(new Date(meal.eatenAt)) === selectedDate) {
       setMeals((prev) => [meal, ...prev]);
     }
   }
@@ -1030,7 +1078,7 @@ export default function NutritionPage() {
         const newItems  = m.items.map((i) => i.id === itemId ? { ...i, ...patch } : i);
         const newTotals = recalcMealTotals(newItems.filter((i) => !i.deletedAt));
         const updated   = { ...m, items: newItems, totals: newTotals, updatedAt: new Date().toISOString() };
-        updateMeal(user.id, mealId, { items: newItems, totals: newTotals });
+        updateMeal(user.id, mealId, { items: newItems, totals: newTotals }); // fire & forget
         return updated;
       }),
     );
@@ -1047,7 +1095,7 @@ export default function NutritionPage() {
         const newItems  = [...m.items, newItem];
         const newTotals = recalcMealTotals(newItems.filter((i) => !i.deletedAt));
         const updated   = { ...m, items: newItems, totals: newTotals, updatedAt: new Date().toISOString() };
-        updateMeal(user.id, mealId, { items: newItems, totals: newTotals });
+        updateMeal(user.id, mealId, { items: newItems, totals: newTotals }); // fire & forget
         return updated;
       }),
     );
@@ -1057,7 +1105,7 @@ export default function NutritionPage() {
 
   function handleEditSave(updated: LoggedMeal) {
     setEditingMeal(null);
-    const updatedDate = updated.eatenAt.slice(0, 10);
+    const updatedDate = toDateISO(new Date(updated.eatenAt));
     if (updatedDate === selectedDate) {
       // In-place update
       setMeals((prev) => prev.map((m) => m.id === updated.id ? updated : m));
@@ -1070,7 +1118,7 @@ export default function NutritionPage() {
   // ── Soft delete + undo ──────────────────────────────────────────────────────
 
   function handleDelete(meal: LoggedMeal) {
-    softDeleteMeal(user.id, meal.id);
+    softDeleteMeal(user.id, meal.id); // fire & forget
     setMeals((prev) => prev.filter((m) => m.id !== meal.id));
 
     // Show undo toast
@@ -1082,7 +1130,7 @@ export default function NutritionPage() {
   function handleUndo() {
     if (!undoMeal) return;
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    restoreMeal(user.id, undoMeal.id);
+    restoreMeal(user.id, undoMeal.id); // fire & forget
     // Re-insert in chronological position
     setMeals((prev) => {
       const next = [...prev, undoMeal];
@@ -1184,16 +1232,26 @@ export default function NutritionPage() {
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">Quick actions</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
             <QuickActionTile
-              icon={Mic}      label="Voice log meal"   description="Say what you ate"
-              onClick={() => openVoiceForSlot(null)}  primary
+              icon={Mic}
+              label="Voice log meal"
+              description={can(FEATURES.VOICE_NUTRITION) ? "Say what you ate" : "Pro · upgrade to unlock"}
+              onClick={can(FEATURES.VOICE_NUTRITION) ? () => openVoiceForSlot(null) : () => router.push("/pricing")}
+              primary
+              locked={!can(FEATURES.VOICE_NUTRITION)}
             />
             <QuickActionTile
-              icon={Camera}   label="Photo scan"       description="Snap your plate"
-              onClick={() => setAnalysisOpen(true)}
+              icon={Camera}
+              label="Photo scan"
+              description={can(FEATURES.AI_FOOD_ANALYSIS) ? "Snap your plate" : "Pro · upgrade to unlock"}
+              onClick={can(FEATURES.AI_FOOD_ANALYSIS) ? () => setAnalysisOpen(true) : () => router.push("/pricing")}
+              locked={!can(FEATURES.AI_FOOD_ANALYSIS)}
             />
             <QuickActionTile
-              icon={Sparkles} label="AI food analysis" description="Analyze · portion guidance"
-              onClick={() => setAnalysisOpen(true)}
+              icon={Sparkles}
+              label="AI food analysis"
+              description={can(FEATURES.AI_FOOD_ANALYSIS) ? "Analyze · portion guidance" : "Pro · upgrade to unlock"}
+              onClick={can(FEATURES.AI_FOOD_ANALYSIS) ? () => setAnalysisOpen(true) : () => router.push("/pricing")}
+              locked={!can(FEATURES.AI_FOOD_ANALYSIS)}
             />
             <QuickActionTile
               icon={Search}   label="Food search"      description="Search & quick add"
@@ -1222,6 +1280,23 @@ export default function NutritionPage() {
           <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex items-center gap-3">
             <Loader2 className="w-4 h-4 text-[#B48B40]/60 animate-spin shrink-0" strokeWidth={1.5} />
             <p className="text-sm text-white/45">Analysing meal…</p>
+          </div>
+        )}
+
+        {/* ── Auto-save feedback toast ──────────────────────────────────────── */}
+        {saveFeedback && (
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-[#111111] px-4 py-3 shadow-xl">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+            <span className="text-sm text-white/60 flex-1 truncate">
+              <span className="text-white/80 font-medium">Saved:</span>{" "}
+              {saveFeedback.label}
+              {saveFeedback.calories > 0 && (
+                <span className="text-white/30"> · {saveFeedback.calories} kcal</span>
+              )}
+            </span>
+            <button onClick={() => setSaveFeedback(null)} className="text-white/20 hover:text-white/45 transition-colors shrink-0">
+              <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
           </div>
         )}
 
@@ -1337,8 +1412,18 @@ export default function NutritionPage() {
           </div>
         )}
 
-        {/* ── Analytics & trends ───────────────────────────────────────────── */}
-        <NutritionAnalytics userId={user.id} targets={targets} today={todayISO()} />
+        {/* ── Analytics & trends ─────────────────────────────────────────────
+             Gated: Pro plan required for full analytics.
+             Core users see a locked section preview instead. */}
+        {can(FEATURES.NUTRITION_ANALYTICS) ? (
+          <NutritionAnalytics userId={user.id} targets={targets} today={todayISO()} />
+        ) : (
+          <LockedSection
+            feature={FEATURES.NUTRITION_ANALYTICS}
+            title="Nutrition Analytics"
+            description="7-day macro trends, consistency scoring, and AI insights. Available on Pro."
+          />
+        )}
 
         {/* ── Nutrition notes ───────────────────────────────────────────────── */}
         <div>
@@ -1393,14 +1478,16 @@ export default function NutritionPage() {
           placeholder={
             voiceSlot
               ? `Describe your ${SLOT_META[voiceSlot].label.toLowerCase()}…`
-              : "e.g. 'I had 3 eggs, 100g oats, and a black coffee for breakfast'"
+              : "e.g. '3 eggs, 100g oats, black coffee for breakfast'"
           }
+          autoClean
+          onRawTranscript={(raw) => { rawTranscriptRef.current = raw; }}
           onStart={voice.start}
           onStop={voice.stop}
-          onReset={voice.reset}
+          onReset={() => { rawTranscriptRef.current = ""; voice.reset(); }}
           onTranscriptChange={voice.setTranscript}
           onConfirm={handleVoiceConfirm}
-          onCancel={() => { setShowVoice(false); setVoiceSlot(null); voice.reset(); }}
+          onCancel={() => { setShowVoice(false); setVoiceSlot(null); rawTranscriptRef.current = ""; voice.reset(); }}
         />
       )}
 
@@ -1411,6 +1498,7 @@ export default function NutritionPage() {
           source="voice"
           userId={user.id}
           initialSlot={voiceSlot}
+          lowConfidence={pendingParse.confidence < 0.6}
           onSave={handleReviewSave}
           onCancel={() => { setPendingParse(null); setPendingTranscript(""); }}
         />

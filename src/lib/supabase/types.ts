@@ -10,6 +10,8 @@ export type NutritionSource = "manual" | "voice" | "coach";
 
 // ─── Row types ───────────────────────────────────────────────────────────────
 
+export type SubscriptionStatus = "inactive" | "active" | "past_due";
+
 export interface Profile {
   id:                  string;
   email:               string;
@@ -24,8 +26,12 @@ export interface Profile {
   plan:                Plan;
   default_dashboard:   string;
   push_level:          number;
-  created_at:          string;
-  updated_at:          string;
+  subscription_status:           SubscriptionStatus;
+  stripe_customer_id:            string | null;
+  stripe_subscription_id:        string | null;
+  subscription_current_period_end: string | null;  // ISO timestamp
+  created_at:                    string;
+  updated_at:                    string;
 }
 
 export interface OnboardingState {
@@ -119,14 +125,35 @@ export interface Invite {
 }
 
 export interface NutritionLog {
-  id:          string;
-  user_id:     string;
-  meal_type:   string | null;
-  raw_text:    string;
-  parsed_data: Record<string, unknown> | null;
-  source:      NutritionSource;
-  logged_at:   string;
-  created_at:  string;
+  id:               string;
+  user_id:          string;
+  meal_type:        string | null;
+  raw_text:         string | null;
+  parsed_data:      Record<string, unknown> | null;
+  source:           NutritionSource;
+  logged_at:        string;
+  // Extended columns added in migration 005
+  clean_transcript: string | null;
+  raw_transcript:   string | null;
+  items:            Record<string, unknown>[] | null;  // LoggedFoodItem[]
+  calories:         number | null;
+  protein:          number | null;
+  carbs:            number | null;
+  fat:              number | null;
+  needs_review:     boolean;
+  deleted_at:       string | null;
+  updated_at:       string;
+  created_at:       string;
+}
+
+export interface HydrationLogRow {
+  id:             string;
+  user_id:        string;
+  amount_ml:      number;
+  source:         "voice" | "manual" | "meal_parse";
+  logged_at:      string;
+  linked_meal_id: string | null;
+  created_at:     string;
 }
 
 export interface CoachConversation {
@@ -176,8 +203,13 @@ export interface Database {
       };
       nutrition_logs: {
         Row:    NutritionLog;
-        Insert: Partial<NutritionLog> & { user_id: string; raw_text: string };
+        Insert: Partial<NutritionLog> & { user_id: string };
         Update: Partial<NutritionLog>;
+      };
+      hydration_logs: {
+        Row:    HydrationLogRow;
+        Insert: Partial<HydrationLogRow> & { user_id: string; amount_ml: number };
+        Update: Partial<HydrationLogRow>;
       };
       coach_conversations: {
         Row:    CoachConversation;
