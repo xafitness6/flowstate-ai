@@ -8,7 +8,8 @@ import {
   Bot, Trophy, CalendarDays, ArrowRight, Loader2, Send,
   Users, TrendingUp, AlertTriangle,
 } from "lucide-react";
-import { DEMO_USERS } from "@/context/UserContext";
+import { DEMO_USERS, useUser } from "@/context/UserContext";
+import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { hasAccess } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { GreetingBanner } from "@/components/dashboard/GreetingBanner";
@@ -392,6 +393,7 @@ function DashboardContent() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const tab          = searchParams.get("tab");
+  const { user, isLoading, isSupabase } = useUser();
 
   const [ready,        setReady       ] = useState(false);
   const [role,         setRole        ] = useState<Role>("member");
@@ -418,28 +420,45 @@ function DashboardContent() {
   }
 
   useEffect(() => {
+    // Wait for UserContext to resolve before acting
+    if (isLoading) return;
+
+    // Supabase users: use context directly — no localStorage lookup needed
+    if (isSupabase) {
+      setRole(user.role);
+      setRoleKey(user.id);
+      setActualUserId(user.id);
+      setReady(true);
+      return;
+    }
+
+    // Demo / local account path
     let savedRole: string | null = null;
     try {
       savedRole = localStorage.getItem("flowstate-active-role")
                || sessionStorage.getItem("flowstate-session-role");
     } catch { /* ignore */ }
 
-    if (!savedRole || !DEMO_USERS[savedRole]) {
+    const resolvedUser = DEMO_USERS[savedRole ?? ""] ?? (() => {
+      const account = savedRole ? getAccountById(savedRole) : null;
+      return account ? accountToMockUser(account) : null;
+    })();
+
+    if (!resolvedUser) {
       router.replace("/login");
       return;
     }
 
-    const demoUser = DEMO_USERS[savedRole];
-    setRole(demoUser.role);
-    setRoleKey(savedRole);
-    setActualUserId(demoUser.id);
+    setRole(resolvedUser.role);
+    setRoleKey(savedRole ?? "");
+    setActualUserId(resolvedUser.id);
 
     if (tab === "overview") {
       setReady(true);
       return;
     }
 
-    const resolvedTab = tab ?? demoUser.defaultDashboard ?? "overview";
+    const resolvedTab = tab ?? resolvedUser.defaultDashboard ?? "overview";
 
     if (resolvedTab !== "overview" && TAB_ROUTES[resolvedTab]) {
       router.replace(TAB_ROUTES[resolvedTab]);
@@ -447,12 +466,17 @@ function DashboardContent() {
     }
 
     setReady(true);
-  }, [tab, router]);
+  }, [tab, router, isLoading, isSupabase, user]);
 
   if (!ready) return null;
 
-  const demoUser = DEMO_USERS[roleKey] ?? DEMO_USERS.master;
-  const firstName  = demoUser.name.split(" ")[0];
+  const resolvedUser = isSupabase
+    ? user
+    : (DEMO_USERS[roleKey]
+        ?? (() => { const a = getAccountById(roleKey); return a ? accountToMockUser(a) : null; })()
+        ?? DEMO_USERS.member);
+  const demoUser  = resolvedUser;
+  const firstName = demoUser.name.split(" ")[0];
   const visibleCards = QUICK_CARDS.filter((c) => hasAccess(role, c.minRole));
 
   const ACTIVE_STATUSES = ["detecting","summarizing","deciding","formatting","educating"];
