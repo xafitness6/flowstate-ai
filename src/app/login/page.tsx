@@ -318,12 +318,20 @@ function LoginPageContent() {
         router.replace(onboardingRoute);
         return;
       }
-      router.replace(
-        resolvePostLoginRoute(data.user.id, {
-          role:               profile?.role,
-          subscriptionStatus: profile?.subscription_status,
-        }),
-      );
+      // DB confirmed onboarding complete. Route directly — do NOT call
+      // resolvePostLoginRoute here because that checks localStorage, and
+      // the localStorage state may not exist yet for this UUID (it was keyed
+      // under "anonymous" for older sessions). The DB check above is authoritative.
+      const role = profile?.role;
+      if (role === "trainer") { router.replace("/trainers"); return; }
+      if (role === "master")  { router.replace("/admin");    return; }
+      // Subscription gate (only when early access mode is off)
+      const earlyAccess = process.env.NEXT_PUBLIC_EARLY_ACCESS_MODE === "true";
+      if (!earlyAccess && profile?.subscription_status && profile.subscription_status !== "active") {
+        router.replace("/coach/intro");
+        return;
+      }
+      router.replace("/dashboard");
       return;
     }
 

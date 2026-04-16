@@ -56,9 +56,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       if (supabaseConfigured) {
         // ── Supabase path ────────────────────────────────────────────────────
-        // UserContext already fetched the profile. Use user.id (UUID) directly
-        // for onboarding check — getBlockingRoute handles UUIDs via the
-        // `ROLE_TO_USER_ID[sessionKey] ?? sessionKey` fallback.
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
@@ -72,8 +69,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Onboarding check — use user.id (UUID for Supabase users)
-        const blocker = getBlockingRoute(user.id);
+        // Onboarding check — use DB-backed resolver for Supabase users.
+        // getBlockingRoute (localStorage) is not reliable here because older
+        // sessions may have state keyed under "anonymous" instead of the UUID.
+        const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
+        const blocker = await resolveOnboardingRoute(user.id);
         if (blocker) { router.replace(blocker); return; }
 
         // Check subscription — skipped entirely during early access mode.
