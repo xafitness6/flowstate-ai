@@ -145,8 +145,10 @@ export function saveOnboardingState(userId: string, state: Partial<OnboardingSta
   // Write-through: sync to Supabase for real accounts (UUID IDs only)
   if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
     import("@/lib/db/onboarding").then(({ upsertOnboardingState }) => {
+      // Note: walkthrough_seen is intentionally omitted — the column does not
+      // exist in the DB schema yet (localStorage-only for now). Including it
+      // would cause Supabase to reject the entire upsert silently.
       upsertOnboardingState(userId, {
-        walkthrough_seen:               state.walkthrough_seen,
         onboarding_complete:            state.onboardingComplete,
         body_focus_complete:            state.bodyFocusComplete,
         planning_conversation_complete: state.planningConversationComplete,

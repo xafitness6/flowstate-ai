@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { resolvePostLoginRoute } from "@/lib/routing";
 import { createClient } from "@/lib/supabase/client";
-import { resolveOnboardingRoute } from "@/lib/db/onboarding";
 import {
   isAdminEmail,
   hasAdminPassword,
@@ -305,30 +304,31 @@ function LoginPageContent() {
         setLoading(false);
         return;
       }
-      // Save UUID as session key so onboarding pages (walkthrough, calibration)
-      // call getActiveUserId() with the real UUID instead of "anonymous".
-      // This ensures onboarding state is keyed by UUID and AppShell can find it.
+      // Save UUID as session key so onboarding pages use the real UUID as userId.
       saveSession(data.user.id);
-      // UserContext picks up the session via onAuthStateChange.
-      // Resolve route from DB onboarding + subscription state.
+
       const { getMyProfile } = await import("@/lib/db/profiles");
       const profile = await getMyProfile();
+      const role    = profile?.role;
+
+      // Role-based fast exits
+      if (role === "trainer") { router.replace("/trainers"); return; }
+      if (role === "master")  { router.replace("/admin");    return; }
+
+      // Onboarding check — localStorage first (no DB timing issues), DB fallback.
+      // localStorage is keyed by UUID now that saveSession(uuid) was called above.
+      const { loadOnboardingState } = await import("@/lib/onboarding");
+      const localState = loadOnboardingState(data.user.id);
+      if (localState.onboardingComplete) {
+        // Already done locally — go straight to app.
+        router.replace("/dashboard");
+        return;
+      }
+      // Local state incomplete or missing — authoritative DB check.
+      const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
       const onboardingRoute = await resolveOnboardingRoute(data.user.id);
       if (onboardingRoute) {
         router.replace(onboardingRoute);
-        return;
-      }
-      // DB confirmed onboarding complete. Route directly — do NOT call
-      // resolvePostLoginRoute here because that checks localStorage, and
-      // the localStorage state may not exist yet for this UUID (it was keyed
-      // under "anonymous" for older sessions). The DB check above is authoritative.
-      const role = profile?.role;
-      if (role === "trainer") { router.replace("/trainers"); return; }
-      if (role === "master")  { router.replace("/admin");    return; }
-      // Subscription gate (only when early access mode is off)
-      const earlyAccess = process.env.NEXT_PUBLIC_EARLY_ACCESS_MODE === "true";
-      if (!earlyAccess && profile?.subscription_status && profile.subscription_status !== "active") {
-        router.replace("/coach/intro");
         return;
       }
       router.replace("/dashboard");
