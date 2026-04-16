@@ -74,7 +74,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 200
   },
   "right": {
     "id": "a74c27526daaa9f5",
@@ -178,6 +178,7 @@
   },
   "active": "77d65f5bb2b6d010",
   "lastOpenFiles": [
+    "brain-graph.md",
     "src/components/nutrition/BarcodeScanner.tsx",
     "src/components/nutrition/FoodSearchModal.tsx",
     "src/components/nutrition/NutritionAnalytics.tsx",
@@ -188,7 +189,6 @@
     "src/lib/nutrition/foodSearch.ts",
     "src/components/nutrition/MealEditModal.tsx",
     "src/lib/nutrition/waterParser.ts",
-    "src/lib/nutrition/hydration.ts",
     "CLAUDE.md",
     "Untitled.canvas",
     "docs/app/api-reference/file-conventions/page.md"

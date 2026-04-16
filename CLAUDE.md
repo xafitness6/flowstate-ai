@@ -2,12 +2,12 @@
 
 ## Context Navigation
 
-Before reading any file in this project, check memory first:
+Before reading any file in this project, follow this order:
 
-1. **Start here:** Review the memory index at `~/.claude/projects/-Users-xavierellis-Projects-flowstate-ai/memory/MEMORY.md`
-2. **Load relevant memories** before exploring the codebase — architecture, patterns, auth, and data models are all documented
-3. **Only read raw files** when the task requires seeing actual implementation details, or when the user explicitly says "read the file"
-4. **After learning something non-obvious** (a decision, a pattern, a constraint), save it to memory so future sessions benefit
+1. **Start here:** Read `brain-graph.md` in the project root — it's a compact map of every doc, route, key file, and rule. Read this instead of individual files whenever possible.
+2. **Then check memory:** Review `~/.claude/projects/-Users-xavierellis-Projects-flowstate-ai/memory/MEMORY.md` for decisions and patterns not in the code.
+3. **Only read raw files** when the task requires actual implementation details, or the user explicitly says "read the file."
+4. **Keep the graph updated:** After adding or changing a doc, update `brain-graph.md` to reflect it. This is the Obsidian brain — it must stay current.
 
 ## Project Overview
 
