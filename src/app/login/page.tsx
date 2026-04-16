@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft, Shield } from "lucide-react";
@@ -179,15 +179,21 @@ function RememberMe({ checked, onChange }: { checked: boolean; onChange: (v: boo
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
-  // Pre-select tab from query param: /login?tab=create → signup tab
-  const initialMode = searchParams.get("tab") === "create" ? "create" : "signin";
-
   const [step,     setStep]     = useState<AuthStep>("form");
-  const [mode,     setMode]     = useState<AuthMode>(initialMode);
+  const [mode,     setMode]     = useState<AuthMode>("signin");
+
+  // Sync tab from query param after mount/navigation.
+  // useEffect runs after hydration so searchParams is reliably populated.
+  // /login?tab=create → signup tab, /login → sign in tab.
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "create") setMode("create");
+    else                  setMode("signin");
+  }, [searchParams]);
   const [loading,  setLoading]  = useState(false);
 
   // Sign in
@@ -747,5 +753,14 @@ export default function LoginPage() {
 
       </div>
     </div>
+  );
+}
+
+// Suspense boundary required by Next.js App Router for useSearchParams().
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0A0A0A]" />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
