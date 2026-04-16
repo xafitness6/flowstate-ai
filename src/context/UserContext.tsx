@@ -162,10 +162,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         const profile = await getMyProfile();
         if (profile) {
           setUser(applyEarlyAccess(profileToMockUser(profile)));
-          setIsSupabase(true);
-          setIsLoading(false);
-          return;
+        } else {
+          // Profile row not ready yet (new user, DB trigger pending).
+          // Use the correct UUID so routing checks have the real user ID.
+          setUser(prev => ({ ...prev, id: session.user.id }));
         }
+        setIsSupabase(true);
+        setIsLoading(false);
+        return;
       }
       // No Supabase session — fall back to demo/local accounts
       const demo = loadDemoUser();
@@ -183,10 +187,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           const profile = await getMyProfile();
           if (profile) {
             setUser(applyEarlyAccess(profileToMockUser(profile)));
-            setIsSupabase(true);
-            setIsLoading(false);
-            return;
+          } else {
+            // Profile row not ready yet — preserve correct UUID
+            setUser(prev => ({ ...prev, id: session.user.id }));
           }
+          setIsSupabase(true);
+          setIsLoading(false);
+          return;
         }
         // Session ended — check for demo fallback
         setIsSupabase(false);

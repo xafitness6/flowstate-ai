@@ -69,12 +69,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Onboarding check — use DB-backed resolver for Supabase users.
-        // getBlockingRoute (localStorage) is not reliable here because older
-        // sessions may have state keyed under "anonymous" instead of the UUID.
-        const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
-        const blocker = await resolveOnboardingRoute(user.id);
-        if (blocker) { router.replace(blocker); return; }
+        // Use session.user.id — always the real UUID, even if UserContext
+        // couldn't fetch the profile yet (e.g. new user, DB trigger pending).
+        const supabaseUserId = session.user.id;
+
+        // Onboarding check — hybrid approach:
+        //  1. Check localStorage first (no DB round-trip, handles just-onboarded users
+        //     without racing against async DB writes from completeOnboarding).
+        //  2. If localStorage doesn't confirm complete, check DB (handles returning
+        //     users whose state was keyed under "anonymous" in older sessions).
+        const localBlocker = getBlockingRoute(supabaseUserId);
+        if (localBlocker !== null) {
+          const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
+          const dbBlocker = await resolveOnboardingRoute(supabaseUserId);
+          if (dbBlocker) { router.replace(dbBlocker); return; }
+          // DB confirms complete — fall through to setReady
+        }
+        // else: localStorage confirms complete — skip DB check
 
         // Check subscription — skipped entirely during early access mode.
         // master, is_admin, and exempt pages also bypass (master is already
