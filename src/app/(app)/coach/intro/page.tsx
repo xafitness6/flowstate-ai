@@ -136,12 +136,11 @@ export default function CoachIntroPage() {
   }
 
   function handleFreeAccess() {
-    // Allow limited access — mark plan as "foundation" and route to dashboard
+    // Allow limited access — mark plan as "foundation" and route to dashboard.
+    // Works for both demo (role key) and Supabase users (UUID now saved as session key).
     try {
       const key = sessionStorage.getItem("flowstate-session-role") || localStorage.getItem("flowstate-active-role");
-      if (key) {
-        localStorage.setItem(`flowstate-plan-${key}`, "foundation");
-      }
+      if (key) localStorage.setItem(`flowstate-plan-${key}`, "foundation");
     } catch { /* ignore */ }
     router.replace("/dashboard");
   }

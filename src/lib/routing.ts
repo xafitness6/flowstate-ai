@@ -54,7 +54,10 @@ export function clearSession(): void {
  */
 function getOnboardingBlocker(userId: string): string | null {
   const s = loadOnboardingState(userId);
-  if (!s.walkthrough_seen) return "/onboarding/walkthrough";
+  // Walkthrough is required only for users who haven't completed calibration yet.
+  // Users who completed calibration before walkthrough_seen was added have it
+  // defaulting to false — don't retroactively block them.
+  if (!s.walkthrough_seen && !s.onboardingComplete) return "/onboarding/walkthrough";
   if (!s.onboardingComplete) return "/onboarding/calibration";
   // Legacy: users mid-way through the old multi-step flow still get routed correctly
   if (!s.bodyFocusComplete)            return "/onboarding/body-focus";

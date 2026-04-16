@@ -305,6 +305,10 @@ function LoginPageContent() {
         setLoading(false);
         return;
       }
+      // Save UUID as session key so onboarding pages (walkthrough, calibration)
+      // call getActiveUserId() with the real UUID instead of "anonymous".
+      // This ensures onboarding state is keyed by UUID and AppShell can find it.
+      saveSession(data.user.id);
       // UserContext picks up the session via onAuthStateChange.
       // Resolve route from DB onboarding + subscription state.
       const { getMyProfile } = await import("@/lib/db/profiles");
@@ -361,8 +365,10 @@ function LoginPageContent() {
         setLoading(false);
         return;
       }
-      // New Supabase users always start at calibration (no onboarding state yet)
-      router.replace("/onboarding/calibration");
+      // Save UUID as session key so onboarding pages use the real UUID as userId.
+      saveSession(data.user.id);
+      // New Supabase users start at the walkthrough (intro before calibration)
+      router.replace("/onboarding/walkthrough");
       return;
     }
 

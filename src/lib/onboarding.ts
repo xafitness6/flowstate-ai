@@ -273,7 +273,7 @@ export function completeProfileSetup(userId: string): void {
  */
 export function getOnboardingRoute(userId: string): string | null {
   const s = loadOnboardingState(userId);
-  if (!s.walkthrough_seen)             return "/onboarding/walkthrough";
+  if (!s.walkthrough_seen && !s.onboardingComplete) return "/onboarding/walkthrough";
   if (!s.onboardingComplete)           return "/onboarding/calibration";
   if (!s.bodyFocusComplete)            return "/onboarding/body-focus";
   if (!s.planningConversationComplete) return "/onboarding/coach-planning";

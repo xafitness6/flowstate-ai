@@ -142,8 +142,22 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const supabase = createClient();
 
+    // Helper: check if the app-level session is the demo admin path.
+    // If localStorage/sessionStorage says "master", we must NOT override the
+    // user with a Supabase profile (which would be a non-master role and would
+    // cause useAdminGuard to redirect to /welcome).
+    function isAppMaster(): boolean {
+      try {
+        const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
+        return key === "master";
+      } catch { return false; }
+    }
+
     // Initial session check — resolves isLoading for all non-auth-change paths
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      // Demo admin path takes priority over any Supabase session
+      if (isAppMaster()) { setIsLoading(false); return; }
+
       if (session) {
         const profile = await getMyProfile();
         if (profile) {
@@ -162,6 +176,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Demo admin path takes priority over any Supabase session
+        if (isAppMaster()) { setIsLoading(false); return; }
+
         if (session) {
           const profile = await getMyProfile();
           if (profile) {
