@@ -259,13 +259,14 @@ function LoginPageContent() {
       if (!verifyAdminPassword(siPassword)) { setSiError("Incorrect password."); return; }
       setLoading(true);
 
-      // Check for an active Supabase session — if first_login is pending, go through onboarding
+      // Check for an active Supabase session — route to onboarding if not yet complete
       if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
         const { data: { user } } = await createClient().auth.getUser();
         if (user) {
-          const { getMyProfile } = await import("@/lib/db/profiles");
-          const profile = await getMyProfile();
-          if (profile?.first_login) {
+          const { getOnboardingState } = await import("@/lib/db/onboarding");
+          const state = await getOnboardingState(user.id);
+          // null row or onboarding_complete !== true both mean "needs onboarding"
+          if (state?.onboarding_complete !== true) {
             saveSession(user.id);
             router.replace("/onboarding");
             return;
@@ -305,15 +306,18 @@ function LoginPageContent() {
       const profile = await getMyProfile();
       const role    = profile?.role;
 
-      // Role-based fast exits
-      if (role === "trainer") { router.replace("/trainers"); return; }
-      if (role === "master")  { router.replace("/admin");    return; }
-
-      // first_login = true → send to onboarding; false → send to dashboard
-      if (profile?.first_login) {
+      // Onboarding check — takes priority over role-based routing for all users
+      const { getOnboardingState } = await import("@/lib/db/onboarding");
+      const obState = await getOnboardingState(data.user.id);
+      // null row or onboarding_complete !== true both mean "needs onboarding"
+      if (obState?.onboarding_complete !== true) {
         router.replace("/onboarding");
         return;
       }
+
+      // Role-based routing (onboarding confirmed complete)
+      if (role === "trainer") { router.replace("/trainers"); return; }
+      if (role === "master")  { router.replace("/admin");    return; }
       router.replace("/dashboard");
       return;
     }

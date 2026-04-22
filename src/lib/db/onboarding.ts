@@ -34,14 +34,9 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
   return data as OnboardingState | null;
 }
 
-/** Flip first_login = false in profiles once onboarding completes. */
-export async function markFirstLoginComplete(userId: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("profiles")
-    .update({ first_login: false, updated_at: new Date().toISOString() })
-    .eq("id", userId);
-  if (error) console.error("[profiles] markFirstLoginComplete:", error.message);
+/** Mark onboarding complete for a user. */
+export async function markOnboardingComplete(userId: string): Promise<void> {
+  return upsertOnboardingState(userId, { onboarding_complete: true });
 }
 
 /** Resolve the correct onboarding route for a user. Returns null if onboarding complete. */
