@@ -258,6 +258,21 @@ function LoginPageContent() {
       if (!hasAdminPassword()) { setStep("admin-create-password"); return; }
       if (!verifyAdminPassword(siPassword)) { setSiError("Incorrect password."); return; }
       setLoading(true);
+
+      // Check for an active Supabase session — if first_login is pending, go through onboarding
+      if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        const { data: { user } } = await createClient().auth.getUser();
+        if (user) {
+          const { getMyProfile } = await import("@/lib/db/profiles");
+          const profile = await getMyProfile();
+          if (profile?.first_login) {
+            saveSession(user.id);
+            router.replace("/onboarding");
+            return;
+          }
+        }
+      }
+
       afterLogin("master");
       return;
     }
