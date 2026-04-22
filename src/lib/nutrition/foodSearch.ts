@@ -75,7 +75,7 @@ const COMMON_FOOD_IDS = [
   "f_005", "f_018", "f_013", "f_010",
 ];
 
-// ─── Mock adapter ─────────────────────────────────────────────────────────────
+// ─── Mock adapter (kept for local fallback) ───────────────────────────────────
 
 class MockFoodAdapter implements FoodSearchAdapter {
   async search(query: string, limit = 20): Promise<FoodEntry[]> {
@@ -93,10 +93,46 @@ class MockFoodAdapter implements FoodSearchAdapter {
   }
 }
 
-// ─── Exported singleton ───────────────────────────────────────────────────────
-// Swap this to a RealFoodAdapter when API credentials are available.
+// ─── USDA common foods (hardcoded, real values) ───────────────────────────────
+// Instant load on modal mount — no API call. Per 100g values from USDA SR Legacy.
 
-export const foodSearchService: FoodSearchAdapter = new MockFoodAdapter();
+const USDA_COMMON_FOODS: FoodEntry[] = [
+  { id: "171477", name: "Chicken Breast, Raw",          serving: "100g", servingGrams: 100, calories: 165, protein: 31,   carbs: 0,    fat: 3.6,  verified: true },
+  { id: "748967", name: "Egg, Whole, Raw",               serving: "100g", servingGrams: 100, calories: 143, protein: 12.6, carbs: 0.7,  fat: 9.5,  verified: true },
+  { id: "173944", name: "Banana, Raw",                   serving: "100g", servingGrams: 100, calories:  89, protein:  1.1, carbs: 22.8, fat: 0.3,  verified: true },
+  { id: "1101825",name: "Oats, Rolled, Dry",             serving: "100g", servingGrams: 100, calories: 379, protein: 13.2, carbs: 67.7, fat: 6.5,  fiber: 10.6, verified: true },
+  { id: "170903", name: "Greek Yogurt, Plain, Nonfat",   serving: "100g", servingGrams: 100, calories:  59, protein: 10.2, carbs: 3.6,  fat: 0.4,  verified: true },
+  { id: "175167", name: "Salmon, Atlantic, Farmed, Raw", serving: "100g", servingGrams: 100, calories: 206, protein: 20.4, carbs: 0,    fat: 13.4, verified: true },
+  { id: "169704", name: "Brown Rice, Cooked",            serving: "100g", servingGrams: 100, calories: 112, protein:  2.3, carbs: 23.5, fat: 0.8,  fiber: 1.8, verified: true },
+  { id: "170379", name: "Broccoli, Raw",                 serving: "100g", servingGrams: 100, calories:  34, protein:  2.8, carbs: 6.6,  fat: 0.4,  fiber: 2.6, verified: true },
+  { id: "170567", name: "Almonds",                       serving: "100g", servingGrams: 100, calories: 579, protein: 21.2, carbs: 21.6, fat: 49.9, fiber: 12.5, verified: true },
+  { id: "171265", name: "Whole Milk",                    serving: "100g", servingGrams: 100, calories:  61, protein:  3.3, carbs: 4.9,  fat: 3.3,  verified: true },
+];
+
+// ─── USDA adapter ─────────────────────────────────────────────────────────────
+
+class USDAFoodAdapter implements FoodSearchAdapter {
+  async search(query: string, limit = 20): Promise<FoodEntry[]> {
+    try {
+      const res = await fetch(
+        `/api/nutrition/food-search?query=${encodeURIComponent(query.trim())}&limit=${limit}`,
+      );
+      if (!res.ok) return [];
+      return res.json() as Promise<FoodEntry[]>;
+    } catch {
+      return [];
+    }
+  }
+
+  getCommonFoods(): FoodEntry[] {
+    return USDA_COMMON_FOODS;
+  }
+}
+
+// ─── Exported singleton ───────────────────────────────────────────────────────
+
+// export const foodSearchService: FoodSearchAdapter = new MockFoodAdapter(); // local fallback
+export const foodSearchService: FoodSearchAdapter = new USDAFoodAdapter();
 
 /** Scale a food entry's macros by a quantity multiplier. */
 export function scaleMacros(
