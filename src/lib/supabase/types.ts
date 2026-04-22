@@ -30,6 +30,7 @@ export interface Profile {
   stripe_customer_id:            string | null;
   stripe_subscription_id:        string | null;
   subscription_current_period_end: string | null;  // ISO timestamp
+  first_login:                   boolean;
   created_at:                    string;
   updated_at:                    string;
 }

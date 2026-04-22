@@ -217,7 +217,15 @@ export default function CalibrationPage() {
     const plan = generateStarterPlan(intake);
     saveStarterPlan(userId, plan);
 
-    router.replace("/coach/intro");
+    // Flip first_login = false for Supabase users
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      import("@/lib/db/onboarding").then(({ markFirstLoginComplete }) => {
+        markFirstLoginComplete(userId);
+      });
+    }
+
+    router.replace("/dashboard");
   }
 
   const canAdvance = (): boolean => {

@@ -9,7 +9,6 @@
 // Always go through one of these two functions.
 
 import { loadOnboardingState } from "./onboarding";
-import type { SubscriptionStatus } from "@/types";
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
@@ -79,8 +78,7 @@ function finalDestination(role: string | undefined): string {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export type RouteOpts = {
-  role?:               string;
-  subscriptionStatus?: SubscriptionStatus;
+  role?: string;
 };
 
 /**
@@ -88,10 +86,9 @@ export type RouteOpts = {
  *
  * Rules (evaluated in strict order):
  *  1. No session            → /login
- *  2. master                → onboarding check, then /master
+ *  2. master                → /admin (bypasses onboarding)
  *  3. Onboarding incomplete → first incomplete onboarding step
- *  4. Subscription inactive → /coach/intro  (demo users always bypass this)
- *  5. Role-based landing    → /dashboard | /trainers | /master
+ *  4. Role-based landing    → /dashboard | /trainers | /admin
  */
 export function resolvePostLoginRoute(
   sessionKey: string | null,
@@ -110,12 +107,6 @@ export function resolvePostLoginRoute(
     const blocker = getOnboardingBlocker(userId);
     if (blocker) return blocker;
   } catch { /* ignore */ }
-
-  // Subscription gate — only applied when status is explicitly provided.
-  // Demo/local users have no subscriptionStatus → they pass through freely.
-  if (opts?.subscriptionStatus && opts.subscriptionStatus !== "active") {
-    return "/coach/intro";
-  }
 
   return finalDestination(opts?.role);
 }

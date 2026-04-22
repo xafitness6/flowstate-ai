@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createAccount, resolveAccount } from "@/lib/accounts";
+import { resolveAccount } from "@/lib/accounts";
 import { resolvePostLoginRoute } from "@/lib/routing";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -26,7 +26,6 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 type AuthStep = "form" | "biometric-prompt" | "enable-biometric" | "admin-create-password";
-type AuthMode = "signin" | "create";
 
 const LS_KEY = "flowstate-active-role";
 const SS_KEY = "flowstate-session-role";
@@ -179,20 +178,9 @@ function RememberMe({ checked, onChange }: { checked: boolean; onChange: (v: boo
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function LoginPageContent() {
-  const router       = useRouter();
-  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [step,     setStep]     = useState<AuthStep>("form");
-  const [mode,     setMode]     = useState<AuthMode>("signin");
-
-  // Sync tab from query param after mount/navigation.
-  // useEffect runs after hydration so searchParams is reliably populated.
-  // /login?tab=create → signup tab, /login → sign in tab.
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab === "create") setMode("create");
-    else                  setMode("signin");
-  }, [searchParams]);
   const [loading,  setLoading]  = useState(false);
 
   // Sign in
@@ -201,15 +189,6 @@ function LoginPageContent() {
   const [siShowPass, setSiShowPass] = useState(false);
   const [siError,    setSiError]    = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
-
-  // Create account
-  const [caName,        setCaName]        = useState("");
-  const [caEmail,       setCaEmail]       = useState("");
-  const [caPassword,    setCaPassword]    = useState("");
-  const [caConfirm,     setCaConfirm]     = useState("");
-  const [caShowPass,    setCaShowPass]    = useState(false);
-  const [caShowConfirm, setCaShowConfirm] = useState(false);
-  const [caError,       setCaError]       = useState<string | null>(null);
 
   // Admin first-time password creation
   const [adminNewPass,     setAdminNewPass]     = useState("");
@@ -315,20 +294,9 @@ function LoginPageContent() {
       if (role === "trainer") { router.replace("/trainers"); return; }
       if (role === "master")  { router.replace("/admin");    return; }
 
-      // Onboarding check — localStorage first (no DB timing issues), DB fallback.
-      // localStorage is keyed by UUID now that saveSession(uuid) was called above.
-      const { loadOnboardingState } = await import("@/lib/onboarding");
-      const localState = loadOnboardingState(data.user.id);
-      if (localState.onboardingComplete) {
-        // Already done locally — go straight to app.
-        router.replace("/dashboard");
-        return;
-      }
-      // Local state incomplete or missing — authoritative DB check.
-      const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
-      const onboardingRoute = await resolveOnboardingRoute(data.user.id);
-      if (onboardingRoute) {
-        router.replace(onboardingRoute);
+      // first_login = true → send to onboarding; false → send to dashboard
+      if (profile?.first_login) {
+        router.replace("/onboarding");
         return;
       }
       router.replace("/dashboard");
@@ -336,67 +304,6 @@ function LoginPageContent() {
     }
 
     setSiError("Incorrect email or password.");
-  }
-
-  // ── Create account ─────────────────────────────────────────────────────────
-
-  async function handleCreateAccount(e: React.FormEvent) {
-    e.preventDefault();
-    setCaError(null);
-
-    if (!caName.trim())           { setCaError("Please enter your name.");                  return; }
-    if (!caEmail.trim())          { setCaError("Please enter your email.");                 return; }
-    if (!caEmail.includes("@"))   { setCaError("Enter a valid email address.");             return; }
-    if (caPassword.length < 6)    { setCaError("Password must be at least 6 characters."); return; }
-    if (caPassword !== caConfirm) { setCaError("Passwords don't match.");                   return; }
-
-    const supabaseConfigured =
-      !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseConfigured) {
-      // Supabase signup — role is always "client" for public signups
-      setLoading(true);
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signUp({
-        email:    caEmail.trim().toLowerCase(),
-        password: caPassword,
-        options:  {
-          data: {
-            full_name: caName.trim(),
-            role:      "client", // DB trigger reads this; never allow public trainer/admin creation
-          },
-        },
-      });
-      if (error || !data.user) {
-        setCaError(error?.message ?? "Could not create account. Try a different email.");
-        setLoading(false);
-        return;
-      }
-      // Save UUID as session key so onboarding pages use the real UUID as userId.
-      saveSession(data.user.id);
-      // New Supabase users start at the walkthrough (intro before calibration)
-      router.replace("/onboarding/walkthrough");
-      return;
-    }
-
-    // No Supabase — create local account.
-    // Derive a username from the email prefix for the local store.
-    setLoading(true);
-    const username = caEmail.trim().toLowerCase().split("@")[0].replace(/[^a-z0-9_]/g, "");
-    const result = createAccount(
-      username || `user_${Date.now()}`,
-      caPassword,
-      "client", // always client
-      caName.trim(),
-      caEmail.trim().toLowerCase(),
-    );
-    if ("error" in result) {
-      setCaError(result.error);
-      setLoading(false);
-      return;
-    }
-    afterLogin(result.id);
   }
 
   // ── Admin first-time password ──────────────────────────────────────────────
@@ -624,144 +531,64 @@ function LoginPageContent() {
                   Back
                 </Link>
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {mode === "signin" ? "Welcome back" : "Create account"}
-              </h1>
-              <p className="text-sm text-white/40">
-                {mode === "signin"
-                  ? "Sign in to continue."
-                  : "Start your Flowstate journey."}
-              </p>
+              <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
+              <p className="text-sm text-white/40">Sign in to continue.</p>
             </div>
 
-            {/* Mode tabs */}
-            <div className="flex border-b border-white/[0.07]">
-              {(["signin", "create"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => { setMode(m); setSiError(null); setCaError(null); }}
-                  className={cn(
-                    "flex-1 py-2.5 text-xs font-semibold tracking-wide transition-all",
-                    mode === m
-                      ? "text-white border-b-2 border-[#B48B40] -mb-px"
-                      : "text-white/30 hover:text-white/55",
-                  )}
+            {/* Sign in form */}
+            <form onSubmit={handleSignIn} className="space-y-4">
+              <TextField
+                label="Email"
+                value={siEmail}
+                onChange={(v) => { setSiEmail(v); setSiError(null); }}
+                autoComplete="email"
+                type="text"
+                error={!!siError}
+                inputRef={emailRef}
+                placeholder="you@example.com"
+              />
+              <PasswordField
+                label="Password"
+                value={siPassword}
+                onChange={(v) => { setSiPassword(v); setSiError(null); }}
+                show={siShowPass}
+                onToggle={() => setSiShowPass((v) => !v)}
+                autoComplete="current-password"
+                error={!!siError}
+              />
+
+              <div className="flex items-center justify-between min-h-[18px]">
+                {siError
+                  ? <p className="text-xs text-red-400/70">{siError}</p>
+                  : <span />}
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-white/22 hover:text-white/45 transition-colors"
                 >
-                  {m === "signin" ? "Sign in" : "Create account"}
-                </button>
-              ))}
-            </div>
+                  Forgot password?
+                </Link>
+              </div>
 
-            {/* ── Sign in form ──────────────────────────────────────────────── */}
-            {mode === "signin" && (
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <TextField
-                  label="Email"
-                  value={siEmail}
-                  onChange={(v) => { setSiEmail(v); setSiError(null); }}
-                  autoComplete="email"
-                  type="text"
-                  error={!!siError}
-                  inputRef={emailRef}
-                  placeholder="you@example.com"
-                />
-                <PasswordField
-                  label="Password"
-                  value={siPassword}
-                  onChange={(v) => { setSiPassword(v); setSiError(null); }}
-                  show={siShowPass}
-                  onToggle={() => setSiShowPass((v) => !v)}
-                  autoComplete="current-password"
-                  error={!!siError}
-                />
+              <RememberMe checked={rememberMe} onChange={setRememberMe} />
 
-                <div className="flex items-center justify-between min-h-[18px]">
-                  {siError
-                    ? <p className="text-xs text-red-400/70">{siError}</p>
-                    : <span />}
-                  <Link
-                    href="/forgot-password"
-                    className="text-xs text-white/22 hover:text-white/45 transition-colors"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
+              <button
+                type="submit"
+                disabled={!siEmail || !siPassword || loading}
+                className={cn(
+                  "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2",
+                  siEmail && siPassword && !loading
+                    ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
+                    : "bg-white/5 text-white/25 cursor-default",
+                )}
+              >
+                {loading ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
 
-                <RememberMe checked={rememberMe} onChange={setRememberMe} />
-
-                <button
-                  type="submit"
-                  disabled={!siEmail || !siPassword || loading}
-                  className={cn(
-                    "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2",
-                    siEmail && siPassword && !loading
-                      ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
-                      : "bg-white/5 text-white/25 cursor-default",
-                  )}
-                >
-                  {loading ? "Signing in…" : "Sign in"}
-                </button>
-              </form>
-            )}
-
-            {/* ── Create account form ───────────────────────────────────────── */}
-            {mode === "create" && (
-              <form onSubmit={handleCreateAccount} className="space-y-4">
-                <TextField
-                  label="Full name"
-                  value={caName}
-                  onChange={(v) => { setCaName(v); setCaError(null); }}
-                  autoComplete="name"
-                  placeholder="Jane Smith"
-                  error={!!caError}
-                />
-                <TextField
-                  label="Email"
-                  value={caEmail}
-                  onChange={(v) => { setCaEmail(v); setCaError(null); }}
-                  autoComplete="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  error={!!caError}
-                />
-                <PasswordField
-                  label="Password"
-                  value={caPassword}
-                  onChange={(v) => { setCaPassword(v); setCaError(null); }}
-                  show={caShowPass}
-                  onToggle={() => setCaShowPass((v) => !v)}
-                  autoComplete="new-password"
-                  placeholder="At least 6 characters"
-                  error={!!caError}
-                />
-                <PasswordField
-                  label="Confirm password"
-                  value={caConfirm}
-                  onChange={(v) => { setCaConfirm(v); setCaError(null); }}
-                  show={caShowConfirm}
-                  onToggle={() => setCaShowConfirm((v) => !v)}
-                  autoComplete="new-password"
-                  error={!!caError}
-                />
-
-                {caError && <p className="text-xs text-red-400/70">{caError}</p>}
-
-                <RememberMe checked={rememberMe} onChange={setRememberMe} />
-
-                <button
-                  type="submit"
-                  disabled={!caName || !caEmail || !caPassword || !caConfirm || loading}
-                  className={cn(
-                    "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2",
-                    caName && caEmail && caPassword && caConfirm && !loading
-                      ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
-                      : "bg-white/5 text-white/25 cursor-default",
-                  )}
-                >
-                  {loading ? "Creating account…" : "Create account"}
-                </button>
-              </form>
-            )}
+            {/* Invite-only note */}
+            <p className="text-center text-[11px] text-white/18 leading-relaxed">
+              Invite only — contact your coach to get access.
+            </p>
           </>
         )}
 
@@ -770,11 +597,6 @@ function LoginPageContent() {
   );
 }
 
-// Suspense boundary required by Next.js App Router for useSearchParams().
 export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0A0A0A]" />}>
-      <LoginPageContent />
-    </Suspense>
-  );
+  return <LoginPageContent />;
 }

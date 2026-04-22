@@ -7,7 +7,6 @@ import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
 import { clearSession } from "@/lib/routing";
-import { applyEarlyAccess } from "@/lib/earlyAccess";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
@@ -85,7 +84,7 @@ function loadDemoUser(): MockUser | null {
     if (DEMO_USERS[key]) {
       const base = DEMO_USERS[key];
       const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
-      return applyEarlyAccess(savedPlan ? { ...base, plan: savedPlan } : base);
+      return savedPlan ? { ...base, plan: savedPlan } : base;
     }
 
     // 2. Dynamically created local accounts: key is an account ID ("usr_…")
@@ -93,8 +92,7 @@ function loadDemoUser(): MockUser | null {
     if (account) {
       const base = accountToMockUser(account);
       const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
-      const resolved  = savedPlan ? { ...base, plan: savedPlan } : base;
-      return applyEarlyAccess(resolved);
+      return savedPlan ? { ...base, plan: savedPlan } : base;
     }
   } catch { /* ignore */ }
   return null;
@@ -135,7 +133,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!supabaseConfigured) {
       // No Supabase — load demo/local user from storage and stop
       const demo = loadDemoUser();
-      if (demo) setUser(applyEarlyAccess(demo));
+      if (demo) setUser(demo);
       setIsLoading(false);
       return;
     }
@@ -161,7 +159,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (session) {
         const profile = await getMyProfile();
         if (profile) {
-          setUser(applyEarlyAccess(profileToMockUser(profile)));
+          setUser(profileToMockUser(profile));
         } else {
           // Profile row not ready yet (new user, DB trigger pending).
           // Use the correct UUID so routing checks have the real user ID.
@@ -173,7 +171,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
       // No Supabase session — fall back to demo/local accounts
       const demo = loadDemoUser();
-      if (demo) setUser(applyEarlyAccess(demo));
+      if (demo) setUser(demo);
       setIsLoading(false);
     });
 
@@ -186,7 +184,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         if (session) {
           const profile = await getMyProfile();
           if (profile) {
-            setUser(applyEarlyAccess(profileToMockUser(profile)));
+            setUser(profileToMockUser(profile));
           } else {
             // Profile row not ready yet — preserve correct UUID
             setUser(prev => ({ ...prev, id: session.user.id }));
@@ -198,7 +196,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         // Session ended — check for demo fallback
         setIsSupabase(false);
         const demo = loadDemoUser();
-        setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
+        setUser(demo ?? DEMO_USERS.member);
         setIsLoading(false);
       }
     );

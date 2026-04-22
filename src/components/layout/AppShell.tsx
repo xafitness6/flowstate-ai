@@ -1,50 +1,38 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { TopBar }    from "./TopBar";
 import { BottomNav } from "./BottomNav";
 import { Sidebar }   from "./Sidebar";
 import { getSessionKey, getBlockingRoute } from "@/lib/routing";
-import { EARLY_ACCESS_ENABLED }           from "@/lib/earlyAccess";
 import { useUser }                        from "@/context/UserContext";
-
-// Routes inside (app) that are accessible regardless of subscription status.
-// coach/intro IS the upgrade page; pricing lets users choose a plan;
-// settings/billing lets past_due users update their payment method.
-const SUBSCRIPTION_EXEMPT = ["/coach/intro", "/pricing", "/settings/billing"];
 
 /**
  * AppShell wraps every route inside (app)/layout.tsx.
  *
  * Guard order:
  *  1. Wait for UserContext to finish resolving user identity (isLoading).
- *     This prevents any role-based rendering until the real role is known.
- *  2. Master / is_admin → passes immediately (no onboarding or subscription check).
+ *  2. Master / is_admin → passes immediately.
  *  3. Supabase session check:
  *     a. No session → check demo session → /login if nothing
  *     b. Session + onboarding incomplete → first onboarding step
- *     c. Session + subscription not active (non-master) → /coach/intro
  *  4. Demo/local session check:
  *     a. No session → /login
  *     b. Onboarding incomplete → first onboarding step
  *
  * Renders a blank dark screen while checking to prevent flicker.
- * All routing decisions live in src/lib/routing.ts — never add route
- * logic directly here.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const router   = useRouter();
-  const pathname = usePathname();
+  const router = useRouter();
   const { user, isLoading } = useUser();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Don't run guard until UserContext has resolved the real user identity.
     if (isLoading) return;
 
     async function guard() {
-      // Admin/master always passes — no onboarding or subscription check needed.
+      // Admin/master always passes.
       if (user.role === "master" || user.isAdmin) {
         setReady(true);
         return;
@@ -55,7 +43,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       if (supabaseConfigured) {
-        // ── Supabase path ────────────────────────────────────────────────────
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
@@ -69,40 +56,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Use session.user.id — always the real UUID, even if UserContext
-        // couldn't fetch the profile yet (e.g. new user, DB trigger pending).
         const supabaseUserId = session.user.id;
-
         const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
         const dbBlocker = await resolveOnboardingRoute(supabaseUserId);
         if (dbBlocker) { router.replace(dbBlocker); return; }
-
-        // Check subscription — skipped entirely during early access mode.
-        // master, is_admin, and exempt pages also bypass (master is already
-        // handled above, so this only catches explicit is_admin Supabase users).
-        if (!EARLY_ACCESS_ENABLED) {
-          const isExempt = SUBSCRIPTION_EXEMPT.some((p) => pathname?.startsWith(p));
-          if (!isExempt) {
-            const status = user.subscriptionStatus ?? "inactive";
-            if (status !== "active") {
-              router.replace("/coach/intro");
-              return;
-            }
-          }
-        }
 
         setReady(true);
         return;
       }
 
-      // ── Demo / local path ─────────────────────────────────────────────────
+      // ── Demo / local path ────────────────────────────────────────────────────
       const sessionKey = getSessionKey();
       const blocker    = getBlockingRoute(sessionKey);
       if (blocker) { router.replace(blocker); return; }
       setReady(true);
     }
 
-    guard().catch(() => router.replace("/login"));
+    // Log errors instead of silently redirecting to /login — keeps the user
+    // on the page and lets the real error surface for debugging.
+    guard().catch(console.error);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, router]);
 

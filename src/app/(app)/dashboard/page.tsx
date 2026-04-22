@@ -27,6 +27,7 @@ import {
   type ClientTrainingData,
 } from "@/lib/data/store";
 import { loadIntake, GOAL_LABELS } from "@/lib/data/intake";
+import { loadStarterPlan } from "@/lib/starterPlan";
 
 // ─── Build real pipeline data from localStorage ───────────────────────────────
 
@@ -369,6 +370,78 @@ function MemberOverviewPanel() {
   );
 }
 
+// ─── Daily focus card ─────────────────────────────────────────────────────────
+
+const QUOTES = [
+  "Consistency beats intensity — show up today.",
+  "Progress is built in the sessions you don't feel like doing.",
+  "Every rep is a vote for the person you're becoming.",
+  "The body achieves what the mind believes.",
+  "Hard work now. Easy life later.",
+  "You don't have to be great to start, but you have to start to be great.",
+  "Champions aren't born in the gym — they're built there.",
+  "One more set. One more rep. One more day.",
+  "Your only competition is who you were yesterday.",
+  "Discipline is choosing between what you want now and what you want most.",
+  "Make it happen. Shock everyone.",
+  "The pain of discipline is nothing like the pain of regret.",
+  "Strong is earned, not given.",
+  "Show up. Do the work. Get better.",
+];
+
+const DAY_ABBR: Record<number, string> = {
+  0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat",
+};
+
+function getTodayQuote(): string {
+  const doy = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86_400_000,
+  );
+  return QUOTES[doy % QUOTES.length];
+}
+
+function getTodaySession(userId: string): { name: string; duration: string } | null {
+  try {
+    const plan = loadStarterPlan(userId);
+    if (!plan) return null;
+    const abbr = DAY_ABBR[new Date().getDay()];
+    return plan.sessions.find((s) => s.day === abbr) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function DailyFocusCard({ userId, onStart }: { userId: string; onStart: () => void }) {
+  const session = getTodaySession(userId);
+  const quote   = getTodayQuote();
+
+  return (
+    <div className="rounded-2xl border border-white/[0.08] bg-[#111111] overflow-hidden mb-8">
+      <div className="px-5 pt-5 pb-4">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-3">Today's focus</p>
+        <div className="space-y-1 mb-4">
+          <h2 className="text-lg font-semibold text-white/90">
+            {session ? session.name : "Rest day"}
+          </h2>
+          {session && (
+            <p className="text-xs text-white/35">{session.duration}</p>
+          )}
+        </div>
+        <p className="text-sm text-white/45 leading-relaxed italic mb-5">
+          &ldquo;{quote}&rdquo;
+        </p>
+        <button
+          onClick={onStart}
+          className="w-full rounded-xl py-3 bg-[#B48B40] text-black text-sm font-semibold tracking-wide flex items-center justify-center gap-2 hover:bg-[#c99840] active:scale-[0.98] transition-all"
+        >
+          <Dumbbell className="w-4 h-4" strokeWidth={2} />
+          Start workout
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayLabel(): string {
@@ -492,6 +565,14 @@ function DashboardContent() {
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">{firstName}</h1>
       </div>
+
+      {/* Daily focus — member and client only */}
+      {(role === "member" || role === "client") && (
+        <DailyFocusCard
+          userId={actualUserId}
+          onStart={() => router.push("/workout")}
+        />
+      )}
 
       {/* AI Coach */}
       <section className="mb-8">

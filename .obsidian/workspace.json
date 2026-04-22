@@ -11,10 +11,14 @@
             "id": "77d65f5bb2b6d010",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "flowstate-planner.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "flowstate-planner"
             }
           }
         ]
@@ -178,7 +182,9 @@
   },
   "active": "77d65f5bb2b6d010",
   "lastOpenFiles": [
+    "Untitled 1.canvas",
     "brain-graph.md",
+    "flowstate-planner.md",
     "src/components/nutrition/BarcodeScanner.tsx",
     "src/components/nutrition/FoodSearchModal.tsx",
     "src/components/nutrition/NutritionAnalytics.tsx",
