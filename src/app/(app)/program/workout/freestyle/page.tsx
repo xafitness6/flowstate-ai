@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Mic, Plus, Trash2, Check, ChevronDown,
+  ArrowLeft, Mic, Plus, Trash2, Check, ChevronDown, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -13,6 +13,7 @@ import { VoiceMic } from "@/components/voice/VoiceMic";
 import { parseWorkoutFromTranscript, type ParsedExercise } from "@/lib/voiceParser";
 import { saveVoiceEntry } from "@/lib/voiceLogs";
 import { saveWorkoutLog, type WorkoutLog, type ExerciseLog } from "@/lib/workout";
+import { WorkoutParserModal } from "@/components/workout/WorkoutParserModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,7 @@ export default function FreestyleWorkoutPage() {
   const voice      = useVoiceInput();
 
   const [showVoice,   setShowVoice  ] = useState(false);
+  const [showParser,  setShowParser ] = useState(false);
   const [bodyFocus,   setBodyFocus  ] = useState("Full Body");
   const [exercises,   setExercises  ] = useState<ExerciseRow[]>([blankRow()]);
   const [duration,    setDuration   ] = useState("");
@@ -130,6 +132,22 @@ export default function FreestyleWorkoutPage() {
     setShowVoice(false);
     voice.reset();
   }, [voice]);
+
+  // ── Parser confirm → populate form ───────────────────────────────────────
+  const handleParserConfirm = useCallback((result: {
+    exercises:  ExerciseRow[];
+    bodyFocus:  string;
+    duration:   string;
+    notes:      string;
+    confidence: number;
+  }) => {
+    setExercises(result.exercises);
+    setBodyFocus(result.bodyFocus);
+    if (result.duration) setDuration(result.duration);
+    if (result.notes)    setNotes(result.notes);
+    setParseConf(result.confidence);
+    setShowParser(false);
+  }, []);
 
   // ── Exercise row edits ────────────────────────────────────────────────────
   function changeRow(id: string, field: keyof ExerciseRow, value: string) {
@@ -247,6 +265,25 @@ export default function FreestyleWorkoutPage() {
           <ChevronDown className="w-4 h-4 text-white/20 -rotate-90 shrink-0" strokeWidth={1.5} />
         </button>
 
+        {/* Paste workout button */}
+        <button
+          onClick={() => setShowParser(true)}
+          className="w-full flex items-center gap-4 rounded-2xl border border-[#5B8DEF]/18 bg-[#5B8DEF]/[0.04] hover:bg-[#5B8DEF]/[0.07] hover:border-[#5B8DEF]/28 px-5 py-4 transition-all text-left group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-[#5B8DEF]/10 border border-[#5B8DEF]/20 flex items-center justify-center shrink-0">
+            <ClipboardList className="w-4 h-4 text-[#5B8DEF]/70" strokeWidth={1.5} />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/70 group-hover:text-white/85 transition-colors">
+              Paste workout
+            </p>
+            <p className="text-xs text-white/28 mt-0.5">
+              Already written? Paste text — AI parses it into the form
+            </p>
+          </div>
+          <ChevronDown className="w-4 h-4 text-white/20 -rotate-90 shrink-0" strokeWidth={1.5} />
+        </button>
+
         {parseConf !== null && (
           <div className={cn(
             "px-4 py-2.5 rounded-xl border text-xs",
@@ -345,6 +382,14 @@ export default function FreestyleWorkoutPage() {
           Freestyle logs are tracked separately from your prescribed program
         </p>
       </div>
+
+      {/* Workout parser modal */}
+      {showParser && (
+        <WorkoutParserModal
+          onConfirm={handleParserConfirm}
+          onCancel={() => setShowParser(false)}
+        />
+      )}
 
       {/* Voice review modal */}
       {showVoice && (

@@ -74,6 +74,8 @@ export type ExerciseLog = {
   name:       string;
   setLogs:    SetLog[];
   note?:      string;
+  tempo?:     string;
+  rest?:      number;
 };
 
 export type WorkoutLogType = "prescribed" | "modified" | "freestyle" | "coach_note";
