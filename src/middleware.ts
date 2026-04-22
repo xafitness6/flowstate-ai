@@ -1,27 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-// ─── Protected routes ─────────────────────────────────────────────────────────
-
-const PROTECTED = ["/dashboard", "/onboarding", "/program", "/nutrition",
-                   "/accountability", "/coach", "/calendar", "/leaderboard",
-                   "/settings", "/profile", "/trainers", "/my-clients", "/admin"];
-
-function isProtected(pathname: string): boolean {
-  return PROTECTED.some((p) => pathname === p || pathname.startsWith(p + "/"));
-}
-
 // ─── Supabase session refresh ─────────────────────────────────────────────────
 // Calls getUser() so the @supabase/ssr library actually writes refreshed tokens
 // back to cookies on every request, preventing session expiry mid-navigation.
+// Route-level auth enforcement is handled client-side in AppShell — not here.
+// Doing server-side redirects here causes a freeze: after signInWithPassword the
+// client cookies aren't propagated yet when the next middleware request fires.
 
-async function applySessionRefresh(
-  request: NextRequest,
-  response: NextResponse,
-): Promise<{ response: NextResponse; hasSession: boolean }> {
+async function applySessionRefresh(request: NextRequest, response: NextResponse) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return { response, hasSession: false };
+  if (!supabaseUrl || !supabaseKey) return response;
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -37,38 +27,27 @@ async function applySessionRefresh(
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
-  return { response, hasSession: !!user };
+  // getUser() is required to actually trigger the token refresh write-back.
+  await supabase.auth.getUser();
+  return response;
 }
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
 export async function middleware(req: NextRequest) {
-  const pathname = req.nextUrl.pathname;
-
   // 1. Dev route guard
-  const isDevRoute = pathname.startsWith("/dev") || pathname === "/showcase";
+  const isDevRoute =
+    req.nextUrl.pathname.startsWith("/dev") ||
+    req.nextUrl.pathname === "/showcase";
+
   if (isDevRoute) {
     const enabled = process.env.ENABLE_DEV_ROUTE === "true";
     if (!enabled) return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // 2. Refresh session and check auth on protected routes
+  // 2. Refresh session tokens on all other routes
   const res = NextResponse.next({ request: req });
-  const { response, hasSession } = await applySessionRefresh(req, res);
-
-  if (isProtected(pathname) && !hasSession) {
-    // No Supabase session — check for demo session key in cookie/header is not
-    // possible at edge; demo sessions are client-only. Redirect to login and let
-    // the client-side AppShell guard handle demo sessions.
-    //
-    // We only hard-redirect for Supabase-configured environments.
-    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
-  }
-
-  return response;
+  return applySessionRefresh(req, res);
 }
 
 export const config = {
