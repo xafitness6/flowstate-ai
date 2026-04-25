@@ -14,6 +14,9 @@ import { hasAccess } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { GreetingBanner } from "@/components/dashboard/GreetingBanner";
 import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
+import { Card } from "@/components/ui/Card";
+import { StatTile } from "@/components/ui/StatTile";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useAIPipeline } from "@/hooks/useAIPipeline";
 import type { RawUserData } from "@/lib/ai/types";
 import type { Role } from "@/types";
@@ -156,21 +159,12 @@ function TrainerOverviewPanel({ userId }: { userId: string }) {
     : 0;
 
   return (
-    <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4 space-y-4">
-      <p className="text-[10px] uppercase tracking-[0.22em] text-white/22">Your Clients</p>
+    <Card className="px-5 py-4 space-y-4">
+      <SectionHeader className="mb-0">Your Clients</SectionHeader>
       <div className="flex gap-6">
-        <div>
-          <p className="text-2xl font-semibold text-white/90">{clients.length}</p>
-          <p className="text-xs text-white/30 mt-0.5">Total</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-emerald-400">{active}</p>
-          <p className="text-xs text-white/30 mt-0.5">Active</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-[#B48B40]">{avgComp}%</p>
-          <p className="text-xs text-white/30 mt-0.5">Avg check-ins</p>
-        </div>
+        <StatTile value={clients.length} label="Total" />
+        <StatTile value={active} label="Active" valueClassName="text-emerald-400" />
+        <StatTile value={`${avgComp}%`} label="Avg check-ins" valueClassName="text-[#B48B40]" />
       </div>
       {atRisk.length > 0 && (
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-400/15 bg-amber-400/5 px-3 py-2.5">
@@ -188,7 +182,7 @@ function TrainerOverviewPanel({ userId }: { userId: string }) {
         View all clients
         <ArrowRight className="w-3 h-3" strokeWidth={1.5} />
       </Link>
-    </div>
+    </Card>
   );
 }
 
@@ -225,38 +219,31 @@ function ClientOverviewPanel({ userId }: { userId: string }) {
     : "text-[#F87171]";
 
   return (
-    <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/22">My Stats</p>
-        {goalLabel && (
+    <Card className="px-5 py-4 space-y-4">
+      <SectionHeader
+        className="mb-0"
+        action={goalLabel ? (
           <span className="text-[10px] text-[#B48B40]/70 border border-[#B48B40]/20 rounded-lg px-2 py-0.5 shrink-0">
             {goalLabel}
           </span>
-        )}
-      </div>
+        ) : undefined}
+      >
+        My Stats
+      </SectionHeader>
       {training.program !== "Unassigned" && (
         <p className="text-sm font-medium text-white/70">{training.program}</p>
       )}
       <div className="flex gap-6">
-        <div>
-          <p className={cn("text-2xl font-semibold", adherenceColor)}>{training.adherence}%</p>
-          <p className="text-xs text-white/30 mt-0.5">Adherence</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-white/90">{training.checkInCompletion}%</p>
-          <p className="text-xs text-white/30 mt-0.5">Check-ins</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-white/90">{training.executionScore}</p>
-          <p className="text-xs text-white/30 mt-0.5">Execution</p>
-        </div>
+        <StatTile value={`${training.adherence}%`} label="Adherence" valueClassName={adherenceColor} />
+        <StatTile value={`${training.checkInCompletion}%`} label="Check-ins" />
+        <StatTile value={training.executionScore} label="Execution" />
       </div>
       {trainerName && (
         <p className="text-xs text-white/28">
           <span className="text-white/18">Coach · </span>{trainerName}
         </p>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -278,32 +265,35 @@ function MasterOverviewPanel() {
   }, []);
 
   return (
-    <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/22">Platform</p>
-        <Link
-          href="/admin"
-          className="flex items-center gap-1 text-[10px] text-white/25 hover:text-white/55 transition-colors"
-        >
-          <TrendingUp className="w-3 h-3" strokeWidth={1.5} />
-          Full overview
-          <ArrowRight className="w-3 h-3" strokeWidth={1.5} />
-        </Link>
-      </div>
+    <Card className="px-5 py-4 space-y-4">
+      <SectionHeader
+        className="mb-0"
+        action={
+          <Link
+            href="/admin"
+            className="flex items-center gap-1 text-[10px] text-white/25 hover:text-white/55 transition-colors"
+          >
+            <TrendingUp className="w-3 h-3" strokeWidth={1.5} />
+            Full overview
+            <ArrowRight className="w-3 h-3" strokeWidth={1.5} />
+          </Link>
+        }
+      >
+        Platform
+      </SectionHeader>
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: "Users",    value: counts.total,    color: "text-white/90"   },
-          { label: "Trainers", value: counts.trainers,  color: "text-[#B48B40]"  },
-          { label: "Clients",  value: counts.clients,   color: "text-[#93C5FD]"  },
-          { label: "At risk",  value: counts.atRisk,    color: "text-amber-400"  },
+          { label: "Users",    value: counts.total,    color: "text-white/90"  },
+          { label: "Trainers", value: counts.trainers,  color: "text-[#B48B40]" },
+          { label: "Clients",  value: counts.clients,   color: "text-[#93C5FD]" },
+          { label: "At risk",  value: counts.atRisk,    color: "text-amber-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3 text-center">
-            <p className={cn("text-xl font-semibold tabular-nums", color)}>{value}</p>
-            <p className="text-[10px] text-white/25 mt-1">{label}</p>
+            <StatTile value={value} label={label} valueClassName={cn("text-xl", color)} />
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -349,8 +339,8 @@ function MemberOverviewPanel() {
     : "text-white/45";
 
   return (
-    <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4 space-y-4">
-      <p className="text-[10px] uppercase tracking-[0.22em] text-white/22">Today</p>
+    <Card className="px-5 py-4 space-y-4">
+      <SectionHeader className="mb-0">Today</SectionHeader>
       <div className="flex gap-6 items-end">
         <div>
           <div className="flex items-baseline gap-1.5">
@@ -360,13 +350,10 @@ function MemberOverviewPanel() {
           <p className="text-xs text-white/30 mt-0.5">Accountability score</p>
         </div>
         {streak > 0 && (
-          <div>
-            <p className="text-2xl font-semibold text-[#B48B40] tabular-nums">{streak}</p>
-            <p className="text-xs text-white/30 mt-0.5">Day streak</p>
-          </div>
+          <StatTile value={streak} label="Day streak" valueClassName="text-[#B48B40]" />
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -416,9 +403,9 @@ function DailyFocusCard({ userId, onStart }: { userId: string; onStart: () => vo
   const quote   = getTodayQuote();
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[#111111] overflow-hidden mb-8">
+    <Card className="mb-8">
       <div className="px-5 pt-5 pb-4">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-3">Today's focus</p>
+        <SectionHeader>Today's focus</SectionHeader>
         <div className="space-y-1 mb-4">
           <h2 className="text-lg font-semibold text-white/90">
             {session ? session.name : "Rest day"}
@@ -438,7 +425,7 @@ function DailyFocusCard({ userId, onStart }: { userId: string; onStart: () => vo
           Start workout
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -576,7 +563,7 @@ function DashboardContent() {
 
       {/* AI Coach */}
       <section className="mb-8">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-3">AI Coach</p>
+        <SectionHeader>AI Coach</SectionHeader>
 
         <form onSubmit={handleAsk} className="mb-3">
           <div className="flex gap-2">
@@ -598,24 +585,24 @@ function DashboardContent() {
         </form>
 
         {ACTIVE_STATUSES.includes(pipeline.status) && (
-          <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-5">
+          <Card className="px-5 py-5">
             <div className="flex items-center gap-2.5">
               <Loader2 className="w-3.5 h-3.5 text-[#B48B40]/50 animate-spin" />
               <p className="text-xs text-white/30">
                 {PIPELINE_LABELS[pipeline.status] ?? "Processing…"}
               </p>
             </div>
-          </div>
+          </Card>
         )}
 
         {pipeline.status === "error" && (
-          <div className="rounded-2xl border border-red-900/30 bg-[#111111] px-5 py-4">
+          <Card className="px-5 py-4 border-red-900/30">
             <p className="text-xs text-red-400/60">{pipeline.error}</p>
-          </div>
+          </Card>
         )}
 
         {pipeline.activeMode === "education" && pipeline.educationResult && pipeline.status === "complete" && (
-          <div className="rounded-2xl border border-white/8 bg-[#111111] divide-y divide-white/[0.04]">
+          <Card className="divide-y divide-white/[0.04]">
             <div className="px-5 py-4">
               <p className="text-sm text-white/75 leading-relaxed">
                 {pipeline.educationResult.explanation}
@@ -636,14 +623,14 @@ function DashboardContent() {
                 </p>
               </div>
             </div>
-          </div>
+          </Card>
         )}
 
         {pipeline.activeMode !== "education" && (pipeline.result ?? pipeline.lastResult) &&
           !["summarizing","deciding","formatting"].includes(pipeline.status) && (() => {
           const r = pipeline.result ?? pipeline.lastResult!;
           return (
-            <div className="rounded-2xl border border-white/8 bg-[#111111] divide-y divide-white/[0.04]">
+            <Card className="divide-y divide-white/[0.04]">
               <div className="px-5 py-4">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-white/25 mb-1.5">
                   Today&apos;s Focus
@@ -671,7 +658,7 @@ function DashboardContent() {
                   </p>
                 </div>
               </div>
-            </div>
+            </Card>
           );
         })()}
       </section>
@@ -693,7 +680,7 @@ function DashboardContent() {
 
       {/* Quick access */}
       <section>
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-3">Quick Access</p>
+        <SectionHeader>Quick Access</SectionHeader>
         <div className="grid grid-cols-2 gap-2">
           {visibleCards.map(({ label, sub, href, icon: Icon }) => (
             <Link

@@ -7,6 +7,9 @@ import { LockedSection, FEATURES }      from "@/components/ui/PlanGate";
 import { ArrowLeft, TrendingUp, Dumbbell, BarChart2, Calendar, Flame, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
+import { Card } from "@/components/ui/Card";
+import { StatTile } from "@/components/ui/StatTile";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   getWorkoutLogs, getLogsThisWeek, loadActiveProgram,
   type WorkoutLog,
@@ -131,16 +134,15 @@ export default function AnalyticsPage() {
             { label: "Total sets",     value: totalSets,        icon: <Flame className="w-4 h-4" /> },
             { label: "Avg duration",   value: `${avgDuration}m`, icon: <Clock className="w-4 h-4" /> },
           ].map(({ label, value, icon }) => (
-            <div key={label} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 space-y-2">
+            <Card key={label} className="px-4 py-4 space-y-2 bg-white/[0.02] border-white/[0.07]">
               <div className="text-white/25">{icon}</div>
-              <p className="text-xl font-bold text-white/85">{value}</p>
-              <p className="text-[11px] text-white/30 uppercase tracking-[0.12em]">{label}</p>
-            </div>
+              <StatTile value={value} label={label} valueClassName="text-xl text-white/85" />
+            </Card>
           ))}
         </div>
 
         {/* Volume trend */}
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
+        <Card className="px-5 py-4 bg-white/[0.02] border-white/[0.07]">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-[#B48B40]" strokeWidth={1.5} />
@@ -177,7 +179,7 @@ export default function AnalyticsPage() {
               Total volume: {totalVol.toLocaleString()} kg lifted
             </p>
           )}
-        </div>
+        </Card>
 
         {/* Body-part load distribution — Pro feature */}
         {!can(FEATURES.DEEP_ANALYTICS) ? (
@@ -187,7 +189,7 @@ export default function AnalyticsPage() {
             description="See which muscle groups you're training most. Available on Pro."
           />
         ) : (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
+        <Card className="px-5 py-4 bg-white/[0.02] border-white/[0.07]">
           <div className="flex items-center gap-2 mb-4">
             <BarChart2 className="w-4 h-4 text-[#B48B40]" strokeWidth={1.5} />
             <p className="text-sm font-semibold text-white/70">Load distribution</p>
@@ -216,12 +218,12 @@ export default function AnalyticsPage() {
           ) : (
             <p className="text-xs text-white/28 py-4 text-center">Log workouts to see distribution</p>
           )}
-        </div>
+        </Card>
         )} {/* end deep analytics gate */}
 
         {/* Adherence — Pro feature */}
         {program && can(FEATURES.DEEP_ANALYTICS) && (
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
+          <Card className="px-5 py-4 bg-white/[0.02] border-white/[0.07]">
             <div className="flex items-center gap-2 mb-4">
               <Calendar className="w-4 h-4 text-[#B48B40]" strokeWidth={1.5} />
               <p className="text-sm font-semibold text-white/70">Adherence</p>
@@ -246,13 +248,13 @@ export default function AnalyticsPage() {
                 }
               </p>
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Recent sessions */}
         {logs.length > 0 && (
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.25em] text-white/28 mb-3">Session history</p>
+          <Card className="px-5 py-4 bg-white/[0.02] border-white/[0.07]">
+            <SectionHeader className="mb-3">Session history</SectionHeader>
             <div className="space-y-0">
               {logs.slice(0, 10).map((log, i) => (
                 <div
@@ -273,15 +275,15 @@ export default function AnalyticsPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {!hasData && (
-          <div className="rounded-2xl border border-white/[0.05] bg-white/[0.01] px-5 py-10 text-center space-y-2">
+          <Card className="px-5 py-10 text-center space-y-2 bg-white/[0.01] border-white/[0.05]">
             <BarChart2 className="w-8 h-8 text-white/15 mx-auto" strokeWidth={1} />
             <p className="text-sm text-white/30">Analytics build as you train.</p>
             <p className="text-xs text-white/20">Start your first workout to see data here.</p>
-          </div>
+          </Card>
         )}
 
       </div>

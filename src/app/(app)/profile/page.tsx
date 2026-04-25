@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { getAdminEmail, updateAdminPassword } from "@/lib/adminCredentials";
+import { Card } from "@/components/ui/Card";
+import { StatTile } from "@/components/ui/StatTile";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -125,18 +128,6 @@ const DEFAULT_LAST_ACTION: Record<string, string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-3">{children}</p>;
-}
-
-function SettingsCard({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn("rounded-2xl border border-white/6 bg-[#111111] overflow-hidden", className)}>
-      {children}
-    </div>
-  );
-}
-
 function SettingsRow({
   label, description, children, last,
 }: {
@@ -193,33 +184,6 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
         style={{ width: "18px", height: "18px" }}
       />
     </button>
-  );
-}
-
-// ─── Stat block ───────────────────────────────────────────────────────────────
-
-function StatBlock({
-  label, value, unit, bar, barColor,
-}: {
-  label: string; value: string | number; unit?: string;
-  bar?: number; barColor?: string;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] text-white/25 uppercase tracking-[0.15em]">{label}</p>
-      <p className="text-2xl font-light text-white/80 tabular-nums mt-1.5">
-        {value}
-        {unit && <span className="text-sm text-white/35 ml-1">{unit}</span>}
-      </p>
-      {bar !== undefined && (
-        <div className="h-0.5 rounded-full bg-white/8 mt-2">
-          <div
-            className={cn("h-full rounded-full", barColor ?? "bg-[#B48B40]")}
-            style={{ width: `${bar}%` }}
-          />
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -503,7 +467,7 @@ export default function ProfilePage() {
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto space-y-8 text-white">
 
       {/* ── Profile card ─────────────────────────────────────────────── */}
-      <SettingsCard>
+      <Card>
 
         {/* Top: avatar + identity */}
         <div className="px-5 pt-5 pb-4 flex items-start gap-4">
@@ -648,21 +612,19 @@ export default function ProfilePage() {
             <span className="text-[10px] text-white/22">{ROLE_DESCRIPTIONS[user.role]}</span>
           </div>
         </div>
-      </SettingsCard>
+      </Card>
 
       {/* ── Activity ─────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Activity</SectionLabel>
-        <SettingsCard>
+        <SectionHeader>Activity</SectionHeader>
+        <Card>
           <div className="px-5 py-5 grid grid-cols-2 gap-x-8 gap-y-5">
-            <StatBlock label="Sessions" value={stats.sessions} />
-            <StatBlock label="Current streak" value={stats.streak} unit="days" />
-            <StatBlock label="Longest streak"  value={stats.longestStreak} unit="days" />
-            <StatBlock
-              label="Compliance · 30d"
-              value={stats.compliance} unit="%"
-              bar={stats.compliance}
-              barColor={complianceColor}
+            <StatTile value={stats.sessions} label="Sessions" />
+            <StatTile value={stats.streak} label="Current streak" unit="days" />
+            <StatTile value={stats.longestStreak} label="Longest streak" unit="days" />
+            <StatTile
+              value={stats.compliance} label="Compliance · 30d" unit="%"
+              bar={stats.compliance} barColor={complianceColor}
             />
           </div>
 
@@ -677,13 +639,13 @@ export default function ProfilePage() {
               <p className="text-xs font-medium text-white/50">{lastActionDisplay}</p>
             </div>
           </div>
-        </SettingsCard>
+        </Card>
       </div>
 
       {/* ── Role ─────────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Role</SectionLabel>
-        <SettingsCard>
+        <SectionHeader>Role</SectionHeader>
+        <Card>
           <SettingsRow label="Access level" description={ROLE_DESCRIPTIONS[user.role]} last={user.role !== "master"}>
             <span className={cn("text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-md border", ROLE_COLOR[user.role])}>
               {ROLE_LABELS[user.role]}
@@ -698,13 +660,13 @@ export default function ProfilePage() {
               </Link>
             </div>
           )}
-        </SettingsCard>
+        </Card>
       </div>
 
       {/* ── Coaching ─────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Coaching</SectionLabel>
-        <SettingsCard>
+        <SectionHeader>Coaching</SectionHeader>
+        <Card>
           <SettingsRow label="Coaching tone" description="How your AI coach communicates with you.">
             <PillToggle options={COACHING_TONES} value={coachingTone} onChange={setCoachingTone} />
           </SettingsRow>
@@ -754,23 +716,23 @@ export default function ProfilePage() {
           <SettingsRow label="Units" description="Weight, distance, and measurement display." last>
             <PillToggle options={UNIT_SYSTEMS} value={units} onChange={setUnits} />
           </SettingsRow>
-        </SettingsCard>
+        </Card>
       </div>
 
       {/* ── Display ──────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Display</SectionLabel>
-        <SettingsCard>
+        <SectionHeader>Display</SectionHeader>
+        <Card>
           <SettingsRow label="Default dashboard" description="Which tab loads first when you open the app." last>
             <PillToggle options={DASHBOARD_DEFAULTS} value={dashboardDefault} onChange={setDashboardDefault} />
           </SettingsRow>
-        </SettingsCard>
+        </Card>
       </div>
 
       {/* ── Notifications ────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Notifications</SectionLabel>
-        <SettingsCard>
+        <SectionHeader>Notifications</SectionHeader>
+        <Card>
           <SettingsRow label="Workout reminders" description="Alerts before scheduled sessions.">
             <Toggle enabled={notifWorkout} onChange={setNotifWorkout} />
           </SettingsRow>
@@ -783,13 +745,13 @@ export default function ProfilePage() {
           <SettingsRow label="Weekly summary" description="Performance and progress recap every Monday." last>
             <Toggle enabled={notifWeekly} onChange={setNotifWeekly} />
           </SettingsRow>
-        </SettingsCard>
+        </Card>
       </div>
 
       {/* ── Security ─────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Security</SectionLabel>
-        <SettingsCard>
+        <SectionHeader>Security</SectionHeader>
+        <Card>
           <form onSubmit={handleChangePassword}>
             <div className="px-5 pt-5 pb-4 space-y-3">
               <div className="space-y-1.5">
@@ -881,14 +843,14 @@ export default function ProfilePage() {
               </div>
             </div>
           </form>
-        </SettingsCard>
+        </Card>
       </div>
 
       {/* ── Platform Credentials (master only) ───────────────────────── */}
       {user.role === "master" && (
         <div>
-          <SectionLabel>Platform Credentials</SectionLabel>
-          <SettingsCard>
+          <SectionHeader>Platform Credentials</SectionHeader>
+          <Card>
             <form onSubmit={handleUpdatePlatformCredentials}>
               <div className="px-5 pt-5 pb-4 space-y-3">
                 <p className="text-xs text-white/30 leading-relaxed">
@@ -962,14 +924,14 @@ export default function ProfilePage() {
                 </div>
               </div>
             </form>
-          </SettingsCard>
+          </Card>
         </div>
       )}
 
       {/* ── Account ──────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Account</SectionLabel>
-        <SettingsCard>
+        <SectionHeader>Account</SectionHeader>
+        <Card>
           <SettingsRow label="Email">
             <span className="text-xs text-white/30 font-mono">xavier@flowstate.ai</span>
           </SettingsRow>
@@ -1002,7 +964,7 @@ export default function ProfilePage() {
               </div>
             </SettingsRow>
           )}
-        </SettingsCard>
+        </Card>
       </div>
 
       {/* ── Save ─────────────────────────────────────────────────────── */}
