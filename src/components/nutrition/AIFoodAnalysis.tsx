@@ -3,10 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Upload, Mic, MicOff, Camera, Loader2, X,
-  Sparkles, Check, Scan, Trash2, ChevronDown,
+  Check, Scan, Trash2, ChevronDown,
 } from "lucide-react";
-import { cn }        from "@/lib/utils";
-import { saveMeal }  from "@/lib/nutrition/store";
+import { cn }           from "@/lib/utils";
+import { saveMeal }     from "@/lib/nutrition/store";
+import { Sheet }        from "@/components/ui/Sheet";
+import { StickyFooter } from "@/components/ui/StickyFooter";
 import type {
   NutritionParseResult,
   LoggedMeal,
@@ -273,22 +275,24 @@ function ParsedResultPanel({
         </p>
       )}
 
-      {/* Actions */}
-      <div className="flex gap-3 pt-1">
-        <button
-          onClick={onReset}
-          className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-medium text-white/35 hover:text-white/55 transition-all"
-        >
-          Start over
-        </button>
-        <button
-          onClick={handleLog}
-          disabled={activeItems.length === 0}
-          className="flex-1 py-2.5 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 hover:border-[#B48B40]/35 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-        >
-          Log meal
-        </button>
-      </div>
+      {/* Actions — StickyFooter keeps Log meal visible without scrolling on small phones */}
+      <StickyFooter>
+        <div className="flex gap-3">
+          <button
+            onClick={onReset}
+            className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-medium text-white/35 hover:text-white/55 transition-all"
+          >
+            Start over
+          </button>
+          <button
+            onClick={handleLog}
+            disabled={activeItems.length === 0}
+            className="flex-1 py-2.5 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 hover:border-[#B48B40]/35 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            Log meal
+          </button>
+        </div>
+      </StickyFooter>
     </div>
   );
 }
@@ -782,61 +786,34 @@ function TabButton({
 export function AIFoodAnalysis({ open, onClose, userId, targets, onMealLogged }: Props) {
   const [tab, setTab] = useState<AnalysisTab>("photo");
 
-  if (!open) return null;
+  const calTarget  = targets?.calories ?? null;
+  const protTarget = targets?.proteinG ?? null;
 
-  const calTarget  = targets?.calories  ?? null;
-  const protTarget = targets?.proteinG  ?? null;
+  const hintText = calTarget && protTarget
+    ? `Targets: ${protTarget}g protein · ${calTarget.toLocaleString()} kcal`
+    : "Log meals to build your nutrition history";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-
-      <div
-        className="relative w-full sm:max-w-lg bg-[#0D0D0D] border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ maxHeight: "90dvh" }}
-      >
-        {/* Header */}
-        <div className="px-5 pt-5 pb-4 border-b border-white/[0.06] shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#B48B40]/70" strokeWidth={1.5} />
-              <h2 className="text-sm font-semibold text-white/80 tracking-tight">AI food analysis</h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-7 h-7 rounded-lg border border-white/8 bg-white/[0.03] flex items-center justify-center text-white/30 hover:text-white/65 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" strokeWidth={1.5} />
-            </button>
-          </div>
-
-          <div className="flex gap-1.5">
-            <TabButton active={tab === "photo"}  onClick={() => setTab("photo")}  icon={Upload} label="Photo"  />
-            <TabButton active={tab === "voice"}  onClick={() => setTab("voice")}  icon={Mic}    label="Voice"  />
-            <TabButton active={tab === "camera"} onClick={() => setTab("camera")} icon={Camera} label="Camera" />
-          </div>
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="AI food analysis"
+      header={
+        <div className="flex gap-1.5">
+          <TabButton active={tab === "photo"}  onClick={() => setTab("photo")}  icon={Upload} label="Photo"  />
+          <TabButton active={tab === "voice"}  onClick={() => setTab("voice")}  icon={Mic}    label="Voice"  />
+          <TabButton active={tab === "camera"} onClick={() => setTab("camera")} icon={Camera} label="Camera" />
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-5" style={{ scrollbarWidth: "none" }}>
-          {tab === "photo"  && (
-            <PhotoTab key="photo" userId={userId} onMealLogged={onMealLogged} />
-          )}
-          {tab === "voice"  && (
-            <VoiceTab key="voice" userId={userId} onMealLogged={onMealLogged} />
-          )}
-          {tab === "camera" && <CameraTab key="camera" />}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/[0.05] shrink-0">
-          <p className="text-[10px] text-white/18 text-center">
-            {calTarget && protTarget
-              ? `Targets: ${protTarget}g protein · ${calTarget.toLocaleString()} kcal`
-              : "Log meals to build your nutrition history"}
-          </p>
-        </div>
+      }
+      footer={
+        <p className="text-[10px] text-white/18 text-center">{hintText}</p>
+      }
+    >
+      <div className="px-5 py-5">
+        {tab === "photo"  && <PhotoTab  key="photo"  userId={userId} onMealLogged={onMealLogged} />}
+        {tab === "voice"  && <VoiceTab  key="voice"  userId={userId} onMealLogged={onMealLogged} />}
+        {tab === "camera" && <CameraTab key="camera" />}
       </div>
-    </div>
+    </Sheet>
   );
 }

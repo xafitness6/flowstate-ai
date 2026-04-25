@@ -47,6 +47,18 @@
   --color-fs-surface-3: var(--fs-surface-3);
 }
 
+/* ─── Safe-area + viewport ────────────────────────────────────────────────── */
+:root {
+  --safe-top:      env(safe-area-inset-top);
+  --safe-bottom:   env(safe-area-inset-bottom);
+  --bottom-nav-h:  4rem; /* BottomNav h-16 */
+}
+
+html, body {
+  height: 100%;
+  overscroll-behavior-y: none;
+}
+
 /* Flowstate dark theme — default */
 :root {
   --background: #0a0a0a;
