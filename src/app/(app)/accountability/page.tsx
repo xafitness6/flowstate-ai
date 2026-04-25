@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -17,7 +17,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useUser } from "@/context/UserContext";
 import { computeActivityScore, scoreToIntensity } from "@/lib/data/activity";
+
+const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isRealUser(id: string) { return _UUID_RE.test(id) && !!process.env.NEXT_PUBLIC_SUPABASE_URL; }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -930,6 +934,8 @@ function CategoryGroup({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AccountabilityPage() {
+  const { user } = useUser();
+
   const [habits,      setHabits     ] = useLocalStorage<Habit[]             >("accountability-habits-v2",       DEFAULT_HABITS);
   const [logs,        setLogs       ] = useLocalStorage<Logs                >("accountability-logs",             {});
   const [journal,     setJournal    ] = useLocalStorage<JournalEntry[]      >("accountability-journal",          []);
@@ -939,6 +945,7 @@ export default function AccountabilityPage() {
   const [showHistory,   setShowHistory  ] = useState(false);
   const [showFocusModal,setShowFocusModal] = useState(false);
   const [journalDraft,  setJournalDraft ] = useState("");
+  const [lockInSaved,   setLockInSaved  ] = useState(false);
 
   const today    = todayKey();
   const todayLog: DailyLog = logs[today] ?? BLANK_LOG;
@@ -976,6 +983,45 @@ export default function AccountabilityPage() {
       ? todayLog.completedHabits.filter((x) => x !== id)
       : [...todayLog.completedHabits, id];
     updateLog({ completedHabits: next });
+  }
+
+  // ── Supabase hydration on mount ──────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!isRealUser(user.id)) return;
+    // Only hydrate if localStorage has no data for today — avoids overwriting fresh interactions
+    if (logs[today] && logs[today].completedHabits.length > 0) return;
+    import("@/lib/db/dailyCheckins").then(({ getDailyCheckin }) => {
+      getDailyCheckin(user.id, today).then((row) => {
+        if (!row) return;
+        setLogs((prev) => ({
+          ...prev,
+          [today]: {
+            ...(prev[today] ?? BLANK_LOG),
+            completedHabits: row.completed_habits,
+            identityState:   row.identity_state as IdentityState ?? null,
+            energyNote:      row.energy_note ?? "",
+          },
+        }));
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
+
+  // ── Save daily check-in to Supabase ─────────────────────────────────────────
+
+  async function saveLockIn() {
+    if (!isRealUser(user.id)) return;
+    const { upsertDailyCheckin } = await import("@/lib/db/dailyCheckins");
+    await upsertDailyCheckin(user.id, today, {
+      completed_habits: todayLog.completedHabits,
+      identity_state:   todayLog.identityState,
+      energy_note:      todayLog.energyNote,
+      key_done:         keyDone,
+      score,
+    });
+    setLockInSaved(true);
+    setTimeout(() => setLockInSaved(false), 2500);
   }
 
   function saveJournal() {
@@ -1325,19 +1371,22 @@ export default function AccountabilityPage() {
       {/* ── Day outcome button ────────────────────────────────────────────────── */}
       <div className="pb-4">
         <button
+          onClick={keyDone ? saveLockIn : undefined}
           className={cn(
             "w-full py-4 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-300",
             keyHabits.length === 0
               ? "bg-white/5 text-white/25 border border-white/8 cursor-default"
               : keyDone
-                ? "bg-emerald-500/90 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30"
+                ? lockInSaved
+                  ? "bg-emerald-400 text-white shadow-lg shadow-emerald-900/30"
+                  : "bg-emerald-500/90 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30"
                 : "bg-[#EF4444]/80 hover:bg-[#EF4444]/90 text-white shadow-lg shadow-red-900/30"
           )}
         >
           {keyHabits.length === 0
             ? "No key tasks configured"
             : keyDone
-              ? "Day locked in — all required tasks complete"
+              ? lockInSaved ? "Saved ✓" : "Day locked in — all required tasks complete"
               : `${keyRemaining} required task${keyRemaining !== 1 ? "s" : ""} remaining`}
         </button>
         {!keyDone && keyHabits.length > 0 && (

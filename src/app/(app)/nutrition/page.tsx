@@ -823,6 +823,7 @@ export default function NutritionPage() {
   const [dismissed,     setDismissed]     = useState<string[]>([]);
   const [noteOpen,      setNoteOpen]      = useState(false);
   const [note,          setNote]          = useState("");
+  const [noteSaved,     setNoteSaved]     = useState(false);
 
   // Edit flow
   const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
@@ -862,6 +863,19 @@ export default function NutritionPage() {
   useEffect(() => {
     getMealsForDate(user.id, selectedDate).then(setMeals);
     getTotalHydrationForDate(user.id, selectedDate).then(setHydration);
+  }, [user.id, selectedDate]);
+
+  // ── Load nutrition note when date changes ───────────────────────────────────
+
+  useEffect(() => {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    import("@/lib/db/nutritionNotes").then(({ getNutritionNote }) => {
+      getNutritionNote(user.id, selectedDate).then((text) => {
+        setNote(text ?? "");
+        setNoteSaved(false);
+      });
+    });
   }, [user.id, selectedDate]);
 
   // ── Load week meals ─────────────────────────────────────────────────────────
@@ -1440,14 +1454,27 @@ export default function NutritionPage() {
             <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4">
               <textarea
                 value={note}
-                onChange={(e) => setNote(e.target.value)}
+                onChange={(e) => { setNote(e.target.value); setNoteSaved(false); }}
                 placeholder="Personal notes, food preferences, or anything your coach should know…"
                 rows={3}
                 className="w-full bg-transparent text-sm text-white/60 placeholder:text-white/20 resize-none outline-none leading-relaxed"
               />
               {note && (
                 <div className="flex justify-end mt-2 pt-2 border-t border-white/[0.05]">
-                  <button className="text-xs text-[#B48B40] hover:text-[#c99840] transition-colors">Save note</button>
+                  <button
+                    onClick={async () => {
+                      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                      if (UUID_RE.test(user.id) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+                        const { upsertNutritionNote } = await import("@/lib/db/nutritionNotes");
+                        await upsertNutritionNote(user.id, selectedDate, note);
+                      }
+                      setNoteSaved(true);
+                      setTimeout(() => setNoteSaved(false), 2500);
+                    }}
+                    className="text-xs text-[#B48B40] hover:text-[#c99840] transition-colors"
+                  >
+                    {noteSaved ? "Saved ✓" : "Save note"}
+                  </button>
                 </div>
               )}
             </div>

@@ -374,27 +374,52 @@ const PROGRAM_OUTPUT: GenProgram = {
 
 // ─── Generation logic ─────────────────────────────────────────────────────────
 
+// Ordered rotation pool — used to cycle through distinct workouts on each Regenerate
+const WORKOUT_ROTATION: (keyof typeof PRESETS)[] = [
+  "hypertrophy_pull",
+  "hypertrophy_push",
+  "strength_upper",
+  "fat_loss_fullbody",
+  "performance_fullbody",
+  "tune_athletic",
+  "tune_minimal",
+  "tune_recovery",
+  "tune_aggressive",
+];
+
 function pickWorkout(
   goal: string,
   split: string,
   equipment: string[],
   tune: string | null,
+  variationIndex: number = 0,
 ): GenWorkout {
-  if (tune === "athletic")     return { ...PRESETS["tune_athletic"],   id: uid() };
-  if (tune === "minimal")      return { ...PRESETS["tune_minimal"],    id: uid() };
-  if (tune === "recovery")     return { ...PRESETS["tune_recovery"],   id: uid() };
-  if (tune === "aggressive")   return { ...PRESETS["tune_aggressive"], id: uid() };
+  // Tune overrides — rotate through all presets when regenerating with a tune active
+  if (tune) {
+    const tuneKeys: (keyof typeof PRESETS)[] = [
+      "tune_athletic", "tune_minimal", "tune_recovery", "tune_aggressive",
+    ];
+    const idx = variationIndex % tuneKeys.length;
+    return { ...PRESETS[tuneKeys[idx]], id: uid() };
+  }
 
+  // On regeneration (variationIndex > 0), cycle through the full rotation pool
+  if (variationIndex > 0) {
+    const idx = variationIndex % WORKOUT_ROTATION.length;
+    return { ...PRESETS[WORKOUT_ROTATION[idx]], id: uid() };
+  }
+
+  // Initial generation: respect goal + split selection
   const g = goal.toLowerCase();
   const s = split.toLowerCase();
 
-  if (g.includes("strength"))    return { ...PRESETS["strength_upper"],   id: uid() };
-  if (g.includes("fat"))         return { ...PRESETS["fat_loss_fullbody"], id: uid() };
-  if (g.includes("performance")) return { ...PRESETS["performance_fullbody"], id: uid() };
+  if (g.includes("strength"))    return { ...PRESETS["strength_upper"],       id: uid() };
+  if (g.includes("fat"))         return { ...PRESETS["fat_loss_fullbody"],     id: uid() };
+  if (g.includes("performance")) return { ...PRESETS["performance_fullbody"],  id: uid() };
 
   // Hypertrophy variants
-  if (s.includes("push"))         return { ...PRESETS["hypertrophy_push"], id: uid() };
-  if (s.includes("pull"))         return { ...PRESETS["hypertrophy_pull"], id: uid() };
+  if (s.includes("push")) return { ...PRESETS["hypertrophy_push"], id: uid() };
+  if (s.includes("pull")) return { ...PRESETS["hypertrophy_pull"], id: uid() };
 
   return { ...PRESETS["hypertrophy_pull"], id: uid() };
 }
@@ -633,10 +658,11 @@ export default function GeneratePage() {
   const [promptEquip,  setPromptEquip  ] = useState("Full gym");
 
   // ── Generation state ──
-  const [generating, setGenerating] = useState(false);
-  const [output,     setOutput    ] = useState<GenerateOutput | null>(null);
-  const [activeTune, setActiveTune] = useState<string | null>(null);
-  const [generated,  setGenerated ] = useState(false);
+  const [generating,        setGenerating       ] = useState(false);
+  const [output,            setOutput           ] = useState<GenerateOutput | null>(null);
+  const [activeTune,        setActiveTune       ] = useState<string | null>(null);
+  const [generated,         setGenerated        ] = useState(false);
+  const [regenerationCount, setRegenerationCount] = useState(0);
 
   // ── Templates ──
   const [templates,    setTemplates   ] = useState<SavedTemplate[]>([]);
@@ -649,6 +675,9 @@ export default function GeneratePage() {
     setGenerating(true);
     setActiveTune(tune);
 
+    const nextRegenCount = output ? regenerationCount + 1 : 0;
+    setRegenerationCount(nextRegenCount);
+
     const delay = tune ? 700 : 1100;
 
     setTimeout(() => {
@@ -657,7 +686,7 @@ export default function GeneratePage() {
       if (scope === "workout" || mode === "quick") {
         result = {
           type: "workout",
-          data: pickWorkout(goal, split, equipment, tune),
+          data: pickWorkout(goal, split, equipment, tune, nextRegenCount),
         };
       } else {
         result = { type: "program", data: { ...PROGRAM_OUTPUT, id: uid() } };
