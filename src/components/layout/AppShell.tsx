@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { TopBar }    from "./TopBar";
 import { BottomNav } from "./BottomNav";
 import { Sidebar }   from "./Sidebar";
-import { getSessionKey, getBlockingRoute, clearSession } from "@/lib/routing";
+import { getSessionKey, getBlockingRoute } from "@/lib/routing";
+import { signOutEverywhere } from "@/lib/auth/signOut";
 import { useUser }                        from "@/context/UserContext";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
@@ -53,8 +54,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           // No Supabase session — fall back to demo session check
           const sessionKey = getSessionKey();
           if (sessionKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionKey)) {
-            clearSession();
-            router.replace("/login");
+            // Ghost session: a UUID is in localStorage but Supabase has no session.
+            // Do a full sign-out so no stale role/biometric/preference state leaks.
+            void signOutEverywhere();
             return;
           }
           const blocker    = getBlockingRoute(sessionKey);

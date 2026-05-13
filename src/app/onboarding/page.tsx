@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession, getSessionKey, resolvePostLoginRoute, LS_KEY, SS_KEY } from "@/lib/routing";
+import { getSessionKey, resolvePostLoginRoute, LS_KEY, SS_KEY } from "@/lib/routing";
+import { signOutEverywhere } from "@/lib/auth/signOut";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 
@@ -63,8 +64,8 @@ export default function OnboardingRouter() {
         const key = getSessionKey();
         if (!key) { router.replace("/login"); return; }
         if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) {
-          clearSession();
-          router.replace("/login");
+          // Ghost session: UUID in storage but no Supabase session. Full cleanup.
+          void signOutEverywhere();
           return;
         }
         const next = resolvePostLoginRoute(key);

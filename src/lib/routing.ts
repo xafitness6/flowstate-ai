@@ -32,15 +32,6 @@ export function getSessionKey(): string | null {
   }
 }
 
-/** Clear all session storage entries on logout. */
-export function clearSession(): void {
-  try {
-    localStorage.removeItem(LS_KEY);
-    sessionStorage.removeItem(SS_KEY);
-    sessionStorage.removeItem(LS_KEY); // belt-and-suspenders
-  } catch { /* ignore */ }
-}
-
 // ─── Onboarding chain helpers ─────────────────────────────────────────────────
 
 /** Returns the first incomplete onboarding step for a userId, or null if done.

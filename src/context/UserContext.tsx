@@ -2,11 +2,10 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import type { MockUser, Plan, Role } from "@/types";
-import { clearBiometric } from "@/lib/biometric";
 import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
-import { clearSession } from "@/lib/routing";
+import { signOutEverywhere } from "@/lib/auth/signOut";
 import { applyEarlyAccess } from "@/lib/earlyAccess";
 
 export const DEMO_USERS: Record<string, MockUser> = {
@@ -212,27 +211,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    // Reset context state immediately so no component sees stale data.
-    setUser(applyEarlyAccess(DEMO_USERS.member));
-    setIsSupabase(false);
-    setViewModeState("operator");
-
-    // Sign out from Supabase if we have a real session
-    if (isSupabase && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-    }
-
-    // Clear all session storage via centralized helper
-    clearSession();
-
-    try {
-      localStorage.removeItem(VIEW_MODE_KEY);
-      sessionStorage.removeItem(VIEW_MODE_KEY);
-      clearBiometric();
-    } catch { /* ignore */ }
-
-    window.location.href = "/login";
+    // Delegate to the single-source-of-truth signOut helper. It clears the
+    // Supabase session, every flowstate-* storage key, and biometric creds,
+    // then hard-navigates to /login. Do NOT pre-set context state here —
+    // pre-setting DEMO_USERS.member is what caused the "blank shell with
+    // stale member sidebar" leak between the state mutation and the redirect.
+    await signOutEverywhere();
   }
 
   function setViewMode(m: ViewMode) {
