@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
+const EMAIL_KEY = "flowstate-session-email";
+const ID_KEY = "flowstate-session-id";
 
 function go(path: string) {
   window.location.replace(path);
@@ -36,6 +38,28 @@ function readCachedSupabaseUser(): { id?: string; email?: string } | null {
   return null;
 }
 
+function readCachedFlowstateEmail(): string | null {
+  try {
+    return (
+      sessionStorage.getItem(EMAIL_KEY) ||
+      localStorage.getItem(EMAIL_KEY) ||
+      readCookie(EMAIL_KEY) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+function readCookie(name: string): string | null {
+  const prefix = `${name}=`;
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+    ?.slice(prefix.length) ?? null;
+}
+
 export default function AuthFinishPage() {
   const [message, setMessage] = useState("Finishing sign in...");
 
@@ -59,6 +83,19 @@ export default function AuthFinishPage() {
 
     async function finish() {
       try {
+        const flowstateEmail = readCachedFlowstateEmail();
+        if (flowstateEmail?.trim().toLowerCase() === ADMIN_EMAIL) {
+          try {
+            const id = readCookie(ID_KEY);
+            if (id) {
+              localStorage.setItem("flowstate-active-role", id);
+              sessionStorage.setItem("flowstate-session-role", id);
+            }
+          } catch { /* ignore */ }
+          go("/admin");
+          return;
+        }
+
         const supabase = createClient();
         const { data: { session } } = await withTimeout(
           supabase.auth.getSession(),
@@ -95,6 +132,11 @@ export default function AuthFinishPage() {
       } catch (error) {
         console.error("[auth/finish] failed:", error);
         if (cancelled) return;
+        const flowstateEmail = readCachedFlowstateEmail();
+        if (flowstateEmail?.trim().toLowerCase() === ADMIN_EMAIL) {
+          go("/admin");
+          return;
+        }
         const cached = readCachedSupabaseUser();
         if (cached?.email?.trim().toLowerCase() === ADMIN_EMAIL) {
           go("/admin");

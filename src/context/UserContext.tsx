@@ -53,6 +53,8 @@ export const DEMO_USERS: Record<string, MockUser> = {
 
 const LS_KEY        = "flowstate-active-role";
 const SS_KEY        = "flowstate-session-role";
+const EMAIL_KEY     = "flowstate-session-email";
+const ID_COOKIE     = "flowstate-session-id";
 const VIEW_MODE_KEY = "flowstate-view-mode";
 const PLAN_KEY      = (id: string) => `flowstate-plan-${id}`;
 const ADMIN_EMAIL   = "xavellis4@gmail.com";
@@ -69,9 +71,24 @@ function getInitialUser(): MockUser {
   if (typeof window === "undefined") return applyEarlyAccess(DEMO_USERS.member);
   try {
     const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
+    const cookieId = readCookie(ID_COOKIE);
+    const email = sessionStorage.getItem(EMAIL_KEY) || localStorage.getItem(EMAIL_KEY) || readCookie(EMAIL_KEY);
+    if (email?.trim().toLowerCase() === ADMIN_EMAIL) {
+      return applyEarlyAccess({ ...DEMO_USERS.master, id: key ?? cookieId ?? DEMO_USERS.master.id });
+    }
     if (key && DEMO_USERS[key]) return applyEarlyAccess(DEMO_USERS[key]);
   } catch { /* ignore */ }
   return applyEarlyAccess(DEMO_USERS.member);
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${name}=`;
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+    ?.slice(prefix.length) ?? null;
 }
 
 /** Load a demo/local user from storage — used only when no Supabase session exists. */
@@ -141,12 +158,36 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const cachedAdmin = (() => {
+      try {
+        const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
+        const cookieId = readCookie(ID_COOKIE);
+        const email = sessionStorage.getItem(EMAIL_KEY) || localStorage.getItem(EMAIL_KEY) || readCookie(EMAIL_KEY);
+        if (email?.trim().toLowerCase() === ADMIN_EMAIL) {
+          return { key: key ?? cookieId ?? DEMO_USERS.master.id };
+        }
+      } catch { /* ignore */ }
+      return null;
+    })();
+
+    if (cachedAdmin) {
+      setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: cachedAdmin.key }));
+      setIsSupabase(true);
+      setIsLoading(false);
+    }
+
     const supabase = createClient();
 
     async function applySession(session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) {
       if (cancelled) return;
 
       if (!session) {
+        if (cachedAdmin) {
+          setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: cachedAdmin.key }));
+          setIsSupabase(true);
+          setIsLoading(false);
+          return;
+        }
         const demo = loadDemoUser();
         if (demo) setUser(demo);
         setIsSupabase(false);
@@ -216,6 +257,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           }
           // Session ended — check for demo fallback
           if (cancelled) return;
+          if (cachedAdmin) {
+            setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: cachedAdmin.key }));
+            setIsSupabase(true);
+            setIsLoading(false);
+            return;
+          }
           setIsSupabase(false);
           const demo = loadDemoUser();
           setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));

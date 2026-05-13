@@ -10,6 +10,7 @@ const LOCAL_STORAGE_KEYS = [
   // Session & role
   "flowstate-active-role",
   "flowstate-session-role",
+  "flowstate-session-email",
   "flowstate-view-mode",
   // Cached credentials & demo accounts
   "flowstate-admin-password",
@@ -32,8 +33,14 @@ const LOCAL_STORAGE_KEYS = [
 const SESSION_STORAGE_KEYS = [
   "flowstate-session-role",
   "flowstate-active-role",
+  "flowstate-session-email",
   "flowstate-view-mode",
   "flowstate-deep-cal-prompt-dismissed",
+];
+
+const COOKIE_KEYS = [
+  "flowstate-session-email",
+  "flowstate-session-id",
 ];
 
 export type SignOutOptions = {
@@ -73,6 +80,12 @@ export async function signOutEverywhere(opts: SignOutOptions = {}): Promise<void
   } catch { /* ignore */ }
 
   try { clearBiometric(); } catch { /* ignore */ }
+
+  try {
+    COOKIE_KEYS.forEach((key) => {
+      document.cookie = `${key}=; Max-Age=0; path=/; SameSite=Lax`;
+    });
+  } catch { /* ignore */ }
 
   const redirect = opts.redirect === undefined ? "/login" : opts.redirect;
   if (redirect) {

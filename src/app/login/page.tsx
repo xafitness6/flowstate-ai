@@ -27,6 +27,7 @@ type AuthStep = "form" | "biometric-prompt" | "enable-biometric";
 
 const LS_KEY = "flowstate-active-role";
 const SS_KEY = "flowstate-session-role";
+const EMAIL_KEY = "flowstate-session-email";
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -242,6 +243,17 @@ function LoginPageContent() {
         sessionStorage.setItem(SS_KEY, key);
         localStorage.removeItem(LS_KEY);
       }
+      document.cookie = `flowstate-session-id=${encodeURIComponent(key)}; Max-Age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
+    } catch { /* ignore */ }
+  }
+
+  function saveSessionEmail(email?: string | null) {
+    const normalized = email?.trim().toLowerCase();
+    if (!normalized) return;
+    try {
+      localStorage.setItem(EMAIL_KEY, normalized);
+      sessionStorage.setItem(EMAIL_KEY, normalized);
+      document.cookie = `${EMAIL_KEY}=${encodeURIComponent(normalized)}; Max-Age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
     } catch { /* ignore */ }
   }
 
@@ -274,6 +286,15 @@ function LoginPageContent() {
     opts: { offerBiometric?: boolean } = {},
   ) {
     saveSession(userId);
+    saveSessionEmail(email);
+
+    // Launch-critical admin fast path: the Supabase password/OAuth step already
+    // succeeded, so don't wait on profile sync/onboarding/client session probes
+    // before opening the admin portal.
+    if (email?.trim().toLowerCase() === ADMIN_EMAIL) {
+      window.location.replace("/admin");
+      return;
+    }
 
     const syncedProfile = await syncCurrentProfile();
     const { getMyProfile } = await import("@/lib/db/profiles");
