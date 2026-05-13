@@ -77,13 +77,7 @@ export default function AnalyticsPage() {
   const [logs,     setLogs]     = useState<WorkoutLog[]>([]);
   const [weekLogs, setWeekLogs] = useState<WorkoutLog[]>([]);
   const [program,  setProgram]  = useState<ActiveProgram | null>(null);
-  const [loaded,   setLoaded]   = useState(false);
-
-  // Failsafe — never hang on the spinner more than 4s.
-  useEffect(() => {
-    const t = window.setTimeout(() => setLoaded(true), 4000);
-    return () => window.clearTimeout(t);
-  }, []);
+  const [loaded,   setLoaded]   = useState(true);
 
   useEffect(() => {
     if (userLoading) return;
@@ -112,13 +106,7 @@ export default function AnalyticsPage() {
     return () => { active = false; };
   }, [user?.id, userLoading]);
 
-  if (!loaded) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
-      </div>
-    );
-  }
+  void loaded;
 
   const totalSets    = logs.reduce((s, l) => s + l.setsCompleted, 0);
   const totalMins    = logs.reduce((s, l) => s + l.durationMins, 0);

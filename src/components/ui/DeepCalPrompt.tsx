@@ -50,7 +50,7 @@ export function DeepCalPrompt({ userId }: { userId: string }) {
         </p>
       </div>
       <Link
-        href="/onboarding/calibration"
+        href="/onboarding/deep-calibration"
         className="text-xs font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors shrink-0"
       >
         Continue →

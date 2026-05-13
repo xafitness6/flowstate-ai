@@ -162,55 +162,40 @@ export default function ProgramPage() {
   const [weekLogs,   setWeekLogs]   = useState<WorkoutLog[]>([]);
   const [recentLogs, setRecentLogs] = useState<WorkoutLog[]>([]);
   const [nextWo,     setNextWo]     = useState<Workout | null>(null);
-  const [loaded,     setLoaded]     = useState(false);
-
-  // Failsafe: under no circumstance should the spinner sit longer than 4s.
-  // If auth is hanging or Supabase is slow, we'd rather show the empty state
-  // than block the user on a black screen with a spinning dot.
-  useEffect(() => {
-    const t = window.setTimeout(() => setLoaded(true), 4000);
-    return () => window.clearTimeout(t);
-  }, []);
+  // Default to loaded=true so a brand-new visit shows the empty state
+  // immediately. Real data fades in once the fetch resolves. This removes
+  // any possibility of an infinite spinner from a hung dependency.
+  const [loaded,     setLoaded]     = useState(true);
 
   useEffect(() => {
     // Wait for the auth context to resolve before fetching.
     if (userLoading) return;
+    if (!user?.id) return;
 
     let active = true;
 
-    async function load() {
-      try {
-        if (!user?.id) return;
+    (async () => {
+      const [prog, wLogs, allLogs] = await Promise.all([
+        loadActiveProgramForUser(user.id).catch(() => null),
+        getLogsThisWeekForUser(user.id).catch(() => [] as WorkoutLog[]),
+        getWorkoutLogsForUser(user.id).catch(() => [] as WorkoutLog[]),
+      ]);
 
-        const [prog, wLogs, allLogs] = await Promise.all([
-          loadActiveProgramForUser(user.id).catch(() => null),
-          getLogsThisWeekForUser(user.id).catch(() => [] as WorkoutLog[]),
-          getWorkoutLogsForUser(user.id).catch(() => [] as WorkoutLog[]),
-        ]);
+      if (!active) return;
+      const sortedLogs = allLogs.sort((a, b) => b.completedAt - a.completedAt);
+      setProgram(prog);
+      setWeekLogs(wLogs);
+      setRecentLogs(sortedLogs.slice(0, 5));
+      setNextWo(prog ? getNextWorkout(prog, wLogs) : null);
+      setLoaded(true);
+    })();
 
-        if (!active) return;
-        const sortedLogs = allLogs.sort((a, b) => b.completedAt - a.completedAt);
-        setProgram(prog);
-        setWeekLogs(wLogs);
-        setRecentLogs(sortedLogs.slice(0, 5));
-        setNextWo(prog ? getNextWorkout(prog, wLogs) : null);
-      } finally {
-        // Always release the spinner — even on auth bail or partial failure.
-        if (active) setLoaded(true);
-      }
-    }
-
-    void load();
     return () => { active = false; };
   }, [user?.id, userLoading]);
 
-  if (!loaded) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
-      </div>
-    );
-  }
+  // No spinner state — page renders empty state instantly and fades real data
+  // in once the fetch resolves. Prevents any chance of a hung loading screen.
+  void loaded;
 
   if (!program) {
     return (

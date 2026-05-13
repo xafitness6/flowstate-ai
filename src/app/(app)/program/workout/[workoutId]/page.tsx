@@ -462,7 +462,7 @@ export default function WorkoutPage() {
 
   const [workout,   setWorkout]   = useState<Workout | null>(null);
   const [prevPerfs, setPrevPerfs] = useState<Record<string, PrevPerf>>({});
-  const [loaded,    setLoaded]    = useState(false);
+  const [loaded,    setLoaded]    = useState(true);
 
   // Warm-up
   const [warmupPhase,   setWarmupPhase]   = useState<"active" | "done">("active");
@@ -488,12 +488,6 @@ export default function WorkoutPage() {
   const [finished,  setFinished]  = useState(false);
 
   // ── Load ──────────────────────────────────────────────────────────────────
-
-  // Failsafe — never hang on the spinner more than 4s.
-  useEffect(() => {
-    const t = window.setTimeout(() => setLoaded(true), 4000);
-    return () => window.clearTimeout(t);
-  }, []);
 
   useEffect(() => {
     if (userLoading) return;
