@@ -1,12 +1,13 @@
 // POST /api/admin/assign-workout
-// Admin-only: insert a builder workout into another user's programs table.
-// Self-assign uses the regular client + RLS — this route is for cross-user.
+// Admin-only: insert a builder program (v2 phase) into another user's programs
+// table. Self-assign uses the regular client + RLS — this route is for cross-user.
 //
-// Body: { targetUserId: string; payload: BuilderWorkoutPayload; activate: boolean }
+// Body: { targetUserId: string; payload: BuilderProgramPayload; activate: boolean }
 
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
-import { builderPayloadToProgramRow, type BuilderWorkoutPayload } from "@/lib/db/programs";
+import { builderPayloadToProgramRow, type BuilderProgramPayload } from "@/lib/db/programs";
+import { isProgramSplitV2 } from "@/lib/program/types";
 
 type Body = {
   targetUserId?: unknown;
@@ -14,14 +15,15 @@ type Body = {
   activate?:     unknown;
 };
 
-function isPayload(v: unknown): v is BuilderWorkoutPayload {
+function isPayload(v: unknown): v is BuilderProgramPayload {
   if (!v || typeof v !== "object") return false;
   const p = v as Record<string, unknown>;
   return (
-    typeof p.workoutName === "string" &&
-    typeof p.goal === "string" &&
-    Array.isArray(p.exercises) &&
-    Array.isArray(p.sections)
+    typeof p.name === "string"
+    && typeof p.goal === "string"
+    && typeof p.weeks === "number"
+    && typeof p.daysPerWeek === "number"
+    && isProgramSplitV2(p.split)
   );
 }
 

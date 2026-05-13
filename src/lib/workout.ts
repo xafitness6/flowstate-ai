@@ -1,3 +1,12 @@
+import {
+  isProgramSplitV2,
+  resolveWeek,
+  deriveProgressionLine,
+  type ProgramSplitV2,
+  type DayWorkout as V2Day,
+  type PlannedExercise as V2Ex,
+} from "@/lib/program/types";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type WarmUpItem = {
@@ -160,6 +169,105 @@ function toActiveProgram(stored: StoredProgram, meta: ProgramMeta): ActiveProgra
 
 function isStoredWeek(value: unknown): value is StoredProgram["week1"] {
   return Array.isArray(value);
+}
+
+// ─── v2 program shape integration ─────────────────────────────────────────────
+// New programs save into weekly_split as ProgramSplitV2 (see lib/program/types).
+// loadActiveProgramForUser detects shape and lifts v2 → ActiveProgram for the
+// current week. Legacy array shape continues to flow through toActiveProgram().
+
+function v2ToActiveProgram(
+  dbProgram: {
+    id:                   string;
+    block_name:           string;
+    goal:                 string;
+    duration_weeks:       number;
+    weekly_training_days: number;
+    coaching_notes:       string | null;
+    body_focus_areas:     string[] | null;
+    start_date:           string | null;
+    created_at:           string;
+  },
+  split: ProgramSplitV2,
+): ActiveProgram {
+  const start = dbProgram.start_date ?? dbProgram.created_at.split("T")[0];
+  const weeksPassed = Math.floor((Date.now() - new Date(start).getTime()) / 6.048e8);
+  const currentWeek = Math.min(Math.max(weeksPassed + 1, 1), Math.max(1, split.phase.weeks));
+
+  const week = resolveWeek(split, currentWeek);
+  const progressionLine = deriveProgressionLine(split, currentWeek);
+
+  const workouts: Workout[] = week.days
+    .slice()
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .map((d, idx) => v2DayToWorkout(d, idx));
+
+  const description = [
+    `${split.phase.name} · Week ${currentWeek} of ${split.phase.weeks}`,
+    week.intent,
+    progressionLine,
+    dbProgram.coaching_notes,
+  ].filter(Boolean).join(" — ");
+
+  return {
+    programId:     dbProgram.id,
+    name:          dbProgram.block_name,
+    description,
+    goal:          dbProgram.goal,
+    durationWeeks: dbProgram.duration_weeks,
+    currentWeek,
+    startDate:     start,
+    split:         Array.isArray(dbProgram.body_focus_areas) && dbProgram.body_focus_areas.length
+      ? dbProgram.body_focus_areas.join(" / ")
+      : split.phase.name,
+    daysPerWeek:   dbProgram.weekly_training_days,
+    workouts,
+  };
+}
+
+const _DAY_LABEL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function v2DayToWorkout(day: V2Day, idx: number): Workout {
+  return {
+    workoutId:         String(idx),
+    name:              day.name || day.focus || _DAY_LABEL[day.dayOfWeek] || "Day",
+    scheduledDay:      day.dayOfWeek,
+    dayLabel:          _DAY_LABEL[day.dayOfWeek] ?? `Day ${idx + 1}`,
+    focus:             day.focus || day.name,
+    warmup:            generateWarmUp(day.focus || day.name),
+    exercises:         day.exercises.map((ex, eIdx) => v2ExToExercise(ex, eIdx)),
+    estimatedDuration: Math.max(20, day.estimatedMinutes || day.exercises.length * 9),
+  };
+}
+
+function v2ExToExercise(ex: V2Ex, idx: number): WorkoutExercise {
+  const low  = parseInt((ex.reps ?? "").split(/[–\-]/)[0]) || 8;
+  const rest = parseRestSeconds(ex.rest, low);
+  const rpe  = low <= 5 ? 9 : low <= 8 ? 8.5 : 8;
+
+  return {
+    exerciseId:    ex.exerciseId ?? `${ex.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${idx}`,
+    name:          ex.name,
+    notes:         ex.note ?? CUES[ex.name] ?? "",
+    substitutions: [],
+    sets:          Array.from({ length: Math.max(1, ex.sets) }, (_, i) => ({
+      setNumber:   i + 1,
+      targetReps:  ex.reps,
+      targetLoad:  ex.weight ?? "",
+      restSeconds: rest,
+      rpe,
+    })),
+  };
+}
+
+function parseRestSeconds(restStr: string | undefined, lowReps: number): number {
+  if (!restStr) return lowReps <= 5 ? 180 : lowReps <= 8 ? 120 : lowReps <= 12 ? 90 : 60;
+  const s = restStr.trim().toLowerCase();
+  if (/^\d+s$/.test(s)) return parseInt(s);
+  if (/^\d+m(in)?$/.test(s)) return parseInt(s) * 60;
+  const n = parseInt(s);
+  if (!isNaN(n)) return n;
+  return 90;
 }
 
 // ─── Warm-up generator ────────────────────────────────────────────────────────
@@ -334,8 +442,15 @@ export async function loadActiveProgramForUser(userId: string): Promise<ActivePr
     try {
       const { getActiveProgram } = await import("@/lib/db/programs");
       const dbProgram = await getActiveProgram(userId);
+      if (!dbProgram) return null;
 
-      if (dbProgram && isStoredWeek(dbProgram.weekly_split)) {
+      // v2 shape — built by the new builder + AI generator
+      if (isProgramSplitV2(dbProgram.weekly_split)) {
+        return v2ToActiveProgram(dbProgram, dbProgram.weekly_split);
+      }
+
+      // Legacy array-of-days shape (Phase 1 calibration, older saves)
+      if (isStoredWeek(dbProgram.weekly_split)) {
         const stored: StoredProgram = {
           id:          dbProgram.id,
           name:        dbProgram.block_name,

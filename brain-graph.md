@@ -127,11 +127,22 @@ npm run exercises:import   # upsert into Supabase
 ```
 Source columns + coaching metadata (`joint_load`, `injury_friendly_for`, `contraindications`) tagged in `scripts/import-exercises.mjs`. Query via `searchExercises()` in `src/lib/db/exercises.ts`. Migration: `010_exercises_library.sql`.
 
-## Builder → program persistence
+## Program v2 shape & flow
 
-`/program/builder` saves a single-session workout as a 1-week, 1-day "program" row in `public.programs` (the schema has no standalone workouts table — `exercises` is a JSONB column on `workouts`/`programs`). The toggle "Set as my active program after saving" archives the user's current active program before inserting the new one.
+Programs are stored as a **`ProgramSplitV2`** JSON blob in `programs.weekly_split`:
+- `phase` — name, weeks (3–6 typical), progression rule (linear / double / RPE / manual)
+- `baseWeek` — the template that repeats unless overridden
+- `weekOverrides` — `{ [weekNumber]: WeekTemplate }` — replaces baseWeek for any specific week (true periodization)
 
-Admin path: `/api/admin/assign-workout` accepts `{ targetUserId, payload, activate }`, uses the service-role client + `requireAdmin()` check, and writes into another user's `programs` row. Cross-user insert is blocked by RLS otherwise (`programs_insert_own` requires `auth.uid() = user_id`).
+Each `WeekTemplate.days[]` has `dayOfWeek`, `name`, `focus`, `estimatedMinutes`, and `exercises[]`. `WeekTemplate.intent` and `progressionThisWeek` drive the "this week" brief shown above the Today card on `/program`. Resolution is `resolveWeek(split, weekNumber)` in [src/lib/program/types.ts](src/lib/program/types.ts). Legacy array-shaped programs still load via the legacy path in `workout.ts`.
+
+**Builder** (`/program/builder`) — full multi-week phase editor: phase metadata → progression rule → week tabs (1..N) → day selector → per-day exercise list (DnD) → exercise picker drawer (searches `public.exercises` with injury/joint filters). Saves the entire v2 split.
+
+**AI generator** (`/program/generate` → `POST /api/ai/program-generator`) — GPT-4o produces a full phase as strict JSON (response_format json_schema). Respects equipment + injury constraints. Returns a `BuilderProgramPayload` for the front-end to preview, edit, and save through the same pipelines.
+
+**Onboarding** — finishing `/onboarding/deep-calibration` now calls the AI program generator with the deep-cal answers and persists the result as the user's active program before redirecting to `/program`.
+
+**Admin assign** — `/api/admin/assign-workout` accepts the full v2 `BuilderProgramPayload`, validates with `isProgramSplitV2`, and writes via service-role into the target user's `programs` row. Cross-user insert is blocked by RLS otherwise (`programs_insert_own` requires `auth.uid() = user_id`).
 
 ## Admin MRR
 

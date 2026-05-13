@@ -1,551 +1,511 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  DragEndEvent,
-  DragStartEvent,
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-  arrayMove,
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical,
-  Plus,
-  Trash2,
-  ChevronUp,
-  ChevronDown,
-  Copy,
-  Users,
-  Layers,
-  ChevronRight,
-  Film,
-  Play,
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
+  ChevronLeft, ChevronUp, ChevronDown, GripVertical, Trash2, Copy, Plus,
+  Library, Users, Loader2, AlertCircle, CheckCircle2, Layers,
+  TrendingUp, Settings2, Sparkles, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { VideoPickerModal } from "@/components/library/VideoPickerModal";
-import { VideoPreviewModal } from "@/components/library/VideoPreviewModal";
-import { YTIcon } from "@/components/library/YTIcon";
-import { VIDEO_LIBRARY, formatDuration } from "@/lib/videoLibrary";
-import { AssignClientModal } from "@/components/program/AssignClientModal";
+import { Card } from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useUser } from "@/context/UserContext";
-import { saveBuilderWorkoutForSelf, type BuilderWorkoutPayload } from "@/lib/db/programs";
+import { saveBuilderWorkoutForSelf, type BuilderProgramPayload } from "@/lib/db/programs";
+import type {
+  ProgramSplitV2, WeekTemplate, DayWorkout, PlannedExercise, ProgressionType,
+} from "@/lib/program/types";
+import { ExercisePickerDrawer } from "@/components/program/ExercisePickerDrawer";
+import { AssignClientModal } from "@/components/program/AssignClientModal";
+import type { Exercise } from "@/lib/db/exercises";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type Goal = "strength" | "hypertrophy" | "fat_loss";
-
-type SectionItem = {
-  id: string;
-  type: "section";
-  label: string;
-};
-
-type ExerciseItem = {
-  id: string;
-  type: "exercise";
-  name: string;
-  sets: string;
-  reps: string;
-  weight: string;
-  rest: string;
-  note: string;
-  collapsed: boolean;
-  videoId?: string | null;
-};
-
-type WorkoutItem = SectionItem | ExerciseItem;
-
 // ─── Constants ───────────────────────────────────────────────────────────────
 
+type Goal = "strength" | "hypertrophy" | "fat_loss" | "performance";
+
 const GOAL_OPTIONS: { value: Goal; label: string; sub: string }[] = [
-  { value: "strength",    label: "Strength",    sub: "Low rep, high load" },
-  { value: "hypertrophy", label: "Hypertrophy", sub: "Moderate rep, volume" },
-  { value: "fat_loss",    label: "Fat Loss",    sub: "High rep, density" },
+  { value: "strength",    label: "Strength",    sub: "Heavy compound, low reps"  },
+  { value: "hypertrophy", label: "Hypertrophy", sub: "Moderate reps, volume"     },
+  { value: "fat_loss",    label: "Fat Loss",    sub: "High density, circuits"    },
+  { value: "performance", label: "Performance", sub: "Power, athletic patterns"  },
 ];
 
-const SECTION_PRESETS = ["Warm-up", "Main lifts", "Accessories", "Finisher"];
-
-const STAT_FIELDS: { key: keyof Pick<ExerciseItem, "sets"|"reps"|"weight"|"rest">; label: string; placeholder: string }[] = [
-  { key: "sets",   label: "Sets",   placeholder: "4" },
-  { key: "reps",   label: "Reps",   placeholder: "8–10" },
-  { key: "weight", label: "Weight", placeholder: "60kg" },
-  { key: "rest",   label: "Rest",   placeholder: "90s" },
+const PROGRESSION_OPTIONS: { value: ProgressionType; label: string; sub: string }[] = [
+  { value: "linear",              label: "Linear",            sub: "Add load each week"          },
+  { value: "double_progression",  label: "Double progression",sub: "Hit top reps, then add load" },
+  { value: "rpe",                 label: "RPE-based",         sub: "Effort-driven autoregulate"  },
+  { value: "manual",              label: "Manual",            sub: "I'll edit each week myself"  },
 ];
+
+const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DOW_LONG  = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const EQUIPMENT_OPTIONS = [
+  "Full gym", "Home gym", "Dumbbells only", "Bodyweight", "Bands", "Travel",
+];
+
+const BODY_FOCUS_OPTIONS = [
+  "Chest", "Back", "Shoulders", "Arms", "Legs", "Glutes", "Core", "Conditioning",
+];
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function uid() {
-  return Math.random().toString(36).slice(2, 9);
-}
-
-function newExercise(partial: Partial<ExerciseItem> = {}): ExerciseItem {
+function newDay(dow: number): DayWorkout {
   return {
-    id: uid(),
-    type: "exercise",
-    name: "",
-    sets: "",
-    reps: "",
-    weight: "",
-    rest: "",
-    note: "",
-    collapsed: false,
-    ...partial,
+    dayOfWeek:        dow,
+    name:             `${DOW_LONG[dow]} session`,
+    focus:            "",
+    estimatedMinutes: 60,
+    exercises:        [],
   };
 }
 
-function newSection(label = "Section"): SectionItem {
-  return { id: uid(), type: "section", label };
+function exerciseFromLibrary(ex: Exercise): PlannedExercise {
+  return {
+    exerciseId: ex.id,
+    name:       ex.name,
+    sets:       3,
+    reps:       "8-12",
+    rest:       "90s",
+    weight:     "",
+    note:       "",
+    videoId:    null,
+  };
 }
 
-// ─── SectionCard ─────────────────────────────────────────────────────────────
-
-function SectionCard({
-  item,
-  isDragging = false,
-  dragHandleProps,
-  onChange,
-  onRemove,
-  onMoveUp,
-  onMoveDown,
-  isFirst,
-  isLast,
-}: {
-  item: SectionItem;
-  isDragging?: boolean;
-  dragHandleProps?: Record<string, unknown>;
-  onChange: (id: string, field: string, value: string) => void;
-  onRemove: (id: string) => void;
-  onMoveUp: (id: string) => void;
-  onMoveDown: (id: string) => void;
-  isFirst: boolean;
-  isLast: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 px-1 py-1 group",
-        isDragging && "opacity-50"
-      )}
-    >
-      {/* Drag handle */}
-      <button
-        {...dragHandleProps}
-        className="cursor-grab active:cursor-grabbing text-white/15 hover:text-white/40 transition-colors touch-none"
-      >
-        <GripVertical className="w-4 h-4" strokeWidth={1.5} />
-      </button>
-
-      {/* Label */}
-      <div className="flex items-center gap-2 flex-1">
-        <Layers className="w-3 h-3 text-[#B48B40]/50 shrink-0" strokeWidth={1.5} />
-        <input
-          type="text"
-          value={item.label}
-          onChange={(e) => onChange(item.id, "label", e.target.value)}
-          className="bg-transparent text-xs font-semibold uppercase tracking-[0.18em] text-white/40 placeholder:text-white/20 outline-none focus:text-white/65 transition-colors w-full"
-        />
-      </div>
-
-      {/* Controls — show on hover */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={() => onMoveUp(item.id)}
-          disabled={isFirst}
-          className="p-1 text-white/20 hover:text-white/50 disabled:opacity-0 transition-colors"
-        >
-          <ChevronUp className="w-3 h-3" strokeWidth={2} />
-        </button>
-        <button
-          onClick={() => onMoveDown(item.id)}
-          disabled={isLast}
-          className="p-1 text-white/20 hover:text-white/50 disabled:opacity-0 transition-colors"
-        >
-          <ChevronDown className="w-3 h-3" strokeWidth={2} />
-        </button>
-        <button
-          onClick={() => onRemove(item.id)}
-          className="p-1 text-white/15 hover:text-[#F87171]/60 transition-colors ml-1"
-        >
-          <Trash2 className="w-3 h-3" strokeWidth={1.5} />
-        </button>
-      </div>
-    </div>
-  );
+function blankExercise(): PlannedExercise {
+  return {
+    name:    "",
+    sets:    3,
+    reps:    "8-12",
+    rest:    "90s",
+    weight:  "",
+    note:    "",
+    videoId: null,
+  };
 }
 
-// ─── ExerciseCard ─────────────────────────────────────────────────────────────
+// ─── Sortable exercise row ────────────────────────────────────────────────────
 
-function ExerciseCard({
-  item,
-  index,
-  isDragging = false,
-  dragHandleProps,
-  onChange,
-  onRemove,
-  onDuplicate,
-  onMoveUp,
-  onMoveDown,
-  isFirst,
-  isLast,
-}: {
-  item: ExerciseItem;
-  index: number;
-  isDragging?: boolean;
-  dragHandleProps?: Record<string, unknown>;
-  onChange: (id: string, field: string, value: string | boolean | null) => void;
-  onRemove: (id: string) => void;
-  onDuplicate: (id: string) => void;
-  onMoveUp: (id: string) => void;
-  onMoveDown: (id: string) => void;
-  isFirst: boolean;
-  isLast: boolean;
-}) {
-  const [showVideoPicker, setShowVideoPicker] = useState(false);
-  const [showVideoPreview, setShowVideoPreview] = useState(false);
-  const [thumbError, setThumbError] = useState(false);
-  const attachedVideo = item.videoId ? VIDEO_LIBRARY.find((v) => v.id === item.videoId) ?? null : null;
-  const hasRealThumb = attachedVideo?.thumbnailUrl && !thumbError;
+type ExerciseRowProps = {
+  id:          string;
+  index:       number;
+  exercise:    PlannedExercise;
+  onChange:    (patch: Partial<PlannedExercise>) => void;
+  onRemove:    () => void;
+  onDuplicate: () => void;
+  onMoveUp:    () => void;
+  onMoveDown:  () => void;
+  isFirst:     boolean;
+  isLast:      boolean;
+};
+
+function ExerciseRow({
+  id, index, exercise, onChange, onRemove, onDuplicate, onMoveUp, onMoveDown, isFirst, isLast,
+}: ExerciseRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={cn(
-        "rounded-2xl border border-white/8 bg-[#111111] overflow-hidden transition-all",
-        isDragging && "opacity-40 scale-[0.99]"
+        "rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5",
+        isDragging && "opacity-40",
       )}
     >
-      {/* Header row */}
-      <div className="flex items-center gap-2 px-4 py-3">
-        {/* Drag handle */}
+      <div className="flex items-center gap-2 mb-2">
         <button
-          {...dragHandleProps}
-          className="cursor-grab active:cursor-grabbing text-white/15 hover:text-white/40 transition-colors touch-none shrink-0"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-white/15 hover:text-white/40 touch-none shrink-0"
         >
           <GripVertical className="w-4 h-4" strokeWidth={1.5} />
         </button>
-
-        {/* Index */}
-        <span className="text-xs text-white/20 tabular-nums w-5 shrink-0">
-          {String(index + 1).padStart(2, "0")}
-        </span>
-
-        {/* Name */}
+        <span className="text-[11px] tabular-nums text-white/30 w-5 shrink-0">{String(index + 1).padStart(2, "0")}</span>
         <input
           type="text"
-          value={item.name}
-          onChange={(e) => onChange(item.id, "name", e.target.value)}
+          value={exercise.name}
+          onChange={(e) => onChange({ name: e.target.value })}
           placeholder="Exercise name"
-          className="flex-1 bg-transparent text-sm font-medium text-white/90 placeholder:text-white/20 outline-none min-w-0"
+          className="flex-1 bg-transparent text-sm font-medium text-white/90 placeholder:text-white/25 outline-none min-w-0"
         />
-
-        {/* Reorder */}
         <div className="flex gap-0.5 shrink-0">
-          <button
-            onClick={() => onMoveUp(item.id)}
-            disabled={isFirst}
-            className="p-1 text-white/15 hover:text-white/45 disabled:opacity-0 transition-colors"
-          >
-            <ChevronUp className="w-3.5 h-3.5" strokeWidth={2} />
-          </button>
-          <button
-            onClick={() => onMoveDown(item.id)}
-            disabled={isLast}
-            className="p-1 text-white/15 hover:text-white/45 disabled:opacity-0 transition-colors"
-          >
-            <ChevronDown className="w-3.5 h-3.5" strokeWidth={2} />
-          </button>
+          <button onClick={onMoveUp}   disabled={isFirst} className="p-1 text-white/15 hover:text-white/45 disabled:opacity-0 transition-colors"><ChevronUp className="w-3.5 h-3.5" strokeWidth={2} /></button>
+          <button onClick={onMoveDown} disabled={isLast}  className="p-1 text-white/15 hover:text-white/45 disabled:opacity-0 transition-colors"><ChevronDown className="w-3.5 h-3.5" strokeWidth={2} /></button>
+          <button onClick={onDuplicate} className="p-1 text-white/15 hover:text-white/45 transition-colors"><Copy className="w-3.5 h-3.5" strokeWidth={1.5} /></button>
+          <button onClick={onRemove}   className="p-1 text-white/15 hover:text-red-400/70 transition-colors"><Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} /></button>
         </div>
-
-        {/* Duplicate */}
-        <button
-          onClick={() => onDuplicate(item.id)}
-          className="p-1 text-white/15 hover:text-white/45 transition-colors shrink-0"
-        >
-          <Copy className="w-3.5 h-3.5" strokeWidth={1.5} />
-        </button>
-
-        {/* Remove */}
-        <button
-          onClick={() => onRemove(item.id)}
-          className="p-1 text-white/15 hover:text-[#F87171]/60 transition-colors shrink-0"
-        >
-          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
-        </button>
-
-        {/* Collapse toggle */}
-        <button
-          onClick={() => onChange(item.id, "collapsed", !item.collapsed)}
-          className="p-1 text-white/20 hover:text-white/50 transition-colors shrink-0"
-        >
-          <ChevronRight
-            className={cn("w-3.5 h-3.5 transition-transform", !item.collapsed && "rotate-90")}
-            strokeWidth={2}
-          />
-        </button>
       </div>
 
-      {/* Expanded body */}
-      {!item.collapsed && (
-        <>
-          <div className="px-4 pb-4 ml-11">
-            {/* Stat inputs */}
-            <div className="flex gap-2 flex-wrap mb-3">
-              {STAT_FIELDS.map(({ key, label, placeholder }) => (
-                <div key={key} className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-[0.12em] text-white/25">
-                    {label}
-                  </label>
-                  <input
-                    type="text"
-                    value={item[key]}
-                    onChange={(e) => onChange(item.id, key, e.target.value)}
-                    placeholder={placeholder}
-                    className="w-16 bg-white/[0.03] border border-white/6 rounded-xl px-2.5 py-1.5 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 focus:bg-[#B48B40]/5 transition-all tabular-nums text-center"
-                  />
-                </div>
-              ))}
-            </div>
+      <div className="grid grid-cols-4 gap-2 ml-8">
+        <InlineField label="Sets" value={String(exercise.sets)} onChange={(v) => onChange({ sets: Math.max(1, parseInt(v) || 0) })} type="number" />
+        <InlineField label="Reps" value={exercise.reps} onChange={(v) => onChange({ reps: v })} placeholder="8-10" />
+        <InlineField label="Load" value={exercise.weight ?? ""} onChange={(v) => onChange({ weight: v })} placeholder="60kg / RPE 8" />
+        <InlineField label="Rest" value={exercise.rest ?? ""} onChange={(v) => onChange({ rest: v })} placeholder="90s" />
+      </div>
 
-            {/* Note */}
-            <textarea
-              value={item.note}
-              onChange={(e) => onChange(item.id, "note", e.target.value)}
-              placeholder="Notes, cues, or reminders..."
-              rows={1}
-              className="w-full bg-transparent text-xs text-white/50 placeholder:text-white/20 resize-none outline-none border-b border-white/6 pb-1.5 focus:border-white/15 transition-colors leading-relaxed"
-            />
-
-            {/* Video attachment */}
-            <div className="mt-3">
-              {attachedVideo ? (
-                <div className="flex items-stretch gap-3 p-2 rounded-xl bg-white/[0.03] border border-white/6">
-                  {/* Thumbnail — click to preview */}
-                  <button
-                    onClick={() => setShowVideoPreview(true)}
-                    className={cn(
-                      "group relative w-24 aspect-video rounded-lg overflow-hidden bg-gradient-to-br shrink-0",
-                      attachedVideo.thumbnailColor,
-                    )}
-                    aria-label={`Preview ${attachedVideo.title}`}
-                  >
-                    {hasRealThumb && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={attachedVideo.thumbnailUrl}
-                        alt={attachedVideo.title}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        onError={() => setThumbError(true)}
-                      />
-                    )}
-                    {!hasRealThumb && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Film className="w-4 h-4 text-white/35" strokeWidth={1.5} />
-                      </div>
-                    )}
-                    {/* Play overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/30 transition-colors">
-                      <div className="w-7 h-7 rounded-full bg-black/55 border border-white/25 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Play className="w-3 h-3 text-white fill-white ml-0.5" />
-                      </div>
-                    </div>
-                    {attachedVideo.source === "youtube" && (
-                      <div className="absolute top-1 left-1">
-                        <YTIcon className="w-3 h-3 text-[#FF4444]" />
-                      </div>
-                    )}
-                    {attachedVideo.duration > 0 && (
-                      <div className="absolute bottom-1 right-1 text-[9px] text-white/75 tabular-nums font-mono bg-black/55 rounded px-1">
-                        {formatDuration(attachedVideo.duration)}
-                      </div>
-                    )}
-                  </button>
-
-                  {/* Info + actions */}
-                  <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                    <p className="text-xs font-medium text-white/70 line-clamp-2 leading-snug">
-                      {attachedVideo.title}
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setShowVideoPicker(true)}
-                        className="text-[10px] text-[#B48B40] hover:text-[#C99B50] transition-colors"
-                      >
-                        Change
-                      </button>
-                      <button
-                        onClick={() => onChange(item.id, "videoId", null)}
-                        className="text-[10px] text-white/30 hover:text-red-400/70 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowVideoPicker(true)}
-                  className="flex items-center gap-2 text-[11px] text-white/25 hover:text-white/50 transition-colors"
-                >
-                  <Film className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  Attach video
-                </button>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Video picker modal */}
-      {showVideoPicker && (
-        <VideoPickerModal
-          currentVideoId={item.videoId}
-          exerciseName={item.name || undefined}
-          onSelect={(video) => onChange(item.id, "videoId", video.id)}
-          onRemove={() => onChange(item.id, "videoId", null)}
-          onClose={() => setShowVideoPicker(false)}
-        />
-      )}
-
-      {/* Video preview modal */}
-      {showVideoPreview && attachedVideo && (
-        <VideoPreviewModal
-          video={attachedVideo}
-          onClose={() => setShowVideoPreview(false)}
-        />
-      )}
+      <input
+        type="text"
+        value={exercise.note ?? ""}
+        onChange={(e) => onChange({ note: e.target.value })}
+        placeholder="Cue, tempo, or substitute…"
+        className="w-full bg-transparent text-xs text-white/55 placeholder:text-white/22 outline-none border-b border-white/[0.05] pb-1.5 mt-2 ml-8 focus:border-white/15 transition-colors"
+        style={{ width: "calc(100% - 2rem)" }}
+      />
     </div>
   );
 }
 
-// ─── SortableWrapper ──────────────────────────────────────────────────────────
-
-function SortableWrapper({
-  id,
-  children,
+function InlineField({
+  label, value, onChange, placeholder, type = "text",
 }: {
-  id: string;
-  children: (args: {
-    dragHandleProps: Record<string, unknown>;
-    isDragging: boolean;
-  }) => React.ReactNode;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="text-[9px] uppercase tracking-[0.12em] text-white/28">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-white/[0.03] border border-white/8 rounded-lg px-2 py-1 text-xs text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums"
+      />
+    </div>
+  );
+}
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+// ─── Day card ────────────────────────────────────────────────────────────────
+
+function DayCard({
+  day, onChange, onRemove, onOpenPicker,
+}: {
+  day:          DayWorkout;
+  onChange:     (patch: Partial<DayWorkout>) => void;
+  onRemove:     () => void;
+  onOpenPicker: () => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 150, tolerance: 5 } }),
+  );
+
+  const exerciseIds = useMemo(
+    () => day.exercises.map((_, i) => `${day.dayOfWeek}-${i}`),
+    [day.exercises, day.dayOfWeek],
+  );
+
+  function patchExercise(idx: number, patch: Partial<PlannedExercise>) {
+    onChange({
+      exercises: day.exercises.map((ex, i) => i === idx ? { ...ex, ...patch } : ex),
+    });
+  }
+
+  function removeExercise(idx: number) {
+    onChange({ exercises: day.exercises.filter((_, i) => i !== idx) });
+  }
+
+  function duplicateExercise(idx: number) {
+    const copy = { ...day.exercises[idx] };
+    const next = [...day.exercises];
+    next.splice(idx + 1, 0, copy);
+    onChange({ exercises: next });
+  }
+
+  function moveExercise(idx: number, dir: -1 | 1) {
+    const target = idx + dir;
+    if (target < 0 || target >= day.exercises.length) return;
+    onChange({ exercises: arrayMove(day.exercises, idx, target) });
+  }
+
+  function addBlank() {
+    onChange({ exercises: [...day.exercises, blankExercise()] });
+  }
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const from = exerciseIds.indexOf(String(active.id));
+    const to   = exerciseIds.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    onChange({ exercises: arrayMove(day.exercises, from, to) });
+  }
 
   return (
-    <div ref={setNodeRef} style={style}>
-      {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging })}
-    </div>
+    <Card>
+      <div className="px-5 py-4 border-b border-white/[0.05]">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40]/80 px-2 py-0.5 rounded-full border border-[#B48B40]/25 bg-[#B48B40]/[0.06]">
+              {DOW_LONG[day.dayOfWeek]}
+            </span>
+            <span className="text-[11px] text-white/40">{day.exercises.length} exercises</span>
+          </div>
+          <button onClick={onRemove} className="text-[11px] text-white/35 hover:text-red-300/80 transition-colors flex items-center gap-1">
+            <Trash2 className="w-3 h-3" strokeWidth={1.7} />
+            Remove day
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2">
+            <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Session name</label>
+            <input
+              type="text"
+              value={day.name}
+              onChange={(e) => onChange({ name: e.target.value })}
+              placeholder="e.g. Push A"
+              className="w-full bg-transparent text-sm font-semibold text-white/95 placeholder:text-white/25 outline-none border-b border-white/8 focus:border-[#B48B40]/40 transition-colors pb-1.5"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Target duration</label>
+            <div className="relative">
+              <input
+                type="number"
+                value={day.estimatedMinutes}
+                onChange={(e) => onChange({ estimatedMinutes: Math.max(10, parseInt(e.target.value) || 60) })}
+                className="w-full bg-white/[0.03] border border-white/8 rounded-lg px-2.5 py-1.5 text-sm text-white/85 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums pr-10"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">min</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3">
+          <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Focus / muscle groups</label>
+          <input
+            type="text"
+            value={day.focus}
+            onChange={(e) => onChange({ focus: e.target.value })}
+            placeholder="e.g. Chest, shoulders, triceps"
+            className="w-full bg-transparent text-xs text-white/75 placeholder:text-white/22 outline-none border-b border-white/[0.05] focus:border-white/15 transition-colors pb-1"
+          />
+        </div>
+      </div>
+
+      <div className="px-5 py-4">
+        {day.exercises.length === 0 ? (
+          <div className="py-6 text-center text-white/30 text-xs">No exercises yet.</div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext items={exerciseIds} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {day.exercises.map((ex, idx) => (
+                  <ExerciseRow
+                    key={`${day.dayOfWeek}-${idx}`}
+                    id={`${day.dayOfWeek}-${idx}`}
+                    index={idx}
+                    exercise={ex}
+                    onChange={(patch) => patchExercise(idx, patch)}
+                    onRemove={() => removeExercise(idx)}
+                    onDuplicate={() => duplicateExercise(idx)}
+                    onMoveUp={() => moveExercise(idx, -1)}
+                    onMoveDown={() => moveExercise(idx, 1)}
+                    isFirst={idx === 0}
+                    isLast={idx === day.exercises.length - 1}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={onOpenPicker}
+            className="flex-1 rounded-xl border border-dashed border-white/15 py-2.5 flex items-center justify-center gap-2 text-xs text-white/55 hover:text-white/85 hover:border-[#B48B40]/40 transition-all"
+          >
+            <Library className="w-3.5 h-3.5" strokeWidth={1.7} />
+            Pick from library
+          </button>
+          <button
+            onClick={addBlank}
+            className="rounded-xl border border-dashed border-white/10 px-4 py-2.5 text-xs text-white/40 hover:text-white/70 hover:border-white/20 transition-all"
+          >
+            <Plus className="w-3.5 h-3.5 inline mr-1" strokeWidth={1.7} />
+            Custom
+          </button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-const DEFAULT_ITEMS: WorkoutItem[] = [
-  newSection("Warm-up"),
-  newExercise({ name: "Lat Pulldown", sets: "4", reps: "10", weight: "60kg", rest: "90s" }),
-  newSection("Main lifts"),
-  newExercise({ name: "Seated Row", sets: "3", reps: "12", weight: "50kg", rest: "90s" }),
-  newExercise({ name: "Face Pull", sets: "3", reps: "15", rest: "60s" }),
-];
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-export default function WorkoutBuilderPage() {
+export default function ProgramBuilderPage() {
   const router = useRouter();
   const { user } = useUser();
 
-  const [workoutName, setWorkoutName] = useState("");
-  const [goal, setGoal] = useState<Goal>("hypertrophy");
-  const [duration, setDuration] = useState("");
-  const [items, setItems] = useState<WorkoutItem[]>(DEFAULT_ITEMS);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
+  // ── Program meta ──
+  const [name,             setName]             = useState("");
+  const [goal,             setGoal]             = useState<Goal>("hypertrophy");
+  const [weeks,            setWeeks]            = useState(4);
+  const [sessionMin,       setSessionMin]       = useState(60);
+  const [coachingNotes,    setCoachingNotes]    = useState("");
+  const [bodyFocus,        setBodyFocus]        = useState<string[]>([]);
+  const [equipment,        setEquipment]        = useState<string[]>(["Full gym"]);
+  const [progressionType,  setProgressionType]  = useState<ProgressionType>("linear");
+  const [progressionNotes, setProgressionNotes] = useState("");
 
-  // Persistence state
-  const [saveState,  setSaveState]  = useState<SaveState>("idle");
-  const [saveError,  setSaveError]  = useState<string | null>(null);
-  const [setActive,  setSetActive]  = useState(true);
-  const [assignOpen, setAssignOpen] = useState(false);
-  const [assignBusy, setAssignBusy] = useState(false);
+  // ── Program structure ──
+  const [baseWeek, setBaseWeek] = useState<WeekTemplate>({
+    intent: "",
+    days:   [],
+  });
+  const [weekOverrides, setWeekOverrides] = useState<Record<number, WeekTemplate>>({});
 
-  const isAdmin     = user?.role === "master" || !!user?.isAdmin;
-  const canPersist  = !!user?.id && UUID_RE.test(user.id);
+  // ── UI state ──
+  const [editingWeek, setEditingWeek]  = useState(1);
+  const [pickerOpen,  setPickerOpen]   = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<number | null>(null);   // day index in the current editing week
+  const [saveState,   setSaveState]    = useState<SaveState>("idle");
+  const [saveError,   setSaveError]    = useState<string | null>(null);
+  const [setActive,   setSetActive]    = useState(true);
+  const [assignOpen,  setAssignOpen]   = useState(false);
+  const [assignBusy,  setAssignBusy]   = useState(false);
 
-  const buildPayload = useCallback((): BuilderWorkoutPayload => {
-    const sections: BuilderWorkoutPayload["sections"] = [];
-    const exercises: BuilderWorkoutPayload["exercises"] = [];
-    items.forEach((it, idx) => {
-      if (it.type === "section") {
-        sections.push({ position: idx, label: it.label });
-      } else {
-        exercises.push({
-          name:    it.name,
-          sets:    parseInt(it.sets) || 0,
-          reps:    it.reps,
-          weight:  it.weight,
-          rest:    it.rest,
-          note:    it.note || undefined,
-          videoId: it.videoId ?? null,
-        });
-      }
-    });
-    return {
-      workoutName: workoutName.trim(),
-      goal,
-      duration:    duration ? parseInt(duration) : null,
-      exercises,
-      sections,
-    };
-  }, [items, workoutName, goal, duration]);
+  const isAdmin    = user?.role === "master" || !!user?.isAdmin;
+  const canPersist = !!user?.id && UUID_RE.test(user.id);
 
+  // ── Computed: the week currently shown ──
+  // For week 1, edits go to baseWeek.
+  // For weeks 2+, edits go to weekOverrides[week] (created on first edit).
+  const currentWeek: WeekTemplate = useMemo(() => {
+    if (editingWeek === 1) return baseWeek;
+    return weekOverrides[editingWeek] ?? baseWeek;
+  }, [editingWeek, baseWeek, weekOverrides]);
+
+  const isOverride = editingWeek > 1 && !!weekOverrides[editingWeek];
+
+  function markDirty() {
+    setSaveState((prev) => (prev === "saved" || prev === "error" ? "idle" : prev));
+    setSaveError(null);
+  }
+
+  function updateCurrentWeek(updater: (w: WeekTemplate) => WeekTemplate) {
+    markDirty();
+    if (editingWeek === 1) {
+      setBaseWeek(updater);
+    } else {
+      // Lazily create the override from baseWeek snapshot
+      const existing = weekOverrides[editingWeek] ?? { ...baseWeek, days: baseWeek.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })) };
+      setWeekOverrides({ ...weekOverrides, [editingWeek]: updater(existing) });
+    }
+  }
+
+  function revertOverride() {
+    if (editingWeek === 1) return;
+    const next = { ...weekOverrides };
+    delete next[editingWeek];
+    setWeekOverrides(next);
+    markDirty();
+  }
+
+  function patchDay(dayIdx: number, patch: Partial<DayWorkout>) {
+    updateCurrentWeek((w) => ({
+      ...w,
+      days: w.days.map((d, i) => i === dayIdx ? { ...d, ...patch } : d),
+    }));
+  }
+
+  function removeDay(dayIdx: number) {
+    updateCurrentWeek((w) => ({ ...w, days: w.days.filter((_, i) => i !== dayIdx) }));
+  }
+
+  function addDay(dow: number) {
+    if (currentWeek.days.some((d) => d.dayOfWeek === dow)) return;
+    updateCurrentWeek((w) => ({
+      ...w,
+      days: [...w.days, newDay(dow)].sort((a, b) => a.dayOfWeek - b.dayOfWeek),
+    }));
+  }
+
+  function patchWeek(patch: Partial<WeekTemplate>) {
+    updateCurrentWeek((w) => ({ ...w, ...patch }));
+  }
+
+  function onPickerSelect(ex: Exercise) {
+    if (pickerTarget === null) return;
+    const exercise = exerciseFromLibrary(ex);
+    updateCurrentWeek((w) => ({
+      ...w,
+      days: w.days.map((d, i) => i === pickerTarget
+        ? { ...d, exercises: [...d.exercises, exercise] }
+        : d),
+    }));
+  }
+
+  // ── Build payload ──
   const validation = useMemo(() => {
-    if (!workoutName.trim()) return "Add a workout name.";
-    const exs = items.filter((i) => i.type === "exercise") as ExerciseItem[];
-    if (exs.length === 0) return "Add at least one exercise.";
-    const blank = exs.find((e) => !e.name.trim());
-    if (blank) return "Every exercise needs a name.";
+    if (!name.trim()) return "Add a program name.";
+    if (weeks < 1 || weeks > 12) return "Phase must be 1–12 weeks.";
+    if (baseWeek.days.length === 0) return "Add at least one training day to Week 1.";
+    for (const d of baseWeek.days) {
+      if (d.exercises.length === 0) return `Week 1 ${DOW_LONG[d.dayOfWeek]} has no exercises.`;
+      if (d.exercises.some((e) => !e.name.trim())) return `Every exercise needs a name (${DOW_LONG[d.dayOfWeek]}).`;
+    }
     return null;
-  }, [workoutName, items]);
+  }, [name, weeks, baseWeek]);
+
+  const buildPayload = useCallback((): BuilderProgramPayload => {
+    const split: ProgramSplitV2 = {
+      version: 2,
+      phase: {
+        name: name || "Custom phase",
+        weeks,
+        progression: progressionType === "manual"
+          ? { type: "manual", notes: progressionNotes.trim() || undefined }
+          : { type: progressionType, notes: progressionNotes.trim() || undefined },
+      },
+      baseWeek,
+      weekOverrides,
+    };
+
+    return {
+      name:           name.trim() || "Custom program",
+      goal,
+      weeks,
+      daysPerWeek:    baseWeek.days.length,
+      sessionMinutes: sessionMin,
+      bodyFocus,
+      equipment,
+      coachingNotes:  coachingNotes.trim() || null,
+      split,
+    };
+  }, [name, goal, weeks, sessionMin, bodyFocus, equipment, coachingNotes, progressionType, progressionNotes, baseWeek, weekOverrides]);
 
   async function handleSave() {
     if (validation) { setSaveError(validation); setSaveState("error"); return; }
-    if (!user?.id) { setSaveError("Sign in to save."); setSaveState("error"); return; }
+    if (!user?.id)  { setSaveError("Sign in to save."); setSaveState("error"); return; }
 
     setSaveState("saving");
     setSaveError(null);
 
     if (!canPersist) {
-      // Demo account — pretend-save with a hint instead of failing silently
       setTimeout(() => {
         setSaveState("saved");
-        setSaveError("Demo account — workouts persist only for real signed-in users.");
+        setSaveError("Demo account — programs persist only for real signed-in users.");
       }, 250);
       return;
     }
@@ -554,10 +514,7 @@ export default function WorkoutBuilderPage() {
       const program = await saveBuilderWorkoutForSelf(user.id, buildPayload(), setActive);
       if (!program) throw new Error("Save returned no row");
       setSaveState("saved");
-      if (setActive) {
-        // Navigate to the program page after a brief moment so the user sees it
-        setTimeout(() => router.push("/program"), 600);
-      }
+      if (setActive) setTimeout(() => router.push("/program"), 600);
     } catch (e) {
       console.error("[builder] save failed", e);
       setSaveError(e instanceof Error ? e.message : "Save failed");
@@ -575,17 +532,13 @@ export default function WorkoutBuilderPage() {
       const res = await fetch("/api/admin/assign-workout", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          targetUserId: target.id,
-          payload:      buildPayload(),
-          activate,
-        }),
+        body:    JSON.stringify({ targetUserId: target.id, payload: buildPayload(), activate }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? `Send failed (${res.status})`);
       setAssignOpen(false);
       setSaveState("saved");
-      setSaveError(`Sent to ${target.email}${activate ? " and set as active." : " as a template."}`);
+      setSaveError(`Sent to ${target.email}${activate ? " — set as their active program." : " — saved as a template."}`);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Send failed");
       setSaveState("error");
@@ -594,339 +547,435 @@ export default function WorkoutBuilderPage() {
     }
   }
 
-  function markDirty() {
-    setSaveState((prev) => (prev === "saved" || prev === "error" ? "idle" : prev));
-    setSaveError(null);
-  }
+  // Auto-default day-of-week picker visibility based on whether we have days yet
+  const [showDowPicker, setShowDowPicker] = useState(true);
+  useEffect(() => {
+    if (currentWeek.days.length > 0) setShowDowPicker(false);
+  }, [currentWeek.days.length]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
-  );
-
-  const activeItem = activeId ? items.find((i) => i.id === activeId) ?? null : null;
-
-  function handleDragStart(e: DragStartEvent) {
-    setActiveId(String(e.active.id));
-  }
-
-  function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e;
-    setActiveId(null);
-    if (!over || active.id === over.id) return;
-    setItems((prev) => {
-      const from = prev.findIndex((i) => i.id === active.id);
-      const to   = prev.findIndex((i) => i.id === over.id);
-      return arrayMove(prev, from, to);
-    });
-    markDirty();
-  }
-
-  const updateItem = useCallback(
-    (id: string, field: string, value: string | boolean | null) => {
-      setItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
-      );
-      markDirty();
-    },
-    []
-  );
-
-  function moveItem(id: string, dir: -1 | 1) {
-    setItems((prev) => {
-      const i = prev.findIndex((item) => item.id === id);
-      const target = i + dir;
-      if (target < 0 || target >= prev.length) return prev;
-      return arrayMove(prev, i, target);
-    });
-    markDirty();
-  }
-
-  function removeItem(id: string) {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-    markDirty();
-  }
-
-  function duplicateExercise(id: string) {
-    setItems((prev) => {
-      const i = prev.findIndex((item) => item.id === id);
-      const original = prev[i] as ExerciseItem;
-      const copy: ExerciseItem = { ...original, id: uid(), name: `${original.name} (copy)` };
-      const next = [...prev];
-      next.splice(i + 1, 0, copy);
-      return next;
-    });
-    markDirty();
-  }
-
-  function addExercise() {
-    setItems((prev) => [...prev, newExercise()]);
-    markDirty();
-  }
-
-  function addSection(label: string) {
-    setItems((prev) => [...prev, newSection(label)]);
-    setSectionMenuOpen(false);
-    markDirty();
-  }
-
-  // Exercise-only index for display numbering
-  const exerciseNumbers: Record<string, number> = {};
-  let exCount = 0;
-  items.forEach((item) => {
-    if (item.type === "exercise") exerciseNumbers[item.id] = exCount++;
-  });
-
+  // ── Render ──
   return (
-    <div className="px-5 md:px-8 py-6 text-white max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <p className="text-xs uppercase tracking-[0.22em] text-white/30 mb-3">
-          Program · Builder
-        </p>
-        <h1 className="text-4xl font-semibold tracking-tight">New workout</h1>
-      </div>
+    <div className="min-h-screen bg-[#0A0A0A] text-white pb-32">
+      <div className="px-5 md:px-8 pt-6 max-w-4xl mx-auto">
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/80 transition-colors mb-4"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2} />
+          Back
+        </button>
 
-      {/* Meta card */}
-      <div className="rounded-2xl border border-white/8 bg-[#111111] px-6 py-5 mb-4 space-y-6">
-        {/* Name */}
-        <div>
-          <label className="text-[10px] uppercase tracking-[0.18em] text-white/25 block mb-2">
-            Workout name
-          </label>
-          <input
-            type="text"
-            value={workoutName}
-            onChange={(e) => { setWorkoutName(e.target.value); markDirty(); }}
-            placeholder="e.g. Upper Body Pull"
-            className="w-full bg-transparent text-lg font-medium text-white/90 placeholder:text-white/20 outline-none border-b border-white/8 focus:border-[#B48B40]/40 transition-colors pb-2"
-          />
+        {/* Header */}
+        <div className="mb-6">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-2">Program · Builder</p>
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">New program</h1>
+          <p className="text-xs text-white/40 mt-2 max-w-xl leading-relaxed">
+            Build a full multi-week phase. Edit Week 1 first — it&apos;s the base pattern. Weeks 2+ inherit by default; override any week to introduce progressive overload, deloads, or peak weeks.
+          </p>
         </div>
 
-        {/* Goal */}
-        <div>
-          <label className="text-[10px] uppercase tracking-[0.18em] text-white/25 block mb-3">
-            Goal
-          </label>
-          <div className="flex gap-2 flex-wrap">
-            {GOAL_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => { setGoal(opt.value); markDirty(); }}
-                className={cn(
-                  "rounded-xl border px-4 py-2.5 text-left transition-all",
-                  goal === opt.value
-                    ? "border-[#B48B40]/40 bg-[#B48B40]/8"
-                    : "border-white/8 bg-white/[0.02] hover:border-white/15"
-                )}
-              >
-                <p className={cn(
-                  "text-sm font-medium",
-                  goal === opt.value ? "text-[#B48B40]" : "text-white/65"
-                )}>
-                  {opt.label}
-                </p>
-                <p className="text-xs text-white/25 mt-0.5">{opt.sub}</p>
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* ── Phase metadata card ── */}
+        <Card className="mb-4">
+          <div className="px-5 py-5 space-y-5">
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Program name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => { setName(e.target.value); markDirty(); }}
+                placeholder="e.g. Hypertrophy Phase 1"
+                className="w-full bg-transparent text-lg font-medium text-white/95 placeholder:text-white/25 outline-none border-b border-white/8 focus:border-[#B48B40]/40 transition-colors pb-2"
+              />
+            </div>
 
-        {/* Duration */}
-        <div className="w-32">
-          <label className="text-[10px] uppercase tracking-[0.18em] text-white/25 block mb-2">
-            Duration
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              min="1"
-              value={duration}
-              onChange={(e) => { setDuration(e.target.value); markDirty(); }}
-              placeholder="45"
-              className="w-full bg-white/[0.03] border border-white/6 rounded-xl px-3 py-2 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 focus:bg-[#B48B40]/5 transition-all tabular-nums"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/25 pointer-events-none">
-              min
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Drag-and-drop list */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2 mb-4">
-            {items.map((item, index) => (
-              <SortableWrapper key={item.id} id={item.id}>
-                {({ dragHandleProps, isDragging }) =>
-                  item.type === "section" ? (
-                    <SectionCard
-                      item={item}
-                      isDragging={isDragging}
-                      dragHandleProps={dragHandleProps}
-                      onChange={(id, _field, value) => updateItem(id, "label", value)}
-                      onRemove={removeItem}
-                      onMoveUp={(id) => moveItem(id, -1)}
-                      onMoveDown={(id) => moveItem(id, 1)}
-                      isFirst={index === 0}
-                      isLast={index === items.length - 1}
-                    />
-                  ) : (
-                    <ExerciseCard
-                      item={item}
-                      index={exerciseNumbers[item.id]}
-                      isDragging={isDragging}
-                      dragHandleProps={dragHandleProps}
-                      onChange={updateItem}
-                      onRemove={removeItem}
-                      onDuplicate={duplicateExercise}
-                      onMoveUp={(id) => moveItem(id, -1)}
-                      onMoveDown={(id) => moveItem(id, 1)}
-                      isFirst={index === 0}
-                      isLast={index === items.length - 1}
-                    />
-                  )
-                }
-              </SortableWrapper>
-            ))}
-          </div>
-        </SortableContext>
-
-        {/* Drag overlay — ghost card while dragging */}
-        <DragOverlay dropAnimation={{ duration: 150, easing: "ease" }}>
-          {activeItem ? (
-            activeItem.type === "section" ? (
-              <div className="flex items-center gap-2 px-1 py-1 opacity-90">
-                <GripVertical className="w-4 h-4 text-[#B48B40]/50" strokeWidth={1.5} />
-                <Layers className="w-3 h-3 text-[#B48B40]/50 shrink-0" strokeWidth={1.5} />
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
-                  {activeItem.label}
-                </span>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-[#B48B40]/20 bg-[#161616] px-4 py-3 shadow-2xl">
-                <div className="flex items-center gap-2">
-                  <GripVertical className="w-4 h-4 text-[#B48B40]/50" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-white/70">
-                    {(activeItem as ExerciseItem).name || "Exercise"}
-                  </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Goal</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {GOAL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setGoal(opt.value); markDirty(); }}
+                      className={cn(
+                        "rounded-xl border px-3 py-2 text-left transition-all",
+                        goal === opt.value
+                          ? "border-[#B48B40]/40 bg-[#B48B40]/[0.06]"
+                          : "border-white/8 bg-white/[0.02] hover:border-white/15",
+                      )}
+                    >
+                      <p className={cn("text-sm font-medium", goal === opt.value ? "text-[#B48B40]" : "text-white/75")}>{opt.label}</p>
+                      <p className="text-[10px] text-white/35 mt-0.5">{opt.sub}</p>
+                    </button>
+                  ))}
                 </div>
               </div>
-            )
-          ) : null}
-        </DragOverlay>
-      </DndContext>
 
-      {/* Add row */}
-      <div className="flex gap-2 mb-8">
-        <button
-          onClick={addExercise}
-          className="flex-1 rounded-2xl border border-dashed border-white/10 py-3 flex items-center justify-center gap-2 text-sm text-white/30 hover:text-white/55 hover:border-white/20 transition-all"
-        >
-          <Plus className="w-4 h-4" strokeWidth={1.5} />
-          Add exercise
-        </button>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Phase length</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={weeks}
+                      onChange={(e) => { setWeeks(Math.max(1, Math.min(12, parseInt(e.target.value) || 4))); markDirty(); }}
+                      className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2 text-sm text-white/85 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums pr-12"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">weeks</span>
+                  </div>
+                  <p className="text-[10px] text-white/30 mt-1">Typically 3–6 per phase</p>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Session target</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={20}
+                      value={sessionMin}
+                      onChange={(e) => { setSessionMin(Math.max(20, parseInt(e.target.value) || 60)); markDirty(); }}
+                      className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2 text-sm text-white/85 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums pr-10"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">min</span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        <div className="relative">
-          <button
-            onClick={() => setSectionMenuOpen((v) => !v)}
-            className="h-full rounded-2xl border border-dashed border-white/10 px-4 flex items-center gap-2 text-sm text-white/30 hover:text-white/55 hover:border-white/20 transition-all"
-          >
-            <Layers className="w-4 h-4" strokeWidth={1.5} />
-            Section
-          </button>
+            <details className="group">
+              <summary className="cursor-pointer text-[10px] uppercase tracking-[0.18em] text-white/35 hover:text-white/65 transition-colors flex items-center gap-2 select-none">
+                <Settings2 className="w-3 h-3" strokeWidth={2} />
+                Equipment, focus &amp; notes
+                <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" strokeWidth={2} />
+              </summary>
+              <div className="mt-3 space-y-4 pl-5 border-l border-white/[0.05]">
+                <ChipMultiselect
+                  label="Equipment available"
+                  value={equipment}
+                  options={EQUIPMENT_OPTIONS}
+                  onChange={(v) => { setEquipment(v); markDirty(); }}
+                />
+                <ChipMultiselect
+                  label="Body focus"
+                  value={bodyFocus}
+                  options={BODY_FOCUS_OPTIONS}
+                  onChange={(v) => { setBodyFocus(v); markDirty(); }}
+                />
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Coaching notes</label>
+                  <textarea
+                    value={coachingNotes}
+                    onChange={(e) => { setCoachingNotes(e.target.value); markDirty(); }}
+                    placeholder="What this phase is for, cues to remember, deload rules…"
+                    rows={2}
+                    className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2 text-xs text-white/80 placeholder:text-white/25 outline-none focus:border-[#B48B40]/40 transition-colors resize-none leading-relaxed"
+                  />
+                </div>
+              </div>
+            </details>
+          </div>
+        </Card>
 
-          {sectionMenuOpen && (
-            <div className="absolute bottom-full mb-2 right-0 rounded-xl border border-white/10 bg-[#161616] overflow-hidden shadow-2xl min-w-[160px] z-10">
-              {SECTION_PRESETS.map((label) => (
+        {/* ── Progression rule ── */}
+        <Card className="mb-4">
+          <div className="px-5 py-4 space-y-3">
+            <SectionHeader className="mb-1">Progression strategy</SectionHeader>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {PROGRESSION_OPTIONS.map((opt) => (
                 <button
-                  key={label}
-                  onClick={() => addSection(label)}
-                  className="w-full text-left px-4 py-2.5 text-sm text-white/55 hover:text-white/85 hover:bg-white/[0.04] transition-colors"
+                  key={opt.value}
+                  onClick={() => { setProgressionType(opt.value); markDirty(); }}
+                  className={cn(
+                    "rounded-xl border px-3 py-2.5 text-left transition-all",
+                    progressionType === opt.value
+                      ? "border-[#B48B40]/40 bg-[#B48B40]/[0.06]"
+                      : "border-white/8 bg-white/[0.02] hover:border-white/15",
+                  )}
                 >
-                  {label}
+                  <p className={cn("text-xs font-semibold", progressionType === opt.value ? "text-[#B48B40]" : "text-white/80")}>{opt.label}</p>
+                  <p className="text-[10px] text-white/35 mt-0.5">{opt.sub}</p>
                 </button>
               ))}
-              <div className="h-px bg-white/6" />
-              <button
-                onClick={() => addSection("Custom")}
-                className="w-full text-left px-4 py-2.5 text-sm text-white/35 hover:text-white/65 hover:bg-white/[0.04] transition-colors"
-              >
-                Custom…
-              </button>
             </div>
-          )}
+            <input
+              type="text"
+              value={progressionNotes}
+              onChange={(e) => { setProgressionNotes(e.target.value); markDirty(); }}
+              placeholder={progressionType === "manual" ? "Optional notes" : "e.g. +2.5kg main lifts each week"}
+              className="w-full bg-transparent text-xs text-white/65 placeholder:text-white/25 outline-none border-b border-white/[0.05] focus:border-white/15 transition-colors pb-1"
+            />
+          </div>
+        </Card>
+
+        {/* ── Week tabs ── */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-3">
+          <span className="text-[10px] uppercase tracking-[0.22em] text-white/30 shrink-0 mr-1">Edit week</span>
+          {Array.from({ length: weeks }, (_, i) => i + 1).map((w) => {
+            const isActive   = w === editingWeek;
+            const hasOverride = w > 1 && !!weekOverrides[w];
+            return (
+              <button
+                key={w}
+                onClick={() => setEditingWeek(w)}
+                className={cn(
+                  "shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5 border",
+                  isActive
+                    ? "bg-[#B48B40] text-black border-[#B48B40]"
+                    : "bg-white/[0.03] text-white/70 border-white/8 hover:border-white/15 hover:bg-white/[0.05]",
+                )}
+              >
+                W{w}
+                {hasOverride && (
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full",
+                    isActive ? "bg-black/40" : "bg-[#B48B40]",
+                  )} />
+                )}
+              </button>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Set-as-active toggle */}
-      <label className="flex items-center gap-2.5 cursor-pointer select-none mb-3 px-1">
-        <input
-          type="checkbox"
-          checked={setActive}
-          onChange={(e) => { setSetActive(e.target.checked); markDirty(); }}
-          className="w-4 h-4 rounded border-white/15 bg-white/[0.04] accent-[#B48B40]"
-        />
-        <span className="text-xs text-white/65">Set as my active program after saving</span>
-      </label>
+        {/* ── Week brief / override status ── */}
+        <Card className="mb-4">
+          <div className="px-5 py-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.25em] text-white/35 mb-0.5">
+                  Week {editingWeek} of {weeks}
+                </p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-white/90">
+                    {editingWeek === 1 ? "Base pattern" : isOverride ? "Customized week" : "Inheriting base pattern"}
+                  </h3>
+                  {isOverride && (
+                    <button
+                      onClick={revertOverride}
+                      className="text-[10px] text-white/40 hover:text-red-300/80 transition-colors flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" strokeWidth={1.7} /> Revert
+                    </button>
+                  )}
+                </div>
+              </div>
+              <TrendingUp className="w-4 h-4 text-[#B48B40]/60" strokeWidth={1.8} />
+            </div>
 
-      {/* Footer actions */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {isAdmin && (
-          <button
-            onClick={() => { setSaveError(null); setAssignOpen(true); }}
-            disabled={saveState === "saving" || assignBusy}
-            className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-white/55 hover:text-white/80 hover:border-white/15 transition-all disabled:opacity-40"
-          >
-            <Users className="w-4 h-4" strokeWidth={1.7} />
-            Send to user
-          </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Week intent</label>
+                <input
+                  type="text"
+                  value={currentWeek.intent ?? ""}
+                  onChange={(e) => patchWeek({ intent: e.target.value })}
+                  placeholder="e.g. Volume accumulation, deload, peaking"
+                  className="w-full bg-transparent text-sm text-white/80 placeholder:text-white/25 outline-none border-b border-white/[0.06] focus:border-[#B48B40]/40 transition-colors pb-1.5"
+                />
+              </div>
+              <div>
+                <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Progression this week</label>
+                <input
+                  type="text"
+                  value={currentWeek.progressionThisWeek ?? ""}
+                  onChange={(e) => patchWeek({ progressionThisWeek: e.target.value })}
+                  placeholder={editingWeek === 1 ? "Starting load reference" : "What's different vs last week"}
+                  className="w-full bg-transparent text-sm text-white/80 placeholder:text-white/25 outline-none border-b border-white/[0.06] focus:border-[#B48B40]/40 transition-colors pb-1.5"
+                />
+              </div>
+            </div>
+
+            {editingWeek > 1 && !isOverride && (
+              <p className="text-[11px] text-white/40 italic">
+                Tip: any edit to this week creates a per-week override that supersedes the base pattern.
+              </p>
+            )}
+          </div>
+        </Card>
+
+        {/* ── Day-of-week picker ── */}
+        {(showDowPicker || currentWeek.days.length < 7) && (
+          <Card className="mb-4">
+            <div className="px-5 py-4">
+              <SectionHeader className="mb-2">
+                <span className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-white/40" strokeWidth={1.8} />
+                  Training days
+                </span>
+              </SectionHeader>
+              <div className="grid grid-cols-7 gap-1.5">
+                {DOW_SHORT.map((short, i) => {
+                  const used = currentWeek.days.some((d) => d.dayOfWeek === i);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        if (used) {
+                          const idx = currentWeek.days.findIndex((d) => d.dayOfWeek === i);
+                          if (idx >= 0) removeDay(idx);
+                        } else {
+                          addDay(i);
+                        }
+                      }}
+                      className={cn(
+                        "rounded-xl px-2 py-2 text-xs font-semibold border transition-all",
+                        used
+                          ? "border-[#B48B40]/40 bg-[#B48B40]/[0.08] text-[#B48B40]"
+                          : "border-white/8 bg-white/[0.02] text-white/55 hover:border-white/20 hover:text-white/85",
+                      )}
+                    >
+                      {short}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-white/30 mt-2">
+                {currentWeek.days.length} training day{currentWeek.days.length === 1 ? "" : "s"} selected
+                {editingWeek > 1 && " (this week)"}
+              </p>
+            </div>
+          </Card>
         )}
 
-        <button
-          onClick={() => void handleSave()}
-          disabled={saveState === "saving"}
-          className={cn(
-            "ml-auto rounded-2xl px-6 py-3 text-sm font-semibold transition-all flex items-center gap-2",
-            saveState === "saving"
-              ? "bg-white/5 text-white/45 cursor-wait"
-              : saveState === "saved"
-                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
-                : "bg-[#B48B40] text-black hover:bg-[#c99840]",
+        {/* ── Day cards ── */}
+        <div className="space-y-3">
+          {currentWeek.days.map((day, idx) => (
+            <DayCard
+              key={`${day.dayOfWeek}-${idx}`}
+              day={day}
+              onChange={(patch) => patchDay(idx, patch)}
+              onRemove={() => removeDay(idx)}
+              onOpenPicker={() => { setPickerTarget(idx); setPickerOpen(true); }}
+            />
+          ))}
+        </div>
+
+        {currentWeek.days.length === 0 && (
+          <Card>
+            <div className="px-6 py-12 flex flex-col items-center gap-3 text-center text-white/35">
+              <Layers className="w-7 h-7 text-white/15" strokeWidth={1.5} />
+              <p className="text-sm">Pick training days above to start adding sessions.</p>
+            </div>
+          </Card>
+        )}
+
+        {/* ── Footer ── */}
+        <div className="mt-8 space-y-3">
+          <label className="flex items-center gap-2.5 cursor-pointer select-none px-1">
+            <input
+              type="checkbox"
+              checked={setActive}
+              onChange={(e) => { setSetActive(e.target.checked); markDirty(); }}
+              className="w-4 h-4 rounded border-white/15 bg-white/[0.04] accent-[#B48B40]"
+            />
+            <span className="text-xs text-white/65">Set as my active program after saving</span>
+          </label>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {isAdmin && (
+              <button
+                onClick={() => { setSaveError(null); setAssignOpen(true); }}
+                disabled={saveState === "saving" || assignBusy}
+                className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-white/65 hover:text-white/90 hover:border-white/15 transition-all disabled:opacity-40"
+              >
+                <Users className="w-4 h-4" strokeWidth={1.7} />
+                Send to user
+              </button>
+            )}
+
+            <Link
+              href="/program/generate"
+              className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-white/55 hover:text-[#B48B40] hover:border-[#B48B40]/30 transition-all"
+            >
+              <Sparkles className="w-4 h-4" strokeWidth={1.7} />
+              Generate with AI
+            </Link>
+
+            <button
+              onClick={() => void handleSave()}
+              disabled={saveState === "saving"}
+              className={cn(
+                "ml-auto rounded-2xl px-6 py-3 text-sm font-semibold transition-all flex items-center gap-2",
+                saveState === "saving"
+                  ? "bg-white/5 text-white/45 cursor-wait"
+                  : saveState === "saved"
+                    ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
+                    : "bg-[#B48B40] text-black hover:bg-[#c99840]",
+              )}
+            >
+              {saveState === "saving" && <Loader2 className="w-4 h-4 animate-spin" />}
+              {saveState === "saved"  && <CheckCircle2 className="w-4 h-4" strokeWidth={2} />}
+              {saveState === "saving" ? "Saving…"
+                : saveState === "saved" ? "Saved"
+                : setActive ? "Save & activate" : "Save as template"}
+            </button>
+          </div>
+
+          {saveError && saveState === "error" && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2.5">
+              <AlertCircle className="w-4 h-4 text-red-400/80 shrink-0 mt-0.5" strokeWidth={2} />
+              <p className="text-xs text-red-300/85 leading-relaxed">{saveError}</p>
+            </div>
           )}
-        >
-          {saveState === "saving" && <Loader2 className="w-4 h-4 animate-spin" />}
-          {saveState === "saved"  && <CheckCircle2 className="w-4 h-4" strokeWidth={2} />}
-          {saveState === "saving" ? "Saving…"
-            : saveState === "saved" ? "Saved"
-            : setActive ? "Save & activate"
-            : "Save as template"}
-        </button>
+          {saveError && saveState === "saved" && (
+            <p className="text-xs text-emerald-400/80 text-right">{saveError}</p>
+          )}
+        </div>
       </div>
 
-      {/* Status messages */}
-      {saveError && saveState === "error" && (
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2.5">
-          <AlertCircle className="w-4 h-4 text-red-400/80 shrink-0 mt-0.5" strokeWidth={2} />
-          <p className="text-xs text-red-300/85 leading-relaxed">{saveError}</p>
-        </div>
-      )}
-      {saveError && saveState === "saved" && (
-        <p className="text-xs text-emerald-400/75 text-right mt-2">{saveError}</p>
-      )}
+      {/* ── Exercise picker drawer ── */}
+      <ExercisePickerDrawer
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={onPickerSelect}
+      />
 
+      {/* ── Assign-to-user modal ── */}
       <AssignClientModal
         open={assignOpen}
         onClose={() => !assignBusy && setAssignOpen(false)}
         onConfirm={(target, activate) => handleAssignToClient(target, activate)}
         busy={assignBusy}
       />
+    </div>
+  );
+}
+
+// ─── Chip multiselect ────────────────────────────────────────────────────────
+
+function ChipMultiselect({
+  label, value, options, onChange,
+}: {
+  label:   string;
+  value:   string[];
+  options: string[];
+  onChange: (v: string[]) => void;
+}) {
+  function toggle(opt: string) {
+    onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
+  }
+  return (
+    <div>
+      <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">{label}</label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((opt) => {
+          const active = value.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggle(opt)}
+              className={cn(
+                "rounded-full px-3 py-1 text-[11px] border transition-all",
+                active
+                  ? "border-[#B48B40]/40 bg-[#B48B40]/[0.08] text-[#B48B40]"
+                  : "border-white/10 bg-white/[0.02] text-white/55 hover:border-white/20 hover:text-white/80",
+              )}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

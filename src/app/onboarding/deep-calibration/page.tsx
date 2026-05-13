@@ -14,6 +14,22 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { saveOnboardingState, loadOnboardingState } from "@/lib/onboarding";
+import { saveBuilderWorkoutForSelf, type BuilderProgramPayload } from "@/lib/db/programs";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Map deep-cal training years → experience bucket the AI endpoint expects
+function deriveExperience(trainingYears: string): "beginner" | "intermediate" | "advanced" {
+  const n = parseInt(trainingYears) || 0;
+  if (n < 1) return "beginner";
+  if (n < 4) return "intermediate";
+  return "advanced";
+}
+
+// Map deep-cal day strings ("Mon", "Wed"…) → day-of-week ints. Used only for AI hints.
+function daysCount(days: string[]): number {
+  return Math.max(1, Math.min(7, days.length));
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -99,6 +115,7 @@ export default function DeepCalibrationPage() {
   const [stepIdx, setStepIdx] = useState(0);
   const [answers, setAnswers] = useState<DeepCalAnswers>(DEFAULTS);
   const [saving,  setSaving]  = useState(false);
+  const [finishStatus, setFinishStatus] = useState<string>("");
 
   // Restore in-progress draft
   useEffect(() => {
@@ -143,6 +160,7 @@ export default function DeepCalibrationPage() {
   async function finish() {
     if (saving) return;
     setSaving(true);
+    setFinishStatus("Saving your answers…");
 
     // Merge deep cal answers into onboarding state. The existing pattern saves
     // intake data under `intakeData`; we tuck the deep cal under a `deep` key
@@ -155,8 +173,43 @@ export default function DeepCalibrationPage() {
 
     try { localStorage.removeItem(DRAFT_KEY(userId)); } catch { /* ignore */ }
 
+    // Regenerate the active program from the richer deep-cal data.
+    // Only run for real (UUID) users — demo users have no Supabase row.
+    if (UUID_RE.test(userId)) {
+      setFinishStatus("Generating your personalized program…");
+      try {
+        const primaryGoal = (existing.intakeData?.primaryGoal ?? "hypertrophy") as string;
+        const res = await fetch("/api/ai/program-generator", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({
+            goal:           primaryGoal,
+            weeks:          4,
+            daysPerWeek:    daysCount(answers.availableDays),
+            sessionMinutes: 60,
+            experience:     deriveExperience(answers.trainingYears),
+            equipment:      [],          // not asked in deep cal — defer to AI default
+            bodyFocus:      [],
+            injuries:       answers.injuries.map((s) => s.toLowerCase().replace(/\s+/g, "_")),
+            style:          [answers.goalWhy, answers.triedNotWorked, answers.successIn90Days]
+              .filter(Boolean).join(" | ") || null,
+            athlete:        answers as unknown as Record<string, unknown>,
+          }),
+        });
+        const data = await res.json() as { payload?: BuilderProgramPayload; error?: string };
+        if (res.ok && data.payload) {
+          await saveBuilderWorkoutForSelf(userId, data.payload, true);
+        } else {
+          console.warn("[deep-cal] AI program gen failed:", data.error);
+          // fall through — user can regenerate later from /program/generate
+        }
+      } catch (e) {
+        console.warn("[deep-cal] AI program gen errored:", e);
+      }
+    }
+
     setSaving(false);
-    router.replace("/dashboard");
+    router.replace("/program");
   }
 
   const progress = useMemo(() => ((stepIdx + 1) / STEPS.length) * 100, [stepIdx]);
@@ -349,7 +402,7 @@ export default function DeepCalibrationPage() {
               disabled={saving}
               className="flex items-center gap-2 rounded-2xl bg-[#B48B40] hover:bg-[#c99840] active:scale-[0.98] text-black px-5 py-3 text-sm font-semibold transition-all disabled:opacity-60"
             >
-              {saving ? "Saving…" : "Finish setup"}
+              {saving ? (finishStatus || "Saving…") : "Finish & build my program"}
               {!saving && <Check className="w-4 h-4" strokeWidth={2.5} />}
             </button>
           ) : (

@@ -227,6 +227,31 @@ export default function ProgramPage() {
         </div>
 
         <div className="space-y-4">
+          {/* ── Week brief: phase context + intent + progression ── */}
+          {program.description && program.description.includes("—") && (
+            <Card className="border-[#B48B40]/15 bg-gradient-to-br from-[#B48B40]/[0.04] to-transparent">
+              <div className="px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-[#B48B40]/15 border border-[#B48B40]/25 flex items-center justify-center shrink-0">
+                    <Zap className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40]/80">This week</p>
+                    <p className="text-sm text-white/85 leading-relaxed">
+                      {program.description.split("—").map((s, i, arr) => (
+                        <span key={i}>
+                          {i > 0 && <span className="text-white/25 mx-1.5">·</span>}
+                          {s.trim()}
+                          {i === arr.length - 1 ? "" : ""}
+                        </span>
+                      ))}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* ── 2. Hero: today / next session ── */}
           {nextWo && (
             <Card className="border-[#B48B40]/15">

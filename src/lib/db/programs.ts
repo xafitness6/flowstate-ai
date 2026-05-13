@@ -2,23 +2,26 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { Program } from "@/lib/supabase/types";
+import type { ProgramSplitV2, PlannedExercise, DayWorkout, WeekTemplate } from "@/lib/program/types";
 
-/** Shape used by the builder when saving a single-session workout. */
-export type BuilderWorkoutPayload = {
-  workoutName: string;
-  goal:        string;            // "strength" | "hypertrophy" | "fat_loss"
-  duration:    number | null;     // minutes — null when not entered
-  exercises:   Array<{
-    name:   string;
-    sets:   number;
-    reps:   string;
-    weight: string;
-    rest:   string;
-    note?:  string;
-    videoId?: string | null;
-  }>;
-  sections:    Array<{ position: number; label: string }>;  // section markers in order
+/**
+ * Full multi-day, multi-week program shape the builder + AI generator produce.
+ * Goal-string, name, duration_weeks, and the v2 split are all captured here.
+ */
+export type BuilderProgramPayload = {
+  name:           string;
+  goal:           string;                // "strength" | "hypertrophy" | "fat_loss" | "performance"
+  weeks:          number;                // 3–6 typical
+  daysPerWeek:    number;                // count of training days in baseWeek
+  sessionMinutes: number | null;
+  bodyFocus:      string[];
+  equipment:      string[];
+  coachingNotes:  string | null;
+  split:          ProgramSplitV2;        // the full v2 structure
 };
+
+/** Re-export for callers. */
+export type { PlannedExercise, DayWorkout, WeekTemplate, ProgramSplitV2 };
 
 /** Get the active program for a user. */
 export async function getActiveProgram(userId: string): Promise<Program | null> {
@@ -111,60 +114,40 @@ export async function syncGeneratedProgram(
 // ─── Builder helpers ──────────────────────────────────────────────────────────
 
 /**
- * Convert a builder payload into the row shape the `programs` table expects.
- * The builder produces a single session; we encode it as a 1-week, 1-day
- * "program" so it fits the existing schema and shows up correctly on /program.
+ * Convert a builder payload (full multi-day, multi-week phase) into the row
+ * shape the `programs` table expects. The v2 split is stored directly in the
+ * `weekly_split` JSONB column.
  */
 export function builderPayloadToProgramRow(
-  payload: BuilderWorkoutPayload,
+  payload: BuilderProgramPayload,
   opts: { status?: "active" | "archived"; startDate?: string } = {},
 ): Omit<Program, "id" | "user_id" | "created_at" | "updated_at"> {
   const today = opts.startDate ?? new Date().toISOString().split("T")[0];
 
-  // weekly_split is the shape that toActiveProgram() / loadActiveProgramForUser()
-  // expects — an array of day entries with day/dayLabel/focus/exercises.
-  const weeklySplit = [
-    {
-      day:      new Date().getDay(),
-      dayLabel: dayLabelFromIndex(new Date().getDay()),
-      focus:    payload.workoutName || "Custom workout",
-      exercises: payload.exercises.map((ex) => ({
-        name: ex.name || "Exercise",
-        sets: ex.sets,
-        reps: ex.reps,
-        note: ex.note ?? "",
-      })),
-    },
-  ];
-
   return {
-    block_name:            payload.workoutName || "Custom workout",
+    block_name:            payload.name || "Custom program",
     goal:                  payload.goal,
-    duration_weeks:        1,
-    weekly_split:          weeklySplit as unknown as Record<string, unknown>,
-    weekly_training_days:  1,
-    session_length_target: payload.duration ?? 60,
-    body_focus_areas:      [],
-    equipment_profile:     [],
-    coaching_notes:        null,
+    duration_weeks:        Math.max(1, payload.weeks),
+    weekly_split:          payload.split as unknown as Record<string, unknown>,
+    weekly_training_days:  Math.max(1, payload.daysPerWeek),
+    session_length_target: payload.sessionMinutes ?? 60,
+    body_focus_areas:      payload.bodyFocus,
+    equipment_profile:     payload.equipment,
+    coaching_notes:        payload.coachingNotes,
     status:                opts.status ?? "active",
     start_date:            today,
     end_date:              null,
   };
 }
 
-function dayLabelFromIndex(i: number): string {
-  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][i] ?? "Day";
-}
-
 /**
- * Save a builder workout to the current user's own programs.
+ * Save a builder program to the current user's own programs.
  * Set `activate=true` to archive their current active program and set this
  * one as their new active program; `false` saves it as a template (archived).
  */
 export async function saveBuilderWorkoutForSelf(
   userId: string,
-  payload: BuilderWorkoutPayload,
+  payload: BuilderProgramPayload,
   activate: boolean,
 ): Promise<Program | null> {
   const supabase = createClient();

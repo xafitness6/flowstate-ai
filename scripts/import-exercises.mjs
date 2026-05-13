@@ -169,11 +169,34 @@ async function main() {
   });
 
   console.log(`\n→ Upserting in batches of ${BATCH_SIZE}…`);
+  console.log(`  Target: ${url}`);
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase.from("exercises").upsert(batch, { onConflict: "id" });
-    if (error) {
-      console.error(`\nBatch ${i / BATCH_SIZE + 1} failed:`, error.message);
+    const batchNo = i / BATCH_SIZE + 1;
+
+    let lastErr = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const { error } = await supabase.from("exercises").upsert(batch, { onConflict: "id" });
+        if (!error) { lastErr = null; break; }
+        lastErr = error;
+        console.warn(`\n  Batch ${batchNo} attempt ${attempt} failed: ${error.message}`);
+      } catch (e) {
+        lastErr = e;
+        console.warn(`\n  Batch ${batchNo} attempt ${attempt} threw: ${e.message}`);
+        if (e.cause) console.warn(`    cause: ${e.cause.code ?? ""} ${e.cause.message ?? e.cause}`);
+      }
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+
+    if (lastErr) {
+      console.error(`\n✗ Batch ${batchNo} permanently failed.`);
+      if (lastErr.cause) console.error("  cause:", lastErr.cause);
+      console.error("\nTroubleshooting:");
+      console.error("  1. Check NEXT_PUBLIC_SUPABASE_URL is reachable: curl -I", url);
+      console.error("  2. Confirm SUPABASE_SERVICE_ROLE_KEY in .env.local is the service_role key (not anon)");
+      console.error("  3. If on a VPN/corporate network, try without it");
+      console.error("  4. Node version: node --version  (needs 18+)");
       process.exit(1);
     }
     process.stdout.write(`  ${Math.min(i + BATCH_SIZE, rows.length)}/${rows.length}\r`);
