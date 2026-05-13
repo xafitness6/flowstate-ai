@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -16,21 +16,27 @@ import {
   MoreHorizontal,
   Eye,
   Trash2,
+  Archive,
+  ArchiveRestore,
+  Check,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserNameLink } from "@/components/profile/UserHoverCard";
 import { useAdminGuard } from "@/hooks/useAdminGuard";
 import { useUser } from "@/context/UserContext";
 import {
-  initStore,
-  getUsers,
   getTrainers,
   getTrainerMetrics,
-  deleteUser,
   type PlatformUser,
   type TrainerMetrics,
-  PermissionError,
 } from "@/lib/data/store";
+import {
+  profileToAdminUser,
+  isLead,
+  type AdminUser,
+  type AdminProfile,
+} from "@/lib/admin/profileMapper";
 import { resetAccountLocalData, sessionKeyToUserId } from "@/lib/resetAccount";
 import { getSessionKey } from "@/lib/routing";
 
@@ -230,32 +236,68 @@ export default function AdminDashboard() {
   const { user }   = useUser();
   const router     = useRouter();
 
-  const [users,          setUsers         ] = useState<PlatformUser[]>([]);
+  const [users,          setUsers         ] = useState<AdminUser[]>([]);
   const [trainerMetrics, setTrainerMetrics] = useState<Array<{ trainer: PlatformUser; metrics: TrainerMetrics }>>([]);
   const [search,         setSearch        ] = useState("");
   const [roleFilter,   setRoleFilter  ] = useState<PlatformUser["role"] | "all">("all");
   const [statusFilter, setStatusFilter] = useState<PlatformUser["status"] | "all">("all");
+  const [planFilter,   setPlanFilter  ] = useState<PlatformUser["plan"] | "all">("all");
+  const [view,         setView        ] = useState<"all" | "leads" | "archived">("all");
   const [sortKey,      setSortKey     ] = useState<SortKey>("lastActive");
   const [sortDir,      setSortDir     ] = useState<SortDir>("asc");
-  const [deleting,     setDeleting    ] = useState<string | null>(null);
   const [error,        setError       ] = useState<string | null>(null);
   const [openMenuId,   setOpenMenuId  ] = useState<string | null>(null);
+  const [selectedIds,  setSelectedIds ] = useState<Set<string>>(new Set());
+  const [bulkBusy,     setBulkBusy    ] = useState<null | "archive" | "unarchive" | "delete">(null);
+  const [lastUpdated,  setLastUpdated ] = useState<Date | null>(null);
+  const [refreshing,   setRefreshing  ] = useState(false);
 
-  useEffect(() => {
-    // Wait for the admin guard to confirm access before loading any data.
-    // Without this guard, the effect fires on the initial render when
-    // UserContext still holds the default DEMO_USERS.member, causing
-    // getUsers("member") to throw PermissionError and show "Access denied."
-    if (!adminReady) return;
-    setError(null);
-    initStore();
+  const fetchUsers = useCallback(async (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setRefreshing(true);
     try {
-      // This page is master-only — always pass "master" directly rather than
-      // user.role, which may still be the default "member" during hydration.
-      setUsers(getUsers("master"));
+      const res = await fetch("/api/admin/users", { cache: "no-store" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError((body as { error?: string }).error ?? `Failed to load users (${res.status})`);
+        return;
+      }
+      const body = await res.json() as { users: AdminProfile[] };
+      setUsers(body.users.map(profileToAdminUser));
+      setLastUpdated(new Date());
+      setError(null);
     } catch (e) {
-      if (e instanceof PermissionError) setError("Access denied.");
+      setError(e instanceof Error ? e.message : "Failed to load users");
+    } finally {
+      if (!opts.silent) setRefreshing(false);
     }
+  }, []);
+
+  // Initial load + 10s polling while the tab is visible.
+  useEffect(() => {
+    if (!adminReady) return;
+    void fetchUsers();
+
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      if (document.visibilityState === "visible") void fetchUsers({ silent: true });
+    };
+    const interval = window.setInterval(tick, 10_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void fetchUsers({ silent: true });
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [adminReady, fetchUsers]);
+
+  // Trainer metrics still come from localStorage seed — flagged as TODO for
+  // the next pass when we wire real trainer analytics.
+  useEffect(() => {
+    if (!adminReady) return;
     try {
       const trainers = getTrainers("master", user.id);
       setTrainerMetrics(
@@ -267,17 +309,19 @@ export default function AdminDashboard() {
     } catch { /* ignore */ }
   }, [adminReady, user.id]);
 
-  const totalUsers   = users.length;
-  const activeUsers  = users.filter((u) => u.status === "active").length;
-  const atRiskUsers  = users.filter((u) => u.status === "at-risk").length;
-  const churnedUsers = users.filter((u) => u.status === "churned").length;
-  const trialUsers   = users.filter((u) => u.status === "trial").length;
-  const pausedUsers  = users.filter((u) => u.status === "paused").length;
-  const totalClients = users.filter((u) => u.role === "client").length;
+  // Metrics reflect the active platform — archived users excluded.
+  const activeRoster = users.filter((u) => !u.archivedAt);
+  const totalUsers   = activeRoster.length;
+  const activeUsers  = activeRoster.filter((u) => u.status === "active").length;
+  const atRiskUsers  = activeRoster.filter((u) => u.status === "at-risk").length;
+  const churnedUsers = activeRoster.filter((u) => u.status === "churned").length;
+  const trialUsers   = activeRoster.filter((u) => u.status === "trial").length;
+  const pausedUsers  = activeRoster.filter((u) => u.status === "paused").length;
+  const totalClients = activeRoster.filter((u) => u.role === "client").length;
 
-  // Tier breakdown and revenue — derived from real users
+  // Tier breakdown and revenue — derived from active roster
   const tierData = (["coaching", "performance", "training", "foundation"] as const).map((plan) => {
-    const count = users.filter((u) => u.plan === plan).length;
+    const count = activeRoster.filter((u) => u.plan === plan).length;
     const mrr   = count * TIER_PRICE[plan];
     const label = PLAN_CFG[plan as keyof typeof PLAN_CFG]?.label ?? plan;
     return { plan, label, count, mrr, color: TIER_COLOR[plan] };
@@ -297,47 +341,59 @@ export default function AdminDashboard() {
     (r) => Math.max(1, Math.round(r * totalUsers))
   );
 
-  // Derive assignment summary from store data
+  // Derive assignment summary from active roster
   const assignments = (() => {
-    const trainers = users.filter((u) => u.role === "trainer");
+    const trainers = activeRoster.filter((u) => u.role === "trainer");
     return trainers.map((t) => {
-      const clientNames = users
+      const clientNames = activeRoster
         .filter((u) => u.role === "client" && u.trainerId === t.id)
         .map((c) => c.name);
       return { trainer: t.name, trainerId: t.id, count: clientNames.length, clients: clientNames };
     }).filter((a) => a.count > 0);
   })();
 
-  async function handleDeleteUser(target: PlatformUser) {
-    if (!confirm(`Delete ${target.name}? This cannot be undone.`)) return;
-    setDeleting(target.id);
+  async function runBulkAction(action: "archive" | "unarchive" | "delete", ids: string[]) {
+    if (ids.length === 0) return;
+    setBulkBusy(action);
     setError(null);
     try {
-      const res = await fetch(`/api/users/${target.id}`, {
-        method:  "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "x-actor-role": user.role,
-          "x-actor-id":   user.id,
-        },
-        body: JSON.stringify({
-          targetRole:      target.role,
-          targetTrainerId: target.trainerId,
-        }),
+      const res = await fetch("/api/admin/users/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, userIds: ids }),
       });
       if (!res.ok) {
-        const j = await res.json() as { error?: string };
-        setError(j.error ?? "Delete failed");
-        setDeleting(null);
+        const body = await res.json().catch(() => ({}));
+        setError((body as { error?: string }).error ?? `${action} failed (${res.status})`);
         return;
       }
-      deleteUser(target.id, user.role, user.id);
-      setUsers((prev) => prev.filter((u) => u.id !== target.id));
+      setSelectedIds(new Set());
+      await fetchUsers({ silent: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(e instanceof Error ? e.message : `${action} failed`);
     } finally {
-      setDeleting(null);
+      setBulkBusy(null);
     }
+  }
+
+  async function handleArchiveUser(target: AdminUser) {
+    const verb = target.archivedAt ? "unarchive" : "archive";
+    if (!confirm(`${verb === "archive" ? "Archive" : "Unarchive"} ${target.name}?`)) return;
+    await runBulkAction(verb, [target.id]);
+  }
+
+  async function handleDeleteUser(target: AdminUser) {
+    if (!confirm(`Permanently delete ${target.name}? This cannot be undone.`)) return;
+    await runBulkAction("delete", [target.id]);
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   function toggleSort(key: SortKey) {
@@ -345,13 +401,21 @@ export default function AdminDashboard() {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  const filtered = users
+  const visibleUsers = users.filter((u) => {
+    if (view === "leads")    return isLead(u);
+    if (view === "archived") return !!u.archivedAt;
+    // "all" view excludes archived users unless they explicitly switch to the Archived view
+    return !u.archivedAt;
+  });
+
+  const filtered = visibleUsers
     .filter((u) => {
       const q = search.toLowerCase();
       return (
         (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)) &&
         (roleFilter === "all"   || u.role   === roleFilter) &&
-        (statusFilter === "all" || u.status === statusFilter)
+        (statusFilter === "all" || u.status === statusFilter) &&
+        (planFilter === "all"   || u.plan   === planFilter)
       );
     })
     .sort((a, b) => {
@@ -359,6 +423,11 @@ export default function AdminDashboard() {
       const vb = b[sortKey] ?? "";
       return sortDir === "asc" ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     });
+
+  const leadCount     = users.filter(isLead).length;
+  const archivedCount = users.filter((u) => !!u.archivedAt).length;
+  const allSelected   = filtered.length > 0 && filtered.every((u) => selectedIds.has(u.id));
+  const someSelected  = filtered.some((u) => selectedIds.has(u.id));
 
   const ROLE_FILTER_LABELS: Record<string, string> = {
     all: "All", master: "Admin", trainer: "Trainer", client: "Client", member: "Member",
@@ -383,7 +452,7 @@ export default function AdminDashboard() {
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-1.5">Admin</p>
           <h1 className="text-2xl font-semibold tracking-tight">Platform Overview</h1>
-          <p className="text-sm text-white/30 mt-1">Real-time platform health and user performance.</p>
+          <p className="text-sm text-white/30 mt-1">Live platform data — auto-refreshes every 10s.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 mt-1">
           <button
@@ -393,9 +462,16 @@ export default function AdminDashboard() {
             <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
             Manage users
           </button>
-          <span className="text-[10px] text-white/22 hidden sm:block">Updated just now</span>
-          <button className="w-8 h-8 rounded-xl border border-white/8 bg-white/[0.02] flex items-center justify-center hover:bg-white/[0.05] transition-colors">
-            <RefreshCw className="w-3.5 h-3.5 text-white/35" strokeWidth={1.5} />
+          <span className="text-[10px] text-white/22 hidden sm:block tabular-nums">
+            {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}
+          </span>
+          <button
+            onClick={() => void fetchUsers()}
+            disabled={refreshing}
+            aria-label="Refresh users"
+            className="w-8 h-8 rounded-xl border border-white/8 bg-white/[0.02] flex items-center justify-center hover:bg-white/[0.05] transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5 text-white/35", refreshing && "animate-spin")} strokeWidth={1.5} />
           </button>
         </div>
       </div>
@@ -436,12 +512,29 @@ export default function AdminDashboard() {
           <div className="space-y-4">
             {tierData.map((t) => {
               const pct = tierTotal > 0 ? Math.round((t.count / tierTotal) * 100) : 0;
+              const isFiltered = planFilter === t.plan;
               return (
-                <div key={t.plan}>
+                <button
+                  key={t.plan}
+                  type="button"
+                  onClick={() => {
+                    setPlanFilter((prev) => (prev === t.plan ? "all" : t.plan));
+                    setView("all");
+                    if (typeof window !== "undefined") {
+                      const tableEl = document.getElementById("admin-users-table");
+                      tableEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                  }}
+                  className={cn(
+                    "w-full text-left rounded-xl px-2 py-1 -mx-2 transition-colors",
+                    isFiltered ? "bg-white/[0.04]" : "hover:bg-white/[0.02]",
+                  )}
+                  title={`Filter user table to ${t.label}`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2.5">
                       <span className={cn("w-2 h-2 rounded-full", t.color)} />
-                      <span className="text-sm text-white/70">{t.label}</span>
+                      <span className={cn("text-sm", isFiltered ? "text-white/90" : "text-white/70")}>{t.label}</span>
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-xs text-white/30 tabular-nums">{t.count} user{t.count !== 1 ? "s" : ""}</span>
@@ -454,7 +547,7 @@ export default function AdminDashboard() {
                   <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                     <div className={cn("h-full rounded-full transition-all", t.color)} style={{ width: `${pct}%` }} />
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -502,28 +595,44 @@ export default function AdminDashboard() {
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
             <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Alerts</p>
             <div className="space-y-2.5">
-              {[
+              {([
                 atRiskUsers > 0 && {
                   color: "bg-amber-400",
                   text: `${atRiskUsers} user${atRiskUsers !== 1 ? "s" : ""} at risk of churning`,
+                  status: "at-risk" as const,
                 },
                 trialUsers > 0 && {
                   color: "bg-[#93C5FD]",
                   text: `${trialUsers} user${trialUsers !== 1 ? "s" : ""} in free trial`,
+                  status: "trial" as const,
                 },
                 pausedUsers > 0 && {
                   color: "bg-white/20",
                   text: `${pausedUsers} account${pausedUsers !== 1 ? "s" : ""} paused — no recent activity`,
+                  status: "paused" as const,
                 },
                 churnedUsers > 0 && {
                   color: "bg-[#F87171]",
                   text: `${churnedUsers} user${churnedUsers !== 1 ? "s" : ""} churned`,
+                  status: "churned" as const,
                 },
-              ].filter(Boolean).map((a, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <span className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", (a as {color:string;text:string}).color)} />
-                  <p className="text-xs text-white/42 leading-relaxed">{(a as {color:string;text:string}).text}</p>
-                </div>
+              ].filter(Boolean) as Array<{ color: string; text: string; status: PlatformUser["status"] }>).map((a, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter((prev) => (prev === a.status ? "all" : a.status));
+                    setView("all");
+                    if (typeof window !== "undefined") {
+                      document.getElementById("admin-users-table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                  }}
+                  className="w-full flex items-start gap-2.5 text-left rounded-lg px-2 py-1 -mx-2 hover:bg-white/[0.03] transition-colors"
+                  title={`Filter user table to ${a.status}`}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", a.color)} />
+                  <p className="text-xs text-white/42 leading-relaxed">{a.text}</p>
+                </button>
               ))}
               {atRiskUsers === 0 && trialUsers === 0 && pausedUsers === 0 && churnedUsers === 0 && (
                 <p className="text-xs text-white/25">No active alerts.</p>
@@ -637,13 +746,38 @@ export default function AdminDashboard() {
       )}
 
       {/* ── User table ──────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/[0.05] flex flex-col sm:flex-row sm:items-center gap-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Users</p>
-            <p className="text-sm font-medium text-white/75 mt-0.5">{filtered.length} of {totalUsers}</p>
+      <div id="admin-users-table" className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden scroll-mt-6">
+        <div className="px-5 py-4 border-b border-white/[0.05] flex flex-col gap-3">
+          {/* View toggle + summary */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              {([
+                { id: "all" as const,      label: "All",      count: activeRoster.length },
+                { id: "leads" as const,    label: "Leads",    count: leadCount },
+                { id: "archived" as const, label: "Archived", count: archivedCount },
+              ]).map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => { setView(v.id); setSelectedIds(new Set()); }}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+                    view === v.id
+                      ? "bg-[#B48B40]/15 text-[#B48B40] border border-[#B48B40]/30"
+                      : "border border-transparent text-white/40 hover:text-white/70 hover:bg-white/[0.04]",
+                  )}
+                >
+                  {v.label}
+                  <span className="ml-1.5 text-[10px] text-white/35 tabular-nums">{v.count}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-white/30 sm:ml-auto tabular-nums">
+              {filtered.length} of {view === "leads" ? leadCount : view === "archived" ? archivedCount : activeRoster.length}
+            </p>
           </div>
-          <div className="sm:ml-auto flex flex-wrap items-center gap-2">
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2">
               <Search className="w-3.5 h-3.5 text-white/25 shrink-0" strokeWidth={1.5} />
               <input
@@ -681,10 +815,84 @@ export default function AdminDashboard() {
                 </button>
               ))}
             </div>
+            <div className="flex items-center gap-1">
+              {(["all", "coaching", "performance", "training", "foundation"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPlanFilter(p)}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition-all capitalize",
+                    planFilter === p ? "bg-white/8 text-white/70" : "text-white/28 hover:text-white/50"
+                  )}
+                >
+                  {p === "all" ? "All plans" : (PLAN_CFG[p as keyof typeof PLAN_CFG]?.label ?? p)}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 border-b border-white/[0.04]">
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-white/[0.05] bg-[#B48B40]/[0.04]">
+            <p className="text-xs text-white/70 font-medium">
+              {selectedIds.size} selected
+            </p>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-white/40 hover:text-white/70 transition-colors"
+            >
+              Clear
+            </button>
+            <div className="ml-auto flex items-center gap-2">
+              {view === "archived" ? (
+                <button
+                  onClick={() => void runBulkAction("unarchive", Array.from(selectedIds))}
+                  disabled={!!bulkBusy}
+                  className="flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-400/90 px-3 py-1.5 text-xs font-medium hover:bg-emerald-400/15 transition-colors disabled:opacity-50"
+                >
+                  <ArchiveRestore className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  {bulkBusy === "unarchive" ? "Unarchiving…" : "Unarchive"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => void runBulkAction("archive", Array.from(selectedIds))}
+                  disabled={!!bulkBusy}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] text-white/70 px-3 py-1.5 text-xs font-medium hover:bg-white/[0.08] transition-colors disabled:opacity-50"
+                >
+                  <Archive className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  {bulkBusy === "archive" ? "Archiving…" : "Archive"}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (!confirm(`Permanently delete ${selectedIds.size} user${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+                  void runBulkAction("delete", Array.from(selectedIds));
+                }}
+                disabled={!!bulkBusy}
+                className="flex items-center gap-1.5 rounded-xl border border-red-400/30 bg-red-400/10 text-red-400/90 px-3 py-1.5 text-xs font-medium hover:bg-red-400/15 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                {bulkBusy === "delete" ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="hidden md:grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 border-b border-white/[0.04]">
+          <label className="flex items-center justify-center w-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
+              onChange={() => {
+                if (allSelected) setSelectedIds(new Set());
+                else setSelectedIds(new Set(filtered.map((u) => u.id)));
+              }}
+              className="accent-[#B48B40] cursor-pointer"
+              aria-label="Select all visible users"
+            />
+          </label>
           {([
             { key: "name",       label: "Name"        },
             { key: "role",       label: "Role"        },
@@ -712,11 +920,26 @@ export default function AdminDashboard() {
             const pc       = PLAN_CFG[u.plan as keyof typeof PLAN_CFG] ?? PLAN_CFG.foundation;
             const initials = u.name.split(" ").map((n) => n[0]).join("").toUpperCase();
             const trainer  = u.trainerId ? users.find((x) => x.id === u.trainerId) : undefined;
-            const isBeingDel = deleting === u.id;
-            const canDelete  = u.role !== "master";
+            const checked  = selectedIds.has(u.id);
+            const isSelf   = u.id === user.id;
+            const canDelete = !isSelf;
 
             return (
-              <div key={u.id} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 md:gap-4 items-center px-5 py-3.5 hover:bg-white/[0.015] transition-colors">
+              <div key={u.id} className={cn(
+                "grid grid-cols-1 md:grid-cols-[auto_2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 md:gap-4 items-center px-5 py-3.5 hover:bg-white/[0.015] transition-colors",
+                checked && "bg-[#B48B40]/[0.04]",
+                u.archivedAt && "opacity-70",
+              )}>
+                <label className="hidden md:flex items-center justify-center w-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleSelect(u.id)}
+                    disabled={isSelf}
+                    className="accent-[#B48B40] cursor-pointer disabled:cursor-not-allowed"
+                    aria-label={`Select ${u.name}`}
+                  />
+                </label>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#1C1C1C] border border-white/8 flex items-center justify-center shrink-0">
                     <span className="text-[10px] font-semibold text-white/45">{initials}</span>
@@ -727,6 +950,9 @@ export default function AdminDashboard() {
                       className="text-sm text-white/80 font-medium"
                     />
                     <p className="text-[11px] text-white/28 truncate">{u.email}</p>
+                    {u.archivedAt && (
+                      <p className="text-[10px] text-amber-400/60 mt-0.5">Archived</p>
+                    )}
                   </div>
                 </div>
                 <p className={cn("text-xs font-medium", rc.color)}>{rc.label}</p>
@@ -757,11 +983,19 @@ export default function AdminDashboard() {
                       onClick: () => router.push(`/profile/${u.id}`),
                     },
                     {
-                      label: isBeingDel ? "Deleting…" : "Delete",
+                      label: u.archivedAt ? "Unarchive" : "Archive",
+                      icon: u.archivedAt
+                        ? <ArchiveRestore className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        : <Archive className="w-3.5 h-3.5" strokeWidth={1.5} />,
+                      disabled: isSelf || !!bulkBusy,
+                      onClick: () => void handleArchiveUser(u),
+                    },
+                    {
+                      label: "Delete",
                       icon: <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />,
                       danger: true,
-                      disabled: !canDelete || isBeingDel,
-                      onClick: () => handleDeleteUser(u),
+                      disabled: !canDelete || !!bulkBusy,
+                      onClick: () => void handleDeleteUser(u),
                     },
                   ]}
                 />
@@ -770,7 +1004,13 @@ export default function AdminDashboard() {
           })}
           {filtered.length === 0 && (
             <div className="px-5 py-10 text-center">
-              <p className="text-sm text-white/25">No users match the current filters.</p>
+              <p className="text-sm text-white/25">
+                {view === "leads"
+                  ? "No leads yet — self-signups will appear here."
+                  : view === "archived"
+                  ? "No archived users."
+                  : "No users match the current filters."}
+              </p>
             </div>
           )}
         </div>

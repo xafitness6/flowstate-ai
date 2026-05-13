@@ -65,6 +65,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        // Archived users are locked out of the app shell — drop their session.
+        const { data: archivedCheck } = await supabase
+          .from("profiles")
+          .select("archived_at")
+          .eq("id", session.user.id)
+          .single();
+
+        if (archivedCheck?.archived_at) {
+          await signOutEverywhere({ redirect: "/login?error=archived" });
+          return;
+        }
+
         if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
           setReady(true);
           return;

@@ -213,6 +213,8 @@ function LoginPageContent() {
             ? "Sign-in started, but Supabase could not finish the callback. Check the production redirect URL and try again."
             : "Sign-in could not be completed. Try email and password, or check the Supabase auth setup.",
         );
+      } else if (authError === "archived") {
+        setSiError("This account has been archived. Contact your admin to restore access.");
       }
     } catch { /* ignore */ }
 
@@ -278,6 +280,14 @@ function LoginPageContent() {
     const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
 
     const profile = await getMyProfile();
+
+    // Archived users are locked out — even on a successful sign-in, drop them.
+    if (profile?.archived_at) {
+      const { signOutEverywhere } = await import("@/lib/auth/signOut");
+      await signOutEverywhere({ redirect: "/login?error=archived" });
+      return;
+    }
+
     const role = syncedProfile?.role ?? profile?.role;
     const isAdmin =
       email?.trim().toLowerCase() === ADMIN_EMAIL ||
