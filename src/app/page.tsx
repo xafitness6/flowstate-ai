@@ -1,86 +1,67 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import type { OnboardingState, Profile } from "@/lib/supabase/types";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { getSessionKey, resolvePostLoginRoute } from "@/lib/routing";
-import { signOutEverywhere } from "@/lib/auth/signOut";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 
-// Root entry point — deterministic routing based on session + onboarding state.
-export default function Root() {
-  const router = useRouter();
+function resolveOnboardingRoute(state: OnboardingState | null): string | null {
+  if (!state) return "/onboarding/walkthrough";
+  if (!state.walkthrough_seen && !state.onboarding_complete) return "/onboarding/walkthrough";
+  if (!state.onboarding_complete) return "/onboarding/calibration";
+  if (!state.body_focus_complete) return "/onboarding/body-focus";
+  if (!state.planning_conversation_complete) return "/onboarding/coach-planning";
+  if (!state.program_generated) return "/onboarding/program-generation";
+  if (!state.tutorial_complete) return "/onboarding/tutorial";
+  if (!state.profile_complete) return "/onboarding/profile-setup";
+  return null;
+}
 
-  useEffect(() => {
-    async function route() {
-      const supabaseConfigured =
-        !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-        !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function finalRoute(profile: Pick<Profile, "role"> | null): string {
+  if (profile?.role === "trainer") return "/trainers";
+  if (profile?.role === "master") return "/admin";
+  return "/dashboard";
+}
 
-      if (supabaseConfigured) {
-        try {
-          const { createClient } = await import("@/lib/supabase/client");
-          const supabase = createClient();
-          const { data: { session } } = await supabase.auth.getSession();
+// Root entry point. This must be server-side, not a static client loading page:
+// after OAuth/password login the browser often lands on `/`, and relying on a
+// hydrated client effect here can strand users on "Signing you in..." forever.
+export default async function Root() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    redirect("/login");
+  }
 
-          if (session) {
-            try {
-              localStorage.setItem("flowstate-active-role", session.user.id);
-            } catch { /* ignore */ }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-            if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-              router.replace("/admin");
-              return;
-            }
+  if (!user) {
+    redirect("/login");
+  }
 
-            try {
-              await fetch("/api/auth/sync-profile", { method: "POST" });
-            } catch { /* non-blocking */ }
-            const { getMyProfile } = await import("@/lib/db/profiles");
-            const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
-            const profile = await getMyProfile();
+  if (user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+    redirect("/admin");
+  }
 
-            const isAdmin =
-              profile?.role === "master" ||
-              profile?.is_admin;
-            if (isAdmin) {
-              router.replace("/admin");
-              return;
-            }
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role,is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
 
-            const blocker = await resolveOnboardingRoute(session.user.id);
-            if (blocker) { router.replace(blocker); return; }
-            router.replace(resolvePostLoginRoute(session.user.id, { role: profile?.role }));
-            return;
-          }
-        } catch {
-          // Fall back to the demo/local route below.
-        }
-      }
+  if (profile?.is_admin || profile?.role === "master") {
+    redirect("/admin");
+  }
 
-      const sessionKey = getSessionKey();
-      if (!sessionKey) {
-        router.replace("/login");
-        return;
-      }
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionKey)) {
-        // Ghost session: UUID in storage but no Supabase session. Full cleanup.
-        void signOutEverywhere();
-        return;
-      }
+  const { data: onboarding } = await supabase
+    .from("onboarding_state")
+    .select(
+      "walkthrough_seen,onboarding_complete,body_focus_complete,planning_conversation_complete,program_generated,tutorial_complete,profile_complete",
+    )
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-      router.replace(resolvePostLoginRoute(sessionKey));
-    }
-
-    route().catch(() => router.replace("/login"));
-  }, [router]);
-
-  return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-5 text-white">
-      <div className="text-center space-y-2">
-        <div className="mx-auto h-6 w-6 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
-        <p className="text-sm text-white/55">Signing you in...</p>
-      </div>
-    </div>
-  );
+  const blocker = resolveOnboardingRoute(onboarding as OnboardingState | null);
+  redirect(blocker ?? finalRoute(profile as Pick<Profile, "role"> | null));
 }
