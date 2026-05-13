@@ -285,7 +285,16 @@ export default function AdminUsersPage() {
     active:  users.filter((u) => u.subscription_status === "active").length,
   };
 
-  if (!adminReady) return null;
+  if (!adminReady) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-5 text-white">
+        <div className="text-center space-y-2">
+          <div className="mx-auto h-6 w-6 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
+          <p className="text-sm text-white/55">Opening admin users...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] px-4 py-8">

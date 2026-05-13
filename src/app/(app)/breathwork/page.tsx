@@ -175,17 +175,22 @@ function SliderRow({
 
 export default function BreathworkPage() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isLoading, isSupabase } = useUser();
   const [ready, setReady] = useState(false);
 
   // Auth guard
   useEffect(() => {
+    if (isLoading) return;
+    if (isSupabase) {
+      setReady(true);
+      return;
+    }
     try {
       const role = sessionStorage.getItem("flowstate-session-role") || localStorage.getItem("flowstate-active-role");
       if (!["master", "trainer", "client", "member"].includes(role ?? "")) { router.replace("/login"); return; }
     } catch { router.replace("/login"); return; }
     setReady(true);
-  }, [router]);
+  }, [isLoading, isSupabase, router]);
 
   // ── Selection state ───────────────────────────────────────────────────────────
   const [screen, setScreen]           = useState<Screen>("select");
@@ -380,7 +385,16 @@ export default function BreathworkPage() {
   const ringProgress = screen === "breathing"
     ? (breath - 1) / modeRef.current.defaultBreaths : 0;
 
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-5 text-white">
+        <div className="text-center space-y-2">
+          <div className="mx-auto h-6 w-6 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
+          <p className="text-sm text-white/55">Opening breathwork...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ── SCREEN 1 — Mode Selection ─────────────────────────────────────────────────
   if (screen === "select") {
