@@ -6,7 +6,7 @@ import { createServerClient } from "@supabase/ssr";
 // back to cookies on every request, preventing session expiry mid-navigation.
 // Route-level auth enforcement is handled client-side in AppShell — not here.
 // Doing server-side redirects here causes a freeze: after signInWithPassword the
-// client cookies aren't propagated yet when the next middleware request fires.
+// client cookies aren't propagated yet when the next proxy request fires.
 
 async function applySessionRefresh(request: NextRequest, response: NextResponse) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,9 +32,9 @@ async function applySessionRefresh(request: NextRequest, response: NextResponse)
   return response;
 }
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+// ─── Proxy ────────────────────────────────────────────────────────────────────
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   // 1. Dev route guard
   const isDevRoute =
     req.nextUrl.pathname.startsWith("/dev") ||
