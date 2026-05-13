@@ -28,20 +28,12 @@ type LeaderEntry = {
   progress:       number;
 };
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Entries ──────────────────────────────────────────────────────────────────
+// Leaderboard rankings will be derived from real workout_logs + habit data once
+// the analytics rollup is wired. Until then we render an empty state instead
+// of fake names so members don't see ghost competitors.
 
-const ENTRIES: LeaderEntry[] = [
-  { id: "u1",  name: "Kai Nakamura",   plan: "performance", role: "client",  adherence: 94, execution: 88, streak: 22, accountability: 91, progress: 86 },
-  { id: "u2",  name: "Priya Sharma",   plan: "performance", role: "client",  adherence: 91, execution: 84, streak: 18, accountability: 88, progress: 82 },
-  { id: "u7",  name: "Sofia Reyes",    plan: "performance", role: "client",  adherence: 88, execution: 80, streak: 14, accountability: 85, progress: 79 },
-  { id: "u4",  name: "Alex Rivera",    plan: "coaching",    role: "trainer", adherence: 85, execution: 79, streak: 31, accountability: 82, progress: 74 },
-  { id: "u6",  name: "Luca Ferretti",  plan: "training",    role: "member",  adherence: 82, execution: 76, streak: 9,  accountability: 78, progress: 70 },
-  { id: "u10", name: "Omar Hassan",    plan: "training",    role: "member",  adherence: 79, execution: 72, streak: 7,  accountability: 74, progress: 67 },
-  { id: "u3",  name: "Marcus Webb",    plan: "training",    role: "trainer", adherence: 75, execution: 68, streak: 5,  accountability: 70, progress: 63 },
-  { id: "u5",  name: "Anya Patel",     plan: "training",    role: "client",  adherence: 63, execution: 58, streak: 2,  accountability: 61, progress: 52 },
-  { id: "u8",  name: "Dmitri Volkov",  plan: "foundation",  role: "member",  adherence: 58, execution: 52, streak: 3,  accountability: 55, progress: 44 },
-  { id: "u12", name: "Ravi Menon",     plan: "foundation",  role: "member",  adherence: 41, execution: 38, streak: 0,  accountability: 35, progress: 28 },
-];
+const ENTRIES: LeaderEntry[] = [];
 
 function overall(e: LeaderEntry): number {
   return Math.round(
@@ -290,6 +282,20 @@ export default function LeaderboardPage() {
           </div>
         )}
       </div>
+
+      {filtered.length === 0 && (
+        <div className="rounded-2xl border border-white/6 bg-[#111111] px-6 py-16 flex flex-col items-center gap-4 text-center">
+          <div className="w-12 h-12 rounded-2xl border border-white/8 bg-white/[0.03] flex items-center justify-center">
+            <span className="text-xl">🏆</span>
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-white/55">No rankings yet</p>
+            <p className="text-xs text-white/30 max-w-xs leading-relaxed">
+              Once members start logging workouts and habits, performance rankings will appear here in real time.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Sort + Tier filters ─────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">

@@ -8,6 +8,8 @@ import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { VoiceMic } from "@/components/voice/VoiceMic";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useUser } from "@/context/UserContext";
+import { loadActiveProgramForUser, type ActiveProgram } from "@/lib/workout";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,14 +31,40 @@ type Prompt = {
   message: string;
 };
 
-// ─── Static context (would come from user profile in production) ──────────────
+// ─── Coach context (derived from real user + active program) ──────────────────
 
-const CONTEXT = {
-  goal:   "Hypertrophy",
-  phase:  "Phase 1 — Foundation",
-  week:   "Week 3 of 8",
-  status: "On track",
+type CoachContext = {
+  goal:   string;
+  phase:  string;
+  week:   string;
+  status: string;
 };
+
+const FALLBACK_CONTEXT: CoachContext = {
+  goal:   "Set in onboarding",
+  phase:  "Setup",
+  week:   "—",
+  status: "Awaiting plan",
+};
+
+const GOAL_LABEL: Record<string, string> = {
+  muscle_gain: "Hypertrophy",
+  fat_loss:    "Fat Loss",
+  strength:    "Strength",
+  endurance:   "Endurance",
+  recomp:      "Body Recomp",
+  general:     "General Fitness",
+};
+
+function buildContextFromProgram(prog: ActiveProgram | null): CoachContext {
+  if (!prog) return FALLBACK_CONTEXT;
+  return {
+    goal:   GOAL_LABEL[prog.goal] ?? prog.goal,
+    phase:  prog.name,
+    week:   `Week ${prog.currentWeek} of ${prog.durationWeeks}`,
+    status: prog.currentWeek <= prog.durationWeeks ? "On track" : "Block complete",
+  };
+}
 
 // ─── Suggested prompts ────────────────────────────────────────────────────────
 
@@ -128,11 +156,24 @@ export default function CoachPage() {
 
 function CoachPageInner() {
   const { can } = useEntitlement();
+  const { user, isLoading: userLoading } = useUser();
   const [messages,    setMessages   ] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input,       setInput      ] = useState("");
   const [loading,     setLoading    ] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [promptsUsed, setPromptsUsed] = useState(false);
+  const [context,     setContext    ] = useState<CoachContext>(FALLBACK_CONTEXT);
+
+  // Pull the real active program + derive coach context so the side panel
+  // doesn't lie ("Week 3 of 8") to every user.
+  useEffect(() => {
+    if (userLoading || !user?.id) return;
+    let active = true;
+    loadActiveProgramForUser(user.id)
+      .then((prog) => { if (active) setContext(buildContextFromProgram(prog)); })
+      .catch(() => { /* keep fallback */ });
+    return () => { active = false; };
+  }, [user?.id, userLoading]);
 
   const voice = useVoiceInput();
 
@@ -179,7 +220,7 @@ function CoachPageInner() {
         body:    JSON.stringify({
           message:   text.trim(),
           history,
-          context:   CONTEXT,
+          context:   context,
           tone:      tone      ?? "direct",
           style:     style     ?? "pro",
           profanity: profanity ?? "off",
@@ -238,17 +279,17 @@ function CoachPageInner() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Goal</span>
-              <span className="text-xs font-medium text-[#B48B40]">{CONTEXT.goal}</span>
+              <span className="text-xs font-medium text-[#B48B40]">{context.goal}</span>
             </div>
             <span className="text-white/10">·</span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Phase</span>
-              <span className="text-xs font-medium text-white/55">{CONTEXT.week}</span>
+              <span className="text-xs font-medium text-white/55">{context.week}</span>
             </div>
             <span className="hidden sm:block text-white/10">·</span>
             <div className="hidden sm:flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Status</span>
-              <span className="text-xs font-medium text-emerald-400">{CONTEXT.status}</span>
+              <span className="text-xs font-medium text-emerald-400">{context.status}</span>
             </div>
           </div>
 
@@ -276,10 +317,10 @@ function CoachPageInner() {
         {contextOpen && (
           <div className="px-6 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/5 pt-3">
             {[
-              { label: "Goal",   value: CONTEXT.goal,   color: "text-[#B48B40]"  },
-              { label: "Phase",  value: CONTEXT.phase,  color: "text-white/65"   },
-              { label: "Week",   value: CONTEXT.week,   color: "text-white/65"   },
-              { label: "Status", value: CONTEXT.status, color: "text-emerald-400" },
+              { label: "Goal",   value: context.goal,   color: "text-[#B48B40]"  },
+              { label: "Phase",  value: context.phase,  color: "text-white/65"   },
+              { label: "Week",   value: context.week,   color: "text-white/65"   },
+              { label: "Status", value: context.status, color: "text-emerald-400" },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2.5">
                 <p className="text-[10px] uppercase tracking-[0.1em] text-white/22 mb-1">{label}</p>

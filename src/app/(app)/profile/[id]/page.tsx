@@ -1,8 +1,8 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Flame, ArrowLeft, MessageSquare, Lock } from "lucide-react";
+import { Flame, ArrowLeft, MessageSquare, Lock, Dumbbell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   USER_SNAPSHOTS,
@@ -10,8 +10,9 @@ import {
   canViewProfile,
 } from "@/lib/userProfiles";
 import { useUser } from "@/context/UserContext";
+import type { Profile, Program, OnboardingState } from "@/lib/supabase/types";
 
-// ─── Static user lookup (mirrors master page USERS) ──────────────────────────
+// ─── Static user lookup (demo accounts) ─────────────────────────────────────
 
 const USER_DIRECTORY: Record<string, {
   id: string; name: string; email: string;
@@ -43,19 +44,50 @@ const ROLE_LABEL: Record<string, string> = {
   master: "Admin", trainer: "Trainer", client: "Client", member: "Member",
 };
 
+const PLAN_LABEL: Record<string, string> = {
+  coaching:    "Hybrid Coaching",
+  performance: "AI Performance",
+  training:    "Training",
+  foundation:  "Foundation",
+  elite:       "Elite",
+  pro:         "Pro",
+  free:        "Free",
+};
+
 const PLAN_COLOR: Record<string, string> = {
-  elite: "text-[#B48B40]",
-  pro:   "text-white/50",
-  free:  "text-white/28",
+  coaching:    "text-purple-400",
+  performance: "text-[#B48B40]",
+  training:    "text-white/55",
+  foundation:  "text-white/28",
+  elite:       "text-[#B48B40]",
+  pro:         "text-white/50",
+  free:        "text-white/28",
 };
 
 const STATUS_LABEL: Record<string, { label: string; dot: string }> = {
-  active:   { label: "Active",    dot: "bg-emerald-400" },
-  "at-risk":{ label: "At risk",   dot: "bg-amber-400"   },
-  paused:   { label: "Paused",    dot: "bg-white/25"    },
-  trial:    { label: "Trial",     dot: "bg-[#93C5FD]"   },
-  churned:  { label: "Churned",   dot: "bg-[#F87171]/60"},
+  active:    { label: "Active",    dot: "bg-emerald-400" },
+  "at-risk": { label: "At risk",   dot: "bg-amber-400"   },
+  paused:    { label: "Paused",    dot: "bg-white/25"    },
+  trial:     { label: "Trial",     dot: "bg-[#93C5FD]"   },
+  churned:   { label: "Churned",   dot: "bg-[#F87171]/60"},
+  inactive:  { label: "Inactive",  dot: "bg-white/25"    },
+  past_due:  { label: "Past due",  dot: "bg-[#F87171]/60"},
 };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type AdminUserDetail = {
+  profile:        Profile;
+  onboarding:     OnboardingState | null;
+  activeProgram:  Program | null;
+};
+
+function deriveName(p: Profile): string {
+  if (p.full_name?.trim()) return p.full_name;
+  const combined = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+  if (combined) return combined;
+  return p.email?.split("@")[0] ?? "Unknown";
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -64,25 +96,62 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const router = useRouter();
   const { user: viewer } = useUser();
 
-  const target = USER_DIRECTORY[id];
-  const snap   = USER_SNAPSHOTS[id];
+  const isUUID = UUID_RE.test(id);
+  const [detail,  setDetail]  = useState<AdminUserDetail | null>(null);
+  const [loading, setLoading] = useState(isUUID);
+  const [error,   setError]   = useState<string | null>(null);
 
-  // Access gate
-  const allowed = canViewProfile(viewer.role, viewer.name, id, viewer.id);
+  useEffect(() => {
+    if (!isUUID) { setLoading(false); return; }
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/users/${id}`, { cache: "no-store" });
+        if (!active) return;
+        if (res.status === 404) { setError("User not found."); return; }
+        if (res.status === 403) { setError("You don't have permission to view this profile."); return; }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setError((body as { error?: string }).error ?? `Failed to load (${res.status})`);
+          return;
+        }
+        setDetail(await res.json());
+      } catch (e) {
+        if (!active) return;
+        setError(e instanceof Error ? e.message : "Failed to load user");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [id, isUUID]);
 
-  if (!target) {
+  // Demo / static lookup
+  const demoTarget = !isUUID ? USER_DIRECTORY[id] : null;
+  const demoSnap   = !isUUID ? USER_SNAPSHOTS[id] : null;
+  const allowed    = canViewProfile(viewer.role, viewer.name, id, viewer.id);
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="w-5 h-5 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || (!detail && !demoTarget)) {
     return (
       <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto text-white">
         <button onClick={() => router.back()} className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/55 transition-colors mb-8">
           <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
           Back
         </button>
-        <p className="text-sm text-white/30">User not found.</p>
+        <p className="text-sm text-white/30">{error ?? "User not found."}</p>
       </div>
     );
   }
 
-  if (!allowed) {
+  if (!isUUID && !allowed) {
     return (
       <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto text-white">
         <button onClick={() => router.back()} className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/55 transition-colors mb-8">
@@ -100,13 +169,127 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  // ── Render real Supabase profile ──────────────────────────────────────────
+  if (detail) {
+    const p = detail.profile;
+    const name = deriveName(p);
+    const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+    const statusKey = p.archived_at ? "paused" : p.subscription_status;
+    const statusCfg = STATUS_LABEL[statusKey] ?? { label: statusKey, dot: "bg-white/20" };
+
+    return (
+      <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto text-white space-y-6">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/55 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+          Back
+        </button>
+
+        {/* Identity */}
+        <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-[#1C1C1C] border border-white/10 flex items-center justify-center shrink-0">
+                <span className="text-lg font-semibold text-white/45">{initials}</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-white/90 tracking-tight">{name}</h1>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <span className={cn("text-xs font-medium", ROLE_COLOR[p.role])}>
+                    {ROLE_LABEL[p.role] ?? p.role}
+                  </span>
+                  <span className="text-white/15">·</span>
+                  <span className={cn("text-xs font-semibold", PLAN_COLOR[p.plan])}>
+                    {PLAN_LABEL[p.plan] ?? p.plan}
+                  </span>
+                  <span className="text-white/15">·</span>
+                  <div className="flex items-center gap-1">
+                    <span className={cn("w-1.5 h-1.5 rounded-full", statusCfg.dot)} />
+                    <span className="text-xs text-white/40">{statusCfg.label}</span>
+                  </div>
+                </div>
+                {p.email && (
+                  <p className="text-[11px] text-white/22 mt-1">{p.email}</p>
+                )}
+                {p.archived_at && (
+                  <p className="text-[11px] text-amber-400/60 mt-1">Archived {new Date(p.archived_at).toLocaleDateString()}</p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => router.push(`mailto:${p.email}`)}
+              disabled={!p.email}
+              className="shrink-0 flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all px-3 py-2 text-[11px] font-medium text-white/45 hover:text-white/70 disabled:opacity-50"
+            >
+              <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Email
+            </button>
+          </div>
+        </div>
+
+        {/* Active program */}
+        <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Dumbbell className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={1.5} />
+            <p className="text-[9px] uppercase tracking-[0.16em] text-white/22">Active program</p>
+          </div>
+          {detail.activeProgram ? (
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold text-white/85">{detail.activeProgram.block_name}</p>
+              <p className="text-xs text-white/40">
+                {detail.activeProgram.goal} · {detail.activeProgram.duration_weeks}-week block · {detail.activeProgram.weekly_training_days} days/week
+              </p>
+              <p className="text-[10px] text-white/22">
+                Started {new Date(detail.activeProgram.start_date ?? detail.activeProgram.created_at).toLocaleDateString()}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-white/30">No active program. {p.role === "member" && "Member hasn't finished onboarding yet."}</p>
+          )}
+        </div>
+
+        {/* Onboarding state */}
+        <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
+          <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-2">Onboarding</p>
+          {detail.onboarding ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  detail.onboarding.onboarding_complete ? "bg-emerald-400" : "bg-amber-400",
+                )} />
+                <p className="text-xs text-white/55">
+                  {detail.onboarding.onboarding_complete ? "Completed" : "In progress"}
+                </p>
+              </div>
+              {detail.onboarding.coach_summary && (
+                <p className="text-xs text-white/40 leading-relaxed mt-2">{detail.onboarding.coach_summary}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-white/30">No onboarding record yet.</p>
+          )}
+        </div>
+
+        {/* Meta */}
+        <p className="text-[10px] text-white/15 text-center pb-2">
+          Joined {new Date(p.created_at).toLocaleDateString()} · Last updated {new Date(p.updated_at).toLocaleDateString()}
+        </p>
+      </div>
+    );
+  }
+
+  // ── Demo profile (fallback for non-UUID ids) ──────────────────────────────
+  const target = demoTarget!;
+  const snap   = demoSnap;
   const initials = target.name.split(" ").map((n) => n[0]).join("").toUpperCase();
   const statusCfg = STATUS_LABEL[target.status] ?? { label: target.status, dot: "bg-white/20" };
 
   return (
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto text-white space-y-6">
 
-      {/* Back */}
       <button
         onClick={() => router.back()}
         className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/55 transition-colors"
@@ -115,7 +298,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         Back
       </button>
 
-      {/* Identity card */}
       <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -149,7 +331,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
 
-          {/* Action */}
           <button
             onClick={() => router.push("/coach")}
             className="shrink-0 flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all px-3 py-2 text-[11px] font-medium text-white/45 hover:text-white/70"
@@ -162,7 +343,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
       {snap ? (
         <>
-          {/* Goal + adherence */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-white/6 bg-[#111111] px-4 py-4">
               <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-2">Adherence</p>
@@ -197,7 +377,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
 
-          {/* Goal */}
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
             <div className="flex items-start gap-3">
               <div className="min-w-0">
@@ -215,7 +394,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
 
-          {/* Metrics */}
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
             <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-4">Key metrics</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

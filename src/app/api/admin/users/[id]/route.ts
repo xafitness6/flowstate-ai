@@ -1,5 +1,5 @@
-// PATCH /api/admin/users/[id]
-// Updates role, plan, subscription_status, and/or onboarding_complete for a user.
+// GET    /api/admin/users/[id]  → full profile + onboarding + active program
+// PATCH  /api/admin/users/[id]  → update role, plan, subscription_status, onboarding
 // Requires the requester to be a platform admin (verified server-side via session).
 // Uses the service-role admin client to bypass RLS.
 
@@ -10,6 +10,43 @@ import type { Role, Plan, SubscriptionStatus } from "@/lib/supabase/types";
 const ALLOWED_ROLES: Role[]                       = ["member", "client", "trainer", "master"];
 const ALLOWED_PLANS: Plan[]                       = ["foundation", "training", "performance", "coaching"];
 const ALLOWED_STATUSES: SubscriptionStatus[]      = ["inactive", "active", "past_due"];
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: targetId } = await params;
+
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { admin } = auth;
+
+  const [profileRes, onboardingRes, programRes] = await Promise.all([
+    admin.from("profiles").select("*").eq("id", targetId).maybeSingle(),
+    admin.from("onboarding_state").select("*").eq("user_id", targetId).maybeSingle(),
+    admin
+      .from("programs")
+      .select("*")
+      .eq("user_id", targetId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (!profileRes.data) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+  if (profileRes.error) {
+    return NextResponse.json({ error: profileRes.error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    profile:        profileRes.data,
+    onboarding:     onboardingRes.data ?? null,
+    activeProgram:  programRes.data ?? null,
+  });
+}
 
 export async function PATCH(
   req: NextRequest,

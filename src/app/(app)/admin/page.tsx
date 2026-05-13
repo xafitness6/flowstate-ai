@@ -186,6 +186,105 @@ function SortIcon({ field, sortKey, sortDir }: { field: SortKey; sortKey: SortKe
     : <ChevronDown className="w-3 h-3 text-[#B48B40]" strokeWidth={2} />;
 }
 
+// ─── Inline plan picker ───────────────────────────────────────────────────────
+// Click the plan label in a user row → small popover lets the admin upgrade
+// or downgrade in place. Calls PATCH /api/admin/users/[id].
+
+const PLAN_ORDER: Array<PlatformUser["plan"]> = ["foundation", "training", "performance", "coaching"];
+
+function PlanPicker({
+  userId, currentPlan, disabled, openId, setOpenId, onChanged,
+}: {
+  userId: string;
+  currentPlan: PlatformUser["plan"];
+  disabled?: boolean;
+  openId: string | null;
+  setOpenId: (id: string | null) => void;
+  onChanged: () => void;
+}) {
+  const ref  = useRef<HTMLDivElement>(null);
+  const open = openId === `plan:${userId}`;
+  const [saving, setSaving] = useState(false);
+  const pc = PLAN_CFG[currentPlan as keyof typeof PLAN_CFG] ?? PLAN_CFG.foundation;
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpenId(null);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open, setOpenId]);
+
+  async function setPlan(plan: PlatformUser["plan"]) {
+    if (plan === currentPlan || saving) { setOpenId(null); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert((body as { error?: string }).error ?? `Failed to update plan (${res.status})`);
+        return;
+      }
+      setOpenId(null);
+      onChanged();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to update plan");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (disabled) return;
+          setOpenId(open ? null : `plan:${userId}`);
+        }}
+        disabled={disabled || saving}
+        className={cn(
+          "text-xs font-semibold transition-colors inline-flex items-center gap-1",
+          pc.color,
+          !disabled && "hover:underline underline-offset-4 decoration-dotted decoration-white/30",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
+        title={disabled ? undefined : "Click to change plan"}
+      >
+        {pc.label}
+        {!disabled && <ChevronDown className="w-3 h-3 text-white/30" strokeWidth={2} />}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-44 rounded-xl border border-white/10 bg-[#1A1A1A] shadow-2xl z-50 overflow-hidden py-1">
+          {PLAN_ORDER.map((p) => {
+            const cfg = PLAN_CFG[p as keyof typeof PLAN_CFG];
+            const selected = p === currentPlan;
+            return (
+              <button
+                key={p}
+                onClick={(e) => { e.stopPropagation(); void setPlan(p); }}
+                disabled={saving}
+                className={cn(
+                  "w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between transition-colors",
+                  selected ? "bg-white/[0.04] text-white/85" : "text-white/55 hover:text-white/85 hover:bg-white/[0.03]",
+                )}
+              >
+                <span className={cfg?.color}>{cfg?.label ?? p}</span>
+                {selected && <Check className="w-3 h-3 text-[#B48B40]" strokeWidth={2.5} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Action menu ──────────────────────────────────────────────────────────────
 
 type MenuOption = { label: string; icon?: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean };
@@ -967,7 +1066,6 @@ export default function AdminDashboard() {
           {filtered.map((u) => {
             const sc       = STATUS_CFG[u.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.active;
             const rc       = ROLE_CFG[u.role as keyof typeof ROLE_CFG] ?? ROLE_CFG.member;
-            const pc       = PLAN_CFG[u.plan as keyof typeof PLAN_CFG] ?? PLAN_CFG.foundation;
             const initials = u.name.split(" ").map((n) => n[0]).join("").toUpperCase();
             const trainer  = u.trainerId ? users.find((x) => x.id === u.trainerId) : undefined;
             const checked  = selectedIds.has(u.id);
@@ -1006,7 +1104,16 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <p className={cn("text-xs font-medium", rc.color)}>{rc.label}</p>
-                <p className={cn("text-xs font-semibold", pc.color)}>{pc.label}</p>
+                <div>
+                  <PlanPicker
+                    userId={u.id}
+                    currentPlan={u.plan}
+                    disabled={isSelf || !!bulkBusy}
+                    openId={openMenuId}
+                    setOpenId={setOpenMenuId}
+                    onChanged={() => void fetchUsers({ silent: true })}
+                  />
+                </div>
                 <div className="flex items-center gap-1.5">
                   <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", sc.dot)} />
                   <span className={cn("text-[10px] font-medium tracking-[0.06em] uppercase px-1.5 py-0.5 rounded-md border", sc.badge)}>
