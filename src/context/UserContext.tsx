@@ -120,6 +120,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [viewMode,    setViewModeState] = useState<ViewMode>("operator");
 
   useEffect(() => {
+    let cancelled = false;
+
     // Restore view mode preference
     try {
       const saved = localStorage.getItem(VIEW_MODE_KEY) as ViewMode | null;
@@ -141,10 +143,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const supabase = createClient();
 
-    // Initial session check — resolves isLoading for all non-auth-change paths
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
+    async function applySession(session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) {
+      if (cancelled) return;
+
+      if (!session) {
+        const demo = loadDemoUser();
+        if (demo) setUser(demo);
+        setIsSupabase(false);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
         const profile = await getMyProfile();
+        if (cancelled) return;
+
         if (profile) {
           setUser(applyEarlyAccess(profileToMockUser(profile)));
         } else if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
@@ -155,41 +168,71 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           setUser(prev => applyEarlyAccess({ ...prev, id: session.user.id }));
         }
         setIsSupabase(true);
-        setIsLoading(false);
-        return;
+      } catch (error) {
+        if (cancelled) return;
+        console.error("[UserContext] session profile resolution failed:", error);
+        if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+          setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
+          setIsSupabase(true);
+        } else {
+          setUser(prev => applyEarlyAccess({ ...prev, id: session.user.id }));
+          setIsSupabase(true);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-      // No Supabase session — fall back to demo/local accounts
-      const demo = loadDemoUser();
-      if (demo) setUser(demo);
-      setIsLoading(false);
-    });
+    }
+
+    // Initial session check — always resolves isLoading so the app never parks
+    // forever on the black routing shell after OAuth.
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => applySession(session))
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("[UserContext] getSession failed:", error);
+        const demo = loadDemoUser();
+        if (demo) setUser(demo);
+        setIsSupabase(false);
+        setIsLoading(false);
+      });
+
+    const loadingFallback = window.setTimeout(() => {
+      if (cancelled) return;
+      setIsLoading((wasLoading) => {
+        if (!wasLoading) return wasLoading;
+        console.error("[UserContext] auth resolution timed out; releasing app shell.");
+        return false;
+      });
+    }, 5000);
 
     // Listen for auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (session) {
-          const profile = await getMyProfile();
-          if (profile) {
-            setUser(applyEarlyAccess(profileToMockUser(profile)));
-          } else if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-            setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
-          } else {
-            // Profile row not ready yet — preserve correct UUID
-            setUser(prev => applyEarlyAccess({ ...prev, id: session.user.id }));
+        try {
+          if (session) {
+            await applySession(session);
+            return;
           }
-          setIsSupabase(true);
+          // Session ended — check for demo fallback
+          if (cancelled) return;
+          setIsSupabase(false);
+          const demo = loadDemoUser();
+          setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
           setIsLoading(false);
-          return;
+        } catch (error) {
+          if (cancelled) return;
+          console.error("[UserContext] auth state change failed:", error);
+          setIsLoading(false);
         }
-        // Session ended — check for demo fallback
-        setIsSupabase(false);
-        const demo = loadDemoUser();
-        setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
-        setIsLoading(false);
       }
     );
 
-    return () => { subscription.unsubscribe(); };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(loadingFallback);
+      subscription.unsubscribe();
+    };
   }, []);
 
   function setRole(role: Role) {
