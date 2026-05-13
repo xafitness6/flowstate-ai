@@ -4,7 +4,7 @@
 // Uses the service-role admin client to bypass RLS.
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin/requireAdmin";
 import type { Role, Plan, SubscriptionStatus } from "@/lib/supabase/types";
 
 const ALLOWED_ROLES: Role[]                       = ["member", "client", "trainer", "master"];
@@ -17,30 +17,8 @@ export async function PATCH(
 ) {
   const { id: targetId } = await params;
 
-  // ── Auth: verify requester is master ──────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: actor } = await supabase
-    .from("profiles")
-    .select("role,is_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!actor || (actor.role !== "master" && !actor.is_admin)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  // ── Service-role client check ─────────────────────────────────────────────
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return NextResponse.json(
-      { error: "SUPABASE_SERVICE_ROLE_KEY is not configured." },
-      { status: 503 },
-    );
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
 
   // ── Parse body ────────────────────────────────────────────────────────────
   let body: {
@@ -66,7 +44,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid subscription_status" }, { status: 400 });
   }
 
-  const admin = await createAdminClient();
+  const { admin } = auth;
   const now   = new Date().toISOString();
 
   // ── Update profiles ───────────────────────────────────────────────────────

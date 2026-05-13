@@ -12,7 +12,7 @@
 // in the same call. Removes the "lock yourself out by accident" footgun.
 
 import { NextResponse } from "next/server";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin/requireAdmin";
 
 type BulkAction = "archive" | "unarchive" | "delete";
 
@@ -24,22 +24,9 @@ type BulkBody = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(req: Request) {
-  // ── Auth: verify requester is master/admin ────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: actor } = await supabase
-    .from("profiles")
-    .select("role,is_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!actor || (actor.role !== "master" && !actor.is_admin)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { user, admin } = auth;
 
   // ── Parse body ────────────────────────────────────────────────────────────
   let body: BulkBody;
@@ -68,16 +55,6 @@ export async function POST(req: Request) {
   if (targets.length === 0) {
     return NextResponse.json({ error: "Cannot bulk-act on your own account" }, { status: 400 });
   }
-
-  // ── Service role check ────────────────────────────────────────────────────
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return NextResponse.json(
-      { error: "SUPABASE_SERVICE_ROLE_KEY is not configured." },
-      { status: 503 },
-    );
-  }
-
-  const admin = await createAdminClient();
 
   // ── Execute ───────────────────────────────────────────────────────────────
   if (action === "archive" || action === "unarchive") {
