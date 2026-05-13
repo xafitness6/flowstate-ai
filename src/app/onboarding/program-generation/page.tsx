@@ -253,7 +253,7 @@ export default function ProgramGenerationPage() {
 
   useEffect(() => {
     const key = getSessionKey();
-    if (!key || key === "master") { router.replace("/welcome"); return; }
+    if (!key || key === "master") { router.replace("/login"); return; }
     const uid      = ROLE_TO_USER_ID[key] ?? key;
     const state    = loadOnboardingState(uid);
     const planning = state.planningData;

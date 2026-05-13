@@ -4,25 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, ArrowLeft, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-// In production, send a real reset email. For now we validate the email
-// matches a known account and store a reset token in localStorage.
-const KNOWN_EMAILS: Record<string, string> = {
-  "admin@flowstate.ai":   "master",
-  "alex@flowstate.ai":    "trainer",
-  "kai@flowstate.ai":     "client",
-  "luca@flowstate.ai":    "member",
-};
-
-const RESET_TOKEN_KEY = (email: string) => `flowstate-reset-token-${email}`;
-
-function generateToken(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
+import { createClient } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -31,7 +13,7 @@ export default function ForgotPasswordPage() {
   const [sent,    setSent]    = useState(false);
   const [error,   setError]   = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -43,33 +25,29 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
 
-    // Simulate async (in production: POST /api/auth/forgot-password)
-    setTimeout(() => {
-      if (KNOWN_EMAILS[trimmed]) {
-        // Store a reset token so the reset page can validate it
-        const token = generateToken();
-        try {
-          localStorage.setItem(RESET_TOKEN_KEY(trimmed), JSON.stringify({
-            token,
-            email: trimmed,
-            role:  KNOWN_EMAILS[trimmed],
-            expiresAt: Date.now() + 15 * 60 * 1000, // 15 minutes
-          }));
-        } catch { /* ignore */ }
+    try {
+      const supabase = createClient();
+      const redirectTo = `${window.location.origin}/auth/callback?next=/reset-password`;
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmed, {
+        redirectTo,
+      });
+
+      // Always show success — never reveal whether the email exists (email enumeration protection)
+      if (resetError) {
+        console.error("Password reset error:", resetError.message);
       }
-      // Always show success to avoid email enumeration
+    } catch (err) {
+      console.error("Unexpected password reset error:", err);
+    } finally {
       setLoading(false);
       setSent(true);
-    }, 800);
+    }
   }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 md:px-8 py-16 text-white">
       <div className="max-w-sm w-full space-y-8">
 
-        {/* Brand */}
         <div className="space-y-1">
           <div className="flex items-center gap-2 mb-4">
             <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
@@ -85,7 +63,6 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
-        {/* ── Success state ─────────────────────────────────────────────────── */}
         {sent && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-5 py-6 flex flex-col items-center gap-4 text-center">
@@ -113,7 +90,6 @@ export default function ForgotPasswordPage() {
           </div>
         )}
 
-        {/* ── Form ──────────────────────────────────────────────────────────── */}
         {!sent && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">

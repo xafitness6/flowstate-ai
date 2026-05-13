@@ -162,7 +162,7 @@ export default function BodyFocusPage() {
 
   useEffect(() => {
     const key = getSessionKey();
-    if (!key || key === "master") { router.replace("/welcome"); return; }
+    if (!key || key === "master") { router.replace("/login"); return; }
     setUserId(ROLE_TO_USER_ID[key] ?? key);
     setTimeout(() => setMsgVisible(true), 100);
   }, [router]);

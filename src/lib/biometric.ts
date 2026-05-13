@@ -1,8 +1,14 @@
 // Flowstate biometric login — uses WebAuthn (device-native Face ID / Touch ID).
 // No face data is stored. The browser/OS handles all biometric verification.
 
-const LS_CRED_ID   = "flowstate-biometric-id";
-const LS_BIO_ROLE  = "flowstate-biometric-role";
+const LS_CRED_ID    = "flowstate-biometric-id";
+const LS_BIO_ROLE   = "flowstate-biometric-role";
+const LS_BIO_SESSION = "flowstate-biometric-session";
+
+export type BiometricSession = {
+  access_token:  string;
+  refresh_token: string;
+};
 
 // ─── Support detection ────────────────────────────────────────────────────────
 
@@ -37,6 +43,28 @@ export function clearBiometric(): void {
   try {
     localStorage.removeItem(LS_CRED_ID);
     localStorage.removeItem(LS_BIO_ROLE);
+    localStorage.removeItem(LS_BIO_SESSION);
+  } catch { /* ignore */ }
+}
+
+export function getSavedBiometricSession(): BiometricSession | null {
+  try {
+    const raw = localStorage.getItem(LS_BIO_SESSION);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BiometricSession;
+    if (!parsed.access_token || !parsed.refresh_token) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveBiometricSession(session: BiometricSession): void {
+  try {
+    localStorage.setItem(
+      LS_BIO_SESSION,
+      JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }),
+    );
   } catch { /* ignore */ }
 }
 
@@ -136,4 +164,21 @@ export async function authenticateWithBiometric(): Promise<string | null> {
     console.warn("Biometric authentication failed:", err);
     return null;
   }
+}
+
+// ─── Session-aware variants (real Supabase users) ────────────────────────────
+
+/** Register a WebAuthn credential AND persist a Supabase session for biometric unlock. */
+export async function registerBiometricWithSession(session: BiometricSession): Promise<boolean> {
+  const ok = await registerBiometric("__supabase__");
+  if (!ok) return false;
+  saveBiometricSession(session);
+  return true;
+}
+
+/** Run biometric auth and return the persisted Supabase session if successful. */
+export async function authenticateWithBiometricSession(): Promise<BiometricSession | null> {
+  const role = await authenticateWithBiometric();
+  if (!role) return null;
+  return getSavedBiometricSession();
 }

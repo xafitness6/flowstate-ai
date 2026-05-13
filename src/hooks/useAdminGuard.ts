@@ -13,7 +13,7 @@ import { useUser }   from "@/context/UserContext";
  * or out-of-sync with the actual Supabase profile.
  *
  * Returns true once the role is confirmed as master/admin.
- * Redirects to /welcome for any other role (or while loading, holds).
+ * Redirects to /login for any other role (or while loading, holds).
  */
 export function useAdminGuard(): boolean {
   const router = useRouter();
@@ -24,7 +24,7 @@ export function useAdminGuard(): boolean {
   useEffect(() => {
     if (isLoading) return; // wait — don't redirect until role is resolved
     if (!isAdmin) {
-      router.replace("/welcome");
+      router.replace("/login");
     }
   }, [isLoading, isAdmin, router]);
 

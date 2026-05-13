@@ -61,7 +61,7 @@ export default function OnboardingRouter() {
       // 2. Fall back to localStorage key (demo mode / non-Supabase)
       try {
         const key = getSessionKey();
-        if (!key) { router.replace("/welcome"); return; }
+        if (!key) { router.replace("/login"); return; }
         if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) {
           clearSession();
           router.replace("/login");
@@ -70,7 +70,7 @@ export default function OnboardingRouter() {
         const next = resolvePostLoginRoute(key);
         router.replace(next);
       } catch {
-        router.replace("/welcome");
+        router.replace("/login");
       }
     }
 

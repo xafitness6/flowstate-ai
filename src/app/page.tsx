@@ -55,7 +55,7 @@ export default function Root() {
 
       const sessionKey = getSessionKey();
       if (!sessionKey) {
-        router.replace("/welcome");
+        router.replace("/login");
         return;
       }
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionKey)) {
@@ -67,7 +67,7 @@ export default function Root() {
       router.replace(resolvePostLoginRoute(sessionKey));
     }
 
-    route().catch(() => router.replace("/welcome"));
+    route().catch(() => router.replace("/login"));
   }, [router]);
 
   return <div className="min-h-screen bg-[#0A0A0A]" />;

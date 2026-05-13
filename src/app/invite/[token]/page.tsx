@@ -281,7 +281,7 @@ export default function InvitePage() {
             <p className="text-sm text-white/40">{loadError}</p>
           </div>
           <button
-            onClick={() => router.replace("/welcome")}
+            onClick={() => router.replace("/login")}
             className="w-full rounded-2xl border border-white/8 py-3 text-sm text-white/50 hover:text-white/75 transition-colors"
           >
             Go to Flowstate
