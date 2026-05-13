@@ -30,6 +30,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isLoading } = useUser();
   const [ready, setReady] = useState(false);
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    if (ready) return;
+    const slowTimer = window.setTimeout(() => setSlow(true), 6000);
+    return () => window.clearTimeout(slowTimer);
+  }, [ready]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -48,7 +55,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (supabaseConfigured) {
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) =>
+            window.setTimeout(() => reject(new Error("Supabase session check timed out")), 5000),
+          ),
+        ]);
+        const { data: { session } } = sessionResult;
 
         if (!session) {
           // No Supabase session — fall back to demo session check
@@ -102,7 +115,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     // Log errors instead of silently redirecting to /login — keeps the user
     // on the page and lets the real error surface for debugging.
-    guard().catch(console.error);
+    guard().catch((error) => {
+      console.error("[AppShell] guard failed:", error);
+      router.replace("/auth/finish");
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, router, user.isAdmin, user.role]);
 
@@ -111,7 +127,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-5 text-white">
         <div className="text-center space-y-2">
           <div className="mx-auto h-6 w-6 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
-          <p className="text-sm text-white/55">Signing you in...</p>
+          <p className="text-sm text-white/55">
+            {slow ? "Still checking your session..." : "Signing you in..."}
+          </p>
+          {slow && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <a
+                href="/auth/finish"
+                className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white hover:bg-white/[0.04] transition-colors"
+              >
+                Finish sign in
+              </a>
+              <a
+                href="/login"
+                className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white hover:bg-white/[0.04] transition-colors"
+              >
+                Login
+              </a>
+            </div>
+          )}
         </div>
       </div>
     );

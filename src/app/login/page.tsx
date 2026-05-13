@@ -319,7 +319,7 @@ function LoginPageContent() {
       }
     }
 
-    router.replace(destination);
+    window.location.replace(destination);
   }
 
   async function routeExistingSession() {

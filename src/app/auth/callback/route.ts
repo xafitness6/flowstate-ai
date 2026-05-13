@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     }
 
     const email = user.email?.trim().toLowerCase();
-    return NextResponse.redirect(`${origin}${email === ADMIN_EMAIL ? "/admin" : "/onboarding"}`);
+    return NextResponse.redirect(`${origin}${email === ADMIN_EMAIL ? "/admin" : "/auth/finish"}`);
   }
 
   return NextResponse.redirect(`${origin}/login`);
