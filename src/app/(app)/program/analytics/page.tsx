@@ -79,6 +79,12 @@ export default function AnalyticsPage() {
   const [program,  setProgram]  = useState<ActiveProgram | null>(null);
   const [loaded,   setLoaded]   = useState(false);
 
+  // Failsafe — never hang on the spinner more than 4s.
+  useEffect(() => {
+    const t = window.setTimeout(() => setLoaded(true), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     if (userLoading) return;
 

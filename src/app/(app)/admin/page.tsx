@@ -445,14 +445,6 @@ export default function AdminDashboard() {
   const retentionPct = totalUsers > 0 ? ((totalUsers - churnedUsers) / totalUsers * 100).toFixed(1) : "100.0";
   const churnPct     = totalUsers > 0 ? (churnedUsers / totalUsers * 100).toFixed(1) : "0.0";
 
-  // Revenue sparkline scaled to real MRR endpoint
-  const revenuePoints = REVENUE_SHAPE.map((r) => Math.round(r * totalMrr));
-
-  // User growth sparkline — shape kept, endpoint anchored to real total
-  const userGrowth = [0.51, 0.54, 0.56, 0.58, 0.60, 0.62, 0.66, 0.66, 0.68, 0.69, 0.70, 1.0].map(
-    (r) => Math.max(1, Math.round(r * totalUsers))
-  );
-
   // Derive assignment summary from active roster
   const assignments = (() => {
     const trainers = activeRoster.filter((u) => u.role === "trainer");
@@ -616,18 +608,18 @@ export default function AdminDashboard() {
       {/* ── KPI row ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <StatCard label="Total users"   value={`${totalUsers}`} deltaLabel="platform members"
-          icon={Users}       chart={<BarChart points={userGrowth} color="#B48B40" />} accent
+          icon={Users} accent
           hint="Click to view every active platform user"
           onClick={() => focusUsersTable({ view: "all", role: "all", status: "all", plan: "all" })}
         />
         <StatCard label="Active users"  value={`${activeUsers}`}
           deltaLabel={totalUsers > 0 ? `${Math.round((activeUsers / totalUsers) * 100)}% of total` : "—"}
-          icon={Activity}    chart={<Sparkline points={userGrowth.slice(-7)} color="#4ADE80" height={36} />}
+          icon={Activity}
           hint="Filter to actively-engaged users"
           onClick={() => focusUsersTable({ view: "all", role: "all", status: "active", plan: "all" })}
         />
         <StatCard label="Monthly revenue" value={`$${totalMrr.toLocaleString()}`} deltaLabel="MRR"
-          icon={DollarSign}  chart={<Sparkline points={revenuePoints} color="#B48B40" height={36} />} accent
+          icon={DollarSign} accent
           hint="See exactly which users contribute to MRR"
           onClick={() => focusUsersTable({ view: "all", role: "all", status: "active", plan: "all" })}
         />
@@ -865,21 +857,21 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Trend bars */}
+                  {/* Compact trend — full bar chart removed at user request */}
                   {metrics.adherenceTrend.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/18 mb-1.5">7-week adherence trend</p>
-                      <div className="flex items-end gap-1 h-8">
+                    <div className="mt-3 flex items-center gap-2">
+                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/18 shrink-0">7w trend</p>
+                      <div className="flex items-end gap-[2px] h-3 flex-1 max-w-[120px]">
                         {metrics.adherenceTrend.map((v, i) => {
                           const isLast = i === metrics.adherenceTrend.length - 1;
                           return (
                             <div
                               key={i}
-                              className="flex-1 rounded-sm"
+                              className="flex-1 rounded-[1px]"
                               style={{
                                 height: `${v}%`,
-                                minHeight: 3,
-                                background: isLast ? "#B48B40" : "#B48B4040",
+                                minHeight: 2,
+                                background: isLast ? "#B48B40" : "#B48B4030",
                               }}
                             />
                           );

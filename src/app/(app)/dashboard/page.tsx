@@ -13,6 +13,7 @@ import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { hasAccess } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { GreetingBanner } from "@/components/dashboard/GreetingBanner";
+import { TodaySnapshot }  from "@/components/dashboard/TodaySnapshot";
 import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
 import { Card } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
@@ -588,12 +589,9 @@ function DashboardContent() {
         <h1 className="text-3xl font-semibold tracking-tight">{firstName}</h1>
       </div>
 
-      {/* Daily focus — member and client only */}
+      {/* Today's snapshot — first thing a client/member sees */}
       {(role === "member" || role === "client") && (
-        <DailyFocusCard
-          userId={actualUserId}
-          onStart={() => router.push("/workout")}
-        />
+        <TodaySnapshot userId={actualUserId} />
       )}
 
       {/* AI Coach */}

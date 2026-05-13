@@ -489,6 +489,12 @@ export default function WorkoutPage() {
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
+  // Failsafe — never hang on the spinner more than 4s.
+  useEffect(() => {
+    const t = window.setTimeout(() => setLoaded(true), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     if (userLoading) return;
 

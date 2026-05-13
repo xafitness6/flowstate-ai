@@ -164,10 +164,16 @@ export default function ProgramPage() {
   const [nextWo,     setNextWo]     = useState<Workout | null>(null);
   const [loaded,     setLoaded]     = useState(false);
 
+  // Failsafe: under no circumstance should the spinner sit longer than 4s.
+  // If auth is hanging or Supabase is slow, we'd rather show the empty state
+  // than block the user on a black screen with a spinning dot.
   useEffect(() => {
-    // Wait for the auth context to resolve before fetching. Without this guard
-    // the effect can fire with an undefined user.id, early-return, and leave
-    // `loaded` false → infinite spinner.
+    const t = window.setTimeout(() => setLoaded(true), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    // Wait for the auth context to resolve before fetching.
     if (userLoading) return;
 
     let active = true;
