@@ -32,7 +32,6 @@ import {
 } from "@/lib/data/store";
 import type { AdminProfile } from "@/lib/admin/profileMapper";
 import { loadIntake, GOAL_LABELS } from "@/lib/data/intake";
-import { loadStarterPlan } from "@/lib/starterPlan";
 
 // ─── Build real pipeline data from localStorage ───────────────────────────────
 
@@ -134,12 +133,12 @@ const TAB_ROUTES: Record<string, string> = {
 // ─── Quick-access cards (role-gated) ─────────────────────────────────────────
 
 const QUICK_CARDS = [
-  { label: "Program",        sub: "Today's session",  href: "/program",        icon: Dumbbell,    minRole: "member"  as Role },
-  { label: "Accountability", sub: "Daily check-in",   href: "/accountability", icon: CheckSquare, minRole: "member"  as Role },
-  { label: "Nutrition",      sub: "Today's targets",  href: "/nutrition",      icon: Utensils,    minRole: "client"  as Role },
-  { label: "Coach",          sub: "AI coach",         href: "/coach",          icon: Bot,         minRole: "client"  as Role },
-  { label: "Calendar",       sub: "This week",        href: "/calendar",       icon: CalendarDays,minRole: "client"  as Role },
-  { label: "Leaderboard",    sub: "Your rank",        href: "/leaderboard",    icon: Trophy,      minRole: "member"  as Role },
+  { label: "Program",        sub: "Today's session",  href: "/program",        icon: Dumbbell,    minRole: "member"  as Role, accent: "text-[#B48B40]" },
+  { label: "Accountability", sub: "Daily check-in",   href: "/accountability", icon: CheckSquare, minRole: "member"  as Role, accent: "text-emerald-300" },
+  { label: "Nutrition",      sub: "Today's targets",  href: "/nutrition",      icon: Utensils,    minRole: "client"  as Role, accent: "text-[#93C5FD]" },
+  { label: "Coach",          sub: "AI coach",         href: "/coach",          icon: Bot,         minRole: "client"  as Role, accent: "text-purple-300" },
+  { label: "Calendar",       sub: "This week",        href: "/calendar",       icon: CalendarDays,minRole: "client"  as Role, accent: "text-[#B48B40]" },
+  { label: "Leaderboard",    sub: "Your rank",        href: "/leaderboard",    icon: Trophy,      minRole: "member"  as Role, accent: "text-amber-300" },
 ];
 
 // ─── Role-specific overview panels ───────────────────────────────────────────
@@ -384,78 +383,6 @@ function MemberOverviewPanel() {
   );
 }
 
-// ─── Daily focus card ─────────────────────────────────────────────────────────
-
-const QUOTES = [
-  "Consistency beats intensity — show up today.",
-  "Progress is built in the sessions you don't feel like doing.",
-  "Every rep is a vote for the person you're becoming.",
-  "The body achieves what the mind believes.",
-  "Hard work now. Easy life later.",
-  "You don't have to be great to start, but you have to start to be great.",
-  "Champions aren't born in the gym — they're built there.",
-  "One more set. One more rep. One more day.",
-  "Your only competition is who you were yesterday.",
-  "Discipline is choosing between what you want now and what you want most.",
-  "Make it happen. Shock everyone.",
-  "The pain of discipline is nothing like the pain of regret.",
-  "Strong is earned, not given.",
-  "Show up. Do the work. Get better.",
-];
-
-const DAY_ABBR: Record<number, string> = {
-  0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat",
-};
-
-function getTodayQuote(): string {
-  const doy = Math.floor(
-    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86_400_000,
-  );
-  return QUOTES[doy % QUOTES.length];
-}
-
-function getTodaySession(userId: string): { name: string; duration: string } | null {
-  try {
-    const plan = loadStarterPlan(userId);
-    if (!plan) return null;
-    const abbr = DAY_ABBR[new Date().getDay()];
-    return plan.sessions.find((s) => s.day === abbr) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function DailyFocusCard({ userId, onStart }: { userId: string; onStart: () => void }) {
-  const session = getTodaySession(userId);
-  const quote   = getTodayQuote();
-
-  return (
-    <Card className="mb-8">
-      <div className="px-5 pt-5 pb-4">
-        <SectionHeader>Today's focus</SectionHeader>
-        <div className="space-y-1 mb-4">
-          <h2 className="text-lg font-semibold text-white/90">
-            {session ? session.name : "Rest day"}
-          </h2>
-          {session && (
-            <p className="text-xs text-white/35">{session.duration}</p>
-          )}
-        </div>
-        <p className="text-sm text-white/45 leading-relaxed italic mb-5">
-          &ldquo;{quote}&rdquo;
-        </p>
-        <button
-          onClick={onStart}
-          className="w-full rounded-xl py-3 bg-[#B48B40] text-black text-sm font-semibold tracking-wide flex items-center justify-center gap-2 hover:bg-[#c99840] active:scale-[0.98] transition-all"
-        >
-          <Dumbbell className="w-4 h-4" strokeWidth={2} />
-          Start workout
-        </button>
-      </div>
-    </Card>
-  );
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayLabel(): string {
@@ -577,160 +504,336 @@ function DashboardContent() {
 
   const ACTIVE_STATUSES = ["detecting","summarizing","deciding","formatting","educating"];
 
+  const roleLabel: Record<Role, string> = {
+    member:  "Member",
+    client:  "Client",
+    trainer: "Trainer",
+    master:  "Operator",
+  };
+  const planLabel = demoUser.plan ? demoUser.plan[0].toUpperCase() + demoUser.plan.slice(1) : null;
+
   return (
-    <div className="px-5 md:px-8 py-6 text-white max-w-2xl mx-auto">
+    <div className="relative px-5 md:px-8 py-6 text-white max-w-5xl mx-auto">
       <GreetingBanner />
 
-      {/* Header */}
-      <div className="mb-8">
-        <p className="text-xs uppercase tracking-[0.22em] text-white/25 mb-1.5">
-          {todayLabel()}
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight">{firstName}</h1>
+      {/* Ambient glow — backdrop behind hero */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] overflow-hidden" aria-hidden>
+        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-[#B48B40]/[0.05] blur-[120px]" />
       </div>
 
-      {/* Today's snapshot — first thing a client/member sees */}
-      {(role === "member" || role === "client") && (
-        <TodaySnapshot userId={actualUserId} />
-      )}
+      {/* ── HERO ───────────────────────────────────────────────────────────── */}
+      <Card className="relative mb-6 border-white/[0.08] bg-gradient-to-br from-[#141414] via-[#0F0F0F] to-[#0A0A0A]">
+        <div className="px-6 md:px-8 py-7 md:py-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+            <div className="md:col-span-3 min-w-0">
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-[10px] uppercase tracking-[0.28em] text-white/40">
+                  {todayLabel()}
+                </p>
+                <span className="text-white/15">·</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-[#B48B40]/85 px-2 py-0.5 rounded-full border border-[#B48B40]/25 bg-[#B48B40]/[0.06]">
+                  {roleLabel[role]}
+                </span>
+                {planLabel && (
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-white/45 px-2 py-0.5 rounded-full border border-white/8 bg-white/[0.02]">
+                    {planLabel}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-[2.5rem] md:text-[3rem] leading-[1.05] font-semibold tracking-tight">
+                {timeOfDayGreeting()},
+                <span className="block text-white/55 font-light">{firstName}.</span>
+              </h1>
+              <p className="mt-3 text-sm text-white/45 max-w-md leading-relaxed">
+                {heroSubline(role)}
+              </p>
+            </div>
 
-      {/* AI Coach */}
-      <section className="mb-8">
-        <SectionHeader>AI Coach</SectionHeader>
-
-        <form onSubmit={handleAsk} className="mb-3">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask the coach…"
-              className="flex-1 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-white/15 focus:bg-white/[0.05] transition-all"
-            />
-            <button
-              type="submit"
-              disabled={!question.trim() || ACTIVE_STATUSES.includes(pipeline.status)}
-              className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-white/30 hover:text-white/60 hover:border-white/15 disabled:opacity-30 disabled:cursor-default transition-all"
-            >
-              <Send className="w-4 h-4" strokeWidth={1.5} />
-            </button>
+            <div className="md:col-span-2 grid grid-cols-3 gap-3">
+              <HeroStat
+                label="Streak"
+                value={getStreakFromLogs()}
+                unit="d"
+                accent="text-[#B48B40]"
+              />
+              <HeroStat
+                label="Sessions"
+                value={getSessionsThisWeek()}
+                unit="/wk"
+              />
+              <HeroStat
+                label="Score"
+                value={getTodayScore()}
+                unit="/100"
+                accent="text-emerald-300"
+              />
+            </div>
           </div>
-        </form>
+        </div>
 
-        {ACTIVE_STATUSES.includes(pipeline.status) && (
-          <Card className="px-5 py-5">
-            <div className="flex items-center gap-2.5">
-              <Loader2 className="w-3.5 h-3.5 text-[#B48B40]/50 animate-spin" />
-              <p className="text-xs text-white/30">
-                {PIPELINE_LABELS[pipeline.status] ?? "Processing…"}
-              </p>
+        {/* Primary CTA strip */}
+        <Link
+          href="/program"
+          className="relative flex items-center justify-between gap-4 border-t border-white/[0.06] px-6 md:px-8 py-4 hover:bg-white/[0.02] transition-colors group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#B48B40]/10 border border-[#B48B40]/25 flex items-center justify-center shrink-0">
+              <Dumbbell className="w-4 h-4 text-[#B48B40]" strokeWidth={2} />
             </div>
-          </Card>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white/90">Today&apos;s session</p>
+              <p className="text-[11px] text-white/40 truncate">Open your program to start training</p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-white/30 group-hover:text-white/70 group-hover:translate-x-0.5 transition-all" strokeWidth={2} />
+        </Link>
+      </Card>
+
+      <div className="relative space-y-6">
+        {/* Today's snapshot — first thing a client/member sees */}
+        {(role === "member" || role === "client") && (
+          <TodaySnapshot userId={actualUserId} />
         )}
 
-        {pipeline.status === "error" && (
-          <Card className="px-5 py-4 border-red-900/30">
-            <p className="text-xs text-red-400/60">{pipeline.error}</p>
-          </Card>
+        {/* Deep calibration nudge */}
+        {actualUserId && (
+          <DeepCalPrompt userId={actualUserId} />
         )}
 
-        {pipeline.activeMode === "education" && pipeline.educationResult && pipeline.status === "complete" && (
-          <Card className="divide-y divide-white/[0.04]">
-            <div className="px-5 py-4">
-              <p className="text-sm text-white/75 leading-relaxed">
-                {pipeline.educationResult.explanation}
-              </p>
-            </div>
-            {pipeline.educationResult.example && (
-              <div className="px-5 py-3">
-                <p className="text-xs text-white/40 leading-relaxed italic">
-                  {pipeline.educationResult.example}
-                </p>
+        {/* Two-column on desktop: AI Coach left, Role panel right */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* AI Coach */}
+          <Card className="lg:col-span-3">
+            <div className="px-5 pt-5 pb-4 border-b border-white/[0.05]">
+              <div className="flex items-center justify-between mb-1">
+                <SectionHeader className="mb-0">AI Coach</SectionHeader>
+                <Link
+                  href="/coach"
+                  className="text-[10px] text-white/35 hover:text-white/70 flex items-center gap-1 transition-colors"
+                >
+                  Open chat <ArrowRight className="w-3 h-3" strokeWidth={2} />
+                </Link>
               </div>
-            )}
-            <div className="px-5 py-4">
-              <div className="flex gap-2.5">
-                <div className="w-[2px] rounded-full bg-[#B48B40]/30 shrink-0 mt-0.5" />
-                <p className="text-sm text-white/55 leading-snug">
-                  {pipeline.educationResult.takeaway}
-                </p>
-              </div>
+              <p className="text-[11px] text-white/40">Ask for a plan, an adjustment, or an explanation.</p>
             </div>
-          </Card>
-        )}
 
-        {pipeline.activeMode !== "education" && (pipeline.result ?? pipeline.lastResult) &&
-          !["summarizing","deciding","formatting"].includes(pipeline.status) && (() => {
-          const r = pipeline.result ?? pipeline.lastResult!;
-          return (
-            <Card className="divide-y divide-white/[0.04]">
-              <div className="px-5 py-4">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/25 mb-1.5">
-                  Today&apos;s Focus
-                </p>
-                <p className="text-sm text-white/80 leading-snug">
-                  {r.response.todays_focus}
-                </p>
+            <form onSubmit={handleAsk} className="px-5 py-4 border-b border-white/[0.05]">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="e.g. Should I push harder on legs today?"
+                  className="flex-1 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-[#B48B40]/40 focus:bg-[#B48B40]/[0.04] transition-all"
+                />
+                <button
+                  type="submit"
+                  disabled={!question.trim() || ACTIVE_STATUSES.includes(pipeline.status)}
+                  className="rounded-xl bg-[#B48B40] text-black px-3.5 py-2.5 hover:bg-[#c99840] disabled:bg-white/[0.04] disabled:text-white/25 disabled:cursor-default transition-all"
+                  aria-label="Ask coach"
+                >
+                  <Send className="w-4 h-4" strokeWidth={2} />
+                </button>
               </div>
-              <div className="px-5 py-4">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/25 mb-1.5">
-                  Training Range
-                </p>
-                <p className="text-sm font-semibold text-white/85">
-                  {r.response.training_plan.intensity}
-                </p>
-                <p className="text-xs text-white/32 mt-0.5">
-                  {r.response.training_plan.summary} · {r.response.training_plan.duration}
-                </p>
-              </div>
-              <div className="px-5 py-4">
-                <div className="flex gap-2.5">
-                  <div className="w-[2px] rounded-full bg-[#B48B40]/30 shrink-0 mt-0.5" />
-                  <p className="text-sm text-white/50 italic leading-snug">
-                    {r.response.coaching_insight}
+            </form>
+
+            <div className="px-5 py-4 space-y-3 min-h-[80px]">
+              {ACTIVE_STATUSES.includes(pipeline.status) && (
+                <div className="flex items-center gap-2.5">
+                  <Loader2 className="w-3.5 h-3.5 text-[#B48B40]/60 animate-spin" />
+                  <p className="text-xs text-white/45">
+                    {PIPELINE_LABELS[pipeline.status] ?? "Processing…"}
                   </p>
                 </div>
-              </div>
-            </Card>
-          );
-        })()}
-      </section>
+              )}
 
-      {/* Deep calibration nudge — shown after quick start if deep cal is pending */}
-      {actualUserId && (
-        <div className="mb-6">
-          <DeepCalPrompt userId={actualUserId} />
+              {pipeline.status === "error" && (
+                <p className="text-xs text-red-400/75">{pipeline.error}</p>
+              )}
+
+              {pipeline.activeMode === "education" && pipeline.educationResult && pipeline.status === "complete" && (
+                <div className="space-y-3">
+                  <p className="text-sm text-white/80 leading-relaxed">
+                    {pipeline.educationResult.explanation}
+                  </p>
+                  {pipeline.educationResult.example && (
+                    <p className="text-xs text-white/45 leading-relaxed italic border-l-2 border-white/10 pl-3">
+                      {pipeline.educationResult.example}
+                    </p>
+                  )}
+                  <div className="flex gap-2.5 pt-2 border-t border-white/[0.05]">
+                    <div className="w-[2px] rounded-full bg-[#B48B40]/40 shrink-0 mt-0.5" />
+                    <p className="text-sm text-white/65 leading-snug">
+                      {pipeline.educationResult.takeaway}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {pipeline.activeMode !== "education" && (pipeline.result ?? pipeline.lastResult) &&
+                !["summarizing","deciding","formatting"].includes(pipeline.status) && (() => {
+                const r = pipeline.result ?? pipeline.lastResult!;
+                return (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1.5">Today&apos;s focus</p>
+                      <p className="text-sm text-white/85 leading-snug">{r.response.todays_focus}</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.05]">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">Training range</p>
+                        <p className="text-sm font-semibold text-white/90">{r.response.training_plan.intensity}</p>
+                        <p className="text-[11px] text-white/40 mt-0.5">{r.response.training_plan.duration}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">Game plan</p>
+                        <p className="text-xs text-white/55 leading-snug">{r.response.training_plan.summary}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5 pt-3 border-t border-white/[0.05]">
+                      <div className="w-[2px] rounded-full bg-[#B48B40]/40 shrink-0 mt-0.5" />
+                      <p className="text-sm text-white/55 italic leading-snug">{r.response.coaching_insight}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {!ACTIVE_STATUSES.includes(pipeline.status)
+                && pipeline.status !== "error"
+                && !pipeline.result && !pipeline.lastResult && !pipeline.educationResult && (
+                <p className="text-xs text-white/30">No conversation yet — ask anything to get started.</p>
+              )}
+            </div>
+          </Card>
+
+          {/* Role-specific overview */}
+          <div className="lg:col-span-2 space-y-6">
+            {role === "trainer" && <TrainerOverviewPanel userId={actualUserId} />}
+            {role === "client"  && <ClientOverviewPanel  userId={actualUserId} />}
+            {role === "master"  && <MasterOverviewPanel  />}
+            {role === "member"  && <MemberOverviewPanel  />}
+          </div>
         </div>
-      )}
 
-      {/* Role-specific overview */}
-      <section className="mb-8">
-        {role === "trainer" && <TrainerOverviewPanel userId={actualUserId} />}
-        {role === "client"  && <ClientOverviewPanel  userId={actualUserId} />}
-        {role === "master"  && <MasterOverviewPanel  />}
-        {role === "member"  && <MemberOverviewPanel  />}
-      </section>
-
-      {/* Quick access */}
-      <section>
-        <SectionHeader>Quick Access</SectionHeader>
-        <div className="grid grid-cols-2 gap-2">
-          {visibleCards.map(({ label, sub, href, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="rounded-2xl border border-white/6 bg-white/[0.02] px-4 py-3.5 hover:border-white/12 hover:bg-white/[0.04] transition-all group"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Icon className="w-4 h-4 text-white/30 group-hover:text-white/50 transition-colors" strokeWidth={1.5} />
-                <ArrowRight className="w-3 h-3 text-white/12 group-hover:text-white/30 transition-colors" strokeWidth={1.5} />
-              </div>
-              <p className="text-sm font-semibold text-white/75 leading-none">{label}</p>
-              <p className="text-[11px] text-white/28 mt-1">{sub}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
+        {/* Quick access */}
+        <section>
+          <SectionHeader
+            action={
+              <span className="text-[11px] text-white/30">
+                {visibleCards.length} shortcuts
+              </span>
+            }
+          >
+            Quick Access
+          </SectionHeader>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+            {visibleCards.map(({ label, sub, href, icon: Icon, accent }) => (
+              <Link
+                key={href}
+                href={href}
+                className="group relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 hover:border-white/15 hover:bg-white/[0.04] transition-all overflow-hidden"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className={cn(
+                    "w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-colors",
+                    "border-white/[0.08] bg-white/[0.03] group-hover:border-white/15 group-hover:bg-white/[0.06]",
+                  )}>
+                    <Icon className={cn("w-4 h-4", accent)} strokeWidth={1.8} />
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-white/15 group-hover:text-white/55 group-hover:translate-x-0.5 transition-all" strokeWidth={2} />
+                </div>
+                <p className="text-sm font-semibold text-white/85 leading-none">{label}</p>
+                <p className="text-[11px] text-white/35 mt-1.5">{sub}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
+}
+
+// ─── Hero helpers ─────────────────────────────────────────────────────────────
+
+function timeOfDayGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 5)  return "Late night";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 21) return "Good evening";
+  return "Good night";
+}
+
+function heroSubline(role: Role): string {
+  if (role === "master")  return "Your platform pulse at a glance — users, revenue, and momentum.";
+  if (role === "trainer") return "Your roster's state today. Where attention is needed, what's on track.";
+  if (role === "client")  return "Everything your coach has set up for you, plus what's coming next.";
+  return "What matters most today, distilled down — train, eat, recover, repeat.";
+}
+
+function HeroStat({ label, value, unit, accent }: {
+  label: string; value: number | string; unit?: string; accent?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+      <p className={cn("text-2xl font-semibold tracking-tight tabular-nums", accent ?? "text-white/90")}>
+        {value}
+        {unit && <span className="text-xs text-white/30 ml-0.5 font-normal">{unit}</span>}
+      </p>
+      <p className="text-[10px] uppercase tracking-[0.15em] text-white/35 mt-1">{label}</p>
+    </div>
+  );
+}
+
+function getStreakFromLogs(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = localStorage.getItem("accountability-logs");
+    if (!raw) return 0;
+    const logs = JSON.parse(raw) as Record<string, { completedHabits?: string[] }>;
+    let s = 0;
+    for (let i = 0; i < 90; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      if ((logs[key]?.completedHabits?.length ?? 0) > 0) s++;
+      else break;
+    }
+    return s;
+  } catch { return 0; }
+}
+
+function getSessionsThisWeek(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = localStorage.getItem("accountability-logs");
+    if (!raw) return 0;
+    const logs = JSON.parse(raw) as Record<string, { completedHabits?: string[] }>;
+    const dow = new Date().getDay();
+    const daysFromMon = dow === 0 ? 6 : dow - 1;
+    let count = 0;
+    for (let i = 0; i <= daysFromMon; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      if (logs[key]?.completedHabits?.includes("training")) count++;
+    }
+    return count;
+  } catch { return 0; }
+}
+
+function getTodayScore(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const rawHabits = localStorage.getItem("accountability-habits-v2");
+    const rawLogs   = localStorage.getItem("accountability-logs");
+    if (!rawHabits || !rawLogs) return 0;
+    const habits = JSON.parse(rawHabits) as Array<{ id: string; visible?: boolean; weight?: 1 | 2 | 3 }>;
+    const logs   = JSON.parse(rawLogs)   as Record<string, { completedHabits?: string[] }>;
+    const today  = new Date().toISOString().slice(0, 10);
+    const visible = habits.filter((h) => h.visible !== false);
+    const max = visible.reduce((s, h) => s + (h.weight ?? 1), 0);
+    if (max === 0) return 0;
+    const done = logs[today]?.completedHabits ?? [];
+    const earned = visible.filter((h) => done.includes(h.id)).reduce((s, h) => s + (h.weight ?? 1), 0);
+    return Math.round((earned / max) * 100);
+  } catch { return 0; }
 }

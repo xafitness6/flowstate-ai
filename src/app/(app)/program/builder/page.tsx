@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -31,13 +32,20 @@ import {
   ChevronRight,
   Film,
   Play,
-  X,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VideoPickerModal } from "@/components/library/VideoPickerModal";
 import { VideoPreviewModal } from "@/components/library/VideoPreviewModal";
 import { YTIcon } from "@/components/library/YTIcon";
 import { VIDEO_LIBRARY, formatDuration } from "@/lib/videoLibrary";
+import { AssignClientModal } from "@/components/program/AssignClientModal";
+import { useUser } from "@/context/UserContext";
+import { saveBuilderWorkoutForSelf, type BuilderWorkoutPayload } from "@/lib/db/programs";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -467,14 +475,129 @@ const DEFAULT_ITEMS: WorkoutItem[] = [
   newExercise({ name: "Face Pull", sets: "3", reps: "15", rest: "60s" }),
 ];
 
+type SaveState = "idle" | "saving" | "saved" | "error";
+
 export default function WorkoutBuilderPage() {
+  const router = useRouter();
+  const { user } = useUser();
+
   const [workoutName, setWorkoutName] = useState("");
   const [goal, setGoal] = useState<Goal>("hypertrophy");
   const [duration, setDuration] = useState("");
   const [items, setItems] = useState<WorkoutItem[]>(DEFAULT_ITEMS);
-  const [saved, setSaved] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
+
+  // Persistence state
+  const [saveState,  setSaveState]  = useState<SaveState>("idle");
+  const [saveError,  setSaveError]  = useState<string | null>(null);
+  const [setActive,  setSetActive]  = useState(true);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignBusy, setAssignBusy] = useState(false);
+
+  const isAdmin     = user?.role === "master" || !!user?.isAdmin;
+  const canPersist  = !!user?.id && UUID_RE.test(user.id);
+
+  const buildPayload = useCallback((): BuilderWorkoutPayload => {
+    const sections: BuilderWorkoutPayload["sections"] = [];
+    const exercises: BuilderWorkoutPayload["exercises"] = [];
+    items.forEach((it, idx) => {
+      if (it.type === "section") {
+        sections.push({ position: idx, label: it.label });
+      } else {
+        exercises.push({
+          name:    it.name,
+          sets:    parseInt(it.sets) || 0,
+          reps:    it.reps,
+          weight:  it.weight,
+          rest:    it.rest,
+          note:    it.note || undefined,
+          videoId: it.videoId ?? null,
+        });
+      }
+    });
+    return {
+      workoutName: workoutName.trim(),
+      goal,
+      duration:    duration ? parseInt(duration) : null,
+      exercises,
+      sections,
+    };
+  }, [items, workoutName, goal, duration]);
+
+  const validation = useMemo(() => {
+    if (!workoutName.trim()) return "Add a workout name.";
+    const exs = items.filter((i) => i.type === "exercise") as ExerciseItem[];
+    if (exs.length === 0) return "Add at least one exercise.";
+    const blank = exs.find((e) => !e.name.trim());
+    if (blank) return "Every exercise needs a name.";
+    return null;
+  }, [workoutName, items]);
+
+  async function handleSave() {
+    if (validation) { setSaveError(validation); setSaveState("error"); return; }
+    if (!user?.id) { setSaveError("Sign in to save."); setSaveState("error"); return; }
+
+    setSaveState("saving");
+    setSaveError(null);
+
+    if (!canPersist) {
+      // Demo account — pretend-save with a hint instead of failing silently
+      setTimeout(() => {
+        setSaveState("saved");
+        setSaveError("Demo account — workouts persist only for real signed-in users.");
+      }, 250);
+      return;
+    }
+
+    try {
+      const program = await saveBuilderWorkoutForSelf(user.id, buildPayload(), setActive);
+      if (!program) throw new Error("Save returned no row");
+      setSaveState("saved");
+      if (setActive) {
+        // Navigate to the program page after a brief moment so the user sees it
+        setTimeout(() => router.push("/program"), 600);
+      }
+    } catch (e) {
+      console.error("[builder] save failed", e);
+      setSaveError(e instanceof Error ? e.message : "Save failed");
+      setSaveState("error");
+    }
+  }
+
+  async function handleAssignToClient(target: { id: string; email: string }, activate: boolean) {
+    if (validation) { setSaveError(validation); setSaveState("error"); setAssignOpen(false); return; }
+
+    setAssignBusy(true);
+    setSaveError(null);
+
+    try {
+      const res = await fetch("/api/admin/assign-workout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          targetUserId: target.id,
+          payload:      buildPayload(),
+          activate,
+        }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? `Send failed (${res.status})`);
+      setAssignOpen(false);
+      setSaveState("saved");
+      setSaveError(`Sent to ${target.email}${activate ? " and set as active." : " as a template."}`);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Send failed");
+      setSaveState("error");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
+
+  function markDirty() {
+    setSaveState((prev) => (prev === "saved" || prev === "error" ? "idle" : prev));
+    setSaveError(null);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -496,7 +619,7 @@ export default function WorkoutBuilderPage() {
       const to   = prev.findIndex((i) => i.id === over.id);
       return arrayMove(prev, from, to);
     });
-    setSaved(false);
+    markDirty();
   }
 
   const updateItem = useCallback(
@@ -504,7 +627,7 @@ export default function WorkoutBuilderPage() {
       setItems((prev) =>
         prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
       );
-      setSaved(false);
+      markDirty();
     },
     []
   );
@@ -516,12 +639,12 @@ export default function WorkoutBuilderPage() {
       if (target < 0 || target >= prev.length) return prev;
       return arrayMove(prev, i, target);
     });
-    setSaved(false);
+    markDirty();
   }
 
   function removeItem(id: string) {
     setItems((prev) => prev.filter((item) => item.id !== id));
-    setSaved(false);
+    markDirty();
   }
 
   function duplicateExercise(id: string) {
@@ -533,18 +656,18 @@ export default function WorkoutBuilderPage() {
       next.splice(i + 1, 0, copy);
       return next;
     });
-    setSaved(false);
+    markDirty();
   }
 
   function addExercise() {
     setItems((prev) => [...prev, newExercise()]);
-    setSaved(false);
+    markDirty();
   }
 
   function addSection(label: string) {
     setItems((prev) => [...prev, newSection(label)]);
     setSectionMenuOpen(false);
-    setSaved(false);
+    markDirty();
   }
 
   // Exercise-only index for display numbering
@@ -574,7 +697,7 @@ export default function WorkoutBuilderPage() {
           <input
             type="text"
             value={workoutName}
-            onChange={(e) => { setWorkoutName(e.target.value); setSaved(false); }}
+            onChange={(e) => { setWorkoutName(e.target.value); markDirty(); }}
             placeholder="e.g. Upper Body Pull"
             className="w-full bg-transparent text-lg font-medium text-white/90 placeholder:text-white/20 outline-none border-b border-white/8 focus:border-[#B48B40]/40 transition-colors pb-2"
           />
@@ -589,7 +712,7 @@ export default function WorkoutBuilderPage() {
             {GOAL_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => { setGoal(opt.value); setSaved(false); }}
+                onClick={() => { setGoal(opt.value); markDirty(); }}
                 className={cn(
                   "rounded-xl border px-4 py-2.5 text-left transition-all",
                   goal === opt.value
@@ -619,7 +742,7 @@ export default function WorkoutBuilderPage() {
               type="number"
               min="1"
               value={duration}
-              onChange={(e) => { setDuration(e.target.value); setSaved(false); }}
+              onChange={(e) => { setDuration(e.target.value); markDirty(); }}
               placeholder="45"
               className="w-full bg-white/[0.03] border border-white/6 rounded-xl px-3 py-2 text-sm text-white/80 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 focus:bg-[#B48B40]/5 transition-all tabular-nums"
             />
@@ -742,31 +865,68 @@ export default function WorkoutBuilderPage() {
         </div>
       </div>
 
+      {/* Set-as-active toggle */}
+      <label className="flex items-center gap-2.5 cursor-pointer select-none mb-3 px-1">
+        <input
+          type="checkbox"
+          checked={setActive}
+          onChange={(e) => { setSetActive(e.target.checked); markDirty(); }}
+          className="w-4 h-4 rounded border-white/15 bg-white/[0.04] accent-[#B48B40]"
+        />
+        <span className="text-xs text-white/65">Set as my active program after saving</span>
+      </label>
+
       {/* Footer actions */}
-      <div className="flex items-center gap-3">
-        <button className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-white/45 hover:text-white/65 hover:border-white/15 transition-all">
-          <Users className="w-4 h-4" strokeWidth={1.5} />
-          Assign to client
-        </button>
+      <div className="flex items-center gap-3 flex-wrap">
+        {isAdmin && (
+          <button
+            onClick={() => { setSaveError(null); setAssignOpen(true); }}
+            disabled={saveState === "saving" || assignBusy}
+            className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-white/55 hover:text-white/80 hover:border-white/15 transition-all disabled:opacity-40"
+          >
+            <Users className="w-4 h-4" strokeWidth={1.7} />
+            Send to user
+          </button>
+        )}
 
         <button
-          onClick={() => setSaved(true)}
+          onClick={() => void handleSave()}
+          disabled={saveState === "saving"}
           className={cn(
-            "ml-auto rounded-2xl px-6 py-3 text-sm font-semibold transition-all",
-            saved
-              ? "bg-white/5 text-white/35 cursor-default"
-              : "bg-[#B48B40] text-black hover:bg-[#c99840]"
+            "ml-auto rounded-2xl px-6 py-3 text-sm font-semibold transition-all flex items-center gap-2",
+            saveState === "saving"
+              ? "bg-white/5 text-white/45 cursor-wait"
+              : saveState === "saved"
+                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
+                : "bg-[#B48B40] text-black hover:bg-[#c99840]",
           )}
         >
-          {saved ? "Saved ✓" : "Save workout"}
+          {saveState === "saving" && <Loader2 className="w-4 h-4 animate-spin" />}
+          {saveState === "saved"  && <CheckCircle2 className="w-4 h-4" strokeWidth={2} />}
+          {saveState === "saving" ? "Saving…"
+            : saveState === "saved" ? "Saved"
+            : setActive ? "Save & activate"
+            : "Save as template"}
         </button>
       </div>
 
-      {saved && (
-        <p className="text-xs text-emerald-400/70 text-right mt-2">
-          Workout saved.
-        </p>
+      {/* Status messages */}
+      {saveError && saveState === "error" && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2.5">
+          <AlertCircle className="w-4 h-4 text-red-400/80 shrink-0 mt-0.5" strokeWidth={2} />
+          <p className="text-xs text-red-300/85 leading-relaxed">{saveError}</p>
+        </div>
       )}
+      {saveError && saveState === "saved" && (
+        <p className="text-xs text-emerald-400/75 text-right mt-2">{saveError}</p>
+      )}
+
+      <AssignClientModal
+        open={assignOpen}
+        onClose={() => !assignBusy && setAssignOpen(false)}
+        onConfirm={(target, activate) => handleAssignToClient(target, activate)}
+        busy={assignBusy}
+      />
     </div>
   );
 }

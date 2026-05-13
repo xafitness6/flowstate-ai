@@ -431,16 +431,20 @@ export default function AdminDashboard() {
   const pausedUsers  = activeRoster.filter((u) => u.status === "paused").length;
   const totalClients = activeRoster.filter((u) => u.role === "client").length;
 
-  // Tier breakdown and revenue — derived from active roster
+  // Tier breakdown and revenue — derived from active roster.
+  // `count` shows every user in each tier (including comped/inactive); MRR only
+  // counts users with status "active" so free/demo accounts don't inflate revenue.
   const tierData = (["coaching", "performance", "training", "foundation"] as const).map((plan) => {
-    const count = activeRoster.filter((u) => u.plan === plan).length;
-    const mrr   = count * TIER_PRICE[plan];
-    const label = PLAN_CFG[plan as keyof typeof PLAN_CFG]?.label ?? plan;
-    return { plan, label, count, mrr, color: TIER_COLOR[plan] };
+    const inTier  = activeRoster.filter((u) => u.plan === plan);
+    const count   = inTier.length;
+    const billing = inTier.filter((u) => u.status === "active").length;
+    const mrr     = billing * TIER_PRICE[plan];
+    const label   = PLAN_CFG[plan as keyof typeof PLAN_CFG]?.label ?? plan;
+    return { plan, label, count, billing, mrr, color: TIER_COLOR[plan] };
   });
   const totalMrr     = tierData.reduce((s, t) => s + t.mrr, 0);
   const tierTotal    = totalUsers;
-  const paidUsers    = tierData.filter((t) => t.plan !== "foundation").reduce((s, t) => s + t.count, 0);
+  const paidUsers    = tierData.filter((t) => t.plan !== "foundation").reduce((s, t) => s + t.billing, 0);
   const arppu        = paidUsers > 0 ? (totalMrr / paidUsers).toFixed(2) : "0.00";
   const retentionPct = totalUsers > 0 ? ((totalUsers - churnedUsers) / totalUsers * 100).toFixed(1) : "100.0";
   const churnPct     = totalUsers > 0 ? (churnedUsers / totalUsers * 100).toFixed(1) : "0.0";
@@ -678,7 +682,15 @@ export default function AdminDashboard() {
                       <span className={cn("text-sm", isFiltered ? "text-white/90" : "text-white/70")}>{t.label}</span>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className="text-xs text-white/30 tabular-nums">{t.count} user{t.count !== 1 ? "s" : ""}</span>
+                      <span
+                        className="text-xs text-white/30 tabular-nums"
+                        title={t.count !== t.billing ? `${t.billing} billing · ${t.count - t.billing} comped/inactive` : undefined}
+                      >
+                        {t.count} user{t.count !== 1 ? "s" : ""}
+                        {t.count !== t.billing && (
+                          <span className="text-white/22 ml-1">({t.billing} paid)</span>
+                        )}
+                      </span>
                       {t.mrr > 0 && (
                         <span className="text-xs text-white/28 tabular-nums w-20 text-right">${t.mrr.toLocaleString()}/mo</span>
                       )}

@@ -75,9 +75,10 @@ Minimal — just the project name.
 | `/` | Dashboard (DnD cards, first-run redirect) |
 | `/onboarding` | Welcome → calibration |
 | `/onboarding/calibration` | 7-step wizard |
-| `/program` | Workout logger |
-| `/program/builder` | Program builder (DnD) |
-| `/program/assign` | Trainer client assignment |
+| `/program` | Active program — Today/This Week/Recent (4-section card layout) |
+| `/program/builder` | Drag-and-drop workout builder, persists to Supabase |
+| `/program/library` | List of user's programs — set active, duplicate, delete |
+| `/program/assign` | Trainer client assignment (mock UI — superseded by builder "Send to user" for admins) |
 | `/nutrition` | Macro & meal tracking |
 | `/calendar` | Monthly view |
 | `/coach` | AI chat |
@@ -116,6 +117,25 @@ Minimal — just the project name.
 | `src/context/UserContext.tsx` | Auth context, demo user switching |
 
 ---
+
+## Exercise library
+
+Read-only catalog at `public.exercises` populated from the [Free Exercise DB](https://github.com/yuhonas/free-exercise-db) (MIT, ~800 exercises with GIFs). Import:
+```
+npm run exercises:dry      # parse + preview without writing
+npm run exercises:import   # upsert into Supabase
+```
+Source columns + coaching metadata (`joint_load`, `injury_friendly_for`, `contraindications`) tagged in `scripts/import-exercises.mjs`. Query via `searchExercises()` in `src/lib/db/exercises.ts`. Migration: `010_exercises_library.sql`.
+
+## Builder → program persistence
+
+`/program/builder` saves a single-session workout as a 1-week, 1-day "program" row in `public.programs` (the schema has no standalone workouts table — `exercises` is a JSONB column on `workouts`/`programs`). The toggle "Set as my active program after saving" archives the user's current active program before inserting the new one.
+
+Admin path: `/api/admin/assign-workout` accepts `{ targetUserId, payload, activate }`, uses the service-role client + `requireAdmin()` check, and writes into another user's `programs` row. Cross-user insert is blocked by RLS otherwise (`programs_insert_own` requires `auth.uid() = user_id`).
+
+## Admin MRR
+
+`/admin` counts `tier.billing = users with plan=X AND status="active"` for MRR. `tier.count` (all users in plan) is shown separately with a `(N paid)` hint when they differ. Use `/admin/users` to flip a user's `subscription_status` to `inactive` so they stop counting toward revenue without losing plan entitlements.
 
 ## In Progress / Planned
 - Obsidian vault = this project folder (`/Users/xavierellis/Projects/flowstate-ai`)

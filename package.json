@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "exercises:import": "node scripts/import-exercises.mjs",
+    "exercises:dry":    "node scripts/import-exercises.mjs --dry"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",
