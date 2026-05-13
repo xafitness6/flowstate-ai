@@ -130,15 +130,28 @@ function BarChart({ points, color = "#B48B40" }: { points: number[]; color?: str
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, delta, deltaLabel, icon: Icon, chart, accent = false }: {
+function StatCard({ label, value, delta, deltaLabel, icon: Icon, chart, accent = false, onClick, hint }: {
   label: string; value: string; delta?: number; deltaLabel?: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   chart?: React.ReactNode; accent?: boolean;
+  onClick?: () => void;
+  hint?: string;
 }) {
   const up = delta !== undefined && delta > 0;
   const dn = delta !== undefined && delta < 0;
+  const interactive = !!onClick;
+  const Tag: "button" | "div" = interactive ? "button" : "div";
   return (
-    <div className={cn("rounded-2xl border bg-[#111111] px-5 py-4 flex flex-col gap-3 overflow-hidden", accent ? "border-[#B48B40]/22" : "border-white/6")}>
+    <Tag
+      type={interactive ? "button" : undefined}
+      onClick={onClick}
+      title={hint}
+      className={cn(
+        "text-left rounded-2xl border bg-[#111111] px-5 py-4 flex flex-col gap-3 overflow-hidden transition-all",
+        accent ? "border-[#B48B40]/22" : "border-white/6",
+        interactive && "hover:border-[#B48B40]/40 hover:bg-[#141414] active:scale-[0.995] cursor-pointer",
+      )}
+    >
       <div className="flex items-start justify-between">
         <div className="w-8 h-8 rounded-xl border border-white/6 bg-white/[0.03] flex items-center justify-center">
           <Icon className="w-4 h-4 text-white/38" strokeWidth={1.5} />
@@ -162,7 +175,7 @@ function StatCard({ label, value, delta, deltaLabel, icon: Icon, chart, accent =
         {deltaLabel && <p className="text-[10px] text-white/20 mt-0.5">{deltaLabel}</p>}
       </div>
       {chart && <div className="mt-auto -mx-1">{chart}</div>}
-    </div>
+    </Tag>
   );
 }
 
@@ -396,6 +409,25 @@ export default function AdminDashboard() {
     });
   }
 
+  // Drives the "click a KPI card → user table jumps to the matching slice" UX.
+  // Sets all filter state in one shot and smooth-scrolls to the table so the
+  // admin can see exactly who the number represents.
+  function focusUsersTable(opts: {
+    view?: "all" | "leads" | "archived";
+    role?: PlatformUser["role"] | "all";
+    status?: PlatformUser["status"] | "all";
+    plan?: PlatformUser["plan"] | "all";
+  }) {
+    if (opts.view   !== undefined) setView(opts.view);
+    if (opts.role   !== undefined) setRoleFilter(opts.role);
+    if (opts.status !== undefined) setStatusFilter(opts.status);
+    if (opts.plan   !== undefined) setPlanFilter(opts.plan);
+    setSelectedIds(new Set());
+    if (typeof window !== "undefined") {
+      document.getElementById("admin-users-table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir("asc"); }
@@ -485,16 +517,34 @@ export default function AdminDashboard() {
       {/* ── KPI row ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <StatCard label="Total users"   value={`${totalUsers}`} deltaLabel="platform members"
-          icon={Users}       chart={<BarChart points={userGrowth} color="#B48B40" />} accent />
+          icon={Users}       chart={<BarChart points={userGrowth} color="#B48B40" />} accent
+          hint="Click to view every active platform user"
+          onClick={() => focusUsersTable({ view: "all", role: "all", status: "all", plan: "all" })}
+        />
         <StatCard label="Active users"  value={`${activeUsers}`}
           deltaLabel={totalUsers > 0 ? `${Math.round((activeUsers / totalUsers) * 100)}% of total` : "—"}
-          icon={Activity}    chart={<Sparkline points={userGrowth.slice(-7)} color="#4ADE80" height={36} />} />
+          icon={Activity}    chart={<Sparkline points={userGrowth.slice(-7)} color="#4ADE80" height={36} />}
+          hint="Filter to actively-engaged users"
+          onClick={() => focusUsersTable({ view: "all", role: "all", status: "active", plan: "all" })}
+        />
         <StatCard label="Monthly revenue" value={`$${totalMrr.toLocaleString()}`} deltaLabel="MRR"
-          icon={DollarSign}  chart={<Sparkline points={revenuePoints} color="#B48B40" height={36} />} accent />
-        <StatCard label="Retention"     value={`${retentionPct}%`} deltaLabel="excl. churned"  icon={TrendingUp}   />
-        <StatCard label="Churn rate"    value={`${churnPct}%`}     deltaLabel="of total users" icon={TrendingDown} />
+          icon={DollarSign}  chart={<Sparkline points={revenuePoints} color="#B48B40" height={36} />} accent
+          hint="See exactly which users contribute to MRR"
+          onClick={() => focusUsersTable({ view: "all", role: "all", status: "active", plan: "all" })}
+        />
+        <StatCard label="Retention"     value={`${retentionPct}%`} deltaLabel="excl. churned"  icon={TrendingUp}
+          hint="View who's still retained — drill in to see what's driving retention"
+          onClick={() => focusUsersTable({ view: "all", role: "all", status: "active", plan: "all" })}
+        />
+        <StatCard label="Churn rate"    value={`${churnPct}%`}     deltaLabel="of total users" icon={TrendingDown}
+          hint="Click to see exactly which users have churned"
+          onClick={() => focusUsersTable({ view: "all", role: "all", status: "churned", plan: "all" })}
+        />
         <StatCard label="Client assignments" value={`${totalClients}`}
-          deltaLabel={`${assignments.length} active trainer${assignments.length !== 1 ? "s" : ""}`} icon={Users} />
+          deltaLabel={`${assignments.length} active trainer${assignments.length !== 1 ? "s" : ""}`} icon={Users}
+          hint="View every trainer-assigned client"
+          onClick={() => focusUsersTable({ view: "all", role: "client", status: "all", plan: "all" })}
+        />
       </div>
 
       {/* ── Middle row ──────────────────────────────────────────────── */}
@@ -753,7 +803,7 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-2">
               {([
                 { id: "all" as const,      label: "All",      count: activeRoster.length },
-                { id: "leads" as const,    label: "Leads",    count: leadCount },
+                { id: "leads" as const,    label: "Members",  count: leadCount },
                 { id: "archived" as const, label: "Archived", count: archivedCount },
               ]).map((v) => (
                 <button
@@ -1006,7 +1056,7 @@ export default function AdminDashboard() {
             <div className="px-5 py-10 text-center">
               <p className="text-sm text-white/25">
                 {view === "leads"
-                  ? "No leads yet — self-signups will appear here."
+                  ? "No self-signups yet — new members will appear here."
                   : view === "archived"
                   ? "No archived users."
                   : "No users match the current filters."}

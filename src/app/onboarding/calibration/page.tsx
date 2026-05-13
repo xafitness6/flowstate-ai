@@ -256,15 +256,26 @@ export default function CalibrationPage() {
       injuries:      "",
     });
 
-    // Generate and persist starter plan
+    // Generate and persist starter plan (localStorage for quick UI access)
     const plan = generateStarterPlan(intake);
     saveStarterPlan(userId, plan);
 
-    // Mark onboarding complete for Supabase users
+    // For real Supabase users: persist onboarding state AND create a real
+    // programs row so /program isn't empty after calibration. Without this
+    // step the lead finishes onboarding with nothing in the programs table
+    // and every page that reads the active program shows empty.
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const { markOnboardingComplete } = await import("@/lib/db/onboarding");
-      await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
+      const { syncGeneratedProgram }   = await import("@/lib/db/programs");
+      const { starterPlanToProgram }   = await import("@/lib/starterPlan");
+      try {
+        await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
+        await syncGeneratedProgram(userId, starterPlanToProgram(plan));
+      } catch (err) {
+        // Don't block the user — log so we can diagnose post-launch.
+        console.error("[calibration] failed to sync onboarding/program:", err);
+      }
     }
 
     router.replace("/dashboard");

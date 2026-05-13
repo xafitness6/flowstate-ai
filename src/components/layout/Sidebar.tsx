@@ -37,7 +37,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-56 min-h-screen border-r border-white/5 bg-[#0D0D0D] px-3 py-6 gap-1 sticky top-0 h-screen overflow-y-auto">
+    <aside className="hidden md:flex flex-col w-56 h-screen border-r border-white/5 bg-[#0D0D0D] px-3 py-6 gap-1 fixed top-0 left-0 z-30 overflow-y-auto">
       <div className="px-3 mb-6">
         <span className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90">
           Flowstate

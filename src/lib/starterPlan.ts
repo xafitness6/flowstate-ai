@@ -169,6 +169,85 @@ function coachNoteFor(goal: string, experience: string, days: number): string {
 // Accepts partial intake — every field may be missing (user skipped).
 // Falls back to sensible defaults throughout.
 
+// ─── Default exercise selection ──────────────────────────────────────────────
+// Used when promoting a starter plan into a real Supabase `programs` row so
+// the /program and /program/workout/[id] pages have actual exercises to show
+// instead of an empty active block.
+
+type DefaultExercise = { name: string; sets: number; reps: string; note?: string };
+
+function defaultExercisesFor(focus: string, sessionName: string): DefaultExercise[] {
+  const tag = `${focus} ${sessionName}`.toLowerCase();
+
+  if (/push|chest|press/.test(tag)) {
+    return [
+      { name: "Bench Press",            sets: 4, reps: "6-8"   },
+      { name: "Overhead Press",         sets: 3, reps: "8-10"  },
+      { name: "Incline Dumbbell Press", sets: 3, reps: "10-12" },
+      { name: "Tricep Pushdown",        sets: 3, reps: "12-15" },
+    ];
+  }
+  if (/pull|back|row/.test(tag)) {
+    return [
+      { name: "Lat Pulldown",     sets: 4, reps: "8-10"  },
+      { name: "Barbell Row",      sets: 3, reps: "8-10"  },
+      { name: "Seated Cable Row", sets: 3, reps: "10-12" },
+      { name: "Dumbbell Curl",    sets: 3, reps: "12-15" },
+    ];
+  }
+  if (/hinge|hamstring|posterior|deadlift/.test(tag)) {
+    return [
+      { name: "Romanian Deadlift",  sets: 4, reps: "6-8"  },
+      { name: "Hip Thrust",         sets: 3, reps: "8-10" },
+      { name: "Leg Curl",           sets: 3, reps: "10-12"},
+      { name: "Plank Hold",         sets: 3, reps: "45s"  },
+    ];
+  }
+  if (/squat|quad|legs/.test(tag)) {
+    return [
+      { name: "Back Squat",          sets: 4, reps: "6-8"   },
+      { name: "Leg Press",           sets: 3, reps: "10-12" },
+      { name: "Romanian Deadlift",   sets: 3, reps: "8-10"  },
+      { name: "Standing Calf Raise", sets: 4, reps: "12-15" },
+    ];
+  }
+  // Full body / compound / general fallback
+  return [
+    { name: "Back Squat",       sets: 3, reps: "6-8"  },
+    { name: "Bench Press",      sets: 3, reps: "6-8"  },
+    { name: "Bent-Over Row",    sets: 3, reps: "8-10" },
+    { name: "Overhead Press",   sets: 3, reps: "8-10" },
+    { name: "Plank Hold",       sets: 3, reps: "30s"  },
+  ];
+}
+
+const DAY_INDEX: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+/**
+ * Map a StarterPlan into the shape `syncGeneratedProgram()` expects so we can
+ * actually persist a `programs` row when calibration completes. Without this,
+ * leads finish onboarding with nothing in Supabase and /program is empty.
+ */
+export function starterPlanToProgram(plan: StarterPlan, programId?: string) {
+  return {
+    id:           programId ?? `starter-${Date.now()}`,
+    name:         plan.blockName,
+    description:  plan.coachNote,
+    goal:         plan.goal,
+    weeks:        plan.durationWeeks,
+    daysPerWeek:  plan.daysPerWeek,
+    split:        plan.split,
+    week1:        plan.sessions.map((s, idx) => ({
+      day:       DAY_INDEX[s.day] ?? idx + 1,
+      dayLabel:  s.day,
+      focus:     s.focus || s.name,
+      exercises: defaultExercisesFor(s.focus, s.name),
+    })),
+  };
+}
+
 export function generateStarterPlan(intake: Partial<IntakeData>): StarterPlan {
   const goal     = intake.primaryGoal ?? "general";
   const exp      = intake.experience  ?? "beginner";
