@@ -1,13 +1,70 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Zap, ArrowRight } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { resolvePostLoginRoute } from "@/lib/routing";
+
+const ADMIN_EMAIL = "xavellis4@gmail.com";
 
 // ─── Welcome / Landing ────────────────────────────────────────────────────────
 // Entry point for unauthenticated visitors.
 // No role selection — users go directly to /login.
 
 export default function WelcomePage() {
+  const router = useRouter();
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    async function routeAuthenticatedUser() {
+      const supabaseConfigured =
+        !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!supabaseConfigured) {
+        setCheckingSession(false);
+        return;
+      }
+
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setCheckingSession(false);
+          return;
+        }
+
+        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+
+        const { getMyProfile } = await import("@/lib/db/profiles");
+        const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
+        const profile = await getMyProfile();
+        const isAdmin =
+          session.user.email?.trim().toLowerCase() === ADMIN_EMAIL ||
+          profile?.role === "master" ||
+          profile?.is_admin;
+
+        if (isAdmin) {
+          router.replace("/admin");
+          return;
+        }
+
+        const blocker = await resolveOnboardingRoute(session.user.id);
+        router.replace(blocker ?? resolvePostLoginRoute(session.user.id, { role: profile?.role }));
+      } catch {
+        setCheckingSession(false);
+      }
+    }
+
+    void routeAuthenticatedUser();
+  }, [router]);
+
+  if (checkingSession) {
+    return <div className="min-h-screen bg-[#0A0A0A]" />;
+  }
+
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-5 py-16 text-white">
 
@@ -39,7 +96,7 @@ export default function WelcomePage() {
         {/* CTA */}
         <div className="space-y-3">
           <Link
-            href="/login?tab=create"
+            href="/login"
             className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 bg-[#B48B40] text-black text-sm font-semibold tracking-wide hover:bg-[#c99840] active:scale-[0.98] transition-all duration-200"
           >
             Get started
