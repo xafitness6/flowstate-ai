@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe, STRIPE_WEBHOOK_SECRET } from "@/lib/stripe";
 import { STRIPE_PRICE_IDS, STRIPE_PRICE_IDS_ANNUAL } from "@/lib/plans";
+import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
 import type Stripe from "stripe";
 import type { Plan, SubscriptionStatus } from "@/types";
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
   // Only run DB writes when Supabase is configured
   const supabaseConfigured =
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    !!getSupabaseServiceRoleKey();
 
   try {
     switch (event.type) {

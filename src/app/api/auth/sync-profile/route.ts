@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supabase/env";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 const ALLOWED_ROLES = new Set(["trainer", "client", "member"]);
@@ -24,9 +25,9 @@ export async function POST() {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!getSupabaseServiceRoleKey()) {
     return NextResponse.json(
-      { error: "SUPABASE_SERVICE_ROLE_KEY is not configured." },
+      { error: missingServiceRoleMessage() },
       { status: 500 },
     );
   }

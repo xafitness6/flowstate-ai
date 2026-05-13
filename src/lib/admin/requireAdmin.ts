@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supabase/env";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 
@@ -14,11 +15,11 @@ export async function requireAdmin() {
     };
   }
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!getSupabaseServiceRoleKey()) {
     return {
       ok: false as const,
       response: NextResponse.json(
-        { error: "SUPABASE_SERVICE_ROLE_KEY is not configured." },
+        { error: missingServiceRoleMessage() },
         { status: 503 },
       ),
     };

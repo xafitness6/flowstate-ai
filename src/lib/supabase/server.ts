@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
 
 // Server-side Supabase client — safe to import in Server Components,
 // Route Handlers, and Server Actions.
@@ -36,9 +37,14 @@ export async function createClient() {
 // Never expose SUPABASE_SERVICE_ROLE_KEY client-side.
 export async function createAdminClient() {
   const { createClient: createSupabaseClient } = await import("@supabase/supabase-js");
+  const serviceRoleKey = getSupabaseServiceRoleKey();
+  if (!serviceRoleKey) {
+    throw new Error("[supabase/server] Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serviceRoleKey,
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 }
