@@ -139,12 +139,11 @@ export async function saveMeal(
       .single();
 
     if (error || !data) {
-      // Fall through to localStorage on Supabase error
       console.error("[store] saveMeal Supabase error:", error);
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return rowToMeal(data as Record<string, any>);
+      throw new Error(error?.message ?? "Meal could not be saved.");
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return rowToMeal(data as Record<string, any>);
   }
 
   // localStorage path (demo users or Supabase fallback)
@@ -203,10 +202,10 @@ export async function updateMeal(
 
     if (error || !data) {
       console.error("[store] updateMeal Supabase error:", error);
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return rowToMeal(data as Record<string, any>);
+      return null;
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return rowToMeal(data as Record<string, any>);
   }
 
   // localStorage path
@@ -253,6 +252,8 @@ export async function getMeals(userId: string): Promise<LoggedMeal[]> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data as Record<string, any>[]).map(rowToMeal);
     }
+    console.error("[store] getMeals Supabase error:", error);
+    return [];
   }
   return lsLoad(userId).filter((m) => !m.deletedAt);
 }
@@ -275,6 +276,8 @@ export async function getMealsForDate(userId: string, dateISO: string): Promise<
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data as Record<string, any>[]).map(rowToMeal);
     }
+    console.error("[store] getMealsForDate Supabase error:", error);
+    return [];
   }
 
   const target = dateISO.slice(0, 10);
@@ -306,6 +309,8 @@ export async function getMealsForRange(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data as Record<string, any>[]).map(rowToMeal);
     }
+    console.error("[store] getMealsForRange Supabase error:", error);
+    return [];
   }
 
   const start = startISO.slice(0, 10);

@@ -29,6 +29,7 @@ import {
   type PlatformUser,
   type ClientTrainingData,
 } from "@/lib/data/store";
+import type { AdminProfile } from "@/lib/admin/profileMapper";
 import { loadIntake, GOAL_LABELS } from "@/lib/data/intake";
 import { loadStarterPlan } from "@/lib/starterPlan";
 
@@ -251,17 +252,42 @@ function MasterOverviewPanel() {
   const [counts, setCounts] = useState({ total: 0, trainers: 0, clients: 0, atRisk: 0, active: 0 });
 
   useEffect(() => {
-    try {
-      initStore();
-      const users = getUsers("master");
-      setCounts({
-        total:    users.length,
-        trainers: users.filter((u) => u.role === "trainer").length,
-        clients:  users.filter((u) => u.role === "client").length,
-        atRisk:   users.filter((u) => u.status === "at-risk").length,
-        active:   users.filter((u) => u.status === "active").length,
-      });
-    } catch { /* ignore */ }
+    let active = true;
+
+    async function loadCounts() {
+      try {
+        if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+          const res = await fetch("/api/admin/users", { cache: "no-store" });
+          if (res.ok) {
+            const body = await res.json() as { users?: AdminProfile[] };
+            const users = body.users ?? [];
+            if (!active) return;
+            setCounts({
+              total:    users.length,
+              trainers: users.filter((u) => u.role === "trainer").length,
+              clients:  users.filter((u) => u.role === "client").length,
+              atRisk:   users.filter((u) => u.subscription_status === "past_due").length,
+              active:   users.filter((u) => u.subscription_status === "active").length,
+            });
+            return;
+          }
+        }
+
+        initStore();
+        const users = getUsers("master");
+        if (!active) return;
+        setCounts({
+          total:    users.length,
+          trainers: users.filter((u) => u.role === "trainer").length,
+          clients:  users.filter((u) => u.role === "client").length,
+          atRisk:   users.filter((u) => u.status === "at-risk").length,
+          active:   users.filter((u) => u.status === "active").length,
+        });
+      } catch { /* ignore */ }
+    }
+
+    void loadCounts();
+    return () => { active = false; };
   }, []);
 
   return (

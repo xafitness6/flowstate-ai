@@ -133,8 +133,9 @@ export default function InvitePage() {
 
       if (!inv && process.env.NEXT_PUBLIC_SUPABASE_URL) {
         try {
-          const { getInviteByTokenFromDB } = await import("@/lib/db/invites");
-          const dbInvite = await getInviteByTokenFromDB(token);
+          const res = await fetch(`/api/invites/${encodeURIComponent(token)}`, { cache: "no-store" });
+          const body = await res.json().catch(() => ({})) as { invite?: DBInvite; error?: string };
+          const dbInvite = res.ok ? body.invite ?? null : null;
           if (dbInvite) inv = dbInviteToLocal(dbInvite);
         } catch { /* fall through to not found */ }
       }

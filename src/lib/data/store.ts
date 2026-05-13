@@ -85,6 +85,13 @@ export class PermissionError extends Error {
 const KEY_USERS   = "flowstate-platform-users";
 const KEY_SEEDED  = "flowstate-platform-seeded-v2";
 
+function demoSeedEnabled(): boolean {
+  if (process.env.NEXT_PUBLIC_ENABLE_DEMO_SEED === "true") return true;
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
+
 // ─── Seed data ────────────────────────────────────────────────────────────────
 // Canonical user list. "foundation" = the free/entry tier.
 // trainerId links clients to their trainer.
@@ -176,6 +183,7 @@ const SEED_PROGRAMS: PlatformProgram[] = [
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
 export function loadUsers(): PlatformUser[] {
+  if (!demoSeedEnabled()) return [];
   try {
     const raw = localStorage.getItem(KEY_USERS);
     if (raw) return JSON.parse(raw) as PlatformUser[];
@@ -184,6 +192,7 @@ export function loadUsers(): PlatformUser[] {
 }
 
 function saveUsers(users: PlatformUser[]): void {
+  if (!demoSeedEnabled()) return;
   try { localStorage.setItem(KEY_USERS, JSON.stringify(users)); } catch { /* ignore */ }
 }
 
@@ -195,6 +204,13 @@ function saveUsers(users: PlatformUser[]): void {
  */
 export function initStore(): void {
   try {
+    if (!demoSeedEnabled()) {
+      if (localStorage.getItem(KEY_SEEDED)) {
+        localStorage.removeItem(KEY_USERS);
+        localStorage.removeItem(KEY_SEEDED);
+      }
+      return;
+    }
     if (localStorage.getItem(KEY_SEEDED)) return;
     saveUsers(SEED_USERS);
     localStorage.setItem(KEY_SEEDED, "1");
@@ -266,6 +282,14 @@ export function getMyClients(actorRole: string, actorId: string): PlatformUser[]
  * Falls back to defaults if not seeded.
  */
 export function getClientTrainingData(clientId: string): ClientTrainingData {
+  if (!demoSeedEnabled()) {
+    return {
+      program: "Unassigned",
+      adherence: 0,
+      executionScore: 0,
+      checkInCompletion: 0,
+    };
+  }
   return SEED_CLIENT_DATA[clientId] ?? {
     program: "Unassigned",
     adherence: 0,
@@ -325,6 +349,7 @@ export function getTrainerMetrics(trainerId: string): TrainerMetrics | null {
  * All programs — any authenticated user.
  */
 export function getPrograms(): PlatformProgram[] {
+  if (!demoSeedEnabled()) return [];
   return SEED_PROGRAMS;
 }
 

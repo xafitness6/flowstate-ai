@@ -911,7 +911,8 @@ export default function NutritionPage() {
 
   function addWaterMl(ml: number) {
     setHydration((v) => v + ml);  // optimistic
-    saveHydrationLog(user.id, { amountMl: ml, source: "manual" });
+    saveHydrationLog(user.id, { amountMl: ml, source: "manual" })
+      .catch(() => setHydration((v) => Math.max(0, v - ml)));
   }
 
   function applyHydration(amountMl: number, linkedMealId?: string) {
@@ -923,6 +924,8 @@ export default function NutritionPage() {
       amountMl,
       source: "voice",
       linkedMealId: linkedMealId ?? null,
+    }).catch(() => {
+      if (selectedDate === todayISO()) setHydration((v) => Math.max(0, v - amountMl));
     });
   }
 
@@ -973,7 +976,7 @@ export default function NutritionPage() {
       // 0.60–0.84 → review modal: user confirms, can edit
       // < 0.60  → review modal with low-confidence warning
       if (data.confidence >= 0.85) {
-        const meal = doSaveMeal(data, rawTranscript);
+        await doSaveMeal(data, rawTranscript);
         // Brief save confirmation toast
         setSaveFeedback({ label: data.cleanTranscript ?? "Meal", calories: Math.round(data.totals.calories) });
         setTimeout(() => setSaveFeedback(null), 3500);

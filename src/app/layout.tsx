@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/context/UserContext";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  weight: ["400", "500", "600"],
-});
 
 export const metadata: Metadata = {
   title: "Flowstate AI",
@@ -29,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} dark h-full antialiased`}>
+    <html lang="en" className="dark h-full antialiased">
       <body className="min-h-full bg-[#0A0A0A] flex flex-col">
         <UserProvider>
           {children}

@@ -94,6 +94,7 @@ export async function saveHydrationLog(
       return rowToLog(data as Record<string, any>);
     }
     console.error("[hydration] saveHydrationLog Supabase error:", error);
+    throw new Error(error?.message ?? "Hydration could not be saved.");
   }
 
   // localStorage fallback
@@ -134,6 +135,8 @@ export async function getHydrationLogsForDate(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data as Record<string, any>[]).map(rowToLog);
     }
+    console.error("[hydration] getHydrationLogsForDate Supabase error:", error);
+    return [];
   }
 
   const target = dateISO.slice(0, 10);

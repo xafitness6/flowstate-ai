@@ -105,6 +105,11 @@ export type WorkoutLog = {
 const PROG_KEY = (uid: string) => `flowstate-generated-program-${uid}`;
 const LOGS_KEY = (uid: string) => `flowstate-workout-logs-${uid}`;
 const META_KEY = (uid: string) => `flowstate-program-meta-${uid}`;
+const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isRealUser(userId: string): boolean {
+  return _UUID_RE.test(userId) && !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+}
 
 type ProgramMeta = { programId: string; startDate: string };
 
@@ -325,7 +330,7 @@ export function loadActiveProgram(userId: string): ActiveProgram | null {
 }
 
 export async function loadActiveProgramForUser(userId: string): Promise<ActiveProgram | null> {
-  if (_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (isRealUser(userId)) {
     try {
       const { getActiveProgram } = await import("@/lib/db/programs");
       const dbProgram = await getActiveProgram(userId);
@@ -354,7 +359,10 @@ export async function loadActiveProgramForUser(userId: string): Promise<ActivePr
         } catch { /* ignore */ }
         return active;
       }
-    } catch { /* fall back to local storage */ }
+    } catch (error) {
+      console.error("[workout] loadActiveProgramForUser Supabase error:", error);
+    }
+    return null;
   }
 
   return loadActiveProgram(userId);
@@ -372,29 +380,32 @@ export function getWorkoutLogs(userId: string): WorkoutLog[] {
 }
 
 export async function getWorkoutLogsForUser(userId: string): Promise<WorkoutLog[]> {
-  const localLogs = getWorkoutLogs(userId);
-
-  if (_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (isRealUser(userId)) {
     try {
       const { getWorkoutLogsFromDB, dbLogToLocal } = await import("@/lib/db/workoutLogs");
       const dbLogs = await getWorkoutLogsFromDB(userId);
-      if (dbLogs.length) {
-        const logsById = new Map<string, WorkoutLog>();
-        dbLogs.map(dbLogToLocal).forEach((log) => logsById.set(log.logId, log));
-        localLogs.forEach((log) => logsById.set(log.logId, log));
-        const logs = [...logsById.values()].sort((a, b) => b.completedAt - a.completedAt);
-        try { localStorage.setItem(LOGS_KEY(userId), JSON.stringify(logs)); } catch { /* ignore */ }
-        return logs;
-      }
-    } catch { /* fall back to local storage */ }
+      return dbLogs.map(dbLogToLocal).sort((a, b) => b.completedAt - a.completedAt);
+    } catch (error) {
+      console.error("[workout] getWorkoutLogsForUser Supabase error:", error);
+      return [];
+    }
   }
 
-  return localLogs;
+  return getWorkoutLogs(userId);
 }
 
-const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function saveWorkoutLog(userId: string, log: WorkoutLog): void {
+  if (isRealUser(userId)) {
+    import("@/lib/db/workoutLogs").then(({ syncWorkoutLog }) => {
+      syncWorkoutLog(log).catch((error) => {
+        console.error("[workout] saveWorkoutLog Supabase error:", error);
+      });
+    }).catch((error) => {
+      console.error("[workout] saveWorkoutLog import error:", error);
+    });
+    return;
+  }
+
   try {
     const logs = getWorkoutLogs(userId);
     const idx  = logs.findIndex((l) => l.logId === log.logId);
@@ -402,12 +413,6 @@ export function saveWorkoutLog(userId: string, log: WorkoutLog): void {
     localStorage.setItem(LOGS_KEY(userId), JSON.stringify(logs));
   } catch { /* ignore */ }
 
-  // Write-through: sync to Supabase for real accounts
-  if (_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    import("@/lib/db/workoutLogs").then(({ syncWorkoutLog }) => {
-      syncWorkoutLog(log).catch(() => { /* non-blocking */ });
-    }).catch(() => { /* non-blocking */ });
-  }
 }
 
 export function getLogsThisWeek(userId: string): WorkoutLog[] {
