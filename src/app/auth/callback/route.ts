@@ -13,14 +13,18 @@ export async function GET(req: NextRequest) {
     : null;
 
   if (error) {
-    return NextResponse.redirect(`${origin}/login?error=auth`);
+    return NextResponse.redirect(`${origin}/login?error=auth&reason=provider`);
   }
 
   if (code) {
     const supabase = await createClient();
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
     if (exchangeError) {
-      return NextResponse.redirect(`${origin}/login?error=auth`);
+      return NextResponse.redirect(`${origin}/login?error=auth&reason=exchange`);
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.redirect(`${origin}/login?error=auth&reason=no_session`);
     }
     return NextResponse.redirect(`${origin}${safeNext ?? "/"}`);
   }

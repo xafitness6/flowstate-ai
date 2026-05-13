@@ -203,6 +203,19 @@ function LoginPageContent() {
   const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const authError = params.get("error");
+      const reason = params.get("reason");
+      if (authError === "auth") {
+        setSiError(
+          reason === "exchange"
+            ? "Sign-in started, but Supabase could not finish the callback. Check the production redirect URL and try again."
+            : "Sign-in could not be completed. Try email and password, or check the Supabase auth setup.",
+        );
+      }
+    } catch { /* ignore */ }
+
     setBioLabel(getBiometricLabel());
 
     if (hasSavedCredential()) {
@@ -341,17 +354,22 @@ function LoginPageContent() {
     // Supabase path
     if (siEmail.includes("@")) {
       setLoading(true);
+      const email = siEmail.trim().toLowerCase();
       const supabase = createClient();
       const { data, error } = await supabase.auth.signInWithPassword({
-        email:    siEmail.trim().toLowerCase(),
+        email,
         password: siPassword,
       });
       if (error || !data.user) {
-        setSiError("Incorrect email or password.");
+        setSiError(
+          email === ADMIN_EMAIL
+            ? "Admin login failed. Reset the Supabase admin password with scripts/setup-admin.mjs, then try again."
+            : "Incorrect email or password.",
+        );
         setLoading(false);
         return;
       }
-      await routeSupabaseUser(data.user.id, data.user.email, { offerBiometric: true });
+      await routeSupabaseUser(data.user.id, data.user.email);
       return;
     }
 

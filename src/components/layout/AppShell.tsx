@@ -8,6 +8,8 @@ import { Sidebar }   from "./Sidebar";
 import { getSessionKey, getBlockingRoute, clearSession } from "@/lib/routing";
 import { useUser }                        from "@/context/UserContext";
 
+const ADMIN_EMAIL = "xavellis4@gmail.com";
+
 /**
  * AppShell wraps every route inside (app)/layout.tsx.
  *
@@ -61,6 +63,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+          setReady(true);
+          return;
+        }
+
         const supabaseUserId = session.user.id;
         const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
         const dbBlocker = await resolveOnboardingRoute(supabaseUserId);
@@ -81,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // on the page and lets the real error surface for debugging.
     guard().catch(console.error);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, router]);
+  }, [isLoading, router, user.isAdmin, user.role]);
 
   if (!ready) {
     return <div className="min-h-screen bg-[#0A0A0A]" />;

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser }   from "@/context/UserContext";
+
+const ADMIN_EMAIL = "xavellis4@gmail.com";
 
 /**
  * Protects admin-only pages.
@@ -18,14 +21,35 @@ import { useUser }   from "@/context/UserContext";
 export function useAdminGuard(): boolean {
   const router = useRouter();
   const { user, isLoading } = useUser();
+  const [sessionAdmin, setSessionAdmin] = useState(false);
 
-  const isAdmin = !isLoading && (user.role === "master" || !!user.isAdmin);
+  const isAdmin = !isLoading && (user.role === "master" || !!user.isAdmin || sessionAdmin);
 
   useEffect(() => {
     if (isLoading) return; // wait — don't redirect until role is resolved
-    if (!isAdmin) {
+
+    if (isAdmin) return;
+
+    async function verifySessionAdmin() {
+      try {
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+          router.replace("/login");
+          return;
+        }
+
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+        const { data: { user: sessionUser } } = await supabase.auth.getUser();
+        if (sessionUser?.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+          setSessionAdmin(true);
+          return;
+        }
+      } catch { /* fall through to login */ }
+
       router.replace("/login");
     }
+
+    void verifySessionAdmin();
   }, [isLoading, isAdmin, router]);
 
   return isAdmin;

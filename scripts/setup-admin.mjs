@@ -80,18 +80,44 @@ if (existing) {
   console.log(`Created user: ${userId}`);
 }
 
-// Ensure profile row has admin/master flags. The handle_new_user trigger
-// should have done this on insert, but force it here in case the row
-// pre-dates the trigger or the email check.
-const { error: profileError } = await supabase
+// Ensure the profile row exists and has admin/master flags. The handle_new_user
+// trigger should create this on auth insert, but production can drift if the
+// trigger was added after the user or failed during an earlier setup.
+const now = new Date().toISOString();
+const { data: profile, error: profileError } = await supabase
   .from("profiles")
-  .update({ role: "master", is_admin: true })
-  .eq("id", userId);
+  .upsert(
+    {
+      id: userId,
+      email: ADMIN_EMAIL,
+      first_name: "Xavier",
+      last_name: "Ellis",
+      full_name: "Xavier Ellis",
+      role: "master",
+      is_admin: true,
+      plan: "coaching",
+      default_dashboard: "overview",
+      push_level: 6,
+      subscription_status: "active",
+      updated_at: now,
+    },
+    { onConflict: "id" },
+  )
+  .select("id,email,role,is_admin,plan,default_dashboard,subscription_status")
+  .single();
 
 if (profileError) {
-  console.warn("Profile update warning:", profileError.message);
+  console.warn("Profile upsert warning:", profileError.message);
 } else {
-  console.log("Profile set to role=master, is_admin=true.");
+  console.log("Profile repaired:", {
+    id: profile.id,
+    email: profile.email,
+    role: profile.role,
+    is_admin: profile.is_admin,
+    plan: profile.plan,
+    default_dashboard: profile.default_dashboard,
+    subscription_status: profile.subscription_status,
+  });
 }
 
 console.log(`\nDone. Sign in at /login with:`);
