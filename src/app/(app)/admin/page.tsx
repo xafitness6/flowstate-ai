@@ -777,22 +777,22 @@ export default function AdminDashboard() {
 
 function AccountResetPanel() {
   const router = useRouter();
+  const { user } = useUser();
   const [confirm, setConfirm] = useState(false);
   const [done,    setDone]    = useState(false);
 
-  function handleReset() {
+  async function handleReset() {
     const sessionKey = getSessionKey();
     if (!sessionKey) return;
-    const userId = sessionKeyToUserId(sessionKey);
+    const userId = user.id || sessionKeyToUserId(sessionKey);
     resetAccountLocalData(userId);
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const { resetOnboardingState } = await import("@/lib/db/onboarding");
+      await resetOnboardingState(userId);
+    }
     setDone(true);
     setTimeout(() => {
-      // Clear session keys so routing re-evaluates from scratch
-      try {
-        localStorage.removeItem("flowstate-active-role");
-        sessionStorage.removeItem("flowstate-session-role");
-      } catch { /* ignore */ }
-      router.replace("/login");
+      router.replace("/onboarding?mode=personal");
     }, 1200);
   }
 
@@ -800,16 +800,15 @@ function AccountResetPanel() {
     <div className="mt-8 rounded-2xl border border-red-400/12 bg-red-400/[0.03] px-6 py-5">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <p className="text-sm font-semibold text-white/60 mb-1">Developer — Reset My Account</p>
+          <p className="text-sm font-semibold text-white/60 mb-1">Admin — Retake My Personal Onboarding</p>
           <p className="text-xs text-white/30 leading-relaxed max-w-lg">
-            Clears all onboarding progress, intake data, workout logs, programs, nutrition logs, streaks,
-            and analytics for your account only. Your identity, admin access, and role are preserved.
-            After reset, you&apos;ll be sent through onboarding from the beginning.
+            Clears your personal onboarding answers and local training/nutrition test data, then opens the same setup flow a client sees.
+            Your admin access, Supabase login, and platform role are preserved.
           </p>
         </div>
         <div className="shrink-0">
           {done ? (
-            <p className="text-xs text-emerald-400/70 font-medium">Reset complete. Redirecting…</p>
+              <p className="text-xs text-emerald-400/70 font-medium">Ready. Opening onboarding…</p>
           ) : !confirm ? (
             <button
               onClick={() => setConfirm(true)}
@@ -826,10 +825,10 @@ function AccountResetPanel() {
                 Cancel
               </button>
               <button
-                onClick={handleReset}
-                className="text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 rounded-xl px-4 py-2 transition-all"
-              >
-                Confirm reset
+	              onClick={() => void handleReset()}
+	              className="text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 rounded-xl px-4 py-2 transition-all"
+	            >
+	              Confirm and start
               </button>
             </div>
           )}

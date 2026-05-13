@@ -35,8 +35,37 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
 }
 
 /** Mark onboarding complete for a user. */
-export async function markOnboardingComplete(userId: string): Promise<void> {
-  return upsertOnboardingState(userId, { onboarding_complete: true });
+export async function markOnboardingComplete(
+  userId: string,
+  rawAnswers?: Record<string, unknown>,
+): Promise<void> {
+  return upsertOnboardingState(userId, {
+    walkthrough_seen: true,
+    onboarding_complete: true,
+    body_focus_complete: true,
+    planning_conversation_complete: true,
+    program_generated: true,
+    tutorial_complete: true,
+    profile_complete: true,
+    raw_answers: rawAnswers,
+  });
+}
+
+/** Reset onboarding so the current user can deliberately run the setup again. */
+export async function resetOnboardingState(userId: string): Promise<void> {
+  return upsertOnboardingState(userId, {
+    walkthrough_seen: false,
+    onboarding_complete: false,
+    body_focus_complete: false,
+    planning_conversation_complete: false,
+    program_generated: false,
+    tutorial_complete: false,
+    profile_complete: false,
+    onboarding_step: null,
+    raw_answers: null,
+    coach_summary: null,
+    current_plan_duration: null,
+  });
 }
 
 /** Resolve the correct onboarding route for a user. Returns null if onboarding complete. */

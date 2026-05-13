@@ -30,11 +30,14 @@ import {
   Layers,
   ChevronRight,
   Film,
+  Play,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VideoPickerModal } from "@/components/library/VideoPickerModal";
-import { type ExerciseVideo, VIDEO_LIBRARY, formatDuration } from "@/lib/videoLibrary";
+import { VideoPreviewModal } from "@/components/library/VideoPreviewModal";
+import { YTIcon } from "@/components/library/YTIcon";
+import { VIDEO_LIBRARY, formatDuration } from "@/lib/videoLibrary";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -207,7 +210,10 @@ function ExerciseCard({
   isLast: boolean;
 }) {
   const [showVideoPicker, setShowVideoPicker] = useState(false);
+  const [showVideoPreview, setShowVideoPreview] = useState(false);
+  const [thumbError, setThumbError] = useState(false);
   const attachedVideo = item.videoId ? VIDEO_LIBRARY.find((v) => v.id === item.videoId) ?? null : null;
+  const hasRealThumb = attachedVideo?.thumbnailUrl && !thumbError;
   return (
     <div
       className={cn(
@@ -319,28 +325,68 @@ function ExerciseCard({
             {/* Video attachment */}
             <div className="mt-3">
               {attachedVideo ? (
-                <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/6">
-                  <div className={cn("w-12 aspect-video rounded-lg overflow-hidden bg-gradient-to-br shrink-0", attachedVideo.thumbnailColor)}>
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Film className="w-3 h-3 text-white/40" />
+                <div className="flex items-stretch gap-3 p-2 rounded-xl bg-white/[0.03] border border-white/6">
+                  {/* Thumbnail — click to preview */}
+                  <button
+                    onClick={() => setShowVideoPreview(true)}
+                    className={cn(
+                      "group relative w-24 aspect-video rounded-lg overflow-hidden bg-gradient-to-br shrink-0",
+                      attachedVideo.thumbnailColor,
+                    )}
+                    aria-label={`Preview ${attachedVideo.title}`}
+                  >
+                    {hasRealThumb && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={attachedVideo.thumbnailUrl}
+                        alt={attachedVideo.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={() => setThumbError(true)}
+                      />
+                    )}
+                    {!hasRealThumb && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Film className="w-4 h-4 text-white/35" strokeWidth={1.5} />
+                      </div>
+                    )}
+                    {/* Play overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/30 transition-colors">
+                      <div className="w-7 h-7 rounded-full bg-black/55 border border-white/25 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Play className="w-3 h-3 text-white fill-white ml-0.5" />
+                      </div>
+                    </div>
+                    {attachedVideo.source === "youtube" && (
+                      <div className="absolute top-1 left-1">
+                        <YTIcon className="w-3 h-3 text-[#FF4444]" />
+                      </div>
+                    )}
+                    {attachedVideo.duration > 0 && (
+                      <div className="absolute bottom-1 right-1 text-[9px] text-white/75 tabular-nums font-mono bg-black/55 rounded px-1">
+                        {formatDuration(attachedVideo.duration)}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Info + actions */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                    <p className="text-xs font-medium text-white/70 line-clamp-2 leading-snug">
+                      {attachedVideo.title}
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setShowVideoPicker(true)}
+                        className="text-[10px] text-[#B48B40] hover:text-[#C99B50] transition-colors"
+                      >
+                        Change
+                      </button>
+                      <button
+                        onClick={() => onChange(item.id, "videoId", null)}
+                        className="text-[10px] text-white/30 hover:text-red-400/70 transition-colors"
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-white/65 truncate">{attachedVideo.title}</p>
-                    <p className="text-[10px] text-white/30 tabular-nums">{formatDuration(attachedVideo.duration)}</p>
-                  </div>
-                  <button
-                    onClick={() => setShowVideoPicker(true)}
-                    className="text-[10px] text-[#B48B40] hover:text-[#C99B50] transition-colors"
-                  >
-                    Change
-                  </button>
-                  <button
-                    onClick={() => onChange(item.id, "videoId", null)}
-                    className="p-1 text-white/20 hover:text-red-400/60 transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
                 </div>
               ) : (
                 <button
@@ -364,6 +410,14 @@ function ExerciseCard({
           onSelect={(video) => onChange(item.id, "videoId", video.id)}
           onRemove={() => onChange(item.id, "videoId", null)}
           onClose={() => setShowVideoPicker(false)}
+        />
+      )}
+
+      {/* Video preview modal */}
+      {showVideoPreview && attachedVideo && (
+        <VideoPreviewModal
+          video={attachedVideo}
+          onClose={() => setShowVideoPreview(false)}
         />
       )}
     </div>

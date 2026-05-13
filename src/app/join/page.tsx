@@ -98,7 +98,10 @@ function JoinForm() {
             email: email.trim().toLowerCase(), password,
           });
           if (!siErr && siData.user) {
-            router.replace("/onboarding/calibration");
+            try { localStorage.setItem(LS_KEY, siData.user.id); } catch { /* ignore */ }
+            try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+            if (tokenParam) await updateInviteStatusInDB(tokenParam, "accepted", siData.user.id);
+            router.replace("/onboarding");
             return;
           }
           setError("An account with that email already exists. Check your password.");
@@ -113,9 +116,13 @@ function JoinForm() {
       if (tokenParam && data.user) {
         await updateInviteStatusInDB(tokenParam, "accepted", data.user.id);
       }
+      if (data.user) {
+        try { localStorage.setItem(LS_KEY, data.user.id); } catch { /* ignore */ }
+        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+      }
 
       // New Supabase user → start onboarding
-      router.replace("/onboarding/calibration");
+      router.replace("/onboarding");
       return;
     }
 

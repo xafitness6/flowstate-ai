@@ -41,9 +41,12 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
     COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
     COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'client'),
+    CASE
+      WHEN lower(NEW.email) = 'xavellis4@gmail.com' THEN 'master'
+      ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'client')
+    END,
     -- Mark xavellis4@gmail.com as admin automatically
-    (NEW.email = 'xavellis4@gmail.com')
+    (lower(NEW.email) = 'xavellis4@gmail.com')
   );
   RETURN NEW;
 END;

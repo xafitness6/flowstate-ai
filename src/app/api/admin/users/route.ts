@@ -1,6 +1,6 @@
 // GET /api/admin/users
 // Returns all profiles with onboarding state merged in.
-// Requires the requester to have role = "master" (verified server-side via session).
+// Requires the requester to be a platform admin (verified server-side via session).
 // Uses the service-role admin client to bypass RLS.
 
 import { NextResponse } from "next/server";
@@ -17,11 +17,11 @@ export async function GET() {
 
   const { data: actor } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role,is_admin")
     .eq("id", user.id)
     .single();
 
-  if (!actor || actor.role !== "master") {
+  if (!actor || (actor.role !== "master" && !actor.is_admin)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

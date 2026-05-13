@@ -11,8 +11,8 @@ import { Card } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
-  getWorkoutLogs, getLogsThisWeek, loadActiveProgram,
-  type WorkoutLog,
+  getWorkoutLogsForUser, getLogsThisWeekForUser, loadActiveProgramForUser,
+  type ActiveProgram, type WorkoutLog,
 } from "@/lib/workout";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -76,16 +76,30 @@ export default function AnalyticsPage() {
 
   const [logs,     setLogs]     = useState<WorkoutLog[]>([]);
   const [weekLogs, setWeekLogs] = useState<WorkoutLog[]>([]);
-  const [program,  setProgram]  = useState<Awaited<ReturnType<typeof loadActiveProgram>>>(null);
+  const [program,  setProgram]  = useState<ActiveProgram | null>(null);
   const [loaded,   setLoaded]   = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
-    const allLogs = getWorkoutLogs(user.id).sort((a, b) => b.completedAt - a.completedAt);
-    setLogs(allLogs);
-    setWeekLogs(getLogsThisWeek(user.id));
-    setProgram(loadActiveProgram(user.id));
-    setLoaded(true);
+    let active = true;
+
+    async function load() {
+      if (!user?.id) return;
+      setLoaded(false);
+      const [allLogs, currentWeekLogs, activeProgram] = await Promise.all([
+        getWorkoutLogsForUser(user.id),
+        getLogsThisWeekForUser(user.id),
+        loadActiveProgramForUser(user.id),
+      ]);
+
+      if (!active) return;
+      setLogs(allLogs.sort((a, b) => b.completedAt - a.completedAt));
+      setWeekLogs(currentWeekLogs);
+      setProgram(activeProgram);
+      setLoaded(true);
+    }
+
+    void load();
+    return () => { active = false; };
   }, [user?.id]);
 
   if (!loaded) {

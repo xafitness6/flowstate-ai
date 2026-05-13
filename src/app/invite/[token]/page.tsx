@@ -7,11 +7,33 @@ import { cn } from "@/lib/utils";
 import { getInviteByToken, isInviteValid, acceptInvite } from "@/lib/invites";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { resolvePostLoginRoute } from "@/lib/routing";
+import { createClient } from "@/lib/supabase/client";
+import { updateInviteStatusInDB } from "@/lib/db/invites";
 import type { Invite } from "@/lib/invites";
+import type { Invite as DBInvite } from "@/lib/supabase/types";
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
 const LS_KEY = "flowstate-active-role";
+
+function dbInviteToLocal(invite: DBInvite): Invite {
+  return {
+    inviteId:            invite.id,
+    inviteToken:         invite.invite_token,
+    inviteEmail:         invite.invite_email ?? "",
+    firstName:           invite.first_name ?? "",
+    lastName:            invite.last_name ?? "",
+    message:             invite.invite_message ?? "",
+    invitedByUserId:     invite.invited_by_user_id,
+    invitedByName:       invite.invited_by_name ?? "",
+    assignedTrainerId:   invite.assigned_trainer_id ?? invite.invited_by_user_id,
+    assignedTrainerName: invite.assigned_trainer_name ?? invite.invited_by_name ?? "",
+    inviteStatus:        invite.invite_status,
+    invitedAt:           invite.invited_at,
+    acceptedAt:          invite.accepted_at,
+    expiresAt:           invite.expires_at ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -102,21 +124,41 @@ export default function InvitePage() {
   // ── Load invite on mount ──────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!token) { setLoadError("Invalid invite link."); return; }
-    const inv = getInviteByToken(token);
-    if (!inv) { setLoadError("Invite not found. The link may be incorrect."); return; }
-    const check = isInviteValid(inv);
-    if (!check.valid) { setLoadError(check.reason ?? "This invite is no longer valid."); return; }
-    setInvite(inv);
-    // Pre-fill known fields
-    setName(`${inv.firstName} ${inv.lastName}`.trim());
-    setEmail(inv.inviteEmail);
-    setUsername(inv.firstName.toLowerCase().replace(/\s+/g, ""));
+    let active = true;
+
+    async function loadInvite() {
+      if (!token) { setLoadError("Invalid invite link."); return; }
+
+      let inv = getInviteByToken(token);
+
+      if (!inv && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        try {
+          const { getInviteByTokenFromDB } = await import("@/lib/db/invites");
+          const dbInvite = await getInviteByTokenFromDB(token);
+          if (dbInvite) inv = dbInviteToLocal(dbInvite);
+        } catch { /* fall through to not found */ }
+      }
+
+      if (!active) return;
+      if (!inv) { setLoadError("Invite not found. The link may be incorrect."); return; }
+
+      const check = isInviteValid(inv);
+      if (!check.valid) { setLoadError(check.reason ?? "This invite is no longer valid."); return; }
+
+      setInvite(inv);
+      // Pre-fill known fields
+      setName(`${inv.firstName} ${inv.lastName}`.trim());
+      setEmail(inv.inviteEmail);
+      setUsername(inv.firstName.toLowerCase().replace(/\s+/g, ""));
+    }
+
+    void loadInvite();
+    return () => { active = false; };
   }, [token]);
 
   // ── Accept invite ─────────────────────────────────────────────────────────
 
-  function handleAccept(e: React.FormEvent) {
+  async function handleAccept(e: React.FormEvent) {
     e.preventDefault();
     if (!invite) return;
     setFormError(null);
@@ -128,6 +170,69 @@ export default function InvitePage() {
     if (password !== confirm)  { setFormError("Passwords don't match.");               return; }
 
     setLoading(true);
+
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const supabase = createClient();
+      const cleanEmail = email.trim().toLowerCase();
+      const nameParts = name.trim().split(/\s+/).filter(Boolean);
+      const firstName = invite.firstName || nameParts[0] || "";
+      const lastName = invite.lastName || nameParts.slice(1).join(" ");
+
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            full_name: name.trim(),
+            first_name: firstName,
+            last_name: lastName,
+            role: "client",
+            assigned_trainer_id: invite.assignedTrainerId || null,
+            signup_source: "personalized_invite",
+            invite_token: token,
+          },
+        },
+      });
+
+      if (error) {
+        if (error.message.toLowerCase().includes("already registered")) {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
+
+          if (!signInError && signInData.user) {
+            try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+            await updateInviteStatusInDB(token, "accepted", signInData.user.id);
+            acceptInvite(token);
+            try { localStorage.setItem(LS_KEY, signInData.user.id); } catch { /* ignore */ }
+            setAccepted(true);
+            setTimeout(() => router.replace("/onboarding"), 800);
+            return;
+          }
+
+          setFormError("An account with that email already exists. Check your password.");
+        } else {
+          setFormError(error.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+        await updateInviteStatusInDB(token, "accepted", data.user.id);
+        acceptInvite(token);
+        try { localStorage.setItem(LS_KEY, data.user.id); } catch { /* ignore */ }
+        setAccepted(true);
+        setTimeout(() => router.replace("/onboarding"), 800);
+        return;
+      }
+
+      setFormError("Check your email to confirm your account, then log in.");
+      setLoading(false);
+      return;
+    }
 
     // Try to create account; if email already exists, try to sign in
     const result = createAccount(

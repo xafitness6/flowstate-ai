@@ -124,6 +124,39 @@ type StoredProgram = {
   }>;
 };
 
+function toActiveProgram(stored: StoredProgram, meta: ProgramMeta): ActiveProgram {
+  const weeksPassed = Math.floor((Date.now() - new Date(meta.startDate).getTime()) / 6.048e8);
+  const currentWeek = Math.min(Math.max(weeksPassed + 1, 1), stored.weeks);
+
+  const workouts: Workout[] = stored.week1.map((w, idx) => ({
+    workoutId:         String(idx),
+    name:              w.focus,
+    scheduledDay:      w.day,
+    dayLabel:          w.dayLabel,
+    focus:             w.focus,
+    warmup:            generateWarmUp(w.focus),
+    exercises:         w.exercises.map((ex, eIdx) => enrichExercise(ex, eIdx)),
+    estimatedDuration: Math.max(40, w.exercises.length * 9),
+  }));
+
+  return {
+    programId:     stored.id,
+    name:          stored.name,
+    description:   stored.description,
+    goal:          stored.goal,
+    durationWeeks: stored.weeks,
+    currentWeek,
+    startDate:     meta.startDate,
+    split:         stored.split,
+    daysPerWeek:   stored.daysPerWeek,
+    workouts,
+  };
+}
+
+function isStoredWeek(value: unknown): value is StoredProgram["week1"] {
+  return Array.isArray(value);
+}
+
 // ─── Warm-up generator ────────────────────────────────────────────────────────
 
 function wu(
@@ -285,35 +318,46 @@ export function loadActiveProgram(userId: string): ActiveProgram | null {
       localStorage.setItem(META_KEY(userId), JSON.stringify(meta));
     }
 
-    const weeksPassed = Math.floor((Date.now() - new Date(meta.startDate).getTime()) / 6.048e8);
-    const currentWeek = Math.min(Math.max(weeksPassed + 1, 1), stored.weeks);
-
-    const workouts: Workout[] = stored.week1.map((w, idx) => ({
-      workoutId:         String(idx),
-      name:              w.focus,
-      scheduledDay:      w.day,
-      dayLabel:          w.dayLabel,
-      focus:             w.focus,
-      warmup:            generateWarmUp(w.focus),
-      exercises:         w.exercises.map((ex, eIdx) => enrichExercise(ex, eIdx)),
-      estimatedDuration: Math.max(40, w.exercises.length * 9),
-    }));
-
-    return {
-      programId:     stored.id,
-      name:          stored.name,
-      description:   stored.description,
-      goal:          stored.goal,
-      durationWeeks: stored.weeks,
-      currentWeek,
-      startDate:     meta.startDate,
-      split:         stored.split,
-      daysPerWeek:   stored.daysPerWeek,
-      workouts,
-    };
+    return toActiveProgram(stored, meta);
   } catch {
     return null;
   }
+}
+
+export async function loadActiveProgramForUser(userId: string): Promise<ActiveProgram | null> {
+  if (_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const { getActiveProgram } = await import("@/lib/db/programs");
+      const dbProgram = await getActiveProgram(userId);
+
+      if (dbProgram && isStoredWeek(dbProgram.weekly_split)) {
+        const stored: StoredProgram = {
+          id:          dbProgram.id,
+          name:        dbProgram.block_name,
+          description: dbProgram.coaching_notes ?? `${dbProgram.duration_weeks}-week ${dbProgram.goal} program.`,
+          weeks:       dbProgram.duration_weeks,
+          daysPerWeek: dbProgram.weekly_training_days,
+          split:       Array.isArray(dbProgram.body_focus_areas) && dbProgram.body_focus_areas.length
+            ? dbProgram.body_focus_areas.join(" / ")
+            : "Custom",
+          goal:        dbProgram.goal,
+          week1:       dbProgram.weekly_split,
+        };
+        const meta = {
+          programId: dbProgram.id,
+          startDate: dbProgram.start_date ?? dbProgram.created_at.split("T")[0],
+        };
+        const active = toActiveProgram(stored, meta);
+        try {
+          localStorage.setItem(PROG_KEY(userId), JSON.stringify(stored));
+          localStorage.setItem(META_KEY(userId), JSON.stringify(meta));
+        } catch { /* ignore */ }
+        return active;
+      }
+    } catch { /* fall back to local storage */ }
+  }
+
+  return loadActiveProgram(userId);
 }
 
 // ─── Workout log CRUD ─────────────────────────────────────────────────────────
@@ -325,6 +369,27 @@ export function getWorkoutLogs(userId: string): WorkoutLog[] {
   } catch {
     return [];
   }
+}
+
+export async function getWorkoutLogsForUser(userId: string): Promise<WorkoutLog[]> {
+  const localLogs = getWorkoutLogs(userId);
+
+  if (_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const { getWorkoutLogsFromDB, dbLogToLocal } = await import("@/lib/db/workoutLogs");
+      const dbLogs = await getWorkoutLogsFromDB(userId);
+      if (dbLogs.length) {
+        const logsById = new Map<string, WorkoutLog>();
+        dbLogs.map(dbLogToLocal).forEach((log) => logsById.set(log.logId, log));
+        localLogs.forEach((log) => logsById.set(log.logId, log));
+        const logs = [...logsById.values()].sort((a, b) => b.completedAt - a.completedAt);
+        try { localStorage.setItem(LOGS_KEY(userId), JSON.stringify(logs)); } catch { /* ignore */ }
+        return logs;
+      }
+    } catch { /* fall back to local storage */ }
+  }
+
+  return localLogs;
 }
 
 const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -347,6 +412,16 @@ export function saveWorkoutLog(userId: string, log: WorkoutLog): void {
 
 export function getLogsThisWeek(userId: string): WorkoutLog[] {
   const logs  = getWorkoutLogs(userId);
+  const now   = new Date();
+  const day   = now.getDay();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - day);
+  weekStart.setHours(0, 0, 0, 0);
+  return logs.filter((l) => l.completedAt >= weekStart.getTime());
+}
+
+export async function getLogsThisWeekForUser(userId: string): Promise<WorkoutLog[]> {
+  const logs = await getWorkoutLogsForUser(userId);
   const now   = new Date();
   const day   = now.getDay();
   const weekStart = new Date(now);

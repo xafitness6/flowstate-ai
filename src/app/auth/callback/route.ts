@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     if (exchangeError) {
       return NextResponse.redirect(`${origin}/login?error=auth`);
     }
-    return NextResponse.redirect(`${origin}/onboarding`);
+    return NextResponse.redirect(`${origin}/`);
   }
 
   return NextResponse.redirect(`${origin}/login`);

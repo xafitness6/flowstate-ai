@@ -7,6 +7,7 @@ import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
 import { clearSession } from "@/lib/routing";
+import { applyEarlyAccess } from "@/lib/earlyAccess";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
@@ -55,6 +56,7 @@ const LS_KEY        = "flowstate-active-role";
 const SS_KEY        = "flowstate-session-role";
 const VIEW_MODE_KEY = "flowstate-view-mode";
 const PLAN_KEY      = (id: string) => `flowstate-plan-${id}`;
+const ADMIN_EMAIL   = "xavellis4@gmail.com";
 
 export type ViewMode = "operator" | "personal";
 
@@ -65,12 +67,12 @@ export type ViewMode = "operator" | "personal";
  * the async profile fetch; isLoading gates rendering until that completes.
  */
 function getInitialUser(): MockUser {
-  if (typeof window === "undefined") return DEMO_USERS.member;
+  if (typeof window === "undefined") return applyEarlyAccess(DEMO_USERS.member);
   try {
     const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
-    if (key && DEMO_USERS[key]) return DEMO_USERS[key];
+    if (key && DEMO_USERS[key]) return applyEarlyAccess(DEMO_USERS[key]);
   } catch { /* ignore */ }
-  return DEMO_USERS.member;
+  return applyEarlyAccess(DEMO_USERS.member);
 }
 
 /** Load a demo/local user from storage — used only when no Supabase session exists. */
@@ -84,7 +86,7 @@ function loadDemoUser(): MockUser | null {
     if (DEMO_USERS[key]) {
       const base = DEMO_USERS[key];
       const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
-      return savedPlan ? { ...base, plan: savedPlan } : base;
+      return applyEarlyAccess(savedPlan ? { ...base, plan: savedPlan } : base);
     }
 
     // 2. Dynamically created local accounts: key is an account ID ("usr_…")
@@ -92,7 +94,7 @@ function loadDemoUser(): MockUser | null {
     if (account) {
       const base = accountToMockUser(account);
       const savedPlan = localStorage.getItem(PLAN_KEY(base.id)) as Plan | null;
-      return savedPlan ? { ...base, plan: savedPlan } : base;
+      return applyEarlyAccess(savedPlan ? { ...base, plan: savedPlan } : base);
     }
   } catch { /* ignore */ }
   return null;
@@ -140,30 +142,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const supabase = createClient();
 
-    // Helper: check if the app-level session is the demo admin path.
-    // If localStorage/sessionStorage says "master", we must NOT override the
-    // user with a Supabase profile (which would be a non-master role and would
-    // cause useAdminGuard to redirect to /welcome).
-    function isAppMaster(): boolean {
-      try {
-        const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
-        return key === "master";
-      } catch { return false; }
-    }
-
     // Initial session check — resolves isLoading for all non-auth-change paths
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      // Demo admin path takes priority over any Supabase session
-      if (isAppMaster()) { setIsLoading(false); return; }
-
       if (session) {
         const profile = await getMyProfile();
         if (profile) {
-          setUser(profileToMockUser(profile));
+          setUser(applyEarlyAccess(profileToMockUser(profile)));
+        } else if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+          setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
         } else {
           // Profile row not ready yet (new user, DB trigger pending).
           // Use the correct UUID so routing checks have the real user ID.
-          setUser(prev => ({ ...prev, id: session.user.id }));
+          setUser(prev => applyEarlyAccess({ ...prev, id: session.user.id }));
         }
         setIsSupabase(true);
         setIsLoading(false);
@@ -178,16 +168,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Demo admin path takes priority over any Supabase session
-        if (isAppMaster()) { setIsLoading(false); return; }
-
         if (session) {
           const profile = await getMyProfile();
           if (profile) {
-            setUser(profileToMockUser(profile));
+            setUser(applyEarlyAccess(profileToMockUser(profile)));
+          } else if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+            setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
           } else {
             // Profile row not ready yet — preserve correct UUID
-            setUser(prev => ({ ...prev, id: session.user.id }));
+            setUser(prev => applyEarlyAccess({ ...prev, id: session.user.id }));
           }
           setIsSupabase(true);
           setIsLoading(false);
@@ -196,7 +185,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         // Session ended — check for demo fallback
         setIsSupabase(false);
         const demo = loadDemoUser();
-        setUser(demo ?? DEMO_USERS.member);
+        setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
         setIsLoading(false);
       }
     );
@@ -207,7 +196,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   function setRole(role: Role) {
     if (isSupabase) return; // don't allow role switching on real accounts
     const match = Object.values(DEMO_USERS).find((u) => u.role === role) ?? { ...user, role };
-    setUser(match);
+    setUser(applyEarlyAccess(match));
     try { localStorage.setItem(LS_KEY, role); } catch { /* ignore */ }
   }
 
@@ -218,13 +207,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const savedPlan = (() => {
       try { return localStorage.getItem(PLAN_KEY(next.id)) as Plan | null; } catch { return null; }
     })();
-    setUser(savedPlan ? { ...next, plan: savedPlan } : next);
+    setUser(applyEarlyAccess(savedPlan ? { ...next, plan: savedPlan } : next));
     try { localStorage.setItem(LS_KEY, demoKey); } catch { /* ignore */ }
   }
 
   async function logout() {
     // Reset context state immediately so no component sees stale data.
-    setUser(DEMO_USERS.member);
+    setUser(applyEarlyAccess(DEMO_USERS.member));
     setIsSupabase(false);
     setViewModeState("operator");
 

@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import {
-  loadActiveProgram, getWorkoutLogs, saveWorkoutLog, getPreviousPerf,
+  loadActiveProgramForUser, getWorkoutLogsForUser, saveWorkoutLog, getPreviousPerf,
   formatDuration,
   type Workout, type WorkoutExercise, type WarmUpItem, type WorkoutLog, type Feel,
 } from "@/lib/workout";
@@ -490,27 +490,36 @@ export default function WorkoutPage() {
   // ── Load ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!user?.id) return;
-    const prog = loadActiveProgram(user.id);
-    if (!prog) { router.replace("/program"); return; }
+    let active = true;
 
-    const wo = prog.workouts.find((w) => w.workoutId === wid);
-    if (!wo)  { router.replace("/program"); return; }
-    setWorkout(wo);
+    async function load() {
+      if (!user?.id) return;
+      const prog = await loadActiveProgramForUser(user.id);
+      if (!active) return;
+      if (!prog) { router.replace("/program"); return; }
 
-    const logs = getWorkoutLogs(user.id);
-    const perfs: Record<string, PrevPerf> = {};
-    wo.exercises.forEach((ex) => { perfs[ex.exerciseId] = getPreviousPerf(logs, ex.name); });
-    setPrevPerfs(perfs);
+      const wo = prog.workouts.find((w) => w.workoutId === wid);
+      if (!wo)  { router.replace("/program"); return; }
+      setWorkout(wo);
 
-    const inputs: Record<string, SetInput> = {};
-    wo.exercises.forEach((ex) => {
-      ex.sets.forEach((s) => {
-        inputs[`${ex.exerciseId}_${s.setNumber}`] = { reps: "", load: "", feel: null, done: false };
+      const logs = await getWorkoutLogsForUser(user.id);
+      if (!active) return;
+      const perfs: Record<string, PrevPerf> = {};
+      wo.exercises.forEach((ex) => { perfs[ex.exerciseId] = getPreviousPerf(logs, ex.name); });
+      setPrevPerfs(perfs);
+
+      const inputs: Record<string, SetInput> = {};
+      wo.exercises.forEach((ex) => {
+        ex.sets.forEach((s) => {
+          inputs[`${ex.exerciseId}_${s.setNumber}`] = { reps: "", load: "", feel: null, done: false };
+        });
       });
-    });
-    setSetInputs(inputs);
-    setLoaded(true);
+      setSetInputs(inputs);
+      setLoaded(true);
+    }
+
+    void load();
+    return () => { active = false; };
   }, [user?.id, wid, router]);
 
   // Session timer

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { TopBar }    from "./TopBar";
 import { BottomNav } from "./BottomNav";
 import { Sidebar }   from "./Sidebar";
-import { getSessionKey, getBlockingRoute } from "@/lib/routing";
+import { getSessionKey, getBlockingRoute, clearSession } from "@/lib/routing";
 import { useUser }                        from "@/context/UserContext";
 
 /**
@@ -50,6 +50,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (!session) {
           // No Supabase session — fall back to demo session check
           const sessionKey = getSessionKey();
+          if (sessionKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionKey)) {
+            clearSession();
+            router.replace("/login");
+            return;
+          }
           const blocker    = getBlockingRoute(sessionKey);
           if (blocker) { router.replace(blocker); return; }
           setReady(true);

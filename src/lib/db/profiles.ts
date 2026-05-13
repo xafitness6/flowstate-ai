@@ -83,10 +83,11 @@ export async function getAllProfiles(): Promise<Profile[]> {
 
 /** Convert a Supabase Profile to the MockUser shape used throughout the app. */
 export function profileToMockUser(profile: Profile) {
+  const role = profile.is_admin ? "master" : profile.role;
   return {
     id:                 profile.id,
     name:               profile.full_name ?? (`${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email),
-    role:               profile.role,
+    role,
     isAdmin:            profile.is_admin,
     status:             "active" as const,
     pushLevel:          profile.push_level,

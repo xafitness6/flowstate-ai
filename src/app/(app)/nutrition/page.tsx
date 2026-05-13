@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Mic, Camera, Plus, Sparkles, Droplets, Flame,
+  Mic, Camera, Plus, Droplets, Flame,
   ChevronDown, ChevronUp, AlertCircle, TrendingUp,
   X, Clock, ChevronLeft, ChevronRight, Loader2, Trash2,
   Pencil, RotateCcw, CalendarDays, Search,
@@ -1244,7 +1244,7 @@ export default function NutritionPage() {
         {/* ── Quick actions ─────────────────────────────────────────────────── */}
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">Quick actions</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <QuickActionTile
               icon={Mic}
               label="Voice log meal"
@@ -1256,14 +1256,7 @@ export default function NutritionPage() {
             <QuickActionTile
               icon={Camera}
               label="Photo scan"
-              description={can(FEATURES.AI_FOOD_ANALYSIS) ? "Snap your plate" : "Pro · upgrade to unlock"}
-              onClick={can(FEATURES.AI_FOOD_ANALYSIS) ? () => setAnalysisOpen(true) : () => router.push("/pricing")}
-              locked={!can(FEATURES.AI_FOOD_ANALYSIS)}
-            />
-            <QuickActionTile
-              icon={Sparkles}
-              label="AI food analysis"
-              description={can(FEATURES.AI_FOOD_ANALYSIS) ? "Analyze · portion guidance" : "Pro · upgrade to unlock"}
+              description={can(FEATURES.AI_FOOD_ANALYSIS) ? "Snap · AI portion guidance" : "Pro · upgrade to unlock"}
               onClick={can(FEATURES.AI_FOOD_ANALYSIS) ? () => setAnalysisOpen(true) : () => router.push("/pricing")}
               locked={!can(FEATURES.AI_FOOD_ANALYSIS)}
             />

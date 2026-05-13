@@ -51,13 +51,15 @@ const SCREENS = [
   {
     type:    "setup" as const,
     eyebrow: "Setup takes 3 minutes",
-    title:   "Four questions. No wrong answers.",
-    body:    "We'll build your starter training plan from your answers. You can always refine it later.",
+    title:   "Six focused questions. No wrong answers.",
+    body:    "We'll build your starter training, nutrition, and recovery targets from your answers. You can always refine it later.",
     accent:  "text-emerald-400",
     bullets: [
       "What's your primary goal?",
       "What's your experience level?",
       "How many days per week can you train?",
+      "How do you usually eat?",
+      "What should the AI watch for?",
       "What equipment do you have access to?",
     ],
   },
@@ -93,8 +95,10 @@ export default function WalkthroughPage() {
   // Admin and trainer users skip the walkthrough entirely
   useEffect(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const personalMode = params.get("mode") === "personal" || params.get("force") === "1";
       const key = getSessionKey();
-      if (key === "master" || key === "trainer") {
+      if (!personalMode && (key === "master" || key === "trainer")) {
         markWalkthroughSeen(getActiveUserId());
         router.replace(key === "master" ? "/admin" : "/trainers");
       }
@@ -104,7 +108,13 @@ export default function WalkthroughPage() {
   function finish() {
     const userId = getActiveUserId();
     markWalkthroughSeen(userId);
-    router.replace("/onboarding/calibration");
+    const personalSuffix = (() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("mode") === "personal" || params.get("force") === "1" ? "?mode=personal" : "";
+      } catch { return ""; }
+    })();
+    router.replace(`/onboarding/calibration${personalSuffix}`);
   }
 
   function goNext() {

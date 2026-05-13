@@ -91,7 +91,7 @@ export function createInvite(input: CreateInviteInput): Invite {
   // Write-through: sync to Supabase for real accounts
   if (_INVITE_UUID_RE.test(input.invitedByUserId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
     import("@/lib/db/invites").then(({ createInviteInDB }) => {
-      createInviteInDB(input).catch(() => { /* non-blocking */ });
+      createInviteInDB({ ...input, inviteToken: invite.inviteToken }).catch(() => { /* non-blocking */ });
     }).catch(() => { /* non-blocking */ });
   }
 
@@ -125,13 +125,20 @@ export function isInviteValid(invite: Invite): { valid: boolean; reason?: string
 export function updateInviteStatus(token: string, status: InviteStatus, acceptedAt?: string): void {
   const invites = loadInvites();
   const idx = invites.findIndex((i) => i.inviteToken === token);
-  if (idx === -1) return;
-  invites[idx] = {
-    ...invites[idx],
-    inviteStatus: status,
-    acceptedAt: acceptedAt ?? invites[idx].acceptedAt,
-  };
-  saveInvites(invites);
+  if (idx !== -1) {
+    invites[idx] = {
+      ...invites[idx],
+      inviteStatus: status,
+      acceptedAt: acceptedAt ?? invites[idx].acceptedAt,
+    };
+    saveInvites(invites);
+  }
+
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    import("@/lib/db/invites").then(({ updateInviteStatusInDB }) => {
+      updateInviteStatusInDB(token, status).catch(() => { /* non-blocking */ });
+    }).catch(() => { /* non-blocking */ });
+  }
 }
 
 export function acceptInvite(token: string): void {

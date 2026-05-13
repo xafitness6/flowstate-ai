@@ -24,6 +24,7 @@ export async function createInviteInDB(input: {
   assignedTrainerId:   string;
   assignedTrainerName: string;
   inviteType?:         "direct" | "open";
+  inviteToken?:        string;
 }): Promise<Invite | null> {
   const supabase = createClient();
   const expires  = new Date(Date.now() + EXPIRE_MS).toISOString();
@@ -31,7 +32,7 @@ export async function createInviteInDB(input: {
   const { data, error } = await supabase
     .from("invites")
     .insert({
-      invite_token:          generateToken(),
+      invite_token:          input.inviteToken ?? generateToken(),
       invite_type:           input.inviteType ?? "direct",
       invite_email:          input.inviteEmail.trim().toLowerCase() || null,
       first_name:            input.firstName.trim() || null,

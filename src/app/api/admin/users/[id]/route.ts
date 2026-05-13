@@ -1,6 +1,6 @@
 // PATCH /api/admin/users/[id]
 // Updates role, plan, subscription_status, and/or onboarding_complete for a user.
-// Requires the requester to have role = "master" (verified server-side via session).
+// Requires the requester to be a platform admin (verified server-side via session).
 // Uses the service-role admin client to bypass RLS.
 
 import { NextRequest, NextResponse } from "next/server";
@@ -26,11 +26,11 @@ export async function PATCH(
 
   const { data: actor } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role,is_admin")
     .eq("id", user.id)
     .single();
 
-  if (!actor || actor.role !== "master") {
+  if (!actor || (actor.role !== "master" && !actor.is_admin)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -3,17 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft, Shield } from "lucide-react";
+import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resolveAccount } from "@/lib/accounts";
 import { resolvePostLoginRoute } from "@/lib/routing";
 import { createClient } from "@/lib/supabase/client";
-import {
-  isAdminEmail,
-  hasAdminPassword,
-  verifyAdminPassword,
-  createAdminPassword,
-} from "@/lib/adminCredentials";
 import {
   isPlatformAuthenticatorAvailable,
   hasSavedCredential,
@@ -25,10 +19,11 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type AuthStep = "form" | "biometric-prompt" | "enable-biometric" | "admin-create-password";
+type AuthStep = "form" | "biometric-prompt" | "enable-biometric";
 
 const LS_KEY = "flowstate-active-role";
 const SS_KEY = "flowstate-session-role";
+const ADMIN_EMAIL = "xavellis4@gmail.com";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -190,13 +185,6 @@ function LoginPageContent() {
   const [siError,    setSiError]    = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Admin first-time password creation
-  const [adminNewPass,     setAdminNewPass]     = useState("");
-  const [adminConfirmPass, setAdminConfirmPass] = useState("");
-  const [adminShowNew,     setAdminShowNew]     = useState(false);
-  const [adminShowConfirm, setAdminShowConfirm] = useState(false);
-  const [adminError,       setAdminError]       = useState<string | null>(null);
-
   // Biometric
   const [resolvedKey,  setResolvedKey]  = useState<string | null>(null);
   const [bioLabel,     setBioLabel]     = useState("Quick Login");
@@ -223,8 +211,13 @@ function LoginPageContent() {
 
   function saveSession(key: string) {
     try {
-      if (rememberMe) localStorage.setItem(LS_KEY, key);
-      else            sessionStorage.setItem(SS_KEY, key);
+      if (rememberMe) {
+        localStorage.setItem(LS_KEY, key);
+        sessionStorage.removeItem(SS_KEY);
+      } else {
+        sessionStorage.setItem(SS_KEY, key);
+        localStorage.removeItem(LS_KEY);
+      }
     } catch { /* ignore */ }
   }
 
@@ -247,39 +240,69 @@ function LoginPageContent() {
     }
   }
 
+  async function syncCurrentProfile() {
+    try {
+      const res = await fetch("/api/auth/sync-profile", { method: "POST" });
+      if (!res.ok) return null;
+      const body = await res.json() as { profile?: { role?: string; is_admin?: boolean } };
+      return body.profile ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function routeSupabaseUser(userId: string, email?: string | null) {
+    saveSession(userId);
+
+    const syncedProfile = await syncCurrentProfile();
+    const { getMyProfile } = await import("@/lib/db/profiles");
+    const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
+
+    const profile = await getMyProfile();
+    const role = syncedProfile?.role ?? profile?.role;
+    const isAdmin =
+      email?.trim().toLowerCase() === ADMIN_EMAIL ||
+      role === "master" ||
+      syncedProfile?.is_admin ||
+      profile?.is_admin;
+
+    if (isAdmin) {
+      router.replace("/admin");
+      return;
+    }
+
+    const blocker = await resolveOnboardingRoute(userId);
+
+    if (blocker) {
+      router.replace(blocker);
+      return;
+    }
+
+    router.replace(resolvePostLoginRoute(userId, { role }));
+  }
+
+  async function routeExistingSession() {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return false;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    await routeSupabaseUser(user.id, user.email);
+    return true;
+  }
+
+  useEffect(() => {
+    void routeExistingSession();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Sign in ────────────────────────────────────────────────────────────────
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setSiError(null);
 
-    // Admin path (email-based)
-    if (isAdminEmail(siEmail)) {
-      if (!hasAdminPassword()) { setStep("admin-create-password"); return; }
-      if (!verifyAdminPassword(siPassword)) { setSiError("Incorrect password."); return; }
-      setLoading(true);
-
-      // Check for an active Supabase session — route to onboarding if not yet complete
-      if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        const { data: { user } } = await createClient().auth.getUser();
-        if (user) {
-          const { getOnboardingState } = await import("@/lib/db/onboarding");
-          const state = await getOnboardingState(user.id);
-          // null row or onboarding_complete !== true both mean "needs onboarding"
-          if (state?.onboarding_complete !== true) {
-            saveSession(user.id);
-            router.replace("/onboarding");
-            return;
-          }
-        }
-      }
-
-      afterLogin("master");
-      return;
-    }
-
     // Demo / local account path (accepts username or email)
-    const demo = resolveDemoCredentials(siEmail, siPassword);
+    const demo = siEmail.includes("@") ? null : resolveDemoCredentials(siEmail, siPassword);
     if (demo) {
       setLoading(true);
       afterLogin(demo.sessionKey);
@@ -299,47 +322,11 @@ function LoginPageContent() {
         setLoading(false);
         return;
       }
-      // Save UUID as session key so onboarding pages use the real UUID as userId.
-      saveSession(data.user.id);
-
-      const { getMyProfile } = await import("@/lib/db/profiles");
-      const profile = await getMyProfile();
-      const role    = profile?.role;
-
-      // Onboarding check — takes priority over role-based routing for all users
-      const { getOnboardingState } = await import("@/lib/db/onboarding");
-      const obState = await getOnboardingState(data.user.id);
-      // null row or onboarding_complete !== true both mean "needs onboarding"
-      if (obState?.onboarding_complete !== true) {
-        router.replace("/onboarding");
-        return;
-      }
-
-      // Role-based routing (onboarding confirmed complete)
-      if (role === "trainer") { router.replace("/trainers"); return; }
-      if (role === "master")  { router.replace("/admin");    return; }
-      router.replace("/dashboard");
+      await routeSupabaseUser(data.user.id, data.user.email);
       return;
     }
 
     setSiError("Incorrect email or password.");
-  }
-
-  // ── Admin first-time password ──────────────────────────────────────────────
-
-  function handleAdminCreatePassword(e: React.FormEvent) {
-    e.preventDefault();
-    setAdminError(null);
-    if (adminNewPass.length < 8)     { setAdminError("Password must be at least 8 characters."); return; }
-    if (adminNewPass !== adminConfirmPass) { setAdminError("Passwords don't match.");             return; }
-    try {
-      createAdminPassword(adminNewPass);
-    } catch (err) {
-      setAdminError(err instanceof Error ? err.message : "Failed to create password.");
-      return;
-    }
-    setLoading(true);
-    afterLogin("master");
   }
 
   // ── Biometric ─────────────────────────────────────────────────────────────
@@ -349,6 +336,13 @@ function LoginPageContent() {
     setBioError(false);
     const savedKey = await authenticateWithBiometric();
     if (savedKey) {
+      if (savedKey === "master") {
+        clearBiometric();
+        setLoading(false);
+        setBioError(true);
+        setStep("form");
+        return;
+      }
       try { localStorage.setItem(LS_KEY, savedKey); } catch { /* ignore */ }
       router.replace(resolvePostLoginRoute(savedKey));
     } else {
@@ -468,67 +462,6 @@ function LoginPageContent() {
                 Not now
               </button>
             </div>
-          </>
-        )}
-
-        {/* ── Admin: first-time password creation ──────────────────────────── */}
-        {step === "admin-create-password" && (
-          <>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
-              </div>
-              <div className="flex items-center gap-2 mb-1">
-                <Shield className="w-4 h-4 text-white/40" strokeWidth={1.5} />
-                <h1 className="text-2xl font-semibold tracking-tight">Create your password</h1>
-              </div>
-              <p className="text-sm text-white/40">
-                First sign-in. Set a secure password for your account.
-              </p>
-            </div>
-
-            <form onSubmit={handleAdminCreatePassword} className="space-y-4">
-              <PasswordField
-                label="New password"
-                value={adminNewPass}
-                onChange={(v) => { setAdminNewPass(v); setAdminError(null); }}
-                show={adminShowNew}
-                onToggle={() => setAdminShowNew((v) => !v)}
-                autoComplete="new-password"
-                placeholder="At least 8 characters"
-                error={!!adminError}
-              />
-              <PasswordField
-                label="Confirm password"
-                value={adminConfirmPass}
-                onChange={(v) => { setAdminConfirmPass(v); setAdminError(null); }}
-                show={adminShowConfirm}
-                onToggle={() => setAdminShowConfirm((v) => !v)}
-                autoComplete="new-password"
-                error={!!adminError}
-              />
-              {adminError && <p className="text-xs text-red-400/70">{adminError}</p>}
-              <button
-                type="submit"
-                disabled={!adminNewPass || !adminConfirmPass || loading}
-                className={cn(
-                  "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all duration-200 mt-2",
-                  adminNewPass && adminConfirmPass && !loading
-                    ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
-                    : "bg-white/5 text-white/25 cursor-default",
-                )}
-              >
-                {loading ? "Setting up…" : <>Set password <ArrowRight className="w-4 h-4" strokeWidth={2} /></>}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setStep("form"); setAdminNewPass(""); setAdminConfirmPass(""); setAdminError(null); }}
-                className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
-              >
-                Back
-              </button>
-            </form>
           </>
         )}
 

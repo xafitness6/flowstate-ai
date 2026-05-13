@@ -11,15 +11,19 @@ import { DEMO_USERS } from "@/context/UserContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = "goal" | "experience" | "schedule" | "equipment";
+type Step = "goal" | "experience" | "schedule" | "nutrition" | "recovery" | "equipment";
 
-const STEPS: Step[] = ["goal", "experience", "schedule", "equipment"];
+const STEPS: Step[] = ["goal", "experience", "schedule", "nutrition", "recovery", "equipment"];
 
 type OnboardingAnswers = {
   primaryGoal:   string;
   experience:    string;
   daysPerWeek:   number;
   sessionLength: string;
+  dietStyle:     string[];
+  mealsPerDay:   string;
+  sleepHours:    string;
+  mainStruggle:  string;
   equipment:     string[];
 };
 
@@ -48,6 +52,38 @@ const SESSION_OPTIONS: { value: string; label: string }[] = [
   { value: "60",  label: "60 min" },
   { value: "75",  label: "75 min" },
   { value: "90+", label: "90+ min" },
+];
+
+const DIET_OPTIONS: { value: string; label: string }[] = [
+  { value: "balanced",      label: "Balanced" },
+  { value: "high_protein",  label: "High protein" },
+  { value: "plant_based",   label: "Plant-based" },
+  { value: "lower_carb",    label: "Lower carb" },
+  { value: "flexible",      label: "Flexible" },
+];
+
+const MEAL_OPTIONS: { value: string; label: string }[] = [
+  { value: "2", label: "2 meals" },
+  { value: "3", label: "3 meals" },
+  { value: "4", label: "4 meals" },
+  { value: "5+", label: "5+ meals" },
+];
+
+const SLEEP_OPTIONS: { value: string; label: string }[] = [
+  { value: "5 or less", label: "5 or less" },
+  { value: "6",         label: "6 hours" },
+  { value: "7",         label: "7 hours" },
+  { value: "8",         label: "8 hours" },
+  { value: "9+",        label: "9+" },
+];
+
+const STRUGGLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "Consistency", label: "Consistency" },
+  { value: "Nutrition",   label: "Nutrition" },
+  { value: "Recovery",    label: "Recovery" },
+  { value: "Time",        label: "Time" },
+  { value: "Injuries",    label: "Injuries" },
+  { value: "Plateau",     label: "Plateau" },
 ];
 
 const EQUIPMENT_OPTIONS: { value: string; label: string }[] = [
@@ -122,6 +158,10 @@ const DEFAULT: OnboardingAnswers = {
   experience:    "",
   daysPerWeek:   3,
   sessionLength: "60",
+  dietStyle:     ["balanced"],
+  mealsPerDay:   "3",
+  sleepHours:    "7",
+  mainStruggle:  "",
   equipment:     [],
 };
 
@@ -130,6 +170,7 @@ export default function CalibrationPage() {
   const [step,     setStep]     = useState<Step>("goal");
   const [answers,  setAnswers]  = useState<OnboardingAnswers>(DEFAULT);
   const [fading,   setFading]   = useState(false);
+  const [saving,   setSaving]   = useState(false);
 
   const stepIndex   = STEPS.indexOf(step);
   const progressPct = ((stepIndex + 1) / STEPS.length) * 100;
@@ -161,7 +202,9 @@ export default function CalibrationPage() {
     if (prev) navigate(prev);
   }
 
-  function finishOnboarding() {
+  async function finishOnboarding() {
+    if (saving) return;
+    setSaving(true);
     const userId = getActiveUserId();
 
     // Minimal intake object for storage — empty fields are fine
@@ -175,7 +218,7 @@ export default function CalibrationPage() {
       sessionLength:   answers.sessionLength,
       preferredTime:   "",
       availableDays:   [],
-      mainStruggle:    "",
+      mainStruggle:    answers.mainStruggle,
       confidenceLevel: 0,
       weight:          "",
       weightUnit:      "kg",
@@ -183,12 +226,12 @@ export default function CalibrationPage() {
       heightUnit:      "cm",
       bodyFat:         "",
       waist:           "",
-      sleepHours:      "",
+      sleepHours:      answers.sleepHours,
       sleepQuality:    0,
       stressLevel:     0,
       recoveryNote:    "",
-      dietStyle:       [],
-      mealsPerDay:     "",
+      dietStyle:       answers.dietStyle,
+      mealsPerDay:     answers.mealsPerDay,
       restrictions:    [],
       hydration:       "",
       injuries:        "",
@@ -203,10 +246,10 @@ export default function CalibrationPage() {
     // Mark ALL onboarding steps as complete so AppShell clears every gate
     completeOnboarding(userId, {
       primaryGoal:   answers.primaryGoal,
-      experience:    answers.experience,
-      daysPerWeek:   answers.daysPerWeek,
-      equipment:     answers.equipment,
-      mainStruggle:  "",
+	      experience:    answers.experience,
+	      daysPerWeek:   answers.daysPerWeek,
+	      equipment:     answers.equipment,
+	      mainStruggle:  answers.mainStruggle,
       sessionLength: answers.sessionLength,
       weight:        "",
       weightUnit:    "lbs",
@@ -220,9 +263,8 @@ export default function CalibrationPage() {
     // Mark onboarding complete for Supabase users
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      import("@/lib/db/onboarding").then(({ markOnboardingComplete }) => {
-        markOnboardingComplete(userId);
-      });
+      const { markOnboardingComplete } = await import("@/lib/db/onboarding");
+      await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
     }
 
     router.replace("/dashboard");
@@ -232,6 +274,8 @@ export default function CalibrationPage() {
     if (step === "goal")       return !!answers.primaryGoal;
     if (step === "experience") return !!answers.experience;
     if (step === "schedule")   return answers.daysPerWeek > 0 && !!answers.sessionLength;
+    if (step === "nutrition")  return answers.dietStyle.length > 0 && !!answers.mealsPerDay;
+    if (step === "recovery")   return !!answers.sleepHours && !!answers.mainStruggle;
     if (step === "equipment")  return true; // optional
     return true;
   };
@@ -379,11 +423,122 @@ export default function CalibrationPage() {
               <ArrowRight className="w-4 h-4" strokeWidth={2} />
             </button>
           </div>
-        )}
+	        )}
 
-        {/* ── Equipment ─────────────────────────────────────────────── */}
-        {step === "equipment" && (
-          <div className="space-y-7">
+	        {/* ── Nutrition ─────────────────────────────────────────────── */}
+	        {step === "nutrition" && (
+	          <div className="space-y-7">
+	            <div>
+	              <h1 className="text-2xl font-semibold tracking-tight">How do you usually eat?</h1>
+	              <p className="text-sm text-white/38 mt-1.5">
+	                This sets realistic calorie, protein, and meal targets for the nutrition tracker.
+	              </p>
+	            </div>
+
+	            <div>
+	              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-3">Eating style</p>
+	              <div className="flex flex-wrap gap-2">
+	                {DIET_OPTIONS.map((opt) => (
+	                  <ChipButton
+	                    key={opt.value}
+	                    label={opt.label}
+	                    active={answers.dietStyle.includes(opt.value)}
+	                    onClick={() => setAnswers((a) => ({
+	                      ...a,
+	                      dietStyle: toggle(a.dietStyle, opt.value),
+	                    }))}
+	                  />
+	                ))}
+	              </div>
+	            </div>
+
+	            <div>
+	              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-3">Meals per day</p>
+	              <div className="flex flex-wrap gap-2">
+	                {MEAL_OPTIONS.map((opt) => (
+	                  <ChipButton
+	                    key={opt.value}
+	                    label={opt.label}
+	                    active={answers.mealsPerDay === opt.value}
+	                    onClick={() => setAnswers((a) => ({ ...a, mealsPerDay: opt.value }))}
+	                  />
+	                ))}
+	              </div>
+	            </div>
+
+	            <button
+	              onClick={advance}
+	              disabled={!canAdvance()}
+	              className={cn(
+	                "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all mt-2",
+	                canAdvance()
+	                  ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
+	                  : "bg-white/5 text-white/25 cursor-default",
+	              )}
+	            >
+	              Continue
+	              <ArrowRight className="w-4 h-4" strokeWidth={2} />
+	            </button>
+	          </div>
+	        )}
+
+	        {/* ── Recovery ──────────────────────────────────────────────── */}
+	        {step === "recovery" && (
+	          <div className="space-y-7">
+	            <div>
+	              <h1 className="text-2xl font-semibold tracking-tight">What should the AI watch for?</h1>
+	              <p className="text-sm text-white/38 mt-1.5">
+	                Recovery and friction points shape training volume, coaching tone, and accountability nudges.
+	              </p>
+	            </div>
+
+	            <div>
+	              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-3">Typical sleep</p>
+	              <div className="flex flex-wrap gap-2">
+	                {SLEEP_OPTIONS.map((opt) => (
+	                  <ChipButton
+	                    key={opt.value}
+	                    label={opt.label}
+	                    active={answers.sleepHours === opt.value}
+	                    onClick={() => setAnswers((a) => ({ ...a, sleepHours: opt.value }))}
+	                  />
+	                ))}
+	              </div>
+	            </div>
+
+	            <div>
+	              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-3">Main friction point</p>
+	              <div className="grid grid-cols-2 gap-2">
+	                {STRUGGLE_OPTIONS.map((opt) => (
+	                  <OptionCard
+	                    key={opt.value}
+	                    label={opt.label}
+	                    active={answers.mainStruggle === opt.value}
+	                    onClick={() => setAnswers((a) => ({ ...a, mainStruggle: opt.value }))}
+	                  />
+	                ))}
+	              </div>
+	            </div>
+
+	            <button
+	              onClick={advance}
+	              disabled={!canAdvance()}
+	              className={cn(
+	                "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all mt-2",
+	                canAdvance()
+	                  ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
+	                  : "bg-white/5 text-white/25 cursor-default",
+	              )}
+	            >
+	              Continue
+	              <ArrowRight className="w-4 h-4" strokeWidth={2} />
+	            </button>
+	          </div>
+	        )}
+
+	        {/* ── Equipment ─────────────────────────────────────────────── */}
+	        {step === "equipment" && (
+	          <div className="space-y-7">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">What equipment do you have?</h1>
               <p className="text-sm text-white/38 mt-1.5">
@@ -405,18 +560,25 @@ export default function CalibrationPage() {
               ))}
             </div>
 
-            <button
-              onClick={finishOnboarding}
-              className="w-full rounded-2xl py-4 bg-[#B48B40] text-black text-sm font-semibold tracking-wide flex items-center justify-center gap-2 hover:bg-[#c99840] active:scale-[0.98] transition-all"
-            >
-              Build my plan
-              <ArrowRight className="w-4 h-4" strokeWidth={2} />
-            </button>
+	            <button
+	              onClick={finishOnboarding}
+	              disabled={saving}
+	              className={cn(
+	                "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all",
+	                saving
+	                  ? "bg-white/5 text-white/25 cursor-default"
+	                  : "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]",
+	              )}
+	            >
+	              {saving ? "Building..." : "Build my plan"}
+	              <ArrowRight className="w-4 h-4" strokeWidth={2} />
+	            </button>
 
-            <button
-              onClick={finishOnboarding}
-              className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
-            >
+	            <button
+	              onClick={finishOnboarding}
+	              disabled={saving}
+	              className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
+	            >
               Skip — I'll set this up later
             </button>
           </div>

@@ -225,6 +225,12 @@ function saveGeneratedProgram(userId: string, program: GeneratedProgram): void {
     const key = `flowstate-generated-program-${userId}`;
     localStorage.setItem(key, JSON.stringify(program));
   } catch { /* ignore */ }
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    import("@/lib/db/programs").then(({ syncGeneratedProgram }) => {
+      syncGeneratedProgram(userId, program).catch(() => { /* non-blocking */ });
+    }).catch(() => { /* non-blocking */ });
+  }
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

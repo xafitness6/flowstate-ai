@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import {
-  loadActiveProgram, getLogsThisWeek, getWorkoutLogs, getNextWorkout,
+  loadActiveProgramForUser, getLogsThisWeekForUser, getWorkoutLogsForUser, getNextWorkout,
   type ActiveProgram, type Workout, type WorkoutLog,
 } from "@/lib/workout";
 
@@ -165,16 +165,29 @@ export default function ProgramPage() {
   const [loaded,     setLoaded]     = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
-    const prog  = loadActiveProgram(user.id);
-    const wLogs = getLogsThisWeek(user.id);
-    const aLogs = getWorkoutLogs(user.id).sort((a, b) => b.completedAt - a.completedAt);
+    let active = true;
 
-    setProgram(prog);
-    setWeekLogs(wLogs);
-    setRecentLogs(aLogs.slice(0, 5));
-    if (prog) setNextWo(getNextWorkout(prog, wLogs));
-    setLoaded(true);
+    async function load() {
+      if (!user?.id) return;
+      setLoaded(false);
+
+      const [prog, wLogs, allLogs] = await Promise.all([
+        loadActiveProgramForUser(user.id),
+        getLogsThisWeekForUser(user.id),
+        getWorkoutLogsForUser(user.id),
+      ]);
+
+      if (!active) return;
+      const sortedLogs = allLogs.sort((a, b) => b.completedAt - a.completedAt);
+      setProgram(prog);
+      setWeekLogs(wLogs);
+      setRecentLogs(sortedLogs.slice(0, 5));
+      setNextWo(prog ? getNextWorkout(prog, wLogs) : null);
+      setLoaded(true);
+    }
+
+    void load();
+    return () => { active = false; };
   }, [user?.id]);
 
   if (!loaded) {
