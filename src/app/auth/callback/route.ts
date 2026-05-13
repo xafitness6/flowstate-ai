@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const ADMIN_EMAIL = "xavellis4@gmail.com";
+
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
   const code  = searchParams.get("code");
@@ -26,7 +28,13 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.redirect(`${origin}/login?error=auth&reason=no_session`);
     }
-    return NextResponse.redirect(`${origin}${safeNext ?? "/"}`);
+
+    if (safeNext) {
+      return NextResponse.redirect(`${origin}${safeNext}`);
+    }
+
+    const email = user.email?.trim().toLowerCase();
+    return NextResponse.redirect(`${origin}${email === ADMIN_EMAIL ? "/admin" : "/onboarding"}`);
   }
 
   return NextResponse.redirect(`${origin}/login`);

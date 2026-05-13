@@ -25,18 +25,22 @@ export default function Root() {
 
           if (session) {
             try {
+              localStorage.setItem("flowstate-active-role", session.user.id);
+            } catch { /* ignore */ }
+
+            if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+              router.replace("/admin");
+              return;
+            }
+
+            try {
               await fetch("/api/auth/sync-profile", { method: "POST" });
             } catch { /* non-blocking */ }
             const { getMyProfile } = await import("@/lib/db/profiles");
             const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
             const profile = await getMyProfile();
 
-            try {
-              localStorage.setItem("flowstate-active-role", session.user.id);
-            } catch { /* ignore */ }
-
             const isAdmin =
-              session.user.email?.trim().toLowerCase() === ADMIN_EMAIL ||
               profile?.role === "master" ||
               profile?.is_admin;
             if (isAdmin) {
