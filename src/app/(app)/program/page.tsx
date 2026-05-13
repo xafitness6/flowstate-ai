@@ -156,7 +156,7 @@ function EmptyProgram() {
 
 export default function ProgramPage() {
   const router  = useRouter();
-  const { user } = useUser();
+  const { user, isLoading: userLoading } = useUser();
 
   const [program,    setProgram]    = useState<ActiveProgram | null>(null);
   const [weekLogs,   setWeekLogs]   = useState<WorkoutLog[]>([]);
@@ -165,30 +165,38 @@ export default function ProgramPage() {
   const [loaded,     setLoaded]     = useState(false);
 
   useEffect(() => {
+    // Wait for the auth context to resolve before fetching. Without this guard
+    // the effect can fire with an undefined user.id, early-return, and leave
+    // `loaded` false → infinite spinner.
+    if (userLoading) return;
+
     let active = true;
 
     async function load() {
-      if (!user?.id) return;
-      setLoaded(false);
+      try {
+        if (!user?.id) return;
 
-      const [prog, wLogs, allLogs] = await Promise.all([
-        loadActiveProgramForUser(user.id),
-        getLogsThisWeekForUser(user.id),
-        getWorkoutLogsForUser(user.id),
-      ]);
+        const [prog, wLogs, allLogs] = await Promise.all([
+          loadActiveProgramForUser(user.id).catch(() => null),
+          getLogsThisWeekForUser(user.id).catch(() => [] as WorkoutLog[]),
+          getWorkoutLogsForUser(user.id).catch(() => [] as WorkoutLog[]),
+        ]);
 
-      if (!active) return;
-      const sortedLogs = allLogs.sort((a, b) => b.completedAt - a.completedAt);
-      setProgram(prog);
-      setWeekLogs(wLogs);
-      setRecentLogs(sortedLogs.slice(0, 5));
-      setNextWo(prog ? getNextWorkout(prog, wLogs) : null);
-      setLoaded(true);
+        if (!active) return;
+        const sortedLogs = allLogs.sort((a, b) => b.completedAt - a.completedAt);
+        setProgram(prog);
+        setWeekLogs(wLogs);
+        setRecentLogs(sortedLogs.slice(0, 5));
+        setNextWo(prog ? getNextWorkout(prog, wLogs) : null);
+      } finally {
+        // Always release the spinner — even on auth bail or partial failure.
+        if (active) setLoaded(true);
+      }
     }
 
     void load();
     return () => { active = false; };
-  }, [user?.id]);
+  }, [user?.id, userLoading]);
 
   if (!loaded) {
     return (

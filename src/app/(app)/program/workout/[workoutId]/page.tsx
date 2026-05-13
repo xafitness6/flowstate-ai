@@ -457,7 +457,7 @@ function RestBanner({ secs, total, onSkip }: { secs: number; total: number; onSk
 export default function WorkoutPage() {
   const router   = useRouter();
   const params   = useParams();
-  const { user } = useUser();
+  const { user, isLoading: userLoading } = useUser();
   const wid      = params?.workoutId as string;
 
   const [workout,   setWorkout]   = useState<Workout | null>(null);
@@ -490,37 +490,42 @@ export default function WorkoutPage() {
   // ── Load ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (userLoading) return;
+
     let active = true;
 
     async function load() {
-      if (!user?.id) return;
-      const prog = await loadActiveProgramForUser(user.id);
-      if (!active) return;
-      if (!prog) { router.replace("/program"); return; }
+      try {
+        if (!user?.id) { router.replace("/program"); return; }
+        const prog = await loadActiveProgramForUser(user.id).catch(() => null);
+        if (!active) return;
+        if (!prog) { router.replace("/program"); return; }
 
-      const wo = prog.workouts.find((w) => w.workoutId === wid);
-      if (!wo)  { router.replace("/program"); return; }
-      setWorkout(wo);
+        const wo = prog.workouts.find((w) => w.workoutId === wid);
+        if (!wo)  { router.replace("/program"); return; }
+        setWorkout(wo);
 
-      const logs = await getWorkoutLogsForUser(user.id);
-      if (!active) return;
-      const perfs: Record<string, PrevPerf> = {};
-      wo.exercises.forEach((ex) => { perfs[ex.exerciseId] = getPreviousPerf(logs, ex.name); });
-      setPrevPerfs(perfs);
+        const logs = await getWorkoutLogsForUser(user.id).catch(() => [] as WorkoutLog[]);
+        if (!active) return;
+        const perfs: Record<string, PrevPerf> = {};
+        wo.exercises.forEach((ex) => { perfs[ex.exerciseId] = getPreviousPerf(logs, ex.name); });
+        setPrevPerfs(perfs);
 
-      const inputs: Record<string, SetInput> = {};
-      wo.exercises.forEach((ex) => {
-        ex.sets.forEach((s) => {
-          inputs[`${ex.exerciseId}_${s.setNumber}`] = { reps: "", load: "", feel: null, done: false };
+        const inputs: Record<string, SetInput> = {};
+        wo.exercises.forEach((ex) => {
+          ex.sets.forEach((s) => {
+            inputs[`${ex.exerciseId}_${s.setNumber}`] = { reps: "", load: "", feel: null, done: false };
+          });
         });
-      });
-      setSetInputs(inputs);
-      setLoaded(true);
+        setSetInputs(inputs);
+      } finally {
+        if (active) setLoaded(true);
+      }
     }
 
     void load();
     return () => { active = false; };
-  }, [user?.id, wid, router]);
+  }, [user?.id, wid, router, userLoading]);
 
   // Session timer
   useEffect(() => {

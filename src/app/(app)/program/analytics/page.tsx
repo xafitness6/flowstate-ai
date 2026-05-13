@@ -71,7 +71,7 @@ function MiniBar({ value, max, label }: { value: number; max: number; label: str
 
 export default function AnalyticsPage() {
   const router   = useRouter();
-  const { user } = useUser();
+  const { user, isLoading: userLoading } = useUser();
   const { can }  = useEntitlement();
 
   const [logs,     setLogs]     = useState<WorkoutLog[]>([]);
@@ -80,27 +80,31 @@ export default function AnalyticsPage() {
   const [loaded,   setLoaded]   = useState(false);
 
   useEffect(() => {
+    if (userLoading) return;
+
     let active = true;
 
     async function load() {
-      if (!user?.id) return;
-      setLoaded(false);
-      const [allLogs, currentWeekLogs, activeProgram] = await Promise.all([
-        getWorkoutLogsForUser(user.id),
-        getLogsThisWeekForUser(user.id),
-        loadActiveProgramForUser(user.id),
-      ]);
+      try {
+        if (!user?.id) return;
+        const [allLogs, currentWeekLogs, activeProgram] = await Promise.all([
+          getWorkoutLogsForUser(user.id).catch(() => [] as WorkoutLog[]),
+          getLogsThisWeekForUser(user.id).catch(() => [] as WorkoutLog[]),
+          loadActiveProgramForUser(user.id).catch(() => null),
+        ]);
 
-      if (!active) return;
-      setLogs(allLogs.sort((a, b) => b.completedAt - a.completedAt));
-      setWeekLogs(currentWeekLogs);
-      setProgram(activeProgram);
-      setLoaded(true);
+        if (!active) return;
+        setLogs(allLogs.sort((a, b) => b.completedAt - a.completedAt));
+        setWeekLogs(currentWeekLogs);
+        setProgram(activeProgram);
+      } finally {
+        if (active) setLoaded(true);
+      }
     }
 
     void load();
     return () => { active = false; };
-  }, [user?.id]);
+  }, [user?.id, userLoading]);
 
   if (!loaded) {
     return (
