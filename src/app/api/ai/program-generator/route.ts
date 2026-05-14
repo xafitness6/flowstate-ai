@@ -113,13 +113,14 @@ const SCHEMA = {
             type: "array",
             items: {
               type: "object",
-              required: ["dayOfWeek", "name", "focus", "estimatedMinutes", "exercises"],
+              required: ["dayOfWeek", "kind", "name", "focus", "estimatedMinutes", "exercises"],
               additionalProperties: false,
               properties: {
                 dayOfWeek:        { type: "integer", minimum: 0, maximum: 6 },
+                kind:             { type: "string", enum: ["training", "rest"] },
                 name:             { type: "string" },
                 focus:            { type: "string" },
-                estimatedMinutes: { type: "integer", minimum: 15, maximum: 180 },
+                estimatedMinutes: { type: "integer", minimum: 0, maximum: 180 },
                 exercises: {
                   type: "array",
                   items: {
@@ -128,7 +129,7 @@ const SCHEMA = {
                     additionalProperties: false,
                     properties: {
                       name:   { type: "string" },
-                      sets:   { type: "integer", minimum: 1, maximum: 10 },
+                      sets:   { type: "integer", minimum: 0, maximum: 10 },
                       reps:   { type: "string" },
                       rest:   { type: "string" },
                       weight: { type: "string" },
@@ -156,13 +157,19 @@ OUTPUT:
 - A phaseName, top-level progression rule, and program name
 
 PRINCIPLES:
-- Choose dayOfWeek values that match the requested daysPerWeek
-- Each day = 4–8 exercises typically; warm-up assumed handled by the app
+- Choose dayOfWeek values that match the requested daysPerWeek (count of TRAINING days only)
+- Each TRAINING day = 4–8 exercises typically; warm-up assumed handled by the app
 - Pair compound lifts first, accessories after
 - Respect equipment constraints AND injury constraints — never prescribe contraindicated lifts
 - For multi-week phases: weeks 1–2 build volume; mid-phase intensifies; final week is often a deload OR a peak depending on goal
 - progressionThisWeek must describe SPECIFIC changes vs the prior week (e.g. "+2.5kg main lifts, drop rep range to 6–8")
 - ABSOLUTE rule: respect the requested daysPerWeek exactly
+
+REST DAYS:
+- Include rest days for every day-of-week NOT scheduled for training (kind: "rest", empty exercises array)
+- Default to passive rest unless training intensity warrants active recovery
+- For active recovery: set focus="Walk 30 min" or "Mobility flow" with 1–3 light entries (no load)
+- The phase has 7 days per week total — training + rest combined must equal 7 days unless explicitly omitted
 
 INJURIES:
 - If "knee" is listed, avoid: heavy back squats, plyometrics, jumping, deep lunges. Substitute: leg press, hack squat with limited ROM, hip thrusts.
@@ -196,6 +203,7 @@ function buildUser(b: Body): string {
 
 type AIDay = {
   dayOfWeek:        number;
+  kind:             "training" | "rest";
   name:             string;
   focus:            string;
   estimatedMinutes: number;
@@ -218,6 +226,7 @@ type AIOutput = {
 function aiDayToDay(d: AIDay): DayWorkout {
   return {
     dayOfWeek:        d.dayOfWeek,
+    kind:             d.kind ?? "training",
     name:             d.name,
     focus:            d.focus,
     estimatedMinutes: d.estimatedMinutes,
@@ -314,9 +323,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AI returned malformed JSON", detail: String(e) }, { status: 502 });
     }
 
-    // Validate days-per-week match
-    if (ai.baseWeek.days.length !== daysPerWeek) {
-      console.warn("[program-generator] daysPerWeek mismatch", { requested: daysPerWeek, got: ai.baseWeek.days.length });
+    // Validate days-per-week match — count training days only (rest days don't count)
+    const trainingDayCount = ai.baseWeek.days.filter((d) => d.kind === "training").length;
+    if (trainingDayCount !== daysPerWeek) {
+      console.warn("[program-generator] training daysPerWeek mismatch", { requested: daysPerWeek, got: trainingDayCount });
     }
 
     const payload = aiToPayload(ai, body);

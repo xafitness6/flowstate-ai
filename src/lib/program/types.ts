@@ -33,10 +33,13 @@ export type PlannedExercise = {
 };
 
 export type DayWorkout = {
-  dayOfWeek:         number;   // 0=Sun..6=Sat
-  name:              string;   // "Push A", "Lower Strength"
-  focus:             string;   // muscles/qualities trained
+  dayOfWeek:         number;       // 0=Sun..6=Sat
+  /** "training" (lift session) | "rest" (passive or active recovery). Defaults to "training". */
+  kind?:             "training" | "rest";
+  name:              string;       // "Push A", "Lower Strength", "Rest", "Active recovery"
+  focus:             string;       // muscles/qualities trained — or "Full rest", "Walk 30 min", etc.
   estimatedMinutes:  number;
+  /** Empty for rest days; can hold light mobility/walking entries for active recovery. */
   exercises:         PlannedExercise[];
 };
 

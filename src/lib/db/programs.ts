@@ -144,31 +144,32 @@ export function builderPayloadToProgramRow(
  * Save a builder program to the current user's own programs.
  * Set `activate=true` to archive their current active program and set this
  * one as their new active program; `false` saves it as a template (archived).
+ *
+ * Returns a sentinel `{ ok: true }` instead of the full inserted row — skipping
+ * `.select().single()` saves one network round-trip since callers only need to
+ * know whether it succeeded.
  */
 export async function saveBuilderWorkoutForSelf(
   userId: string,
   payload: BuilderProgramPayload,
   activate: boolean,
-): Promise<Program | null> {
+): Promise<{ ok: true } | null> {
   const supabase = createClient();
 
   if (activate) {
-    await supabase
+    const { error: archiveErr } = await supabase
       .from("programs")
       .update({ status: "archived" })
       .eq("user_id", userId)
       .eq("status", "active");
+    if (archiveErr) console.warn("[programs] archive failed:", archiveErr.message);
   }
 
   const row = builderPayloadToProgramRow(payload, { status: activate ? "active" : "archived" });
-  const { data, error } = await supabase
-    .from("programs")
-    .insert({ ...row, user_id: userId })
-    .select()
-    .single();
+  const { error } = await supabase.from("programs").insert({ ...row, user_id: userId });
 
   if (error) { console.error("[programs] saveBuilderForSelf:", error.message); return null; }
-  return data as Program;
+  return { ok: true };
 }
 
 /** Set an existing program (owned by the user) as their active one. */

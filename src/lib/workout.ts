@@ -197,7 +197,10 @@ function v2ToActiveProgram(
   const week = resolveWeek(split, currentWeek);
   const progressionLine = deriveProgressionLine(split, currentWeek);
 
+  // Filter out rest days — they're not trainable sessions. They're still
+  // visible in the WeekStrip as gaps; the schedule only lists training days.
   const workouts: Workout[] = week.days
+    .filter((d) => (d.kind ?? "training") === "training")
     .slice()
     .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
     .map((d, idx) => v2DayToWorkout(d, idx));

@@ -121,7 +121,7 @@ export default function ProgramGeneratePage() {
       const program = await saveBuilderWorkoutForSelf(user.id, payload, setActive);
       if (!program) throw new Error("Save returned no row");
       setState("saved");
-      if (setActive) setTimeout(() => router.push("/program"), 600);
+      if (setActive) router.push("/program");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
       setState("error");

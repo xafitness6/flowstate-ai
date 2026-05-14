@@ -486,7 +486,7 @@ export default function ProgramBuilderPage() {
       name:           name.trim() || "Custom program",
       goal,
       weeks,
-      daysPerWeek:    baseWeek.days.length,
+      daysPerWeek:    baseWeek.days.filter((d) => (d.kind ?? "training") === "training").length,
       sessionMinutes: sessionMin,
       bodyFocus,
       equipment,
@@ -514,7 +514,7 @@ export default function ProgramBuilderPage() {
       const program = await saveBuilderWorkoutForSelf(user.id, buildPayload(), setActive);
       if (!program) throw new Error("Save returned no row");
       setSaveState("saved");
-      if (setActive) setTimeout(() => router.push("/program"), 600);
+      if (setActive) router.push("/program");
     } catch (e) {
       console.error("[builder] save failed", e);
       setSaveError(e instanceof Error ? e.message : "Save failed");
