@@ -21,6 +21,9 @@ type PrefsRow = {
   workout_time:         string;
   habits_time:          string;
   reminder_minutes:     number | null;
+  reminders_workout:    number[] | null;
+  reminders_habit:      number[] | null;
+  reminders_rest:       number[] | null;
   color_workout:        string;
   color_habit:          string;
   horizon_weeks:        number;
@@ -66,6 +69,13 @@ export async function GET(
     ? [{ id: "daily_checkin", label: "Open Flowstate accountability tab and check in" }]
     : [];
 
+  // Fall back to legacy single `reminder_minutes` value for users who haven't
+  // migrated their prefs yet (column added in migration 015).
+  const legacyArr = prefs.reminder_minutes != null ? [prefs.reminder_minutes] : [];
+  const remindersWorkout = prefs.reminders_workout?.length ? prefs.reminders_workout : legacyArr;
+  const remindersHabit   = prefs.reminders_habit?.length   ? prefs.reminders_habit   : legacyArr;
+  const remindersRest    = prefs.reminders_rest ?? [];
+
   const ics = buildIcs({
     prefs: {
       feed_token:           prefs.feed_token,
@@ -76,6 +86,9 @@ export async function GET(
       workout_time:         prefs.workout_time,
       habits_time:          prefs.habits_time,
       reminder_minutes:     prefs.reminder_minutes,
+      reminders_workout:    remindersWorkout,
+      reminders_habit:      remindersHabit,
+      reminders_rest:       remindersRest,
       color_workout:        prefs.color_workout,
       color_habit:          prefs.color_habit,
       horizon_weeks:        Math.max(1, Math.min(12, prefs.horizon_weeks || 4)),

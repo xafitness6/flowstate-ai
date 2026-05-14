@@ -496,9 +496,10 @@ type GoogleStatus = {
 };
 
 function GoogleCalendarCard() {
-  const [status,  setStatus]  = useState<GoogleStatus | null>(null);
-  const [busy,    setBusy]    = useState<"sync" | "disconnect" | null>(null);
-  const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [status,    setStatus]    = useState<GoogleStatus | null>(null);
+  const [busy,      setBusy]      = useState<"sync" | "disconnect" | null>(null);
+  const [message,   setMessage]   = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -509,6 +510,19 @@ function GoogleCalendarCard() {
   }, []);
 
   useEffect(() => {
+    // Check whether Google OAuth is even configured on the server. If not,
+    // we hide the card entirely so users don't bump into a broken button.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/google/available", { cache: "no-store" });
+        const data = await res.json() as { available?: boolean };
+        if (!cancelled) setAvailable(!!data.available);
+      } catch {
+        if (!cancelled) setAvailable(false);
+      }
+    })();
+
     // Surface ?google_connected / ?google_error from OAuth callback
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -517,7 +531,7 @@ function GoogleCalendarCard() {
       if (ok)  setMessage({ kind: "ok",  text: "Google Calendar connected." });
       if (err) {
         const text = err === "not_configured"
-          ? "Google OAuth isn't set up yet. The site owner needs to add GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET to the Vercel environment variables."
+          ? "Google OAuth isn't set up yet."
           : `Connection failed: ${err.replace(/_/g, " ")}`;
         setMessage({ kind: "err", text });
       }
@@ -528,7 +542,12 @@ function GoogleCalendarCard() {
       }
     }
     void fetchStatus();
+    return () => { cancelled = true; };
   }, [fetchStatus]);
+
+  // Hide the entire card when Google OAuth isn't configured on the server.
+  // Until we know (available === null), render nothing to avoid a flash.
+  if (available !== true) return null;
 
   async function syncNow() {
     setBusy("sync");

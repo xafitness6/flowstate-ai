@@ -13,7 +13,12 @@ export type CalendarPrefs = {
   include_meal_windows: boolean;
   workout_time:         string;   // "HH:MM"
   habits_time:          string;
+  /** Legacy single-reminder value. New code uses reminders_* arrays. */
   reminder_minutes:     number | null;
+  /** Minutes-before reminders per category. Empty / undefined = no reminders. */
+  reminders_workout?:   number[];
+  reminders_habit?:     number[];
+  reminders_rest?:      number[];
   color_workout:        string;
   color_habit:          string;
   horizon_weeks:        number;
@@ -131,19 +136,26 @@ export function buildIcs(opts: {
       lines.push(foldLine(`DESCRIPTION:${escapeText(description)}`));
       lines.push(`COLOR:${prefs.color_habit}`);
       lines.push("CATEGORIES:Flowstate,Habits");
-      if (prefs.reminder_minutes != null) {
-        lines.push("BEGIN:VALARM");
-        lines.push("ACTION:DISPLAY");
-        lines.push(`DESCRIPTION:${escapeText(summary)}`);
-        lines.push(`TRIGGER:-PT${prefs.reminder_minutes}M`);
-        lines.push("END:VALARM");
-      }
+      emitAlarms(lines, prefs.reminders_habit, summary);
       lines.push("END:VEVENT");
     }
   }
 
   lines.push("END:VCALENDAR");
   return lines.join("\r\n");
+}
+
+function emitAlarms(lines: string[], minutesArr: number[] | undefined, summary: string) {
+  if (!minutesArr || minutesArr.length === 0) return;
+  // De-duplicate + sort descending so the earliest reminder fires first.
+  const unique = Array.from(new Set(minutesArr.filter((m) => Number.isFinite(m) && m >= 0))).sort((a, b) => b - a);
+  for (const minutes of unique) {
+    lines.push("BEGIN:VALARM");
+    lines.push("ACTION:DISPLAY");
+    lines.push(`DESCRIPTION:${escapeText(summary)}`);
+    lines.push(`TRIGGER:-PT${minutes}M`);
+    lines.push("END:VALARM");
+  }
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -187,13 +199,7 @@ function emitWorkoutEvent(args: {
   lines.push(foldLine(`DESCRIPTION:${escapeText(description)}`));
   lines.push(`COLOR:${kind === "rest" ? prefs.color_habit : prefs.color_workout}`);
   lines.push(`CATEGORIES:Flowstate,${kind === "rest" ? "Rest" : "Training"}`);
-  if (kind === "training" && prefs.reminder_minutes != null) {
-    lines.push("BEGIN:VALARM");
-    lines.push("ACTION:DISPLAY");
-    lines.push(`DESCRIPTION:${escapeText(summary)}`);
-    lines.push(`TRIGGER:-PT${prefs.reminder_minutes}M`);
-    lines.push("END:VALARM");
-  }
+  emitAlarms(lines, kind === "rest" ? prefs.reminders_rest : prefs.reminders_workout, summary);
   lines.push("END:VEVENT");
 }
 
