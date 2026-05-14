@@ -591,6 +591,13 @@ export default function AdminDashboard() {
             Invite users
           </button>
           <button
+            onClick={() => router.push("/admin/feedback")}
+            className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-xs text-white/45 hover:text-white/70 hover:bg-white/[0.05] transition-colors"
+          >
+            <Activity className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Inbox
+          </button>
+          <button
             onClick={() => router.push("/admin/users")}
             className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-xs text-white/45 hover:text-white/70 hover:bg-white/[0.05] transition-colors"
           >

@@ -42,7 +42,7 @@ function localDayUTCBounds(localDateISO: string): { gte: string; lte: string } {
 // ─── Supabase row ↔ LoggedMeal mappers ───────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToMeal(row: Record<string, any>): LoggedMeal {
+export function rowToMeal(row: Record<string, any>): LoggedMeal {
   return {
     id:              row.id as string,
     userId:          row.user_id as string,

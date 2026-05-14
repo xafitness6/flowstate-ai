@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TopBar }    from "./TopBar";
+import { BugReportButton } from "@/components/feedback/BugReportButton";
 import { BottomNav } from "./BottomNav";
 import { Sidebar }   from "./Sidebar";
 import { getSessionKey, getBlockingRoute } from "@/lib/routing";
@@ -161,6 +162,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
         <BottomNav />
       </div>
+      <BugReportButton />
     </div>
   );
 }

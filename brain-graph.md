@@ -77,8 +77,10 @@ Minimal — just the project name.
 | `/onboarding/calibration` | 7-step wizard |
 | `/program` | Active program — Today/This Week/Recent (4-section card layout) |
 | `/program/builder` | Drag-and-drop workout builder, persists to Supabase |
-| `/program/library` | List of user's programs — set active, duplicate, delete |
+| `/program/library` | List of user's programs — set active, duplicate, delete (SSR) |
 | `/program/assign` | Trainer client assignment (mock UI — superseded by builder "Send to user" for admins) |
+| `/admin/invites` | Admin invite generator (member + client, optional trainer pre-assignment) |
+| `/admin/feedback` | Inbox for bug reports / feature requests submitted via the floating bug button |
 | `/nutrition` | Macro & meal tracking |
 | `/calendar` | Monthly view |
 | `/coach` | AI chat |
@@ -147,6 +149,30 @@ Each `WeekTemplate.days[]` has `dayOfWeek`, `name`, `focus`, `estimatedMinutes`,
 ## Admin MRR
 
 `/admin` counts `tier.billing = users with plan=X AND status="active"` for MRR. `tier.count` (all users in plan) is shown separately with a `(N paid)` hint when they differ. Use `/admin/users` to flip a user's `subscription_status` to `inactive` so they stop counting toward revenue without losing plan entitlements.
+
+## SSR pattern for client-heavy pages
+
+`/program`, `/program/library`, and `/nutrition` use a **server-fetch + client-interactivity** split:
+
+- `page.tsx` is an async Server Component (`export const dynamic = "force-dynamic"`). It uses `createClient` from `src/lib/supabase/server.ts` + `auth.getUser()` to fetch the page's data on the server (in parallel via `Promise.all`).
+- The client component (e.g. `NutritionClient.tsx`, `LibraryClient.tsx`, `ProgramClient.tsx`) accepts an `initial` prop with the SSR payload. When `initial !== null`, it seeds state and **skips the first refetch useEffect**, so the page paints with data already in place.
+- `initial === null` means SSR couldn't fetch (unauthenticated / demo user). The client component falls back to its old `useEffect` + localStorage path.
+
+**Helpers exposed for SSR consumption:** `v2ToActiveProgram` (workout.ts), `rowToMeal` (nutrition/store.ts), `dbLogToLocal` (db/workoutLogs.ts), `calculateNutritionTargets` (nutrition.ts).
+
+## Invites system
+
+Admins generate signup links from `/admin/invites`. Each invite has `invite_role: "member" | "client"` and optional `assigned_trainer_id` — the new account gets that role + trainer assignment via `raw_user_meta_data` on `supabase.auth.signUp` in `/invite/[token]/page.tsx`.
+- Migration: `011_invite_role.sql`
+- API routes: `POST/GET /api/admin/invites`, `PATCH/DELETE /api/admin/invites/[id]`
+- Trainers can still create per-client invites via `/my-clients` (existing flow); admin invites are a superset.
+
+## Feedback / bug reports
+
+Floating bug button (bottom-right of every app page) opens a modal. Submissions go to `POST /api/feedback`, which captures user metadata server-side and runs **GPT-4o-mini triage** for bug reports (suggested root cause + fix in `ai_diagnosis` column). Admins triage in `/admin/feedback`.
+- Migration: `012_feedback_reports.sql`
+- Component: `src/components/feedback/BugReportButton.tsx` (wired in `AppShell`)
+- Admin inbox: `/admin/feedback`
 
 ## In Progress / Planned
 - Obsidian vault = this project folder (`/Users/xavierellis/Projects/flowstate-ai`)

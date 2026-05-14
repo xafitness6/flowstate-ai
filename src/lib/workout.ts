@@ -176,7 +176,7 @@ function isStoredWeek(value: unknown): value is StoredProgram["week1"] {
 // loadActiveProgramForUser detects shape and lifts v2 → ActiveProgram for the
 // current week. Legacy array shape continues to flow through toActiveProgram().
 
-function v2ToActiveProgram(
+export function v2ToActiveProgram(
   dbProgram: {
     id:                   string;
     block_name:           string;
