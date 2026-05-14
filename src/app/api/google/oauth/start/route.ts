@@ -7,19 +7,19 @@ import { createClient } from "@/lib/supabase/server";
 import { getGoogleEnv, buildAuthUrl } from "@/lib/google/oauth";
 
 export async function GET(req: NextRequest) {
+  const origin = req.headers.get("origin") ?? new URL(req.url).origin;
+  const errorRedirect = (code: string) => {
+    const target = new URL("/calendar/connect", origin);
+    target.searchParams.set("google_error", code);
+    return NextResponse.redirect(target);
+  };
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!user?.id) return errorRedirect("unauthorized");
 
-  const origin = req.headers.get("origin") ?? new URL(req.url).origin;
   const env = getGoogleEnv(origin);
-  if (!env) {
-    return NextResponse.json({
-      error: "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in env.",
-    }, { status: 503 });
-  }
+  if (!env) return errorRedirect("not_configured");
 
   // `state` = userId + random nonce. We trust this because the redirect URI is
   // whitelisted in Google Console, so only our callback receives this state.
