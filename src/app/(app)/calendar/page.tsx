@@ -650,10 +650,18 @@ function CalendarPageInner() {
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto text-white space-y-6">
 
       {/* Header */}
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-2">Schedule</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
-        <p className="text-sm text-white/30 mt-1">Training, nutrition, and recovery overview.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-2">Schedule</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
+          <p className="text-sm text-white/30 mt-1">Training, nutrition, and recovery overview.</p>
+        </div>
+        <a
+          href="/calendar/connect"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#B48B40]/[0.08] border border-[#B48B40]/30 px-3 py-2 text-xs text-[#B48B40] hover:bg-[#B48B40]/[0.12] transition-colors"
+        >
+          Sync to your calendar
+        </a>
       </div>
 
       {/* Month nav */}
