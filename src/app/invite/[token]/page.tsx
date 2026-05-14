@@ -6,15 +6,10 @@ import { Zap, ArrowRight, Eye, EyeOff, CheckCircle2, AlertTriangle } from "lucid
 import { cn } from "@/lib/utils";
 import { getInviteByToken, isInviteValid, acceptInvite } from "@/lib/invites";
 import { createAccount, resolveAccount } from "@/lib/accounts";
-import { resolvePostLoginRoute } from "@/lib/routing";
+import { LS_KEY, resolvePostLoginRoute, SS_KEY } from "@/lib/routing";
 import { createClient } from "@/lib/supabase/client";
-import { updateInviteStatusInDB } from "@/lib/db/invites";
 import type { Invite } from "@/lib/invites";
 import type { Invite as DBInvite } from "@/lib/supabase/types";
-
-// ─── Storage keys ─────────────────────────────────────────────────────────────
-
-const LS_KEY = "flowstate-active-role";
 
 function dbInviteToLocal(invite: DBInvite): Invite {
   return {
@@ -34,6 +29,26 @@ function dbInviteToLocal(invite: DBInvite): Invite {
     acceptedAt:          invite.accepted_at,
     expiresAt:           invite.expires_at ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   };
+}
+
+function seedSession(userId: string) {
+  try { localStorage.setItem(LS_KEY, userId); } catch { /* ignore */ }
+  try { sessionStorage.setItem(SS_KEY, userId); } catch { /* ignore */ }
+}
+
+function shouldConsumeLocalInvite(invite: Invite) {
+  return Boolean(invite.inviteEmail);
+}
+
+async function acceptInviteOnServer(token: string) {
+  const res = await fetch(`/api/invites/${encodeURIComponent(token)}`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => ({})) as { error?: string };
+  if (!res.ok) {
+    throw new Error(body.error ?? "Could not accept this invite.");
+  }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -149,9 +164,10 @@ export default function InvitePage() {
 
       setInvite(inv);
       // Pre-fill known fields
-      setName(`${inv.firstName} ${inv.lastName}`.trim());
+      const fullName = `${inv.firstName} ${inv.lastName}`.trim();
+      setName(fullName);
       setEmail(inv.inviteEmail);
-      setUsername(inv.firstName.toLowerCase().replace(/\s+/g, ""));
+      setUsername((inv.firstName || inv.inviteEmail.split("@")[0] || "").toLowerCase().replace(/\s+/g, ""));
     }
 
     void loadInvite();
@@ -205,9 +221,15 @@ export default function InvitePage() {
 
           if (!signInError && signInData.user) {
             try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-            await updateInviteStatusInDB(token, "accepted", signInData.user.id);
-            acceptInvite(token);
-            try { localStorage.setItem(LS_KEY, signInData.user.id); } catch { /* ignore */ }
+            try {
+              await acceptInviteOnServer(token);
+            } catch (e) {
+              setFormError(e instanceof Error ? e.message : "Could not accept this invite.");
+              setLoading(false);
+              return;
+            }
+            if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+            seedSession(signInData.user.id);
             setAccepted(true);
             setTimeout(() => router.replace("/onboarding"), 800);
             return;
@@ -222,10 +244,22 @@ export default function InvitePage() {
       }
 
       if (data.user) {
+        if (!data.session) {
+          setFormError("Check your email to confirm your account, then log in to finish onboarding.");
+          setLoading(false);
+          return;
+        }
+
         try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-        await updateInviteStatusInDB(token, "accepted", data.user.id);
-        acceptInvite(token);
-        try { localStorage.setItem(LS_KEY, data.user.id); } catch { /* ignore */ }
+        try {
+          await acceptInviteOnServer(token);
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : "Could not accept this invite.");
+          setLoading(false);
+          return;
+        }
+        if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+        seedSession(data.user.id);
         setAccepted(true);
         setTimeout(() => router.replace("/onboarding"), 800);
         return;
@@ -255,16 +289,16 @@ export default function InvitePage() {
         return;
       }
       // Sign in existing account
-      acceptInvite(token);
-      try { localStorage.setItem(LS_KEY, existing.id); } catch { /* ignore */ }
+      if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+      seedSession(existing.id);
       setAccepted(true);
       setTimeout(() => router.replace(resolvePostLoginRoute(existing.id)), 1800);
       return;
     }
 
     // New account created
-    acceptInvite(token);
-    try { localStorage.setItem(LS_KEY, result.id); } catch { /* ignore */ }
+    if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+    seedSession(result.id);
     setAccepted(true);
     setTimeout(() => router.replace(resolvePostLoginRoute(result.id)), 1800);
   }
@@ -303,6 +337,13 @@ export default function InvitePage() {
       </div>
     );
   }
+
+  const inviteeFirstName = invite.firstName.trim();
+  const coachName = invite.invitedByName.trim() || invite.assignedTrainerName.trim() || "Your coach";
+  const coachInitial = coachName.charAt(0).toUpperCase() || "F";
+  const invitedToLabel = invite.inviteEmail
+    ? `Invited to: ${invite.inviteEmail}`
+    : "Use your preferred email on the next step.";
 
   // ── Render: accepted ──────────────────────────────────────────────────────
 
@@ -343,7 +384,7 @@ export default function InvitePage() {
             <div className="space-y-1">
               <p className="text-[11px] uppercase tracking-[0.2em] text-white/28">Personal invite</p>
               <h1 className="text-3xl font-semibold tracking-tight leading-tight">
-                {invite.firstName}, you&apos;re invited.
+                {inviteeFirstName ? `${inviteeFirstName}, you're invited.` : "You're invited."}
               </h1>
             </div>
 
@@ -351,11 +392,11 @@ export default function InvitePage() {
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-[#B48B40]/15 border border-[#B48B40]/25 flex items-center justify-center shrink-0 mt-0.5">
                   <span className="text-xs font-semibold text-[#B48B40]">
-                    {invite.invitedByName.charAt(0).toUpperCase()}
+                    {coachInitial}
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white/75">{invite.invitedByName}</p>
+                  <p className="text-sm font-semibold text-white/75">{coachName}</p>
                   <p className="text-xs text-white/35">Your coach on Flowstate</p>
                 </div>
               </div>
@@ -380,7 +421,7 @@ export default function InvitePage() {
           </button>
 
           <p className="text-center text-[11px] text-white/18">
-            Invited to: {invite.inviteEmail}
+            {invitedToLabel}
           </p>
         </div>
       </div>
@@ -399,7 +440,7 @@ export default function InvitePage() {
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
           <p className="text-sm text-white/40">
-            Invited by <span className="text-white/60">{invite.invitedByName}</span>
+            Invited by <span className="text-white/60">{coachName}</span>
           </p>
         </div>
 

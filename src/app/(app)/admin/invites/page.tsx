@@ -28,7 +28,7 @@ export default function AdminInvitesPage() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   // Form state
-  const [role,        setRole]        = useState<"member" | "client">("member");
+  const [role,        setRole]        = useState<"member" | "client">("client");
   const [email,       setEmail]       = useState("");
   const [firstName,   setFirstName]   = useState("");
   const [lastName,    setLastName]    = useState("");
