@@ -215,39 +215,40 @@ export default function DeepCalibrationPage() {
 
     try { localStorage.removeItem(DRAFT_KEY(userId)); } catch { /* ignore */ }
 
-    // Regenerate the active program from the richer deep-cal data.
-    // Only run for real (UUID) users — demo users have no Supabase row.
+    // Regenerate program in the background — AI gen can take 10–30s and we
+    // don't want the user stuck on a spinner. They land on /program; the
+    // page will re-fetch and pick up the new program once it's written.
     if (UUID_RE.test(userId)) {
-      setFinishStatus("Generating your personalized program…");
-      try {
-        const primaryGoal = (existing.intakeData?.primaryGoal ?? "hypertrophy") as string;
-        const res = await fetch("/api/ai/program-generator", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({
-            goal:           primaryGoal,
-            weeks:          4,
-            daysPerWeek:    daysCount(answers.availableDays),
-            sessionMinutes: 60,
-            experience:     deriveExperience(answers.trainingYears),
-            equipment:      [],          // not asked in deep cal — defer to AI default
-            bodyFocus:      [],
-            injuries:       answers.injuries.map((s) => s.toLowerCase().replace(/\s+/g, "_")),
-            style:          [answers.goalWhy, answers.triedNotWorked, answers.successIn90Days]
-              .filter(Boolean).join(" | ") || null,
-            athlete:        answers as unknown as Record<string, unknown>,
-          }),
-        });
-        const data = await res.json() as { payload?: BuilderProgramPayload; error?: string };
-        if (res.ok && data.payload) {
-          await saveBuilderWorkoutForSelf(userId, data.payload, true);
-        } else {
-          console.warn("[deep-cal] AI program gen failed:", data.error);
-          // fall through — user can regenerate later from /program/generate
+      void (async () => {
+        try {
+          const primaryGoal = (existing.intakeData?.primaryGoal ?? "hypertrophy") as string;
+          const res = await fetch("/api/ai/program-generator", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              goal:           primaryGoal,
+              weeks:          4,
+              daysPerWeek:    daysCount(answers.availableDays),
+              sessionMinutes: 60,
+              experience:     deriveExperience(answers.trainingYears),
+              equipment:      [],
+              bodyFocus:      [],
+              injuries:       answers.injuries.map((s) => s.toLowerCase().replace(/\s+/g, "_")),
+              style:          [answers.goalWhy, answers.triedNotWorked, answers.successIn90Days]
+                .filter(Boolean).join(" | ") || null,
+              athlete:        answers as unknown as Record<string, unknown>,
+            }),
+          });
+          const data = await res.json() as { payload?: BuilderProgramPayload; error?: string };
+          if (res.ok && data.payload) {
+            await saveBuilderWorkoutForSelf(userId, data.payload, true);
+          } else {
+            console.warn("[deep-cal] AI program gen failed:", data.error);
+          }
+        } catch (e) {
+          console.warn("[deep-cal] AI program gen errored:", e);
         }
-      } catch (e) {
-        console.warn("[deep-cal] AI program gen errored:", e);
-      }
+      })();
     }
 
     setSaving(false);

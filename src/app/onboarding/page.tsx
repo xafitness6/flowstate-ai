@@ -32,12 +32,13 @@ export default function OnboardingRouter() {
             // Write UUID to localStorage so the rest of the app works
             localStorage.setItem(LS_KEY, user.id);
             sessionStorage.setItem(SS_KEY, user.id);
-            try {
-              await fetch("/api/auth/sync-profile", { method: "POST" });
-            } catch { /* non-blocking */ }
-            // Use DB-backed onboarding resolver (same one AppShell uses)
-            const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
-            const { getMyProfile } = await import("@/lib/db/profiles");
+            // Fire-and-forget sync — the next request will pick up the row anyway.
+            void fetch("/api/auth/sync-profile", { method: "POST" }).catch(() => {});
+            // Parallel: resolver + profile fetch (independent queries)
+            const [{ resolveOnboardingRoute }, { getMyProfile }] = await Promise.all([
+              import("@/lib/db/onboarding"),
+              import("@/lib/db/profiles"),
+            ]);
             const profile = await getMyProfile();
             const isAdmin =
               user.email?.trim().toLowerCase() === ADMIN_EMAIL ||
