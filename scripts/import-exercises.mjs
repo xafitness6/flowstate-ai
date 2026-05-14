@@ -20,6 +20,11 @@ const IMAGE_BASE = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/m
 const BATCH_SIZE = 200;
 const DRY        = process.argv.includes("--dry");
 
+// Optional: --from-file=/path/to/exercises.json reads from disk instead of fetching.
+// Useful when DNS/VPN blocks the GitHub fetch — download manually, then point here.
+const fromFileArg = process.argv.find((a) => a.startsWith("--from-file="));
+const FROM_FILE   = fromFileArg ? fromFileArg.slice("--from-file=".length) : null;
+
 // ─── Env loader ──────────────────────────────────────────────────────────────
 
 const env = readFileSync(new URL("../.env.local", import.meta.url), "utf-8");
@@ -112,13 +117,32 @@ function inferContraindications(ex) {
 // ─── Run ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log(`→ Fetching ${SOURCE_URL}`);
-  const res = await fetch(SOURCE_URL);
-  if (!res.ok) {
-    console.error(`Fetch failed: ${res.status} ${res.statusText}`);
-    process.exit(1);
+  let data;
+  if (FROM_FILE) {
+    console.log(`→ Reading from ${FROM_FILE}`);
+    const raw = readFileSync(FROM_FILE, "utf-8");
+    data = JSON.parse(raw);
+  } else {
+    console.log(`→ Fetching ${SOURCE_URL}`);
+    try {
+      const res = await fetch(SOURCE_URL);
+      if (!res.ok) {
+        console.error(`Fetch failed: ${res.status} ${res.statusText}`);
+        process.exit(1);
+      }
+      data = await res.json();
+    } catch (e) {
+      console.error(`Fetch failed: ${e.message}`);
+      if (e.cause?.code === "ENOTFOUND") {
+        console.error("\nDNS resolution failed. Options:");
+        console.error("  1. Disconnect VPN / check WiFi");
+        console.error("  2. Download manually:");
+        console.error(`     curl -o /tmp/exercises.json ${SOURCE_URL}`);
+        console.error("     npm run exercises:import -- --from-file=/tmp/exercises.json");
+      }
+      process.exit(1);
+    }
   }
-  const data = await res.json();
   if (!Array.isArray(data)) {
     console.error("Source did not return an array");
     process.exit(1);
