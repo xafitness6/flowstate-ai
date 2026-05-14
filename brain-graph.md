@@ -182,7 +182,8 @@ Users connect any calendar app (Google / Apple / Outlook) by subscribing to a un
 - Migration: `013_calendar_preferences.sql` — one row per user; `feed_token` is the user's only credential
 - API: `GET /api/calendar/feed/[token]` (public, no auth — token is the credential), `GET/PATCH/POST /api/calendar/preferences` (user-owned, RLS-gated)
 - Generator: [src/lib/calendar/ics.ts](src/lib/calendar/ics.ts) — pure functions, RFC 5545 compliant
-- UI: `/calendar/connect` — copyable URL, per-app setup instructions, sync toggles (workouts / rest days / habits), workout & habit times, reminder offset, color picker, horizon weeks, token rotation
+- UI: `/calendar/connect` — copyable URL, per-app setup instructions, sync toggles (workouts / rest days / habits), workout & habit times, multi-reminder offsets, color picker, horizon weeks, token rotation
+- Migration: `015_calendar_multi_reminders.sql` — replaces single `reminder_minutes` with per-category arrays (`reminders_workout`, `reminders_habit`, `reminders_rest`) so users can stack reminders ("1 hour before AND 15 min before")
 
 **No OAuth required for iCal.** Apple Calendar / Outlook have no usable push API; the iCal feed approach covers them with one feature.
 
