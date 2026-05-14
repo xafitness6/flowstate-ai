@@ -171,6 +171,7 @@ export default function CalibrationPage() {
   const [answers,  setAnswers]  = useState<OnboardingAnswers>(DEFAULT);
   const [fading,   setFading]   = useState(false);
   const [saving,   setSaving]   = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const stepIndex   = STEPS.indexOf(step);
   const progressPct = ((stepIndex + 1) / STEPS.length) * 100;
@@ -205,6 +206,8 @@ export default function CalibrationPage() {
   function finishOnboarding() {
     if (saving) return;
     setSaving(true);
+    setSaveError(null);
+    try {
     const userId = getActiveUserId();
 
     // Minimal intake object for storage — empty fields are fine
@@ -260,10 +263,14 @@ export default function CalibrationPage() {
     const plan = generateStarterPlan(intake);
     saveStarterPlan(userId, plan);
 
+    const fallback = window.setTimeout(() => {
+      window.location.assign("/dashboard");
+    }, 900);
+    router.replace("/dashboard");
+
     // Fire DB writes in the background — never block the user on network.
     // The plan + intake are already in localStorage, so /dashboard renders
-    // immediately. If a write fails, the user can still navigate; we log
-    // and rely on the AppShell guards to re-sync next visit.
+    // immediately. If a write fails, the user can still navigate.
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
       void (async () => {
@@ -275,11 +282,17 @@ export default function CalibrationPage() {
           await syncGeneratedProgram(userId, starterPlanToProgram(plan));
         } catch (err) {
           console.error("[calibration] background sync failed:", err);
+        } finally {
+          window.clearTimeout(fallback);
         }
       })();
     }
 
-    router.replace("/dashboard");
+    } catch (err) {
+      console.error("[calibration] finish failed:", err);
+      setSaveError("Something interrupted setup. Your answers are still here — try Build my plan again.");
+      setSaving(false);
+    }
   }
 
   const canAdvance = (): boolean => {
@@ -585,6 +598,9 @@ export default function CalibrationPage() {
 	              {saving ? "Building..." : "Build my plan"}
 	              <ArrowRight className="w-4 h-4" strokeWidth={2} />
 	            </button>
+              {saveError && (
+                <p className="text-xs text-red-400/70 leading-relaxed">{saveError}</p>
+              )}
 
 	            <button
 	              onClick={finishOnboarding}
