@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getGoogleEnv, exchangeCodeForTokens } from "@/lib/google/oauth";
+import { ensureFlowstateCalendar } from "@/lib/google/calendar";
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -40,6 +41,16 @@ export async function GET(req: NextRequest) {
     const tokens = await exchangeCodeForTokens(env, code);
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
 
+    // Provision a dedicated "Flowstate" calendar so events don't pollute the
+    // user's primary calendar. Reuses an existing one if our app created it before.
+    let calendarId: string | null = null;
+    try {
+      calendarId = await ensureFlowstateCalendar(tokens.access_token);
+    } catch (e) {
+      // Non-fatal — we'll fall back to primary calendar on push. But log so we know.
+      console.error("[google/oauth] calendar provision failed:", e);
+    }
+
     // Service role to bypass RLS — INSERT policies are intentionally absent
     const admin = await createAdminClient();
     const { error } = await admin
@@ -52,6 +63,9 @@ export async function GET(req: NextRequest) {
           expires_at:    expiresAt,
           scope:         tokens.scope,
           token_type:    tokens.token_type,
+          calendar_id:   calendarId,
+          // Reset event_map on (re)connect — new calendar = no existing event mappings
+          event_map:     {},
           last_sync_error: null,
           updated_at:    new Date().toISOString(),
         },

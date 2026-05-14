@@ -3,11 +3,11 @@
 // thin. Tokens are exchanged + persisted via /api/google/oauth/callback.
 
 export const GOOGLE_SCOPES = [
-  // Minimum scope to insert / update events on a user's primary calendar.
-  // Use calendar.events (not calendar) so we can't read/modify their other calendars.
-  "https://www.googleapis.com/auth/calendar.events",
-  // We need this to read calendar metadata (timezone, name) when listing.
-  "https://www.googleapis.com/auth/calendar.readonly",
+  // `calendar.app.created` is the least-privilege scope for our use case:
+  // we can ONLY create + manage calendars that this app created (one named
+  // "Flowstate"). We can't read or modify the user's other calendars.
+  // Includes: create calendar, list our calendars, read/write events on them.
+  "https://www.googleapis.com/auth/calendar.app.created",
 ].join(" ");
 
 export const GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth";

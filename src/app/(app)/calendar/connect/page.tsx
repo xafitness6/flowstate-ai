@@ -571,7 +571,7 @@ function GoogleCalendarCard() {
             <div>
               <p className="text-sm font-semibold text-white/95">Google Calendar — real-time push</p>
               <p className="text-[11px] text-white/45 mt-0.5">
-                Workouts appear instantly in your Google Calendar. No subscription URL needed.
+                Workouts push instantly into a dedicated <span className="text-white/70">Flowstate</span> calendar in your Google account &mdash; toggle it on/off without affecting your other calendars.
               </p>
             </div>
           </div>
