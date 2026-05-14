@@ -172,14 +172,16 @@ export function markOnboardingStarted(userId: string): void {
  */
 export function completeOnboarding(userId: string, intake?: IntakeSnapshot): void {
   const now = new Date().toISOString();
+  // NOTE: `tutorialComplete` and `profileComplete` are intentionally LEFT FALSE
+  // so the user is routed to /onboarding/tutorial after calibration. The
+  // tutorial is the concierge walkthrough that shows them where workout +
+  // nutrition live. Profile setup remains optional and is invoked from /profile.
   saveOnboardingState(userId, {
-    walkthrough_seen:             true, // completing onboarding implies walkthrough was seen
+    walkthrough_seen:             true,
     onboardingComplete:           true,
     bodyFocusComplete:            true,
     planningConversationComplete: true,
     programGenerated:             true,
-    tutorialComplete:             true,
-    profileComplete:              true,
     starterComplete:              true,
     hasCompletedQuickStart:       true,
     hasCompletedDeepCal:          true,
@@ -188,10 +190,33 @@ export function completeOnboarding(userId: string, intake?: IntakeSnapshot): voi
     bodyFocusCompletedAt:         now,
     planningCompletedAt:          now,
     programGeneratedAt:           now,
-    tutorialCompletedAt:          now,
-    profileCompletedAt:           now,
   });
   try { localStorage.setItem("flowstate-onboarded", "true"); } catch { /* ignore */ }
+}
+
+/** Reset onboarding flags so the user is routed back through the calibration
+ *  flow on next navigation. Used by the admin "Replay onboarding" button so
+ *  we can QA the flow end-to-end without making a new account. */
+export function resetOnboardingForReplay(userId: string): void {
+  saveOnboardingState(userId, {
+    walkthrough_seen:             false,
+    onboardingComplete:           false,
+    bodyFocusComplete:            false,
+    planningConversationComplete: false,
+    programGenerated:             false,
+    tutorialComplete:             false,
+    profileComplete:              false,
+    starterComplete:              false,
+    hasCompletedQuickStart:       false,
+    hasCompletedDeepCal:          false,
+    onboardingCompletedAt:        null,
+    bodyFocusCompletedAt:         null,
+    planningCompletedAt:          null,
+    programGeneratedAt:           null,
+    tutorialCompletedAt:          null,
+    profileCompletedAt:           null,
+  });
+  try { localStorage.removeItem("flowstate-onboarded"); } catch { /* ignore */ }
 }
 
 /** Mark the platform walkthrough as seen — called on skip or completion. */

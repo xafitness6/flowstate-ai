@@ -8,7 +8,6 @@ import {
   Apple,
   Flame,
   Zap,
-  User,
   ArrowRight,
   ArrowLeft,
 } from "lucide-react";
@@ -59,12 +58,12 @@ const STEPS = [
     desc:  "Ask your AI coach anything — training adjustments, nutrition questions, recovery guidance. It knows your data and gives answers specific to your situation.",
   },
   {
-    icon:  User,
-    color: "text-white/60",
-    bg:    "bg-white/5 border-white/10",
-    title: "Profile",
-    sub:   "Your identity on the platform.",
-    desc:  "Set your profile picture and bio, manage your subscription, change your password, and control your account settings. Everything in one clean place.",
+    icon:  Dumbbell,
+    color: "text-[#B48B40]",
+    bg:    "bg-[#B48B40]/15 border-[#B48B40]/30",
+    title: "Let's start training.",
+    sub:   "Your first session is ready.",
+    desc:  "Next up: your plan. Tap any session to see the exercises, log your sets, and watch your AI coach adjust week by week. You can edit anything — this is your program.",
   },
 ] as const;
 
@@ -98,7 +97,7 @@ export default function TutorialPage() {
   function goNext() {
     if (isLast) {
       completeTutorial(getActiveUserId());
-      router.push("/onboarding/profile-setup");
+      router.push("/program");
       return;
     }
     setLeaving(true);
@@ -113,7 +112,7 @@ export default function TutorialPage() {
 
   function handleSkip() {
     completeTutorial(getActiveUserId());
-    router.push("/onboarding/profile-setup");
+    router.push("/program");
   }
 
   return (
@@ -184,7 +183,7 @@ export default function TutorialPage() {
                   : "bg-white/[0.06] text-white/70 hover:bg-white/[0.10] hover:text-white"
               )}
             >
-              {isLast ? "Set up profile" : "Next"}
+              {isLast ? "Show me my plan" : "Next"}
               <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
             </button>
           </div>

@@ -23,7 +23,7 @@ type OnboardingAnswers = {
   dietStyle:     string[];
   mealsPerDay:   string;
   sleepHours:    string;
-  mainStruggle:  string;
+  mainStruggle:  string[];
   equipment:     string[];
 };
 
@@ -55,11 +55,16 @@ const SESSION_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const DIET_OPTIONS: { value: string; label: string }[] = [
-  { value: "balanced",      label: "Balanced" },
-  { value: "high_protein",  label: "High protein" },
-  { value: "plant_based",   label: "Plant-based" },
-  { value: "lower_carb",    label: "Lower carb" },
-  { value: "flexible",      label: "Flexible" },
+  { value: "balanced",            label: "Balanced" },
+  { value: "high_protein",        label: "High protein" },
+  { value: "plant_based",         label: "Plant-based" },
+  { value: "vegetarian",          label: "Vegetarian" },
+  { value: "pescatarian",         label: "Pescatarian" },
+  { value: "lower_carb",          label: "Lower carb" },
+  { value: "keto",                label: "Keto" },
+  { value: "mediterranean",       label: "Mediterranean" },
+  { value: "intermittent_fasting", label: "Intermittent fasting" },
+  { value: "flexible",            label: "Flexible" },
 ];
 
 const MEAL_OPTIONS: { value: string; label: string }[] = [
@@ -161,7 +166,7 @@ const DEFAULT: OnboardingAnswers = {
   dietStyle:     ["balanced"],
   mealsPerDay:   "3",
   sleepHours:    "7",
-  mainStruggle:  "",
+  mainStruggle:  [],
   equipment:     [],
 };
 
@@ -221,7 +226,7 @@ export default function CalibrationPage() {
       sessionLength:   answers.sessionLength,
       preferredTime:   "",
       availableDays:   [],
-      mainStruggle:    answers.mainStruggle,
+      mainStruggle:    answers.mainStruggle.join(" · "),
       confidenceLevel: 0,
       weight:          "",
       weightUnit:      "kg",
@@ -252,7 +257,7 @@ export default function CalibrationPage() {
 	      experience:    answers.experience,
 	      daysPerWeek:   answers.daysPerWeek,
 	      equipment:     answers.equipment,
-	      mainStruggle:  answers.mainStruggle,
+	      mainStruggle:  answers.mainStruggle.join(" · "),
       sessionLength: answers.sessionLength,
       weight:        "",
       weightUnit:    "lbs",
@@ -264,9 +269,9 @@ export default function CalibrationPage() {
     saveStarterPlan(userId, plan);
 
     const fallback = window.setTimeout(() => {
-      window.location.assign("/dashboard");
+      window.location.assign("/onboarding/tutorial");
     }, 900);
-    router.replace("/dashboard");
+    router.replace("/onboarding/tutorial");
 
     // Fire DB writes in the background — never block the user on network.
     // The plan + intake are already in localStorage, so /dashboard renders
@@ -300,7 +305,7 @@ export default function CalibrationPage() {
     if (step === "experience") return !!answers.experience;
     if (step === "schedule")   return answers.daysPerWeek > 0 && !!answers.sessionLength;
     if (step === "nutrition")  return answers.dietStyle.length > 0 && !!answers.mealsPerDay;
-    if (step === "recovery")   return !!answers.sleepHours && !!answers.mainStruggle;
+    if (step === "recovery")   return !!answers.sleepHours && answers.mainStruggle.length > 0;
     if (step === "equipment")  return true; // optional
     return true;
   };
@@ -532,16 +537,26 @@ export default function CalibrationPage() {
 	            </div>
 
 	            <div>
-	              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-3">Main friction point</p>
+	              <div className="flex items-baseline justify-between mb-3">
+	                <p className="text-xs uppercase tracking-[0.18em] text-white/28">Main friction points</p>
+	                <p className="text-[10px] text-white/30">Pick up to 3</p>
+	              </div>
 	              <div className="grid grid-cols-2 gap-2">
-	                {STRUGGLE_OPTIONS.map((opt) => (
-	                  <OptionCard
-	                    key={opt.value}
-	                    label={opt.label}
-	                    active={answers.mainStruggle === opt.value}
-	                    onClick={() => setAnswers((a) => ({ ...a, mainStruggle: opt.value }))}
-	                  />
-	                ))}
+	                {STRUGGLE_OPTIONS.map((opt) => {
+	                  const active = answers.mainStruggle.includes(opt.value);
+	                  const atCap  = answers.mainStruggle.length >= 3 && !active;
+	                  return (
+	                    <OptionCard
+	                      key={opt.value}
+	                      label={opt.label}
+	                      active={active}
+	                      onClick={() => {
+	                        if (atCap) return;
+	                        setAnswers((a) => ({ ...a, mainStruggle: toggle(a.mainStruggle, opt.value) }));
+	                      }}
+	                    />
+	                  );
+	                })}
 	              </div>
 	            </div>
 

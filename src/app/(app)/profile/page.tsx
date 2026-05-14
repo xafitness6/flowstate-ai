@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Camera, Check, LayoutDashboard, ArrowUpRight, Edit3, Pencil, X, Eye, EyeOff } from "lucide-react";
+import { Camera, Check, LayoutDashboard, ArrowUpRight, Edit3, Pencil, X, Eye, EyeOff, PlayCircle } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { resetOnboardingForReplay } from "@/lib/onboarding";
 import { PLAN_HIERARCHY, PLAN_LABELS } from "@/lib/plans";
 import type { Plan } from "@/types";
 import { cn } from "@/lib/utils";
@@ -308,6 +310,14 @@ function formatTimestamp(iso: string): string {
 
 export default function ProfilePage() {
   const { user } = useUser();
+  const router   = useRouter();
+
+  // Admin-only: wipe local onboarding flags and replay the calibration flow.
+  function handleReplayOnboarding() {
+    if (!confirm("Replay onboarding? This resets your onboarding flags locally so you can re-test the basic 6-step calibration + tutorial. Your real program data is untouched.")) return;
+    resetOnboardingForReplay(user.id);
+    router.replace("/onboarding/calibration");
+  }
 
   // ── Settings state ────────────────────────────────────────────────────────
   const [pushLevel,        setPushLevel]        = useState(user.pushLevel ?? 6);
@@ -652,13 +662,28 @@ export default function ProfilePage() {
             </span>
           </SettingsRow>
           {user.role === "master" && (
-            <div className="px-5 py-3.5 flex items-center justify-between">
-              <p className="text-xs text-white/30">Manage user roles in the operator dashboard.</p>
-              <Link href="/admin" className="flex items-center gap-1.5 text-xs text-[#B48B40]/70 hover:text-[#B48B40] transition-colors">
-                <LayoutDashboard className="w-3 h-3" strokeWidth={1.5} />
-                Open
-              </Link>
-            </div>
+            <>
+              <div className="px-5 py-3.5 flex items-center justify-between border-t border-white/[0.045]">
+                <p className="text-xs text-white/30">Manage user roles in the operator dashboard.</p>
+                <Link href="/admin" className="flex items-center gap-1.5 text-xs text-[#B48B40]/70 hover:text-[#B48B40] transition-colors">
+                  <LayoutDashboard className="w-3 h-3" strokeWidth={1.5} />
+                  Open
+                </Link>
+              </div>
+              <div className="px-5 py-3.5 flex items-center justify-between border-t border-white/[0.045]">
+                <div>
+                  <p className="text-xs text-white/55">Replay onboarding</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">QA the 6-step calibration + tutorial. Local-only reset.</p>
+                </div>
+                <button
+                  onClick={handleReplayOnboarding}
+                  className="flex items-center gap-1.5 text-xs text-[#B48B40]/70 hover:text-[#B48B40] transition-colors shrink-0"
+                >
+                  <PlayCircle className="w-3 h-3" strokeWidth={1.5} />
+                  Replay
+                </button>
+              </div>
+            </>
           )}
         </Card>
       </div>
