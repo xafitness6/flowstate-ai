@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Sparkles, Loader2, ChevronLeft, AlertCircle, CheckCircle2,
+  Sparkles, Loader2, ChevronLeft, ChevronDown, AlertCircle, CheckCircle2,
   Users, TrendingUp, Plus, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,14 +31,49 @@ const GOAL_OPTIONS: { value: Goal; label: string; sub: string }[] = [
 const EXPERIENCE_OPTIONS = ["beginner", "intermediate", "advanced"] as const;
 type Experience = typeof EXPERIENCE_OPTIONS[number];
 
-const EQUIPMENT_OPTIONS = ["Full gym", "Home gym", "Dumbbells only", "Bodyweight", "Bands", "Travel"];
-const BODY_FOCUS_OPTIONS = ["Chest", "Back", "Shoulders", "Arms", "Legs", "Glutes", "Core", "Conditioning"];
+// Equipment: grouped so users can see structure at a glance instead of a wall of chips.
+const EQUIPMENT_GROUPS: { label: string; options: string[] }[] = [
+  { label: "Quick presets", options: ["Full gym", "Home gym", "Garage gym", "Hotel gym", "Bodyweight only", "Travel"] },
+  { label: "Free weights",  options: ["Barbell + plates", "Dumbbells (light)", "Dumbbells (full set)", "Kettlebells", "EZ-curl bar", "Adjustable dumbbells"] },
+  { label: "Racks & benches", options: ["Squat rack", "Power rack", "Flat bench", "Adjustable bench", "Bench press station"] },
+  { label: "Machines",      options: ["Cable / pulley", "Smith machine", "Leg press", "Lat pulldown", "Leg curl / extension", "Hack squat", "Pec deck", "Hip thrust machine"] },
+  { label: "Cardio",        options: ["Treadmill", "Assault bike", "Rower", "Elliptical", "Stationary bike", "Stair climber"] },
+  { label: "Functional",    options: ["Pull-up bar", "Dip station", "Resistance bands", "TRX / suspension", "Plyo box", "Medicine ball", "Slam ball", "Sled / prowler", "Battle ropes", "Sandbag"] },
+  { label: "Outdoor / track", options: ["Track / field", "Hills / stairs", "Park rig", "Open trail"] },
+];
+const EQUIPMENT_OPTIONS = EQUIPMENT_GROUPS.flatMap((g) => g.options);
+
+const BODY_FOCUS_GROUPS: { label: string; options: string[] }[] = [
+  { label: "Upper body — push", options: ["Chest (upper)", "Chest (mid/lower)", "Front delts", "Side delts", "Triceps"] },
+  { label: "Upper body — pull", options: ["Lats", "Mid back / rhomboids", "Upper traps", "Rear delts", "Biceps", "Forearms / grip"] },
+  { label: "Lower body",        options: ["Quads", "Hamstrings", "Glutes", "Adductors", "Abductors", "Calves"] },
+  { label: "Core",              options: ["Abs (rectus)", "Obliques", "Core stability / anti-rotation", "Lower back / erectors"] },
+  { label: "Qualities",         options: ["Conditioning", "Power / explosive", "Mobility / flexibility", "Athletic / sport", "Posture", "Mind-muscle / hypertrophy"] },
+];
+const BODY_FOCUS_OPTIONS = BODY_FOCUS_GROUPS.flatMap((g) => g.options);
+
 const INJURY_OPTIONS = [
-  { id: "knee",        label: "Knee" },
-  { id: "lower_back",  label: "Lower back" },
-  { id: "shoulder",    label: "Shoulder" },
-  { id: "foot",        label: "Foot / ankle" },
-  { id: "hip",         label: "Hip" },
+  { id: "knee_left",          label: "Knee (left)" },
+  { id: "knee_right",         label: "Knee (right)" },
+  { id: "knee",               label: "Knee (both / general)" },
+  { id: "hip_left",           label: "Hip (left)" },
+  { id: "hip_right",          label: "Hip (right)" },
+  { id: "hip",                label: "Hip (both / general)" },
+  { id: "lower_back",         label: "Lower back" },
+  { id: "mid_back",           label: "Mid / upper back" },
+  { id: "neck",               label: "Neck" },
+  { id: "shoulder_left",      label: "Shoulder (left)" },
+  { id: "shoulder_right",     label: "Shoulder (right)" },
+  { id: "shoulder",           label: "Shoulder (both / general)" },
+  { id: "elbow",              label: "Elbow" },
+  { id: "wrist",              label: "Wrist" },
+  { id: "foot",               label: "Foot" },
+  { id: "ankle",              label: "Ankle" },
+  { id: "achilles",           label: "Achilles / calf" },
+  { id: "hernia",             label: "Hernia / abdominal" },
+  { id: "cardiac_caution",    label: "Cardiac caution" },
+  { id: "pregnancy",          label: "Pregnancy (modified)" },
+  { id: "post_surgery",       label: "Post-surgery recovery" },
 ];
 
 const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -320,8 +355,8 @@ export default function ProgramGeneratePage() {
                   </div>
                 </div>
 
-                <ChipMulti label="Equipment" value={equipment} options={EQUIPMENT_OPTIONS} onChange={setEquipment} />
-                <ChipMulti label="Body focus" value={bodyFocus} options={BODY_FOCUS_OPTIONS} onChange={setBodyFocus} />
+                <GroupedChipMulti label="Equipment"  groups={EQUIPMENT_GROUPS}  value={equipment} onChange={setEquipment} defaultOpen="Quick presets" />
+                <GroupedChipMulti label="Body focus" groups={BODY_FOCUS_GROUPS} value={bodyFocus} onChange={setBodyFocus} defaultOpen="Qualities" />
 
                 <div>
                   <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Injuries / limitations</label>
@@ -701,6 +736,106 @@ function ChipMulti({
             >
               {opt}
             </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GroupedChipMulti({
+  label, groups, value, onChange, defaultOpen,
+}: {
+  label:   string;
+  groups:  { label: string; options: string[] }[];
+  value:   string[];
+  onChange: (v: string[]) => void;
+  defaultOpen?: string;
+}) {
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (defaultOpen) initial.add(defaultOpen);
+    // Auto-open any group that has a selected item
+    for (const g of groups) {
+      if (g.options.some((o) => value.includes(o))) initial.add(g.label);
+    }
+    return initial;
+  });
+
+  function toggleGroup(name: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  }
+
+  function selectedInGroup(group: { options: string[] }) {
+    return group.options.filter((o) => value.includes(o)).length;
+  }
+
+  const totalSelected = value.length;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-[10px] uppercase tracking-[0.18em] text-white/30">{label}</label>
+        {totalSelected > 0 && (
+          <button
+            onClick={() => onChange([])}
+            className="text-[10px] text-white/35 hover:text-white/70 transition-colors"
+          >
+            Clear {totalSelected}
+          </button>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {groups.map((g) => {
+          const open  = openGroups.has(g.label);
+          const count = selectedInGroup(g);
+          return (
+            <div key={g.label} className="rounded-xl border border-white/[0.06] bg-white/[0.015] overflow-hidden">
+              <button
+                onClick={() => toggleGroup(g.label)}
+                className="w-full px-3 py-2 flex items-center justify-between hover:bg-white/[0.02] transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] uppercase tracking-[0.18em] text-white/60 font-medium">{g.label}</span>
+                  {count > 0 && (
+                    <span className="text-[10px] tabular-nums text-[#B48B40] bg-[#B48B40]/[0.08] border border-[#B48B40]/25 rounded-full px-1.5 py-0.5">
+                      {count}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown
+                  className={cn("w-3.5 h-3.5 text-white/30 transition-transform", open && "rotate-180")}
+                  strokeWidth={2}
+                />
+              </button>
+              {open && (
+                <div className="px-3 pb-3 pt-1 border-t border-white/[0.04]">
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.options.map((opt) => {
+                      const active = value.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() => onChange(active ? value.filter((v) => v !== opt) : [...value, opt])}
+                          className={cn(
+                            "rounded-full px-3 py-1 text-[11px] border transition-all",
+                            active
+                              ? "border-[#B48B40]/40 bg-[#B48B40]/[0.08] text-[#B48B40]"
+                              : "border-white/10 bg-white/[0.02] text-white/55 hover:border-white/20 hover:text-white/80",
+                          )}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>

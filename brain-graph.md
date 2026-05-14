@@ -184,7 +184,19 @@ Users connect any calendar app (Google / Apple / Outlook) by subscribing to a un
 - Generator: [src/lib/calendar/ics.ts](src/lib/calendar/ics.ts) — pure functions, RFC 5545 compliant
 - UI: `/calendar/connect` — copyable URL, per-app setup instructions, sync toggles (workouts / rest days / habits), workout & habit times, reminder offset, color picker, horizon weeks, token rotation
 
-**No OAuth required.** Apple Calendar / Outlook have no usable push API; the iCal feed approach covers them with one feature. Google can be upgraded to OAuth push later for real-time sync.
+**No OAuth required for iCal.** Apple Calendar / Outlook have no usable push API; the iCal feed approach covers them with one feature.
+
+## Google Calendar real-time push (OAuth)
+
+Optional upgrade on top of the iCal feed: connect Google directly via OAuth so workouts/habits push instantly (vs. the iCal app's ~15min – 3hr poll interval).
+- Migration: `014_google_calendar.sql` — `google_calendar_tokens` table with `event_map` ({ flowstate_uid → google_event_id }) so syncs PATCH existing events instead of duplicating
+- OAuth flow: `GET /api/google/oauth/start` → Google consent → `GET /api/google/oauth/callback` → upsert tokens via service role
+- Push helper: [src/lib/google/push.ts](src/lib/google/push.ts) `syncToGoogleCalendar()` — refreshes access token if expired, diffs desired events against `event_map`, creates / patches / deletes accordingly
+- Manual sync: `POST /api/google/sync` (used by the "Sync now" button)
+- Status: `GET /api/google/status` (presence + last sync info), `DELETE /api/google/status` (revoke + delete)
+- Required env vars on Vercel: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`. Whitelist `https://<deployment>/api/google/oauth/callback` in Google Cloud Console.
+
+**Scope used:** `calendar.events` + `calendar.readonly` — minimum needed to insert/update on the user's primary calendar. Two-way sync (changes from Google → Flowstate) is not yet wired; that would require Google watch API + webhook reconciliation.
 
 ## In Progress / Planned
 - Obsidian vault = this project folder (`/Users/xavierellis/Projects/flowstate-ai`)

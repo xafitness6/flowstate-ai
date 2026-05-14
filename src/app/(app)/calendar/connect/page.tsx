@@ -192,10 +192,13 @@ export default function CalendarConnectPage() {
           </div>
         </Card>
 
+        {/* ── Google Calendar OAuth (real-time push) ── */}
+        <GoogleCalendarCard />
+
         {/* ── Setup instructions ── */}
         <Card className="mb-6">
           <div className="px-5 py-5">
-            <SectionHeader>Set up in your calendar app</SectionHeader>
+            <SectionHeader>Set up in your calendar app (subscribe)</SectionHeader>
             <div className="space-y-3 mt-3">
               <SetupRow
                 icon={Globe}
@@ -481,5 +484,156 @@ function ColorPicker({
         <code className="text-[11px] text-white/70 font-mono">{value.toUpperCase()}</code>
       </div>
     </div>
+  );
+}
+
+// ─── Google OAuth card ───────────────────────────────────────────────────────
+
+type GoogleStatus = {
+  connected:       boolean;
+  last_synced_at:  string | null;
+  last_sync_error: string | null;
+};
+
+function GoogleCalendarCard() {
+  const [status,  setStatus]  = useState<GoogleStatus | null>(null);
+  const [busy,    setBusy]    = useState<"sync" | "disconnect" | null>(null);
+  const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/google/status", { cache: "no-store" });
+      const data = await res.json() as GoogleStatus;
+      setStatus(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    // Surface ?google_connected / ?google_error from OAuth callback
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const ok  = url.searchParams.get("google_connected");
+      const err = url.searchParams.get("google_error");
+      if (ok)  setMessage({ kind: "ok",  text: "Google Calendar connected." });
+      if (err) setMessage({ kind: "err", text: `Connection failed: ${err.replace(/_/g, " ")}` });
+      if (ok || err) {
+        url.searchParams.delete("google_connected");
+        url.searchParams.delete("google_error");
+        window.history.replaceState(null, "", url.toString());
+      }
+    }
+    void fetchStatus();
+  }, [fetchStatus]);
+
+  async function syncNow() {
+    setBusy("sync");
+    setMessage(null);
+    try {
+      const res = await fetch("/api/google/sync", { method: "POST" });
+      const data = await res.json() as { pushed?: number; updated?: number; deleted?: number; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "Sync failed");
+      setMessage({
+        kind: "ok",
+        text: `Synced — ${data.pushed ?? 0} new, ${data.updated ?? 0} updated${(data.deleted ?? 0) > 0 ? `, ${data.deleted} removed` : ""}.`,
+      });
+      void fetchStatus();
+    } catch (e) {
+      setMessage({ kind: "err", text: e instanceof Error ? e.message : "Sync failed" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function disconnect() {
+    if (!confirm("Disconnect Google Calendar? Existing events stay; future updates won't sync until you reconnect.")) return;
+    setBusy("disconnect");
+    try {
+      const res = await fetch("/api/google/status", { method: "DELETE" });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "Disconnect failed");
+      setStatus({ connected: false, last_synced_at: null, last_sync_error: null });
+      setMessage({ kind: "ok", text: "Disconnected." });
+    } catch (e) {
+      setMessage({ kind: "err", text: e instanceof Error ? e.message : "Disconnect failed" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card className="mb-6 border-[#4285F4]/20 bg-gradient-to-br from-[#4285F4]/[0.03] to-transparent">
+      <div className="px-5 py-5">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center">
+              <Globe className="w-4 h-4 text-[#4285F4]" strokeWidth={1.8} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white/95">Google Calendar — real-time push</p>
+              <p className="text-[11px] text-white/45 mt-0.5">
+                Workouts appear instantly in your Google Calendar. No subscription URL needed.
+              </p>
+            </div>
+          </div>
+          {status?.connected && (
+            <span className="shrink-0 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-emerald-300 border border-emerald-400/25 bg-emerald-400/[0.06] rounded-full px-2 py-0.5">
+              <Check className="w-3 h-3" strokeWidth={2.5} />
+              Connected
+            </span>
+          )}
+        </div>
+
+        {message && (
+          <div className={cn(
+            "mb-3 rounded-xl border px-3 py-2 flex items-start gap-2 text-[11px] leading-relaxed",
+            message.kind === "ok"
+              ? "border-emerald-400/20 bg-emerald-400/[0.04] text-emerald-300/85"
+              : "border-red-400/20 bg-red-400/[0.04] text-red-300/85",
+          )}>
+            {message.kind === "ok" ? <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" strokeWidth={2.5} /> : <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" strokeWidth={2} />}
+            {message.text}
+          </div>
+        )}
+
+        {status?.connected ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 text-[11px] text-white/45">
+              {status.last_synced_at && (
+                <span>Last synced: {new Date(status.last_synced_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+              )}
+              {!status.last_synced_at && <span>Not synced yet — press Sync now.</span>}
+            </div>
+            {status.last_sync_error && (
+              <p className="text-[11px] text-red-300/80">Last error: {status.last_sync_error}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => void syncNow()}
+                disabled={busy !== null}
+                className="rounded-xl bg-[#B48B40] text-black px-4 py-2 text-xs font-semibold hover:bg-[#c99840] transition-all disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {busy === "sync" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" strokeWidth={2} />}
+                {busy === "sync" ? "Syncing…" : "Sync now"}
+              </button>
+              <button
+                onClick={() => void disconnect()}
+                disabled={busy !== null}
+                className="rounded-xl border border-white/10 px-4 py-2 text-xs text-white/55 hover:text-red-300/85 hover:border-red-400/30 transition-all disabled:opacity-50"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        ) : (
+          <a
+            href="/api/google/oauth/start"
+            className="inline-flex items-center gap-2 rounded-xl bg-white text-[#1A1A1A] px-4 py-2 text-xs font-semibold hover:bg-white/90 transition-all"
+          >
+            <Globe className="w-3.5 h-3.5" strokeWidth={2} />
+            Connect Google Calendar
+          </a>
+        )}
+      </div>
+    </Card>
   );
 }
