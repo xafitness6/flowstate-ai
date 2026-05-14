@@ -18,6 +18,8 @@ export type Invite = {
   invitedByName:     string;
   assignedTrainerId: string;
   assignedTrainerName: string;
+  /** Role granted on signup — "member" = self-directed, "client" = trainer-assigned. */
+  inviteRole:        "member" | "client";
   inviteStatus:      InviteStatus;
   invitedAt:         string;   // ISO
   acceptedAt:        string | null;
@@ -33,6 +35,7 @@ export type CreateInviteInput = {
   invitedByName:     string;
   assignedTrainerId: string;
   assignedTrainerName: string;
+  inviteRole?:       "member" | "client";
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
@@ -79,6 +82,7 @@ export function createInvite(input: CreateInviteInput): Invite {
     invitedByName:      input.invitedByName,
     assignedTrainerId:  input.assignedTrainerId,
     assignedTrainerName: input.assignedTrainerName,
+    inviteRole:         input.inviteRole ?? "client",
     inviteStatus:       "pending",
     invitedAt:          now.toISOString(),
     acceptedAt:         null,

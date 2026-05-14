@@ -20,6 +20,7 @@ import {
   ArchiveRestore,
   Check,
   X,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserNameLink } from "@/components/profile/UserHoverCard";
@@ -582,6 +583,13 @@ export default function AdminDashboard() {
           <p className="text-sm text-white/30 mt-1">Live platform data — auto-refreshes every 10s.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 mt-1">
+          <button
+            onClick={() => router.push("/admin/invites")}
+            className="flex items-center gap-1.5 rounded-xl bg-[#B48B40]/[0.08] border border-[#B48B40]/30 px-3 py-2 text-xs text-[#B48B40] hover:bg-[#B48B40]/[0.12] transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+            Invite users
+          </button>
           <button
             onClick={() => router.push("/admin/users")}
             className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-xs text-white/45 hover:text-white/70 hover:bg-white/[0.05] transition-colors"

@@ -4,16 +4,18 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Sparkles, Loader2, ChevronLeft, ChevronDown, AlertCircle, CheckCircle2,
-  Users, Edit3, TrendingUp, Dumbbell,
+  Sparkles, Loader2, ChevronLeft, AlertCircle, CheckCircle2,
+  Users, TrendingUp, Plus, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
-import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useUser } from "@/context/UserContext";
 import { saveBuilderWorkoutForSelf, type BuilderProgramPayload } from "@/lib/db/programs";
-import { resolveWeek, type WeekTemplate } from "@/lib/program/types";
+import { resolveWeek, type WeekTemplate, type DayWorkout, type PlannedExercise } from "@/lib/program/types";
 import { AssignClientModal } from "@/components/program/AssignClientModal";
+import { ExercisePickerDrawer } from "@/components/program/ExercisePickerDrawer";
+import { DayCard, newTrainingDay, newRestDay } from "@/components/program/DayCard";
+import type { Exercise } from "@/lib/db/exercises";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,7 +41,7 @@ const INJURY_OPTIONS = [
   { id: "hip",         label: "Hip" },
 ];
 
-const DOW_LONG = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type GenState = "idle" | "generating" | "preview" | "saving" | "saved" | "error";
 
@@ -66,9 +68,11 @@ export default function ProgramGeneratePage() {
   const [assignOpen,  setAssignOpen]  = useState(false);
   const [assignBusy,  setAssignBusy]  = useState(false);
 
-  // Preview UI
+  // Preview / edit UI
   const [previewWeek, setPreviewWeek] = useState(1);
-  const [expandedDay, setExpandedDay] = useState<number | null>(0);
+  const [pickerOpen,  setPickerOpen]  = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<number | null>(null);
+  const [showDowPicker, setShowDowPicker] = useState(false);
 
   const isAdmin    = user?.role === "master" || !!user?.isAdmin;
   const canPersist = !!user?.id && UUID_RE.test(user.id);
@@ -99,7 +103,6 @@ export default function ProgramGeneratePage() {
       }
       setPayload(data.payload);
       setPreviewWeek(1);
-      setExpandedDay(0);
       setState("preview");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
@@ -158,6 +161,90 @@ export default function ProgramGeneratePage() {
     if (!payload) return null;
     return resolveWeek(payload.split, previewWeek);
   }, [payload, previewWeek]);
+
+  // ── Inline edits ────────────────────────────────────────────────────────
+  // Edits to Week 1 mutate baseWeek. Edits to Week 2+ create a per-week override.
+  function updateCurrentWeek(updater: (w: WeekTemplate) => WeekTemplate) {
+    if (!payload) return;
+    setPayload((prev) => {
+      if (!prev) return prev;
+      const split = prev.split;
+      if (previewWeek === 1) {
+        return { ...prev, split: { ...split, baseWeek: updater(split.baseWeek) } };
+      }
+      const existing = split.weekOverrides[previewWeek] ?? {
+        ...split.baseWeek,
+        days: split.baseWeek.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })),
+      };
+      return {
+        ...prev,
+        split: {
+          ...split,
+          weekOverrides: { ...split.weekOverrides, [previewWeek]: updater(existing) },
+        },
+      };
+    });
+  }
+
+  function patchDay(dayIdx: number, patch: Partial<DayWorkout>) {
+    updateCurrentWeek((w) => ({
+      ...w,
+      days: w.days.map((d, i) => i === dayIdx ? { ...d, ...patch } : d),
+    }));
+  }
+
+  function removeDay(dayIdx: number) {
+    updateCurrentWeek((w) => ({ ...w, days: w.days.filter((_, i) => i !== dayIdx) }));
+    // Recompute daysPerWeek when removing
+    setPayload((prev) => {
+      if (!prev) return prev;
+      const trainingCount = (resolveWeek(prev.split, 1).days)
+        .filter((d) => (d.kind ?? "training") === "training").length;
+      return { ...prev, daysPerWeek: trainingCount };
+    });
+  }
+
+  function addDay(dow: number, kind: "training" | "rest") {
+    if (!currentWeekTemplate) return;
+    if (currentWeekTemplate.days.some((d) => d.dayOfWeek === dow)) return;
+    updateCurrentWeek((w) => ({
+      ...w,
+      days: [...w.days, kind === "training" ? newTrainingDay(dow) : newRestDay(dow)]
+        .sort((a, b) => a.dayOfWeek - b.dayOfWeek),
+    }));
+  }
+
+  function revertOverride() {
+    if (!payload || previewWeek === 1) return;
+    setPayload((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev.split.weekOverrides };
+      delete next[previewWeek];
+      return { ...prev, split: { ...prev.split, weekOverrides: next } };
+    });
+  }
+
+  function onPickerSelect(ex: Exercise) {
+    if (pickerTarget === null) return;
+    const exercise: PlannedExercise = {
+      exerciseId: ex.id,
+      name:       ex.name,
+      sets:       3,
+      reps:       "8-12",
+      rest:       "90s",
+      weight:     "",
+      note:       "",
+      videoId:    null,
+    };
+    updateCurrentWeek((w) => ({
+      ...w,
+      days: w.days.map((d, i) => i === pickerTarget
+        ? { ...d, exercises: [...d.exercises, exercise] }
+        : d),
+    }));
+  }
+
+  const isOverride = previewWeek > 1 && !!payload?.split.weekOverrides[previewWeek];
 
   // ── Render ──
   return (
@@ -361,69 +448,118 @@ export default function ProgramGeneratePage() {
 
             {currentWeekTemplate && (
               <>
-                {(currentWeekTemplate.intent || currentWeekTemplate.progressionThisWeek) && (
-                  <Card className="mb-3">
-                    <div className="px-5 py-3 space-y-1">
-                      {currentWeekTemplate.intent && (
-                        <p className="text-xs text-white/80">
-                          <span className="text-[10px] uppercase tracking-[0.18em] text-white/35 mr-2">Intent</span>
-                          {currentWeekTemplate.intent}
-                        </p>
-                      )}
-                      {currentWeekTemplate.progressionThisWeek && (
-                        <p className="text-xs text-[#B48B40]/85">
-                          <span className="text-[10px] uppercase tracking-[0.18em] text-[#B48B40]/60 mr-2">Progression</span>
-                          {currentWeekTemplate.progressionThisWeek}
-                        </p>
+                {/* Week brief / override status */}
+                <Card className="mb-3">
+                  <div className="px-5 py-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-3.5 h-3.5 text-[#B48B40]/70" strokeWidth={1.8} />
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                          Week {previewWeek} of {payload.weeks}
+                        </span>
+                        {previewWeek > 1 && (
+                          <span className={cn(
+                            "text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border",
+                            isOverride
+                              ? "border-[#B48B40]/30 bg-[#B48B40]/[0.06] text-[#B48B40]"
+                              : "border-white/10 bg-white/[0.02] text-white/50",
+                          )}>
+                            {isOverride ? "Customized" : "Inheriting base"}
+                          </span>
+                        )}
+                      </div>
+                      {isOverride && (
+                        <button
+                          onClick={revertOverride}
+                          className="text-[11px] text-white/40 hover:text-red-300/80 transition-colors"
+                        >
+                          Revert to base
+                        </button>
                       )}
                     </div>
-                  </Card>
-                )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Week intent</label>
+                        <input
+                          type="text"
+                          value={currentWeekTemplate.intent ?? ""}
+                          onChange={(e) => updateCurrentWeek((w) => ({ ...w, intent: e.target.value }))}
+                          placeholder="Volume accumulation, deload, peaking…"
+                          className="w-full bg-transparent text-sm text-white/80 placeholder:text-white/25 outline-none border-b border-white/[0.06] focus:border-[#B48B40]/40 transition-colors pb-1.5"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Progression this week</label>
+                        <input
+                          type="text"
+                          value={currentWeekTemplate.progressionThisWeek ?? ""}
+                          onChange={(e) => updateCurrentWeek((w) => ({ ...w, progressionThisWeek: e.target.value }))}
+                          placeholder={previewWeek === 1 ? "Starting load reference" : "What's different vs last week"}
+                          className="w-full bg-transparent text-sm text-white/80 placeholder:text-white/25 outline-none border-b border-white/[0.06] focus:border-[#B48B40]/40 transition-colors pb-1.5"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
 
-                <div className="space-y-2">
-                  {currentWeekTemplate.days.map((day, dayIdx) => {
-                    const expanded = expandedDay === dayIdx;
-                    return (
-                      <Card key={`${day.dayOfWeek}-${dayIdx}`}>
-                        <button
-                          onClick={() => setExpandedDay(expanded ? null : dayIdx)}
-                          className="w-full text-left px-5 py-3 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-lg bg-[#B48B40]/10 border border-[#B48B40]/20 flex items-center justify-center shrink-0">
-                              <Dumbbell className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={2} />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-white/90 truncate">{day.name}</p>
-                              <p className="text-[11px] text-white/40 truncate">
-                                {DOW_LONG[day.dayOfWeek]} · {day.exercises.length} exercises · ~{day.estimatedMinutes}min
-                                {day.focus && ` · ${day.focus}`}
-                              </p>
-                            </div>
-                          </div>
-                          <ChevronDown className={cn("w-4 h-4 text-white/30 transition-transform shrink-0", expanded && "rotate-180")} strokeWidth={2} />
-                        </button>
-
-                        {expanded && (
-                          <div className="px-5 pb-4 border-t border-white/[0.05]">
-                            <div className="mt-3 space-y-1.5">
-                              {day.exercises.map((ex, exIdx) => (
-                                <div key={exIdx} className="grid grid-cols-12 gap-2 items-center py-1.5 border-b border-white/[0.04] last:border-0 text-xs">
-                                  <span className="col-span-1 text-white/25 tabular-nums">{String(exIdx + 1).padStart(2, "0")}</span>
-                                  <span className="col-span-5 text-white/85 truncate">{ex.name}</span>
-                                  <span className="col-span-2 text-white/55 tabular-nums">{ex.sets} × {ex.reps}</span>
-                                  <span className="col-span-2 text-white/45">{ex.weight || "—"}</span>
-                                  <span className="col-span-2 text-white/45">{ex.rest || "—"}</span>
-                                  {ex.note && <p className="col-span-12 col-start-2 text-[11px] text-white/40 italic mt-0.5">{ex.note}</p>}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })}
+                {/* Day cards — editable */}
+                <div className="space-y-3">
+                  {currentWeekTemplate.days.map((day, dayIdx) => (
+                    <DayCard
+                      key={`${day.dayOfWeek}-${dayIdx}`}
+                      day={day}
+                      onChange={(patch) => patchDay(dayIdx, patch)}
+                      onRemove={() => removeDay(dayIdx)}
+                      onOpenPicker={() => { setPickerTarget(dayIdx); setPickerOpen(true); }}
+                    />
+                  ))}
                 </div>
+
+                {/* Add day */}
+                <Card className="mt-3 border-dashed border-white/[0.08]">
+                  <button
+                    onClick={() => setShowDowPicker((v) => !v)}
+                    className="w-full px-5 py-3 flex items-center justify-center gap-2 text-xs text-white/45 hover:text-white/80 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" strokeWidth={1.7} />
+                    Add a day to Week {previewWeek}
+                  </button>
+                  {showDowPicker && (
+                    <div className="px-5 pb-4 space-y-2">
+                      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                        <Calendar className="w-3 h-3" strokeWidth={1.8} />
+                        Which day, and what kind?
+                      </div>
+                      <div className="grid grid-cols-7 gap-1.5">
+                        {DOW_SHORT.map((s, i) => {
+                          const used = currentWeekTemplate.days.some((d) => d.dayOfWeek === i);
+                          return (
+                            <div key={i} className={cn(
+                              "rounded-xl border text-[10px] flex flex-col",
+                              used ? "border-white/[0.04] bg-white/[0.01] opacity-40" : "border-white/8 bg-white/[0.02]",
+                            )}>
+                              <div className="text-center py-1 text-white/45 font-semibold">{s}</div>
+                              <button
+                                disabled={used}
+                                onClick={() => { addDay(i, "training"); setShowDowPicker(false); }}
+                                className="border-t border-white/[0.05] py-1 text-[9px] text-[#B48B40]/80 hover:text-[#B48B40] hover:bg-[#B48B40]/[0.06] transition-colors disabled:cursor-not-allowed disabled:text-white/15 disabled:hover:bg-transparent"
+                              >
+                                Train
+                              </button>
+                              <button
+                                disabled={used}
+                                onClick={() => { addDay(i, "rest"); setShowDowPicker(false); }}
+                                className="border-t border-white/[0.05] py-1 text-[9px] text-white/45 hover:text-white/85 hover:bg-white/[0.04] transition-colors disabled:cursor-not-allowed disabled:text-white/15 disabled:hover:bg-transparent"
+                              >
+                                Rest
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </Card>
               </>
             )}
 
@@ -450,15 +586,6 @@ export default function ProgramGeneratePage() {
                     Send to user
                   </button>
                 )}
-
-                <button
-                  onClick={() => router.push("/program/builder")}
-                  disabled={state === "saving"}
-                  className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-white/65 hover:text-white/90 hover:border-white/15 transition-all"
-                >
-                  <Edit3 className="w-4 h-4" strokeWidth={1.7} />
-                  Open in builder
-                </button>
 
                 <button
                   onClick={() => void handleSave()}
@@ -500,6 +627,12 @@ export default function ProgramGeneratePage() {
           <Link href="/program" className="hover:text-white/60 transition-colors">Active program</Link>
         </div>
       </div>
+
+      <ExercisePickerDrawer
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={onPickerSelect}
+      />
 
       <AssignClientModal
         open={assignOpen}

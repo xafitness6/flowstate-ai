@@ -24,6 +24,7 @@ export async function createInviteInDB(input: {
   assignedTrainerId:   string;
   assignedTrainerName: string;
   inviteType?:         "direct" | "open";
+  inviteRole?:         "member" | "client";
   inviteToken?:        string;
 }): Promise<Invite | null> {
   const supabase = createClient();
@@ -34,6 +35,7 @@ export async function createInviteInDB(input: {
     .insert({
       invite_token:          input.inviteToken ?? generateToken(),
       invite_type:           input.inviteType ?? "direct",
+      invite_role:           input.inviteRole ?? "client",
       invite_email:          input.inviteEmail.trim().toLowerCase() || null,
       first_name:            input.firstName.trim() || null,
       last_name:             input.lastName.trim() || null,

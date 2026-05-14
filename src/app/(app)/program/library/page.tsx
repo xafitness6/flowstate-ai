@@ -39,12 +39,28 @@ function statusPill(status: Program["status"]) {
   return { label: "Template", cls: "text-white/50 border-white/12 bg-white/[0.03]" };
 }
 
+const CACHE_KEY = (uid: string) => `flowstate-library-cache-${uid}`;
+
+function readCache(userId: string): Program[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(CACHE_KEY(userId));
+    return raw ? JSON.parse(raw) as Program[] : null;
+  } catch { return null; }
+}
+
+function writeCache(userId: string, rows: Program[]): void {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(CACHE_KEY(userId), JSON.stringify(rows)); } catch { /* ignore */ }
+}
+
 export default function ProgramLibraryPage() {
   const router = useRouter();
   const { user, isLoading } = useUser();
 
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [loading,  setLoading]  = useState(true);
+  // loading starts false — stale cache renders immediately, fresh fetch happens silently
+  const [loading,  setLoading]  = useState(false);
   const [busyId,   setBusyId]   = useState<string | null>(null);
   const [error,    setError]    = useState<string | null>(null);
 
@@ -55,18 +71,25 @@ export default function ProgramLibraryPage() {
     if (!user?.id) return;
 
     let cancelled = false;
+
+    // Stale-while-revalidate: hydrate from cache first, then refresh.
+    if (canPersist) {
+      const cached = readCache(user.id);
+      if (cached && cached.length > 0) setPrograms(cached);
+      else setLoading(true);
+    }
+
     (async () => {
-      setLoading(true);
       if (!canPersist) {
         setPrograms([]);
         setError("Library only loads for real signed-in users. Demo accounts have no saved templates.");
-        setLoading(false);
         return;
       }
       try {
         const rows = await listUserPrograms(user.id);
         if (!cancelled) {
           setPrograms(rows);
+          writeCache(user.id, rows);
           setError(null);
         }
       } catch (e) {

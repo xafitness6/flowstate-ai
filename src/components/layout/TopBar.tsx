@@ -63,12 +63,14 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-14 border-b border-white/5 bg-[#0A0A0A]/90 backdrop-blur-md">
+      {/* Brand is hidden on md+ — the sidebar already displays it there. Mobile keeps it. */}
       <Link
         href="/dashboard?tab=overview"
-        className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90 hover:text-white transition-colors"
+        className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90 hover:text-white transition-colors md:hidden"
       >
         Flowstate
       </Link>
+      <div className="hidden md:block" />{/* spacer to keep avatar right-aligned */}
 
       <div ref={menuRef} className="relative">
         {/* Avatar button */}

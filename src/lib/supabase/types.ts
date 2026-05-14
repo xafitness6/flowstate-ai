@@ -111,6 +111,8 @@ export interface Invite {
   id:                   string;
   invite_token:         string;
   invite_type:          "direct" | "open";
+  /** Role the new account will be granted on signup. "member" = self-directed, "client" = trainer-assigned. */
+  invite_role:          "member" | "client";
   invite_email:         string | null;
   first_name:           string | null;
   last_name:            string | null;
