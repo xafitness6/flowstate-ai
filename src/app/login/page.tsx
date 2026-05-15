@@ -188,6 +188,7 @@ function LoginPageContent() {
   const [siPassword, setSiPassword] = useState("");
   const [siShowPass, setSiShowPass] = useState(false);
   const [siError,    setSiError]    = useState<string | null>(null);
+  const [siNotice,   setSiNotice]   = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
 
   // Biometric
@@ -208,12 +209,20 @@ function LoginPageContent() {
       const params = new URLSearchParams(window.location.search);
       const authError = params.get("error");
       const reason = params.get("reason");
+      const notice = params.get("notice");
+      if (notice === "confirmation_used" || notice === "email_confirmed") {
+        setSiNotice("Your email is already confirmed. Sign in to continue onboarding.");
+      }
       if (authError === "auth") {
-        setSiError(
-          reason === "exchange"
-            ? "Sign-in started, but Supabase could not finish the callback. Check the production redirect URL and try again."
-            : "Sign-in could not be completed. Try email and password, or check the Supabase auth setup.",
-        );
+        if (reason === "confirm" || reason === "confirm_link") {
+          setSiNotice("That email link was already used or expired. Sign in to continue.");
+        } else {
+          setSiError(
+            reason === "exchange"
+              ? "Sign-in started, but Supabase could not finish the callback. Check the production redirect URL and try again."
+              : "Sign-in could not be completed. Try email and password, or check the Supabase auth setup.",
+          );
+        }
       } else if (authError === "archived") {
         setSiError("This account has been archived. Contact your admin to restore access.");
       }
@@ -678,7 +687,7 @@ function LoginPageContent() {
               <TextField
                 label="Email"
                 value={siEmail}
-                onChange={(v) => { setSiEmail(v); setSiError(null); }}
+                onChange={(v) => { setSiEmail(v); setSiError(null); setSiNotice(null); }}
                 autoComplete="email"
                 type="text"
                 error={!!siError}
@@ -688,12 +697,19 @@ function LoginPageContent() {
               <PasswordField
                 label="Password"
                 value={siPassword}
-                onChange={(v) => { setSiPassword(v); setSiError(null); }}
+                onChange={(v) => { setSiPassword(v); setSiError(null); setSiNotice(null); }}
                 show={siShowPass}
                 onToggle={() => setSiShowPass((v) => !v)}
                 autoComplete="current-password"
                 error={!!siError}
               />
+
+              {siNotice && (
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-3 py-2 text-xs leading-relaxed text-emerald-300/80">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                  <span>{siNotice}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-between min-h-[18px]">
                 {siError

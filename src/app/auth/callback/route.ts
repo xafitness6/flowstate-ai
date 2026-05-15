@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       type: tokenType as EmailOtpType,
     });
     if (verifyError) {
-      return NextResponse.redirect(`${origin}/login?error=auth&reason=confirm`);
+      return NextResponse.redirect(`${origin}/login?notice=confirmation_used`);
     }
     return NextResponse.redirect(`${origin}${safeNext ?? "/auth/finish"}`);
   }

@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.redirect(`${origin}/login?error=auth&reason=confirm`);
+    return NextResponse.redirect(`${origin}/login?notice=confirmation_used`);
   }
 
   return NextResponse.redirect(`${origin}${next}`);
