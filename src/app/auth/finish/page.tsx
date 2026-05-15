@@ -7,6 +7,7 @@ const ADMIN_EMAIL = "xavellis4@gmail.com";
 const EMAIL_KEY = "flowstate-session-email";
 const ID_KEY = "flowstate-session-id";
 const ROLE_KEYS = ["flowstate-active-role", "flowstate-session-role"];
+const PENDING_INVITE_TOKEN_KEY = "flowstate-pending-invite-token";
 
 function go(path: string) {
   window.location.replace(path);
@@ -42,6 +43,24 @@ function readCachedSupabaseUser(): { id?: string; email?: string; user_metadata?
 function getInviteToken(user: { user_metadata?: Record<string, unknown> } | null | undefined): string | null {
   const token = user?.user_metadata?.invite_token;
   return typeof token === "string" && token.length >= 16 ? token : null;
+}
+
+function getPendingInviteToken(): string | null {
+  try {
+    const token =
+      sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY) ||
+      localStorage.getItem(PENDING_INVITE_TOKEN_KEY);
+    return token && token.length >= 16 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingInviteToken() {
+  try {
+    sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+    localStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+  } catch { /* ignore */ }
 }
 
 function persistResolvedSession(userId: string) {
@@ -131,16 +150,33 @@ export default function AuthFinishPage() {
         clearStaleAdminMarkers();
         persistResolvedSession(user.id);
 
-        const inviteToken = getInviteToken(user);
-        if (inviteToken) {
+        const inviteTokens = [
+          getPendingInviteToken(),
+          getInviteToken(user),
+        ].filter((token, index, all): token is string =>
+          Boolean(token) && all.indexOf(token) === index,
+        );
+
+        if (inviteTokens.length > 0) {
           setMessage("Finishing your invite...");
-          const inviteRes = await withTimeout(
-            fetch(`/api/invites/${encodeURIComponent(inviteToken)}`, { method: "POST" }),
-            5000,
-            "invite acceptance",
-          );
-          if (!inviteRes.ok) {
-            console.error("[auth/finish] invite acceptance failed:", await inviteRes.text().catch(() => ""));
+          let accepted = false;
+          let lastError = "";
+          for (const inviteToken of inviteTokens) {
+            const inviteRes = await withTimeout(
+              fetch(`/api/invites/${encodeURIComponent(inviteToken)}`, { method: "POST" }),
+              5000,
+              "invite acceptance",
+            );
+            if (inviteRes.ok) {
+              clearPendingInviteToken();
+              try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
+              accepted = true;
+              break;
+            }
+            lastError = await inviteRes.text().catch(() => "");
+          }
+          if (!accepted) {
+            console.error("[auth/finish] invite acceptance failed:", lastError);
             go("/login?error=invite&reason=accept");
             return;
           }

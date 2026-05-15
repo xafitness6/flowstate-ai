@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { Invite } from "@/lib/invites";
 import type { Invite as DBInvite } from "@/lib/supabase/types";
 
+const PENDING_INVITE_TOKEN_KEY = "flowstate-pending-invite-token";
+
 function dbInviteToLocal(invite: DBInvite): Invite {
   return {
     inviteId:            invite.id,
@@ -38,6 +40,20 @@ function seedSession(userId: string) {
 
 function shouldConsumeLocalInvite(invite: Invite) {
   return Boolean(invite.inviteEmail);
+}
+
+function rememberPendingInvite(token: string) {
+  try {
+    localStorage.setItem(PENDING_INVITE_TOKEN_KEY, token);
+    sessionStorage.setItem(PENDING_INVITE_TOKEN_KEY, token);
+  } catch { /* ignore */ }
+}
+
+function clearPendingInvite() {
+  try {
+    localStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+    sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+  } catch { /* ignore */ }
 }
 
 async function acceptInviteOnServer(token: string) {
@@ -172,6 +188,7 @@ export default function InvitePage() {
       if (!check.valid) { setLoadError(check.reason ?? "This invite is no longer valid."); return; }
 
       setInvite(inv);
+      rememberPendingInvite(token);
       // Pre-fill known fields
       const fullName = `${inv.firstName} ${inv.lastName}`.trim();
       setName(fullName);
@@ -250,6 +267,7 @@ export default function InvitePage() {
               return;
             }
             if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+            clearPendingInvite();
             seedSession(signInData.user.id);
             // Flag this user as an invite signup — the calibration flow uses
             // this to force them through deep-cal (8–12 min) since being
@@ -285,6 +303,7 @@ export default function InvitePage() {
           return;
         }
         if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+        clearPendingInvite();
         seedSession(data.user.id);
         try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
         setAccepted(true);
@@ -318,6 +337,7 @@ export default function InvitePage() {
       }
       // Sign in existing account
       if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+      clearPendingInvite();
       seedSession(existing.id);
       setAccepted(true);
       setTimeout(() => router.replace(resolvePostLoginRoute(existing.id)), 1800);
@@ -326,6 +346,7 @@ export default function InvitePage() {
 
     // New account created
     if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
+    clearPendingInvite();
     seedSession(result.id);
     try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
     setAccepted(true);

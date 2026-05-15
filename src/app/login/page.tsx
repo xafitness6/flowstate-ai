@@ -29,6 +29,7 @@ type AuthUserMetadata = Record<string, unknown>;
 const LS_KEY = "flowstate-active-role";
 const SS_KEY = "flowstate-session-role";
 const EMAIL_KEY = "flowstate-session-email";
+const PENDING_INVITE_TOKEN_KEY = "flowstate-pending-invite-token";
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,6 +71,24 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 function getInviteToken(metadata?: AuthUserMetadata | null): string | null {
   const token = metadata?.invite_token;
   return typeof token === "string" && token.length >= 16 ? token : null;
+}
+
+function getPendingInviteToken(): string | null {
+  try {
+    const token =
+      sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY) ||
+      localStorage.getItem(PENDING_INVITE_TOKEN_KEY);
+    return token && token.length >= 16 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingInviteToken() {
+  try {
+    sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+    localStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+  } catch { /* ignore */ }
 }
 
 function friendlyInviteError(message: string): string {
@@ -328,22 +347,35 @@ function LoginPageContent() {
   }
 
   async function acceptInviteFromMetadata(metadata?: AuthUserMetadata | null) {
-    const inviteToken = getInviteToken(metadata);
-    if (!inviteToken) return null;
-
-    const res = await withTimeout(
-      fetch(`/api/invites/${encodeURIComponent(inviteToken)}`, {
-        method: "POST",
-        cache:  "no-store",
-      }),
-      5000,
-      "invite acceptance",
+    const tokens = [
+      getPendingInviteToken(),
+      getInviteToken(metadata),
+    ].filter((token, index, all): token is string =>
+      Boolean(token) && all.indexOf(token) === index,
     );
-    const body = await res.json().catch(() => ({})) as { role?: string; error?: string };
-    if (!res.ok) {
-      throw new Error(friendlyInviteError(body.error ?? ""));
+
+    if (tokens.length === 0) return null;
+
+    let lastError = "";
+    for (const inviteToken of tokens) {
+      const res = await withTimeout(
+        fetch(`/api/invites/${encodeURIComponent(inviteToken)}`, {
+          method: "POST",
+          cache:  "no-store",
+        }),
+        5000,
+        "invite acceptance",
+      );
+      const body = await res.json().catch(() => ({})) as { role?: string; error?: string };
+      if (res.ok) {
+        clearPendingInviteToken();
+        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
+        return typeof body.role === "string" ? body.role : null;
+      }
+      lastError = body.error ?? "";
     }
-    return typeof body.role === "string" ? body.role : null;
+
+    throw new Error(friendlyInviteError(lastError));
   }
 
   async function routeSupabaseUser(
