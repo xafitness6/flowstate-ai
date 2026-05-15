@@ -5,6 +5,14 @@ import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supa
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 const ALLOWED_ROLES = new Set(["trainer", "client", "member"]);
+const PLAN_RANK = {
+  foundation:  1,
+  training:    2,
+  performance: 3,
+  coaching:    4,
+} as const;
+
+type Plan = keyof typeof PLAN_RANK;
 
 function nameParts(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -12,6 +20,24 @@ function nameParts(fullName: string) {
     firstName: parts[0] ?? "",
     lastName: parts.slice(1).join(" "),
   };
+}
+
+function isPlan(value: unknown): value is Plan {
+  return typeof value === "string" && value in PLAN_RANK;
+}
+
+function minimumPlanForRole(role: string): Plan {
+  if (role === "client" || role === "trainer") return "training";
+  return "foundation";
+}
+
+function resolveProfilePlan(existingPlan: unknown, role: string, isAdmin: boolean): Plan {
+  if (isAdmin) return "coaching";
+  const minimum = minimumPlanForRole(role);
+  if (isPlan(existingPlan) && PLAN_RANK[existingPlan] >= PLAN_RANK[minimum]) {
+    return existingPlan;
+  }
+  return minimum;
 }
 
 export async function POST() {
@@ -63,6 +89,7 @@ export async function POST() {
       : ALLOWED_ROLES.has(metadataRole)
         ? metadataRole
         : "client";
+  const plan = resolveProfilePlan(existingProfile?.plan, role, isAdmin);
 
   const { data, error: upsertError } = await (admin.from("profiles") as any)
     .upsert(
@@ -79,7 +106,7 @@ export async function POST() {
           (typeof metadata.assigned_trainer_id === "string" && metadata.assigned_trainer_id
             ? metadata.assigned_trainer_id
             : null),
-        plan: isAdmin ? "coaching" : (existingProfile?.plan ?? "foundation"),
+        plan,
         default_dashboard: isAdmin ? "overview" : (existingProfile?.default_dashboard ?? "dashboard"),
         push_level: existingProfile?.push_level ?? 5,
         subscription_status: isAdmin ? "active" : (existingProfile?.subscription_status ?? "active"),

@@ -37,31 +37,36 @@ export function DeepCalPrompt({ userId }: { userId: string }) {
 
   return (
     <div className={cn(
-      "rounded-2xl border border-[#B48B40]/25 bg-[#B48B40]/[0.06] px-4 py-3",
-      "flex items-center gap-3"
+      "rounded-2xl border border-[#B48B40]/35 bg-gradient-to-br from-[#B48B40]/[0.10] to-[#B48B40]/[0.04]",
+      "px-4 py-3.5 sm:px-5 sm:py-4 relative",
+      "flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4",
     )}>
-      <Zap className="w-4 h-4 text-[#B48B40] shrink-0" strokeWidth={1.5} />
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-white/75">
-          Complete your profile for stronger coaching
-        </p>
-        <p className="text-[11px] text-white/35 mt-0.5">
-          Deep calibration gives your AI coach the data it needs to dial in your program and nutrition.
-        </p>
-      </div>
-      <Link
-        href="/onboarding/deep-calibration"
-        className="text-xs font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors shrink-0"
-      >
-        Continue →
-      </Link>
       <button
         onClick={dismiss}
-        className="text-white/22 hover:text-white/50 transition-colors shrink-0 ml-1"
+        className="absolute top-2.5 right-2.5 text-white/22 hover:text-white/55 transition-colors"
         aria-label="Dismiss"
       >
         <X className="w-3.5 h-3.5" strokeWidth={1.5} />
       </button>
+      <div className="flex items-center gap-3 flex-1 min-w-0 pr-6 sm:pr-0">
+        <div className="w-9 h-9 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/30 flex items-center justify-center shrink-0">
+          <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-white/90 leading-tight">
+            Get smarter coaching
+          </p>
+          <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
+            Spend ~15 minutes on deep calibration. Your AI coach gets your training history, real recovery data, and lifestyle context — and dials every workout and macro to you specifically.
+          </p>
+        </div>
+      </div>
+      <Link
+        href="/onboarding/deep-calibration"
+        className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-4 py-2 text-xs font-semibold hover:bg-[#c99840] transition-colors"
+      >
+        Start <span aria-hidden>→</span>
+      </Link>
     </div>
   );
 }

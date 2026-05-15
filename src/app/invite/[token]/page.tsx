@@ -251,6 +251,10 @@ export default function InvitePage() {
             }
             if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
             seedSession(signInData.user.id);
+            // Flag this user as an invite signup — the calibration flow uses
+            // this to force them through deep-cal (8–12 min) since being
+            // invited implies a serious user. Self-signups get basic only.
+            try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
             setAccepted(true);
             setTimeout(() => router.replace("/onboarding"), 800);
             return;
@@ -282,6 +286,7 @@ export default function InvitePage() {
         }
         if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
         seedSession(data.user.id);
+        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
         setAccepted(true);
         setTimeout(() => router.replace("/onboarding"), 800);
         return;
@@ -297,7 +302,7 @@ export default function InvitePage() {
     const result = createAccount(
       username.trim(),
       password,
-      "client",
+      invite.inviteRole,
       name.trim(),
       email.trim().toLowerCase(),
       { inviteToken: token, assignedTrainerId: invite.assignedTrainerId },
@@ -322,6 +327,7 @@ export default function InvitePage() {
     // New account created
     if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
     seedSession(result.id);
+    try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
     setAccepted(true);
     setTimeout(() => router.replace(resolvePostLoginRoute(result.id)), 1800);
   }

@@ -268,10 +268,18 @@ export default function CalibrationPage() {
     const plan = generateStarterPlan(intake);
     saveStarterPlan(userId, plan);
 
+    // Invite-link signups are required to go through deep calibration before
+    // the tutorial — they were personally invited, so the bar for data quality
+    // is higher. Self-signups skip straight to the tutorial; they can opt into
+    // deep cal later from the dashboard / program page.
+    let viaInvite = false;
+    try { viaInvite = localStorage.getItem("flowstate-via-invite") === "true"; } catch { /* ignore */ }
+    const nextRoute = viaInvite ? "/onboarding/deep-calibration" : "/onboarding/tutorial";
+
     const fallback = window.setTimeout(() => {
-      window.location.assign("/onboarding/tutorial");
+      window.location.assign(nextRoute);
     }, 900);
-    router.replace("/onboarding/tutorial");
+    router.replace(nextRoute);
 
     // Fire DB writes in the background — never block the user on network.
     // The plan + intake are already in localStorage, so /dashboard renders

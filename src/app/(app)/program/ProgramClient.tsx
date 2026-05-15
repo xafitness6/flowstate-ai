@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
 import {
   loadActiveProgramForUser, getLogsThisWeekForUser, getWorkoutLogsForUser, getNextWorkout,
   type ActiveProgram, type Workout, type WorkoutLog,
@@ -204,6 +205,11 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
       </div>
 
       <div className="relative px-5 md:px-8 pt-8 max-w-3xl mx-auto">
+        {/* Smarter-coaching upsell — visible until deep cal is done or user dismisses */}
+        <div className="mb-6">
+          <DeepCalPrompt userId={user.id} />
+        </div>
+
         {/* ── 1. Header strip: active program identity ── */}
         <div className="mb-6">
           <div className="flex items-start justify-between gap-3 mb-4">

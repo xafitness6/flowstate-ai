@@ -3,8 +3,34 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supabase/env";
 import type { Invite } from "@/lib/supabase/types";
 
+type InviteRole = "member" | "client";
+type InvitePlan = "foundation" | "training" | "performance" | "coaching";
+
+const PLAN_RANK: Record<InvitePlan, number> = {
+  foundation:  1,
+  training:    2,
+  performance: 3,
+  coaching:    4,
+};
+
 function isExpired(invite: Invite): boolean {
   return Boolean(invite.expires_at && new Date(invite.expires_at).getTime() < Date.now());
+}
+
+function isPlan(value: unknown): value is InvitePlan {
+  return typeof value === "string" && value in PLAN_RANK;
+}
+
+function minimumPlanForRole(role: InviteRole): InvitePlan {
+  return role === "client" ? "training" : "foundation";
+}
+
+function resolveInvitePlan(existingPlan: unknown, role: InviteRole): InvitePlan {
+  const minimum = minimumPlanForRole(role);
+  if (isPlan(existingPlan) && PLAN_RANK[existingPlan] >= PLAN_RANK[minimum]) {
+    return existingPlan;
+  }
+  return minimum;
 }
 
 function splitName(fullName: string) {
@@ -124,7 +150,8 @@ export async function POST(
     .eq("id", user.id)
     .maybeSingle();
 
-  const role = invite.invite_role === "member" ? "member" : "client";
+  const role: InviteRole = invite.invite_role === "member" ? "member" : "client";
+  const plan = resolveInvitePlan(existingProfile?.plan, role);
   const now = new Date().toISOString();
 
   const { error: profileError } = await admin
@@ -139,7 +166,7 @@ export async function POST(
         role,
         is_admin: false,
         assigned_trainer_id: invite.assigned_trainer_id ?? existingProfile?.assigned_trainer_id ?? null,
-        plan: existingProfile?.plan ?? (role === "client" ? "training" : "foundation"),
+        plan,
         default_dashboard: existingProfile?.default_dashboard ?? "dashboard",
         push_level: existingProfile?.push_level ?? 5,
         subscription_status: existingProfile?.subscription_status ?? "active",

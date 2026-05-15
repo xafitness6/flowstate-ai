@@ -251,8 +251,12 @@ export default function DeepCalibrationPage() {
       })();
     }
 
+    // Clear the invite-link signal — deep cal is done, the tutorial should
+    // only fire once from this completion point regardless of source.
+    try { localStorage.removeItem("flowstate-via-invite"); } catch { /* ignore */ }
+
     setSaving(false);
-    router.replace("/program");
+    router.replace("/onboarding/tutorial");
   }
 
   const progress = useMemo(() => ((stepIdx + 1) / STEPS.length) * 100, [stepIdx]);
