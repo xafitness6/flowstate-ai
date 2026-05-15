@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import type { MockUser, Plan, Role } from "@/types";
+import type { Profile } from "@/lib/supabase/types";
 import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
@@ -126,6 +127,35 @@ function loadDemoUser(): MockUser | null {
   return null;
 }
 
+/**
+ * Build a usable identity straight from the Supabase session when the
+ * `profiles` row can't be read. NEVER fall back to a DEMO_USERS persona for a
+ * real session — that's what made a logged-in user show as "Luca Ferretti".
+ * Uses the real UUID + the name/role captured in auth metadata at signup.
+ */
+function sessionToMockUser(sessionUser: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+}): MockUser {
+  const meta = sessionUser.user_metadata ?? {};
+  const metaName = typeof meta.full_name === "string" ? meta.full_name.trim() : "";
+  const first = typeof meta.first_name === "string" ? meta.first_name.trim() : "";
+  const last  = typeof meta.last_name === "string" ? meta.last_name.trim() : "";
+  const metaRole = typeof meta.role === "string" ? meta.role : "";
+  const role: Role = (["member", "client", "trainer", "master"] as const).includes(metaRole as Role)
+    ? (metaRole as Role)
+    : "member";
+  return applyEarlyAccess({
+    ...DEMO_USERS.member,                       // sane push-level / dashboard defaults only
+    id:                 sessionUser.id,         // real UUID — critical for DB reads
+    name:               metaName || `${first} ${last}`.trim() || sessionUser.email || "Your account",
+    role,
+    plan:               "foundation",
+    subscriptionStatus: "inactive",
+  });
+}
+
 type UserContextValue = {
   user:        MockUser;
   isLoading:   boolean;  // true until user identity is fully resolved (async)
@@ -212,9 +242,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         } else if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
           setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
         } else {
-          // Profile row not ready yet (new user, DB trigger pending).
-          // Use the correct UUID so routing checks have the real user ID.
-          setUser(prev => applyEarlyAccess({ ...prev, id: session.user.id }));
+          // No profiles row — the handle_new_user trigger may not have fired
+          // or a prior sync failed. Recover it server-side (service role),
+          // then refetch once. Only if that still fails do we fall back to a
+          // session-derived identity (never the demo "member" persona).
+          let recovered: Profile | null = null;
+          try {
+            await fetch("/api/auth/sync-profile", { method: "POST" });
+            recovered = await getMyProfile();
+          } catch { /* ignore — use session identity below */ }
+          if (cancelled) return;
+          setUser(recovered
+            ? applyEarlyAccess(profileToMockUser(recovered))
+            : sessionToMockUser(session.user));
         }
         setIsSupabase(true);
       } catch (error) {
@@ -224,7 +264,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
           setIsSupabase(true);
         } else {
-          setUser(prev => applyEarlyAccess({ ...prev, id: session.user.id }));
+          setUser(sessionToMockUser(session.user));
           setIsSupabase(true);
         }
       } finally {
