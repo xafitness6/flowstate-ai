@@ -1,20 +1,12 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { OnboardingState, Profile } from "@/lib/supabase/types";
+import { decideOnboardingRoute } from "@/lib/onboardingRoute";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
-
-function resolveOnboardingRoute(state: OnboardingState | null): string | null {
-  if (!state) return "/onboarding/walkthrough";
-  if (!state.walkthrough_seen && !state.onboarding_complete) return "/onboarding/walkthrough";
-  if (!state.onboarding_complete) return "/onboarding/calibration";
-  if (!state.program_generated || !state.profile_complete) return "/onboarding/calibration";
-  if (!state.tutorial_complete) return "/onboarding/tutorial";
-  return null;
-}
 
 function finalRoute(profile: Pick<Profile, "role"> | null): string {
   if (profile?.role === "trainer") return "/trainers";
@@ -59,6 +51,6 @@ export default async function Root() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const blocker = resolveOnboardingRoute(onboarding as OnboardingState | null);
+  const blocker = decideOnboardingRoute(onboarding as OnboardingState | null);
   redirect(blocker ?? finalRoute(profile as Pick<Profile, "role"> | null));
 }

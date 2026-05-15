@@ -131,6 +131,8 @@ export default function TutorialPage() {
     if (finishing) return;
     setFinishing(true);
 
+    // 1. Local completion + a sessionStorage breadcrumb. The AppShell guard
+    //    reads this flag so it never bounces a user who just finished.
     try {
       const storedUserId = readStoredUserId();
       completeTutorial(storedUserId);
@@ -139,37 +141,43 @@ export default function TutorialPage() {
       console.warn("[tutorial] local completion skipped:", error);
     }
 
+    // 2. Persist tutorial_complete SERVER-SIDE *before* navigating. The API
+    //    uses the service-role client so it bypasses RLS and is a single fast
+    //    upsert. Doing this before the redirect means /program's guard sees
+    //    tutorial_complete=true on its first read — no race, no bounce.
+    //    A timeout guarantees a slow network can never trap the user here.
+    try {
+      const userId = await getActiveUserId();
+      completeTutorial(userId);
+      if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        const response = await withTimeout(
+          fetch("/api/onboarding/tutorial-complete", { method: "POST", cache: "no-store" }),
+          4000,
+          "tutorial complete API",
+        ).catch(() => null);
+
+        if (!response || !response.ok) {
+          // Endpoint missing / service role unset — fall back to a browser
+          // upsert. If RLS blocks it, the sessionStorage flag + guard reorder
+          // still get the user through.
+          const { upsertOnboardingState } = await import("@/lib/db/onboarding");
+          await withTimeout(
+            upsertOnboardingState(userId, { tutorial_complete: true }),
+            4000,
+            "tutorial sync",
+          ).catch(() => {});
+        }
+      }
+    } catch (error) {
+      console.warn("[tutorial] server completion skipped:", error);
+    }
+
+    // 3. Navigate. router.replace for the SPA path; a hard fallback in case
+    //    the client transition is interrupted.
     router.replace("/program");
     window.setTimeout(() => {
       if (window.location.pathname !== "/program") window.location.assign("/program");
     }, 700);
-
-    void (async () => {
-      const userId = await getActiveUserId();
-      completeTutorial(userId);
-
-      if (!UUID_RE.test(userId) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
-      try {
-        const response = await withTimeout(
-          fetch("/api/onboarding/tutorial-complete", {
-            method: "POST",
-            cache: "no-store",
-          }),
-          3500,
-          "tutorial complete API",
-        );
-        if (response.ok) return;
-
-        const { upsertOnboardingState } = await import("@/lib/db/onboarding");
-        await withTimeout(
-          upsertOnboardingState(userId, { tutorial_complete: true }),
-          3500,
-          "tutorial sync",
-        );
-      } catch (error) {
-        console.warn("[tutorial] tutorial sync skipped:", error);
-      }
-    })();
   }
 
   function goNext() {

@@ -132,6 +132,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        const supabaseUserId = sessionUser.id;
+        const { resolveOnboardingRoute, upsertOnboardingState } = await import("@/lib/db/onboarding");
+
+        // Escape hatch FIRST — before any DB round-trips. A user who just
+        // finished the tutorial must pass even if the profile/onboarding
+        // queries below are slow or reject (which would otherwise throw out
+        // of guard() and redirect to /auth/finish → /onboarding → loop).
+        const justFinishedTutorial = (() => {
+          try { return sessionStorage.getItem("flowstate-tutorial-finished") === "true"; }
+          catch { return false; }
+        })();
+        if (justFinishedTutorial) {
+          syncTutorialComplete(() => upsertOnboardingState(supabaseUserId, { tutorial_complete: true }));
+          setReady(true);
+          return;
+        }
+
         // Archived users are locked out of the app shell. This column was added
         // after launch, so treat query errors as non-blocking to avoid wedging the
         // whole app during a code/schema deployment mismatch.
@@ -143,18 +160,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         if (!archivedError && archivedCheck?.archived_at) {
           await signOutEverywhere({ redirect: "/login?error=archived" });
-          return;
-        }
-
-        const supabaseUserId = sessionUser.id;
-        const { resolveOnboardingRoute, upsertOnboardingState } = await import("@/lib/db/onboarding");
-        const justFinishedTutorial = (() => {
-          try { return sessionStorage.getItem("flowstate-tutorial-finished") === "true"; }
-          catch { return false; }
-        })();
-        if (justFinishedTutorial) {
-          syncTutorialComplete(() => upsertOnboardingState(supabaseUserId, { tutorial_complete: true }));
-          setReady(true);
           return;
         }
 

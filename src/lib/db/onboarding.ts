@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { OnboardingState } from "@/lib/supabase/types";
+import { decideOnboardingRoute } from "@/lib/onboardingRoute";
 
 export type OnboardingUpdate = Partial<
   Omit<OnboardingState, "id" | "user_id" | "created_at" | "updated_at">
@@ -68,14 +69,10 @@ export async function resetOnboardingState(userId: string): Promise<void> {
   });
 }
 
-/** Resolve the correct onboarding route for a user. Returns null if onboarding complete. */
+/** Resolve the correct onboarding route for a user. Returns null if onboarding complete.
+ *  Decision logic lives in the shared pure `decideOnboardingRoute` so the
+ *  server root (`src/app/page.tsx`) and this client helper never drift. */
 export async function resolveOnboardingRoute(userId: string): Promise<string | null> {
   const state = await getOnboardingState(userId);
-  // No row yet — brand-new user, start at walkthrough
-  if (!state)                              return "/onboarding/walkthrough";
-  if (!state.walkthrough_seen && !state.onboarding_complete) return "/onboarding/walkthrough";
-  if (!state.onboarding_complete)          return "/onboarding/calibration";
-  if (!state.program_generated || !state.profile_complete) return "/onboarding/calibration";
-  if (!state.tutorial_complete)            return "/onboarding/tutorial";
-  return null; // fully onboarded
+  return decideOnboardingRoute(state);
 }
