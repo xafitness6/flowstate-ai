@@ -205,6 +205,7 @@ function PlanPicker({
 }) {
   const ref  = useRef<HTMLDivElement>(null);
   const open = openId === `plan:${userId}`;
+  const [menuDirection, setMenuDirection] = useState<"down" | "up">("down");
   const [saving, setSaving] = useState(false);
   const pc = PLAN_CFG[currentPlan as keyof typeof PLAN_CFG] ?? PLAN_CFG.foundation;
 
@@ -246,6 +247,8 @@ function PlanPicker({
         onClick={(e) => {
           e.stopPropagation();
           if (disabled) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          setMenuDirection(window.innerHeight - rect.bottom < 180 ? "up" : "down");
           setOpenId(open ? null : `plan:${userId}`);
         }}
         disabled={disabled || saving}
@@ -261,7 +264,10 @@ function PlanPicker({
         {!disabled && <ChevronDown className="w-3 h-3 text-white/30" strokeWidth={2} />}
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-44 rounded-xl border border-white/10 bg-[#1A1A1A] shadow-2xl z-50 overflow-hidden py-1">
+        <div className={cn(
+          "absolute left-0 w-44 rounded-xl border border-white/10 bg-[#1A1A1A] shadow-2xl z-50 overflow-hidden py-1",
+          menuDirection === "up" ? "bottom-full mb-1" : "top-full mt-1",
+        )}>
           {PLAN_ORDER.map((p) => {
             const cfg = PLAN_CFG[p as keyof typeof PLAN_CFG];
             const selected = p === currentPlan;
@@ -914,7 +920,7 @@ export default function AdminDashboard() {
       )}
 
       {/* ── User table ──────────────────────────────────────────────── */}
-      <div id="admin-users-table" className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden scroll-mt-6">
+      <div id="admin-users-table" className="rounded-2xl border border-white/6 bg-[#111111] overflow-visible scroll-mt-6">
         <div className="px-5 py-4 border-b border-white/[0.05] flex flex-col gap-3">
           {/* View toggle + summary */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">

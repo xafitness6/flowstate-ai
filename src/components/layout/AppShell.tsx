@@ -108,8 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             try {
               return (
                 dbBlocker === "/onboarding/tutorial" &&
-                sessionStorage.getItem("flowstate-tutorial-finished") === "true" &&
-                getSessionKey() === supabaseUserId
+                sessionStorage.getItem("flowstate-tutorial-finished") === "true"
               );
             } catch {
               return false;
