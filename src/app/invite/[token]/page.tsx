@@ -72,6 +72,10 @@ function isEmailRateLimit(message: string) {
   return normalized.includes("rate limit") || normalized.includes("too many") || normalized.includes("email rate");
 }
 
+function isExistingSupabaseSignupUser(user: { identities?: unknown[] | null } | null | undefined) {
+  return Boolean(user && Array.isArray(user.identities) && user.identities.length === 0);
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Field({
@@ -205,6 +209,7 @@ export default function InvitePage() {
   async function handleAccept(e: React.FormEvent) {
     e.preventDefault();
     if (!invite) return;
+    const activeInvite = invite;
     setFormError(null);
 
     if (!name.trim())         { setFormError("Please enter your name.");              return; }
@@ -221,6 +226,27 @@ export default function InvitePage() {
       const nameParts = name.trim().split(/\s+/).filter(Boolean);
       const firstName = invite.firstName || nameParts[0] || "";
       const lastName = invite.lastName || nameParts.slice(1).join(" ");
+
+      async function completeSignedInInvite(userId: string) {
+        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+        try {
+          await acceptInviteOnServer(token);
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : "Could not accept this invite.");
+          setLoading(false);
+          return false;
+        }
+        if (shouldConsumeLocalInvite(activeInvite)) acceptInvite(token);
+        clearPendingInvite();
+        seedSession(userId);
+        // Flag this user as an invite signup — the calibration flow uses
+        // this to force them through deep-cal (8–12 min) since being
+        // invited implies a serious user. Self-signups get basic only.
+        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
+        setAccepted(true);
+        setTimeout(() => router.replace("/onboarding"), 800);
+        return true;
+      }
 
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -258,23 +284,7 @@ export default function InvitePage() {
           });
 
           if (!signInError && signInData.user) {
-            try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-            try {
-              await acceptInviteOnServer(token);
-            } catch (e) {
-              setFormError(e instanceof Error ? e.message : "Could not accept this invite.");
-              setLoading(false);
-              return;
-            }
-            if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
-            clearPendingInvite();
-            seedSession(signInData.user.id);
-            // Flag this user as an invite signup — the calibration flow uses
-            // this to force them through deep-cal (8–12 min) since being
-            // invited implies a serious user. Self-signups get basic only.
-            try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
-            setAccepted(true);
-            setTimeout(() => router.replace("/onboarding"), 800);
+            await completeSignedInInvite(signInData.user.id);
             return;
           }
 
@@ -287,6 +297,22 @@ export default function InvitePage() {
       }
 
       if (data.user) {
+        if (isExistingSupabaseSignupUser(data.user)) {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
+
+          if (!signInError && signInData.user) {
+            await completeSignedInInvite(signInData.user.id);
+            return;
+          }
+
+          setFormError("An account with that email already exists. Sign in from login or use forgot password.");
+          setLoading(false);
+          return;
+        }
+
         if (!data.session) {
           setConfirmationMessage("Check your email to confirm your account, then you'll continue onboarding.");
           setConfirmationSent(true);
@@ -294,20 +320,7 @@ export default function InvitePage() {
           return;
         }
 
-        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-        try {
-          await acceptInviteOnServer(token);
-        } catch (e) {
-          setFormError(e instanceof Error ? e.message : "Could not accept this invite.");
-          setLoading(false);
-          return;
-        }
-        if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
-        clearPendingInvite();
-        seedSession(data.user.id);
-        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
-        setAccepted(true);
-        setTimeout(() => router.replace("/onboarding"), 800);
+        await completeSignedInInvite(data.user.id);
         return;
       }
 

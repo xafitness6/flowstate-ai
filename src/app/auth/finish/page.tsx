@@ -99,6 +99,25 @@ function clearGhostSessionMarkers() {
   } catch { /* ignore */ }
 }
 
+async function acceptCurrentInviteByEmail(): Promise<boolean> {
+  try {
+    const res = await withTimeout(
+      fetch("/api/invites/accept-current", { method: "POST", cache: "no-store" }),
+      5000,
+      "current invite acceptance",
+    );
+    const body = await res.json().catch(() => ({})) as { ok?: boolean };
+    if (res.ok && body.ok) {
+      clearPendingInviteToken();
+      try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
+      return true;
+    }
+  } catch (error) {
+    console.warn("[auth/finish] email invite lookup skipped:", error);
+  }
+  return false;
+}
+
 export default function AuthFinishPage() {
   const [message, setMessage] = useState("Finishing sign in...");
 
@@ -157,9 +176,9 @@ export default function AuthFinishPage() {
           Boolean(token) && all.indexOf(token) === index,
         );
 
+        let acceptedInvite = false;
         if (inviteTokens.length > 0) {
           setMessage("Finishing your invite...");
-          let accepted = false;
           let lastError = "";
           for (const inviteToken of inviteTokens) {
             const inviteRes = await withTimeout(
@@ -170,16 +189,18 @@ export default function AuthFinishPage() {
             if (inviteRes.ok) {
               clearPendingInviteToken();
               try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
-              accepted = true;
+              acceptedInvite = true;
               break;
             }
             lastError = await inviteRes.text().catch(() => "");
           }
-          if (!accepted) {
-            console.error("[auth/finish] invite acceptance failed:", lastError);
-            go("/login?error=invite&reason=accept");
-            return;
+          if (!acceptedInvite && lastError) {
+            console.warn("[auth/finish] invite token acceptance skipped:", lastError);
           }
+        }
+        if (!acceptedInvite) {
+          setMessage("Checking your invite...");
+          await acceptCurrentInviteByEmail();
         }
 
         await withTimeout(

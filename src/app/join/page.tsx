@@ -46,6 +46,10 @@ async function acceptInviteOnServer(token: string) {
   }
 }
 
+function isExistingSupabaseSignupUser(user: { identities?: unknown[] | null } | null | undefined) {
+  return Boolean(user && Array.isArray(user.identities) && user.identities.length === 0);
+}
+
 // ─── Main form ────────────────────────────────────────────────────────────────
 
 function JoinForm() {
@@ -92,8 +96,26 @@ function JoinForm() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (supabaseUrl) {
       const supabase = createClient();
+      const cleanEmail = email.trim().toLowerCase();
+
+      async function completeSignedInUser(userId: string) {
+        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+        if (tokenParam) {
+          try {
+            await acceptInviteOnServer(tokenParam);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not accept this invite.");
+            setLoading(false);
+            return false;
+          }
+        }
+        seedSession(userId);
+        router.replace("/onboarding");
+        return true;
+      }
+
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email:    email.trim().toLowerCase(),
+        email:    cleanEmail,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/finish`,
@@ -114,21 +136,10 @@ function JoinForm() {
         // Email already registered — try signing in
         if (signUpError.message.toLowerCase().includes("already registered")) {
           const { data: siData, error: siErr } = await supabase.auth.signInWithPassword({
-            email: email.trim().toLowerCase(), password,
+            email: cleanEmail, password,
           });
           if (!siErr && siData.user) {
-            try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-            if (tokenParam) {
-              try {
-                await acceptInviteOnServer(tokenParam);
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "Could not accept this invite.");
-                setLoading(false);
-                return;
-              }
-            }
-            seedSession(siData.user.id);
-            router.replace("/onboarding");
+            await completeSignedInUser(siData.user.id);
             return;
           }
           setError("An account with that email already exists. Check your password.");
@@ -140,23 +151,28 @@ function JoinForm() {
       }
 
       if (data.user) {
+        if (isExistingSupabaseSignupUser(data.user)) {
+          const { data: siData, error: siErr } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
+          if (!siErr && siData.user) {
+            await completeSignedInUser(siData.user.id);
+            return;
+          }
+          setError("An account with that email already exists. Sign in from login or use forgot password.");
+          setLoading(false);
+          return;
+        }
+
         if (!data.session) {
           setConfirmationSent(true);
           setLoading(false);
           return;
         }
 
-        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-        if (tokenParam) {
-          try {
-            await acceptInviteOnServer(tokenParam);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "Could not accept this invite.");
-            setLoading(false);
-            return;
-          }
-        }
-        seedSession(data.user.id);
+        await completeSignedInUser(data.user.id);
+        return;
       } else {
         setConfirmationSent(true);
         setLoading(false);

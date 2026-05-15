@@ -354,8 +354,6 @@ function LoginPageContent() {
       Boolean(token) && all.indexOf(token) === index,
     );
 
-    if (tokens.length === 0) return null;
-
     let lastError = "";
     for (const inviteToken of tokens) {
       const res = await withTimeout(
@@ -375,7 +373,35 @@ function LoginPageContent() {
       lastError = body.error ?? "";
     }
 
-    throw new Error(friendlyInviteError(lastError));
+    const currentInviteRole = await acceptCurrentInviteByEmail();
+    if (currentInviteRole) return currentInviteRole;
+
+    if (lastError) {
+      console.warn("[login] invite token acceptance skipped:", lastError);
+    }
+    return null;
+  }
+
+  async function acceptCurrentInviteByEmail() {
+    try {
+      const res = await withTimeout(
+        fetch("/api/invites/accept-current", {
+          method: "POST",
+          cache:  "no-store",
+        }),
+        5000,
+        "current invite acceptance",
+      );
+      const body = await res.json().catch(() => ({})) as { ok?: boolean; role?: string };
+      if (res.ok && body.ok) {
+        clearPendingInviteToken();
+        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
+        return typeof body.role === "string" ? body.role : null;
+      }
+    } catch (error) {
+      console.warn("[login] email invite lookup skipped:", error);
+    }
+    return null;
   }
 
   async function routeSupabaseUser(
