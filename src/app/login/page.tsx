@@ -251,12 +251,14 @@ function LoginPageContent() {
         } else {
           setSiError(
             reason === "exchange"
-              ? "Sign-in started, but Supabase could not finish the callback. Check the production redirect URL and try again."
-              : "Sign-in could not be completed. Try email and password, or check the Supabase auth setup.",
+              ? "Sign-in started, but could not be completed. Try signing in again."
+              : "Sign-in could not be completed. Try email and password again.",
           );
         }
+      } else if (authError === "invite") {
+        setSiError("Sign in with the email your coach invited to continue onboarding.");
       } else if (authError === "archived") {
-        setSiError("This account has been archived. Contact your admin to restore access.");
+        setSiError("This account is not currently active. Contact your coach for access.");
       }
     } catch { /* ignore */ }
 

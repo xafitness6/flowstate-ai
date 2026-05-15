@@ -174,15 +174,9 @@ export default function AuthFinishPage() {
         <div className="mx-auto h-8 w-8 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
         <div className="space-y-2">
           <p className="text-sm text-white/60">{message}</p>
-          <p className="text-xs text-white/25">If this does not move, use one of the buttons below.</p>
+          <p className="text-xs text-white/25">If this does not move, return to login and sign in again.</p>
         </div>
         <div className="flex items-center justify-center gap-2 pt-2">
-          <a
-            href="/admin"
-            className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white hover:bg-white/[0.04] transition-colors"
-          >
-            Open admin
-          </a>
           <a
             href="/login"
             className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white hover:bg-white/[0.04] transition-colors"
