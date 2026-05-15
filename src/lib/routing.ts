@@ -49,7 +49,11 @@ function getOnboardingBlocker(userId: string): string | null {
   // defaulting to false — don't retroactively block them.
   if (!s.walkthrough_seen && !s.onboardingComplete) return "/onboarding/walkthrough";
   if (!s.onboardingComplete) return "/onboarding/calibration";
-  // Legacy: users mid-way through the old multi-step flow still get routed correctly
+  if (s.profileComplete && s.programGenerated && s.tutorialComplete) return null;
+  if (s.profileComplete && s.programGenerated && !s.tutorialComplete) return "/onboarding/tutorial";
+  // Legacy: users mid-way through the old multi-step flow still get routed correctly.
+  // New calibration sets these complete in one pass, so fresh users should never
+  // see these pages.
   if (!s.bodyFocusComplete)            return "/onboarding/body-focus";
   if (!s.planningConversationComplete) return "/onboarding/coach-planning";
   if (!s.programGenerated)             return "/onboarding/program-generation";

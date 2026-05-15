@@ -292,6 +292,8 @@ export function getOnboardingRoute(userId: string): string | null {
   const s = loadOnboardingState(userId);
   if (!s.walkthrough_seen && !s.onboardingComplete) return "/onboarding/walkthrough";
   if (!s.onboardingComplete)           return "/onboarding/calibration";
+  if (s.profileComplete && s.programGenerated && s.tutorialComplete) return null;
+  if (s.profileComplete && s.programGenerated && !s.tutorialComplete) return "/onboarding/tutorial";
   if (!s.bodyFocusComplete)            return "/onboarding/body-focus";
   if (!s.planningConversationComplete) return "/onboarding/coach-planning";
   if (!s.programGenerated)             return "/onboarding/program-generation";
