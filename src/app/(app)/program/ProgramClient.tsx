@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
 import {
-  loadActiveProgramForUser, getLogsThisWeekForUser, getWorkoutLogsForUser, getNextWorkout,
+  loadActiveProgram, loadActiveProgramForUser, getLogsThisWeekForUser, getWorkoutLogsForUser, getNextWorkout,
   type ActiveProgram, type Workout, type WorkoutLog,
 } from "@/lib/workout";
 
@@ -280,19 +280,37 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
     setLoadingProgram(true);
 
     (async () => {
-      const [prog, wLogs, allLogs] = await Promise.all([
-        loadActiveProgramForUser(user.id).catch(() => null),
+      const cached = loadActiveProgram(user.id);
+      if (cached && active) {
+        setProgram(cached);
+        setNextWo(getNextWorkout(cached, []));
+        setLoadingProgram(false);
+      }
+
+      const prog = await loadActiveProgramForUser(user.id).catch(() => null);
+      if (!active) return;
+      const visibleProgram = prog ?? cached;
+
+      if (prog) {
+        setProgram(prog);
+        setNextWo(getNextWorkout(prog, []));
+      }
+      if (!visibleProgram) {
+        setLoadingProgram(false);
+        return;
+      }
+      setLoadingProgram(false);
+
+      const [wLogs, allLogs] = await Promise.all([
         getLogsThisWeekForUser(user.id).catch(() => [] as WorkoutLog[]),
         getWorkoutLogsForUser(user.id).catch(() => [] as WorkoutLog[]),
       ]);
 
       if (!active) return;
       const sortedLogs = allLogs.sort((a, b) => b.completedAt - a.completedAt);
-      setProgram(prog);
       setWeekLogs(wLogs);
       setRecentLogs(sortedLogs.slice(0, 5));
-      setNextWo(prog ? getNextWorkout(prog, wLogs) : null);
-      setLoadingProgram(false);
+      setNextWo(getNextWorkout(visibleProgram, wLogs));
     })();
 
     return () => { active = false; };

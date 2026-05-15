@@ -255,6 +255,7 @@ export default function CalibrationPage() {
 
     const starterPlan = generateStarterPlan(intake);
     saveStarterPlan(userId, starterPlan);
+    saveActiveProgram(userId, starterPlanToProgram(starterPlan));
 
     const STARTER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (STARTER_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -262,8 +263,6 @@ export default function CalibrationPage() {
       if (!saved) throw new Error("Could not save starter program.");
       const { markOnboardingComplete } = await import("@/lib/db/onboarding");
       await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
-    } else {
-      saveActiveProgram(userId, starterPlanToProgram(starterPlan));
     }
 
     completeOnboarding(userId, {

@@ -131,27 +131,35 @@ export default function TutorialPage() {
     if (finishing) return;
     setFinishing(true);
 
-    const userId = await getActiveUserId();
     try {
-      completeTutorial(userId);
+      const storedUserId = readStoredUserId();
+      completeTutorial(storedUserId);
       try { sessionStorage.setItem("flowstate-tutorial-finished", "true"); } catch { /* ignore */ }
+    } catch (error) {
+      console.warn("[tutorial] local completion skipped:", error);
+    }
 
-      if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    router.replace("/program");
+    window.setTimeout(() => {
+      if (window.location.pathname !== "/program") window.location.assign("/program");
+    }, 700);
+
+    void (async () => {
+      const userId = await getActiveUserId();
+      completeTutorial(userId);
+
+      if (!UUID_RE.test(userId) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+      try {
         const { upsertOnboardingState } = await import("@/lib/db/onboarding");
         await withTimeout(
           upsertOnboardingState(userId, { tutorial_complete: true }),
           3500,
           "tutorial sync",
         );
+      } catch (error) {
+        console.warn("[tutorial] tutorial sync skipped:", error);
       }
-    } catch (error) {
-      console.warn("[tutorial] tutorial completion skipped:", error);
-    } finally {
-      router.replace("/program");
-      window.setTimeout(() => {
-        if (window.location.pathname !== "/program") window.location.assign("/program");
-      }, 700);
-    }
+    })();
   }
 
   function goNext() {

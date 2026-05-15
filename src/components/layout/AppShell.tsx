@@ -101,19 +101,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         const supabaseUserId = session.user.id;
         const { resolveOnboardingRoute, upsertOnboardingState } = await import("@/lib/db/onboarding");
+        const justFinishedTutorial = (() => {
+          try { return sessionStorage.getItem("flowstate-tutorial-finished") === "true"; }
+          catch { return false; }
+        })();
+        if (justFinishedTutorial) {
+          void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
+          setReady(true);
+          return;
+        }
+
         const dbBlocker = await resolveOnboardingRoute(supabaseUserId);
         if (dbBlocker) {
           const localState = loadOnboardingState(supabaseUserId);
-          const justFinishedTutorial = (() => {
-            try {
-              return (
-                dbBlocker === "/onboarding/tutorial" &&
-                sessionStorage.getItem("flowstate-tutorial-finished") === "true"
-              );
-            } catch {
-              return false;
-            }
-          })();
 
           if (dbBlocker === "/onboarding/tutorial" && (localState.tutorialComplete || justFinishedTutorial)) {
             void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
