@@ -257,7 +257,7 @@ export default function CalibrationPage() {
     saveStarterPlan(userId, starterPlan);
     saveActiveProgram(userId, starterPlanToProgram(starterPlan));
 
-    const STARTER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const STARTER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (STARTER_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const payload = starterPlanToBuilderPayload(starterPlan);
       const apiResult = await fetch("/api/onboarding/starter-complete", {

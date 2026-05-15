@@ -12,7 +12,7 @@ import { signOutEverywhere } from "@/lib/auth/signOut";
 import { useUser }                        from "@/context/UserContext";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function clearFinishedOnboardingMarkers() {
   try {
