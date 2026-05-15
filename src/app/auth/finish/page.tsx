@@ -131,17 +131,25 @@ export default function AuthFinishPage() {
 
     const hardFallbackTimer = window.setTimeout(() => {
       if (cancelled) return;
-      go("/login?error=auth&reason=session_timeout");
-    }, 12000);
+      setMessage("This is taking longer than expected. You can return to the app or sign in again.");
+    }, 15000);
 
     async function finish() {
       try {
         const supabase = createClient();
         const { data: { session } } = await withTimeout(
           supabase.auth.getSession(),
-          2500,
+          10000,
           "Supabase getSession",
-        );
+        ).catch(async (error) => {
+          console.warn("[auth/finish] getSession skipped:", error);
+          const { data: { user } } = await withTimeout(
+            supabase.auth.getUser(),
+            5000,
+            "Supabase getUser",
+          );
+          return { data: { session: user ? { user } : null } };
+        });
         const cached = readCachedSupabaseUser();
         const user = session?.user ?? cached;
 
@@ -216,7 +224,7 @@ export default function AuthFinishPage() {
       } catch (error) {
         console.error("[auth/finish] failed:", error);
         if (cancelled) return;
-        go("/login?error=auth&reason=finish");
+        setMessage("We could not confirm your session automatically. Try returning to the app or sign in again.");
       }
     }
 
@@ -235,9 +243,15 @@ export default function AuthFinishPage() {
         <div className="mx-auto h-8 w-8 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
         <div className="space-y-2">
           <p className="text-sm text-white/60">{message}</p>
-          <p className="text-xs text-white/25">If this does not move, return to login and sign in again.</p>
+          <p className="text-xs text-white/25">If this does not move, return to the app or sign in again.</p>
         </div>
         <div className="flex items-center justify-center gap-2 pt-2">
+          <a
+            href="/"
+            className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white hover:bg-white/[0.04] transition-colors"
+          >
+            Return to app
+          </a>
           <a
             href="/login"
             className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white hover:bg-white/[0.04] transition-colors"

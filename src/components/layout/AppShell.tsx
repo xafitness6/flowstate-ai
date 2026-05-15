@@ -12,6 +12,7 @@ import { signOutEverywhere } from "@/lib/auth/signOut";
 import { useUser }                        from "@/context/UserContext";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function clearFinishedOnboardingMarkers() {
   try {
@@ -80,18 +81,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (supabaseConfigured) {
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
-        const sessionResult = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<never>((_, reject) =>
-            window.setTimeout(() => reject(new Error("Supabase session check timed out")), 5000),
-          ),
-        ]);
-        const { data: { session } } = sessionResult;
+        let sessionUser: { id: string; email?: string | null } | null = null;
+        let sessionCheckTimedOut = false;
 
-        if (!session) {
+        try {
+          const sessionResult = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise<never>((_, reject) =>
+              window.setTimeout(() => reject(new Error("Supabase session check timed out")), 10_000),
+            ),
+          ]);
+          sessionUser = sessionResult.data.session?.user ?? null;
+        } catch (error) {
+          sessionCheckTimedOut = true;
+          console.warn("[AppShell] Supabase session check skipped:", error);
+          try {
+            const userResult = await Promise.race([
+              supabase.auth.getUser(),
+              new Promise<never>((_, reject) =>
+                window.setTimeout(() => reject(new Error("Supabase user check timed out")), 5_000),
+              ),
+            ]);
+            sessionUser = userResult.data.user ?? null;
+          } catch (userError) {
+            console.warn("[AppShell] Supabase user fallback skipped:", userError);
+          }
+        }
+
+        if (!sessionUser) {
           // No Supabase session — fall back to demo session check
           const sessionKey = getSessionKey();
-          if (sessionKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionKey)) {
+          if (sessionCheckTimedOut && sessionKey && UUID_RE.test(sessionKey)) {
+            setReady(true);
+            return;
+          }
+          if (sessionKey && UUID_RE.test(sessionKey)) {
             // Ghost session: a UUID is in localStorage but Supabase has no session.
             // Do a full sign-out so no stale role/biometric/preference state leaks.
             void signOutEverywhere();
@@ -103,7 +127,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+        if (sessionUser.email?.trim().toLowerCase() === ADMIN_EMAIL) {
           setReady(true);
           return;
         }
@@ -114,7 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const { data: archivedCheck, error: archivedError } = await supabase
           .from("profiles")
           .select("archived_at")
-          .eq("id", session.user.id)
+          .eq("id", sessionUser.id)
           .maybeSingle();
 
         if (!archivedError && archivedCheck?.archived_at) {
@@ -122,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const supabaseUserId = session.user.id;
+        const supabaseUserId = sessionUser.id;
         const { resolveOnboardingRoute, upsertOnboardingState } = await import("@/lib/db/onboarding");
         const justFinishedTutorial = (() => {
           try { return sessionStorage.getItem("flowstate-tutorial-finished") === "true"; }
