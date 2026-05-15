@@ -5,8 +5,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { v2ToActiveProgram } from "@/lib/workout";
 import { isLegacyDays, isProgramSplitV2, legacyToV2 } from "@/lib/program/types";
-import { dbLogToLocal } from "@/lib/db/workoutLogs";
-import type { Program as DBProgram, WorkoutLog as DBWorkoutLog } from "@/lib/supabase/types";
+import type { Program as DBProgram } from "@/lib/supabase/types";
 import ProgramClient, { type ProgramSSRData } from "./ProgramClient";
 
 export const dynamic = "force-dynamic";
@@ -22,36 +21,16 @@ export default async function ProgramPage() {
       return <ProgramClient initial={null} />;
     }
 
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    weekStart.setHours(0, 0, 0, 0);
-
-    const [progRes, weekLogsRes, recentLogsRes] = await Promise.all([
-      supabase
-        .from("programs")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("workout_logs")
-        .select("*")
-        .eq("user_id", user.id)
-        .gte("completed_at", weekStart.toISOString())
-        .order("completed_at", { ascending: false }),
-      supabase
-        .from("workout_logs")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("completed_at", { ascending: false })
-        .limit(5),
-    ]);
+    const progRes = await supabase
+      .from("programs")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     const dbProgram = (progRes.data as DBProgram | null) ?? null;
-    const weekLogsRaw   = (weekLogsRes.data   as DBWorkoutLog[] | null) ?? [];
-    const recentLogsRaw = (recentLogsRes.data as DBWorkoutLog[] | null) ?? [];
 
     const program = dbProgram && isProgramSplitV2(dbProgram.weekly_split)
       ? v2ToActiveProgram(dbProgram, dbProgram.weekly_split)
@@ -64,8 +43,8 @@ export default async function ProgramPage() {
 
     initial = {
       program,
-      weekLogs:   weekLogsRaw.map(dbLogToLocal),
-      recentLogs: recentLogsRaw.map(dbLogToLocal),
+      weekLogs:   [],
+      recentLogs: [],
     };
   } catch (e) {
     console.warn("[program SSR] fetch failed:", e);

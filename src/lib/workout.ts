@@ -114,6 +114,7 @@ export type WorkoutLog = {
 const PROG_KEY = (uid: string) => `flowstate-generated-program-${uid}`;
 const LOGS_KEY = (uid: string) => `flowstate-workout-logs-${uid}`;
 const META_KEY = (uid: string) => `flowstate-program-meta-${uid}`;
+const ACTIVE_CACHE_KEY = (uid: string) => `flowstate-active-program-cache-${uid}`;
 const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isRealUser(userId: string): boolean {
@@ -420,6 +421,9 @@ function enrichExercise(
 // ─── Load active program ──────────────────────────────────────────────────────
 
 export function loadActiveProgram(userId: string): ActiveProgram | null {
+  const cached = loadActiveProgramSnapshot(userId);
+  if (cached) return cached;
+
   try {
     const raw = localStorage.getItem(PROG_KEY(userId));
     if (!raw) return null;
@@ -440,6 +444,33 @@ export function loadActiveProgram(userId: string): ActiveProgram | null {
   }
 }
 
+function isActiveProgramSnapshot(value: unknown): value is ActiveProgram {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ActiveProgram>;
+  return (
+    typeof candidate.programId === "string" &&
+    typeof candidate.name === "string" &&
+    Array.isArray(candidate.workouts)
+  );
+}
+
+export function loadActiveProgramSnapshot(userId: string): ActiveProgram | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_CACHE_KEY(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return isActiveProgramSnapshot(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveActiveProgramSnapshot(userId: string, program: ActiveProgram): void {
+  try {
+    localStorage.setItem(ACTIVE_CACHE_KEY(userId), JSON.stringify(program));
+  } catch { /* ignore */ }
+}
+
 export function saveActiveProgram(userId: string, stored: StoredProgram): void {
   try {
     const today = new Date().toISOString().split("T")[0];
@@ -448,6 +479,7 @@ export function saveActiveProgram(userId: string, stored: StoredProgram): void {
       programId: stored.id,
       startDate: today,
     } satisfies ProgramMeta));
+    saveActiveProgramSnapshot(userId, toActiveProgram(stored, { programId: stored.id, startDate: today }));
   } catch { /* ignore */ }
 }
 
@@ -460,7 +492,9 @@ export async function loadActiveProgramForUser(userId: string): Promise<ActivePr
 
       // v2 shape — built by the new builder + AI generator
       if (isProgramSplitV2(dbProgram.weekly_split)) {
-        return v2ToActiveProgram(dbProgram, dbProgram.weekly_split);
+        const active = v2ToActiveProgram(dbProgram, dbProgram.weekly_split);
+        saveActiveProgramSnapshot(userId, active);
+        return active;
       }
 
       // Legacy array-of-days shape (Phase 1 calibration, older saves)
@@ -485,6 +519,7 @@ export async function loadActiveProgramForUser(userId: string): Promise<ActivePr
         try {
           localStorage.setItem(PROG_KEY(userId), JSON.stringify(stored));
           localStorage.setItem(META_KEY(userId), JSON.stringify(meta));
+          saveActiveProgramSnapshot(userId, active);
         } catch { /* ignore */ }
         return active;
       }

@@ -13,7 +13,8 @@ import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
 import {
-  loadActiveProgram, loadActiveProgramForUser, getLogsThisWeekForUser, getWorkoutLogsForUser, getNextWorkout,
+  loadActiveProgram, loadActiveProgramForUser, saveActiveProgramSnapshot,
+  getLogsThisWeekForUser, getWorkoutLogsForUser, getNextWorkout,
   type ActiveProgram, type Workout, type WorkoutLog,
 } from "@/lib/workout";
 
@@ -269,25 +270,25 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
       setLoadingProgram(false);
       return;
     }
-    // SSR already populated state; re-fetch when SSR found no active program
-    // because onboarding may have just written it client-side.
     if (initial?.program) {
       setLoadingProgram(false);
-      return;
+      saveActiveProgramSnapshot(user.id, initial.program);
     }
 
     let active = true;
-    setLoadingProgram(true);
+    if (!initial?.program) setLoadingProgram(true);
 
     (async () => {
-      const cached = loadActiveProgram(user.id);
+      const cached = initial?.program ?? loadActiveProgram(user.id);
       if (cached && active) {
         setProgram(cached);
         setNextWo(getNextWorkout(cached, []));
         setLoadingProgram(false);
       }
 
-      const prog = await loadActiveProgramForUser(user.id).catch(() => null);
+      const prog = initial?.program
+        ? initial.program
+        : await loadActiveProgramForUser(user.id).catch(() => null);
       if (!active) return;
       const visibleProgram = prog ?? cached;
 
