@@ -54,7 +54,14 @@ export default function OnboardingRouter() {
               router.replace(`${next}?mode=personal`);
               return;
             }
-            router.replace(next ?? resolvePostLoginRoute(user.id, { role: profile?.role }));
+            const viaInvite = (() => {
+              try { return localStorage.getItem("flowstate-via-invite") === "true"; }
+              catch { return false; }
+            })();
+            const route = viaInvite && next === "/onboarding/walkthrough"
+              ? "/onboarding/calibration"
+              : next ?? resolvePostLoginRoute(user.id, { role: profile?.role });
+            router.replace(route);
             return;
           }
         } catch { /* fall through to localStorage path */ }
@@ -69,8 +76,12 @@ export default function OnboardingRouter() {
           void signOutEverywhere();
           return;
         }
+        const viaInvite = (() => {
+          try { return localStorage.getItem("flowstate-via-invite") === "true"; }
+          catch { return false; }
+        })();
         const next = resolvePostLoginRoute(key);
-        router.replace(next);
+        router.replace(viaInvite && next === "/onboarding/walkthrough" ? "/onboarding/calibration" : next);
       } catch {
         router.replace("/login");
       }

@@ -45,7 +45,7 @@ export async function markOnboardingComplete(
     body_focus_complete: true,
     planning_conversation_complete: true,
     program_generated: true,
-    tutorial_complete: true,
+    tutorial_complete: false,
     profile_complete: true,
     raw_answers: rawAnswers,
   });

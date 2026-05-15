@@ -9,6 +9,8 @@
 // Replace generateStarterPlan() with a real AI call when ready.
 
 import type { IntakeData } from "./data/intake";
+import type { BuilderProgramPayload } from "./db/programs";
+import type { ProgramSplitV2 } from "./program/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -245,6 +247,63 @@ export function starterPlanToProgram(plan: StarterPlan, programId?: string) {
       focus:     s.focus || s.name,
       exercises: defaultExercisesFor(s.focus, s.name),
     })),
+  };
+}
+
+function sessionMinutes(value: string): number {
+  const parsed = parseInt(value.replace("+", ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60;
+}
+
+function builderGoal(goal: string): BuilderProgramPayload["goal"] {
+  if (goal === "fat_loss") return "fat_loss";
+  if (goal === "strength") return "strength";
+  if (goal === "endurance" || goal === "general") return "performance";
+  return "hypertrophy";
+}
+
+export function starterPlanToBuilderPayload(plan: StarterPlan): BuilderProgramPayload {
+  const split: ProgramSplitV2 = {
+    version: 2,
+    phase: {
+      name: plan.phase,
+      weeks: plan.durationWeeks,
+      progression: {
+        type: "double_progression",
+        notes: "Start conservative, hit the top of the rep range, then add load next week.",
+      },
+    },
+    baseWeek: {
+      intent: `Build a reliable ${plan.split.toLowerCase()} foundation from your six-question calibration.`,
+      days: plan.sessions.map((session) => ({
+        dayOfWeek: DAY_INDEX[session.day] ?? 1,
+        kind: "training",
+        name: session.name,
+        focus: session.focus,
+        estimatedMinutes: sessionMinutes(plan.sessionLength),
+        exercises: defaultExercisesFor(session.focus, session.name).map((exercise) => ({
+          name: exercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          rest: parseInt(exercise.reps.split(/[–-]/)[0], 10) <= 8 ? "120s" : "90s",
+          weight: "",
+          note: exercise.note ?? "",
+        })),
+      })),
+    },
+    weekOverrides: {},
+  };
+
+  return {
+    name: "Starter Foundation Block",
+    goal: builderGoal(plan.goal),
+    weeks: plan.durationWeeks,
+    daysPerWeek: plan.daysPerWeek,
+    sessionMinutes: sessionMinutes(plan.sessionLength),
+    bodyFocus: [],
+    equipment: plan.equipment,
+    coachingNotes: plan.coachNote,
+    split,
   };
 }
 

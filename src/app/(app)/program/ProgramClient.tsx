@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Dumbbell, Play, ChevronRight, Zap, Plus, Clock,
-  CheckCircle2, BarChart2, Mic, Library,
+  CheckCircle2, BarChart2, Mic, Library, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -27,6 +27,8 @@ const GOAL_LABEL: Record<string, string> = {
   endurance:   "Endurance",
   recomp:      "Body Recomp",
 };
+
+type ProgramReveal = "starter" | "upgraded" | null;
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -135,6 +137,101 @@ function EmptyProgram() {
   );
 }
 
+function ProgramRevealBanner({
+  type,
+  program,
+  nextWo,
+  onDismiss,
+  onStart,
+}: {
+  type: Exclude<ProgramReveal, null>;
+  program: ActiveProgram;
+  nextWo: Workout | null;
+  onDismiss: () => void;
+  onStart: () => void;
+}) {
+  const isStarter = type === "starter";
+  const title = isStarter ? "Your starter plan is ready." : "Your program has been updated.";
+  const copy = isStarter
+    ? "Built from your six answers so you can start training now. Complete full calibration when you are ready to make it smarter."
+    : "Updated with your training history, injuries, schedule, food preferences, and coaching style.";
+  const goalLabel = GOAL_LABEL[program.goal] ?? program.goal;
+
+  return (
+    <div className="mb-6 rounded-2xl border border-[#B48B40]/35 bg-[#14100A] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="mt-0.5 w-9 h-9 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/30 flex items-center justify-center shrink-0">
+            <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.3} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-semibold tracking-tight text-white/95">{title}</p>
+            <p className="mt-1 text-sm text-white/48 leading-relaxed">{copy}</p>
+          </div>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="shrink-0 text-white/25 hover:text-white/60 transition-colors"
+          aria-label="Dismiss"
+        >
+          <X className="w-4 h-4" strokeWidth={1.6} />
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 text-left">
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/28">Plan</p>
+          <p className="mt-1 text-xs font-semibold text-white/78 truncate">{program.name}</p>
+        </div>
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/28">Goal</p>
+          <p className="mt-1 text-xs font-semibold text-white/78 truncate">{goalLabel}</p>
+        </div>
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/28">Schedule</p>
+          <p className="mt-1 text-xs font-semibold text-white/78">{program.daysPerWeek} days/wk</p>
+        </div>
+      </div>
+
+      {nextWo && (
+        <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48B40]/80">Next workout</p>
+          <p className="mt-1 text-sm font-semibold text-white/88">{nextWo.focus}</p>
+          <div className="mt-2 space-y-1">
+            {nextWo.exercises.slice(0, 3).map((exercise) => (
+              <div key={exercise.exerciseId} className="flex items-center gap-2 text-xs text-white/55">
+                <div className="w-1 h-1 rounded-full bg-white/25" />
+                <span className="truncate">{exercise.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-col sm:flex-row gap-2">
+        {nextWo && (
+          <button
+            onClick={onStart}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#B48B40] text-black px-4 py-3 text-sm font-bold hover:bg-[#c99840] transition-colors"
+          >
+            <Play className="w-4 h-4" strokeWidth={2.5} fill="currentColor" />
+            Start Workout
+          </button>
+        )}
+        {isStarter && (
+          <Link
+            href="/onboarding/deep-calibration"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white/72 hover:text-white hover:border-white/18 transition-colors"
+          >
+            Make this plan smarter
+            <ChevronRight className="w-4 h-4" strokeWidth={2} />
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export type ProgramSSRData = {
@@ -153,14 +250,34 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
   const [nextWo,     setNextWo]     = useState<Workout | null>(
     initial?.program ? getNextWorkout(initial.program, initial.weekLogs) : null,
   );
+  const [reveal,     setReveal]     = useState<ProgramReveal>(null);
+  const [loadingProgram, setLoadingProgram] = useState(!initial?.program);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem("flowstate-program-reveal");
+      if (stored === "starter" || stored === "upgraded") {
+        setReveal(stored);
+        sessionStorage.removeItem("flowstate-program-reveal");
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     if (userLoading) return;
-    if (!user?.id) return;
-    // SSR already populated state; only re-fetch for demo users (no SSR data).
-    if (initial !== null) return;
+    if (!user?.id) {
+      setLoadingProgram(false);
+      return;
+    }
+    // SSR already populated state; re-fetch when SSR found no active program
+    // because onboarding may have just written it client-side.
+    if (initial?.program) {
+      setLoadingProgram(false);
+      return;
+    }
 
     let active = true;
+    setLoadingProgram(true);
 
     (async () => {
       const [prog, wLogs, allLogs] = await Promise.all([
@@ -175,10 +292,22 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
       setWeekLogs(wLogs);
       setRecentLogs(sortedLogs.slice(0, 5));
       setNextWo(prog ? getNextWorkout(prog, wLogs) : null);
+      setLoadingProgram(false);
     })();
 
     return () => { active = false; };
   }, [user?.id, userLoading, initial]);
+
+  if (!program && loadingProgram) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-5 text-white">
+        <div className="text-center space-y-2">
+          <div className="mx-auto h-6 w-6 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
+          <p className="text-sm text-white/55">Opening your program...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!program) {
     return (
@@ -205,10 +334,21 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
       </div>
 
       <div className="relative px-5 md:px-8 pt-8 max-w-3xl mx-auto">
-        {/* Smarter-coaching upsell — visible until deep cal is done or user dismisses */}
-        <div className="mb-6">
-          <DeepCalPrompt userId={user.id} />
-        </div>
+        {reveal && (
+          <ProgramRevealBanner
+            type={reveal}
+            program={program}
+            nextWo={nextWo}
+            onDismiss={() => setReveal(null)}
+            onStart={() => nextWo && router.push(`/program/workout/${nextWo.workoutId}`)}
+          />
+        )}
+
+        {!reveal && user?.id && (
+          <div className="mb-6">
+            <DeepCalPrompt userId={user.id} />
+          </div>
+        )}
 
         {/* ── 1. Header strip: active program identity ── */}
         <div className="mb-6">

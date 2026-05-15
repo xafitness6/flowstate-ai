@@ -453,12 +453,18 @@ function LoginPageContent() {
     if (isAdmin) {
       destination = "/admin";
     } else {
+      const viaInvite = (() => {
+        try { return localStorage.getItem("flowstate-via-invite") === "true"; }
+        catch { return false; }
+      })();
       const blocker = await withTimeout(
         resolveOnboardingRoute(userId),
         3500,
         "onboarding route",
       ).catch(() => "/onboarding/walkthrough");
-      destination = blocker ?? resolvePostLoginRoute(userId, { role });
+      destination = viaInvite && blocker === "/onboarding/walkthrough"
+        ? "/onboarding/calibration"
+        : blocker ?? resolvePostLoginRoute(userId, { role });
     }
 
     if (opts.offerBiometric && bioAvailable && !hasSavedCredential()) {

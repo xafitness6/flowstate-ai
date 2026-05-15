@@ -6,7 +6,9 @@ import { ArrowRight, ArrowLeft, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveIntake, type IntakeData } from "@/lib/data/intake";
 import { completeOnboarding } from "@/lib/onboarding";
-import { generateStarterPlan, saveStarterPlan } from "@/lib/starterPlan";
+import { saveBuilderWorkoutForSelf } from "@/lib/db/programs";
+import { generateStarterPlan, saveStarterPlan, starterPlanToBuilderPayload, starterPlanToProgram } from "@/lib/starterPlan";
+import { saveActiveProgram } from "@/lib/workout";
 import { DEMO_USERS } from "@/context/UserContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -208,7 +210,7 @@ export default function CalibrationPage() {
     if (prev) navigate(prev);
   }
 
-  function finishOnboarding() {
+  async function finishOnboarding() {
     if (saving) return;
     setSaving(true);
     setSaveError(null);
@@ -251,55 +253,33 @@ export default function CalibrationPage() {
 
     saveIntake(userId, intake);
 
-    // Mark ALL onboarding steps as complete so AppShell clears every gate
+    const starterPlan = generateStarterPlan(intake);
+    saveStarterPlan(userId, starterPlan);
+
+    const STARTER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (STARTER_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const saved = await saveBuilderWorkoutForSelf(userId, starterPlanToBuilderPayload(starterPlan), true);
+      if (!saved) throw new Error("Could not save starter program.");
+      const { markOnboardingComplete } = await import("@/lib/db/onboarding");
+      await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
+    } else {
+      saveActiveProgram(userId, starterPlanToProgram(starterPlan));
+    }
+
     completeOnboarding(userId, {
       primaryGoal:   answers.primaryGoal,
-	      experience:    answers.experience,
-	      daysPerWeek:   answers.daysPerWeek,
-	      equipment:     answers.equipment,
-	      mainStruggle:  answers.mainStruggle.join(" · "),
+      experience:    answers.experience,
+      daysPerWeek:   answers.daysPerWeek,
+      equipment:     answers.equipment,
+      mainStruggle:  answers.mainStruggle.join(" · "),
       sessionLength: answers.sessionLength,
       weight:        "",
       weightUnit:    "lbs",
       injuries:      "",
     });
 
-    // Generate and persist starter plan (localStorage for quick UI access)
-    const plan = generateStarterPlan(intake);
-    saveStarterPlan(userId, plan);
-
-    // Invite-link signups are required to go through deep calibration before
-    // the tutorial — they were personally invited, so the bar for data quality
-    // is higher. Self-signups skip straight to the tutorial; they can opt into
-    // deep cal later from the dashboard / program page.
-    let viaInvite = false;
-    try { viaInvite = localStorage.getItem("flowstate-via-invite") === "true"; } catch { /* ignore */ }
-    const nextRoute = viaInvite ? "/onboarding/deep-calibration" : "/onboarding/tutorial";
-
-    const fallback = window.setTimeout(() => {
-      window.location.assign(nextRoute);
-    }, 900);
-    router.replace(nextRoute);
-
-    // Fire DB writes in the background — never block the user on network.
-    // The plan + intake are already in localStorage, so /dashboard renders
-    // immediately. If a write fails, the user can still navigate.
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      void (async () => {
-        try {
-          const { markOnboardingComplete } = await import("@/lib/db/onboarding");
-          const { syncGeneratedProgram }   = await import("@/lib/db/programs");
-          const { starterPlanToProgram }   = await import("@/lib/starterPlan");
-          await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
-          await syncGeneratedProgram(userId, starterPlanToProgram(plan));
-        } catch (err) {
-          console.error("[calibration] background sync failed:", err);
-        } finally {
-          window.clearTimeout(fallback);
-        }
-      })();
-    }
+    try { sessionStorage.setItem("flowstate-program-reveal", "starter"); } catch { /* ignore */ }
+    router.replace("/onboarding/tutorial");
 
     } catch (err) {
       console.error("[calibration] finish failed:", err);

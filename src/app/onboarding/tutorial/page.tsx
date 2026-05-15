@@ -74,11 +74,12 @@ const SS_KEY = "flowstate-session-role";
 const ROLE_TO_USER_ID: Record<string, string> = {
   master: "usr_001", trainer: "u4", client: "u1", member: "u6",
 };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getActiveUserId(): string {
   try {
     const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY) || "";
-    return ROLE_TO_USER_ID[key] ?? (key.startsWith("usr_") ? key : "anonymous");
+    return ROLE_TO_USER_ID[key] ?? (key.startsWith("usr_") || UUID_RE.test(key) ? key : "anonymous");
   } catch { return "anonymous"; }
 }
 
@@ -94,10 +95,25 @@ export default function TutorialPage() {
   const isLast   = index === STEPS.length - 1;
   const isFirst  = index === 0;
 
+  async function finishTutorial() {
+    const userId = getActiveUserId();
+    completeTutorial(userId);
+
+    if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      try {
+        const { upsertOnboardingState } = await import("@/lib/db/onboarding");
+        await upsertOnboardingState(userId, { tutorial_complete: true });
+      } catch (error) {
+        console.warn("[tutorial] tutorial sync skipped:", error);
+      }
+    }
+
+    router.push("/program");
+  }
+
   function goNext() {
     if (isLast) {
-      completeTutorial(getActiveUserId());
-      router.push("/program");
+      void finishTutorial();
       return;
     }
     setLeaving(true);
@@ -111,8 +127,7 @@ export default function TutorialPage() {
   }
 
   function handleSkip() {
-    completeTutorial(getActiveUserId());
-    router.push("/program");
+    void finishTutorial();
   }
 
   return (

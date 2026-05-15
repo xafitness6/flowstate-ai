@@ -440,6 +440,17 @@ export function loadActiveProgram(userId: string): ActiveProgram | null {
   }
 }
 
+export function saveActiveProgram(userId: string, stored: StoredProgram): void {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    localStorage.setItem(PROG_KEY(userId), JSON.stringify(stored));
+    localStorage.setItem(META_KEY(userId), JSON.stringify({
+      programId: stored.id,
+      startDate: today,
+    } satisfies ProgramMeta));
+  } catch { /* ignore */ }
+}
+
 export async function loadActiveProgramForUser(userId: string): Promise<ActiveProgram | null> {
   if (isRealUser(userId)) {
     try {

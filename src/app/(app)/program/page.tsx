@@ -4,7 +4,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { v2ToActiveProgram } from "@/lib/workout";
-import { isProgramSplitV2 } from "@/lib/program/types";
+import { isLegacyDays, isProgramSplitV2, legacyToV2 } from "@/lib/program/types";
 import { dbLogToLocal } from "@/lib/db/workoutLogs";
 import type { Program as DBProgram, WorkoutLog as DBWorkoutLog } from "@/lib/supabase/types";
 import ProgramClient, { type ProgramSSRData } from "./ProgramClient";
@@ -55,7 +55,12 @@ export default async function ProgramPage() {
 
     const program = dbProgram && isProgramSplitV2(dbProgram.weekly_split)
       ? v2ToActiveProgram(dbProgram, dbProgram.weekly_split)
-      : null;
+      : dbProgram && isLegacyDays(dbProgram.weekly_split)
+        ? v2ToActiveProgram(
+            dbProgram,
+            legacyToV2(dbProgram.weekly_split, dbProgram.goal, dbProgram.duration_weeks),
+          )
+        : null;
 
     initial = {
       program,

@@ -31,6 +31,19 @@ function daysCount(days: string[]): number {
   return Math.max(1, Math.min(7, days.length));
 }
 
+function aiGoal(goal: string): string {
+  if (goal === "fat_loss") return "fat_loss";
+  if (goal === "strength") return "strength";
+  if (goal === "endurance" || goal === "general") return "performance";
+  return "hypertrophy";
+}
+
+function sessionMinutes(value: unknown): number {
+  if (typeof value !== "string") return 60;
+  const parsed = parseInt(value.replace("+", ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Units = "metric" | "imperial";
@@ -204,59 +217,88 @@ export default function DeepCalibrationPage() {
     setSaving(true);
     setFinishStatus("Saving your answers…");
 
-    // Merge deep cal answers into onboarding state. The existing pattern saves
-    // intake data under `intakeData`; we tuck the deep cal under a `deep` key
-    // so the original intake stays accessible.
-    const existing = loadOnboardingState(userId);
-    saveOnboardingState(userId, {
-      hasCompletedDeepCal: true,
-      intakeData: { ...existing.intakeData, deep: answers } as typeof existing.intakeData,
-    });
-
-    try { localStorage.removeItem(DRAFT_KEY(userId)); } catch { /* ignore */ }
-
-    // Regenerate program in the background — AI gen can take 10–30s and we
-    // don't want the user stuck on a spinner. They land on /program; the
-    // page will re-fetch and pick up the new program once it's written.
-    if (UUID_RE.test(userId)) {
-      void (async () => {
-        try {
-          const primaryGoal = (existing.intakeData?.primaryGoal ?? "hypertrophy") as string;
-          const res = await fetch("/api/ai/program-generator", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({
-              goal:           primaryGoal,
-              weeks:          4,
-              daysPerWeek:    daysCount(answers.availableDays),
-              sessionMinutes: 60,
-              experience:     deriveExperience(answers.trainingYears),
-              equipment:      [],
-              bodyFocus:      [],
-              injuries:       answers.injuries.map((s) => s.toLowerCase().replace(/\s+/g, "_")),
-              style:          [answers.goalWhy, answers.triedNotWorked, answers.successIn90Days]
-                .filter(Boolean).join(" | ") || null,
-              athlete:        answers as unknown as Record<string, unknown>,
-            }),
-          });
-          const data = await res.json() as { payload?: BuilderProgramPayload; error?: string };
-          if (res.ok && data.payload) {
-            await saveBuilderWorkoutForSelf(userId, data.payload, true);
-          } else {
-            console.warn("[deep-cal] AI program gen failed:", data.error);
-          }
-        } catch (e) {
-          console.warn("[deep-cal] AI program gen errored:", e);
-        }
-      })();
+    if (!UUID_RE.test(userId)) {
+      const existing = loadOnboardingState(userId);
+      saveOnboardingState(userId, {
+        hasCompletedDeepCal: true,
+        intakeData: { ...existing.intakeData, deep: answers } as unknown as typeof existing.intakeData,
+      });
+      try {
+        localStorage.removeItem(DRAFT_KEY(userId));
+        localStorage.removeItem("flowstate-via-invite");
+        sessionStorage.setItem("flowstate-program-reveal", "upgraded");
+      } catch { /* ignore */ }
+      router.replace("/program");
+      return;
     }
 
-    // Clear the invite-link signal — deep cal is done, the tutorial should
-    // only fire once from this completion point regardless of source.
-    try { localStorage.removeItem("flowstate-via-invite"); } catch { /* ignore */ }
+    try {
+      const existing = loadOnboardingState(userId);
+      const intake = (existing.intakeData ?? {}) as Record<string, unknown> & {
+        primaryGoal?: string;
+        sessionLength?: string;
+        equipment?: string[];
+        injuries?: string;
+      };
+      setFinishStatus("Building your upgraded program…");
 
-    setSaving(false);
-    router.replace("/onboarding/tutorial");
+      const primaryGoal = (intake.primaryGoal ?? "hypertrophy") as string;
+      const res = await fetch("/api/ai/program-generator", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          goal:           aiGoal(primaryGoal),
+          weeks:          4,
+          daysPerWeek:    daysCount(answers.availableDays),
+          sessionMinutes: sessionMinutes(intake.sessionLength),
+          experience:     deriveExperience(answers.trainingYears),
+          equipment:      Array.isArray(intake.equipment) ? intake.equipment : [],
+          bodyFocus:      Array.isArray(existing.bodyFocusAreas) ? existing.bodyFocusAreas : [],
+          injuries:       [
+            ...answers.injuries,
+            answers.injuryDetails,
+            typeof intake.injuries === "string" ? intake.injuries : "",
+          ].filter(Boolean).map((s) => String(s).toLowerCase().replace(/\s+/g, "_")),
+          style:          [
+            answers.goalWhy,
+            answers.triedNotWorked,
+            answers.successIn90Days,
+            `Coach tone: ${answers.coachTone}`,
+            `Motivation: ${answers.motivationStyle}`,
+          ].filter(Boolean).join(" | ") || null,
+          athlete:        {
+            ...answers,
+            quickStart: intake,
+          } as unknown as Record<string, unknown>,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({})) as { payload?: BuilderProgramPayload; error?: string };
+      if (!res.ok || !data.payload) {
+        console.warn("[deep-cal] AI program gen failed:", data.error);
+        throw new Error(data.error ?? "Could not build your upgraded program.");
+      }
+
+      const saved = await saveBuilderWorkoutForSelf(userId, data.payload, true);
+      if (!saved) throw new Error("Could not save your upgraded program.");
+
+      saveOnboardingState(userId, {
+        hasCompletedDeepCal: true,
+        intakeData: { ...intake, deep: answers } as unknown as typeof existing.intakeData,
+      });
+
+      try {
+        localStorage.removeItem(DRAFT_KEY(userId));
+        localStorage.removeItem("flowstate-via-invite");
+        sessionStorage.setItem("flowstate-program-reveal", "upgraded");
+      } catch { /* ignore */ }
+
+      router.replace("/program");
+    } catch (error) {
+      console.warn("[deep-cal] finish failed:", error);
+      setFinishStatus("Could not update your program. Try again.");
+      setSaving(false);
+    }
   }
 
   const progress = useMemo(() => ((stepIdx + 1) / STEPS.length) * 100, [stepIdx]);

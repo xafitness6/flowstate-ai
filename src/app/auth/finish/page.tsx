@@ -200,7 +200,7 @@ export default function AuthFinishPage() {
         }
         if (!acceptedInvite) {
           setMessage("Checking your invite...");
-          await acceptCurrentInviteByEmail();
+          acceptedInvite = await acceptCurrentInviteByEmail();
         }
 
         await withTimeout(
@@ -208,7 +208,11 @@ export default function AuthFinishPage() {
           2000,
           "profile sync",
         ).catch(() => null);
-        go("/onboarding");
+        const viaInvite = acceptedInvite || (() => {
+          try { return localStorage.getItem("flowstate-via-invite") === "true"; }
+          catch { return false; }
+        })();
+        go(viaInvite ? "/onboarding/calibration" : "/onboarding");
       } catch (error) {
         console.error("[auth/finish] failed:", error);
         if (cancelled) return;

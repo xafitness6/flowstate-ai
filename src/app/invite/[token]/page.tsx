@@ -6,7 +6,7 @@ import { Zap, ArrowRight, Eye, EyeOff, CheckCircle2, AlertTriangle, MailCheck } 
 import { cn } from "@/lib/utils";
 import { getInviteByToken, isInviteValid, acceptInvite } from "@/lib/invites";
 import { createAccount, resolveAccount } from "@/lib/accounts";
-import { LS_KEY, resolvePostLoginRoute, SS_KEY } from "@/lib/routing";
+import { LS_KEY, SS_KEY } from "@/lib/routing";
 import { createClient } from "@/lib/supabase/client";
 import type { Invite } from "@/lib/invites";
 import type { Invite as DBInvite } from "@/lib/supabase/types";
@@ -239,12 +239,11 @@ export default function InvitePage() {
         if (shouldConsumeLocalInvite(activeInvite)) acceptInvite(token);
         clearPendingInvite();
         seedSession(userId);
-        // Flag this user as an invite signup — the calibration flow uses
-        // this to force them through deep-cal (8–12 min) since being
-        // invited implies a serious user. Self-signups get basic only.
+        // Flag this user as an invite signup so post-auth routing starts at
+        // the six-question calibration and skips the old pre-cal walkthrough.
         try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
         setAccepted(true);
-        setTimeout(() => router.replace("/onboarding"), 800);
+        setTimeout(() => router.replace("/onboarding/calibration"), 800);
         return true;
       }
 
@@ -352,8 +351,9 @@ export default function InvitePage() {
       if (shouldConsumeLocalInvite(invite)) acceptInvite(token);
       clearPendingInvite();
       seedSession(existing.id);
+      try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
       setAccepted(true);
-      setTimeout(() => router.replace(resolvePostLoginRoute(existing.id)), 1800);
+      setTimeout(() => router.replace("/onboarding/calibration"), 1800);
       return;
     }
 
@@ -363,7 +363,7 @@ export default function InvitePage() {
     seedSession(result.id);
     try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
     setAccepted(true);
-    setTimeout(() => router.replace(resolvePostLoginRoute(result.id)), 1800);
+    setTimeout(() => router.replace("/onboarding/calibration"), 1800);
   }
 
   // ── Render: error state ───────────────────────────────────────────────────
