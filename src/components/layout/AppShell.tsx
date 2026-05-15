@@ -13,6 +13,29 @@ import { useUser }                        from "@/context/UserContext";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 
+function clearFinishedOnboardingMarkers() {
+  try {
+    sessionStorage.removeItem("flowstate-tutorial-finished");
+    localStorage.removeItem("flowstate-via-invite");
+  } catch { /* ignore */ }
+}
+
+function syncTutorialComplete(
+  fallback: () => Promise<void>,
+) {
+  void fetch("/api/onboarding/tutorial-complete", {
+    method: "POST",
+    cache: "no-store",
+  })
+    .then((response) => {
+      if (response.ok) clearFinishedOnboardingMarkers();
+      else void fallback().catch(() => {});
+    })
+    .catch(() => {
+      void fallback().catch(() => {});
+    });
+}
+
 /**
  * AppShell wraps every route inside (app)/layout.tsx.
  *
@@ -106,12 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           catch { return false; }
         })();
         if (justFinishedTutorial) {
-          void fetch("/api/onboarding/tutorial-complete", {
-            method: "POST",
-            cache: "no-store",
-          }).catch(() => {
-            void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
-          });
+          syncTutorialComplete(() => upsertOnboardingState(supabaseUserId, { tutorial_complete: true }));
           setReady(true);
           return;
         }
@@ -121,12 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           const localState = loadOnboardingState(supabaseUserId);
 
           if (dbBlocker === "/onboarding/tutorial" && (localState.tutorialComplete || justFinishedTutorial)) {
-            void fetch("/api/onboarding/tutorial-complete", {
-              method: "POST",
-              cache: "no-store",
-            }).catch(() => {
-              void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
-            });
+            syncTutorialComplete(() => upsertOnboardingState(supabaseUserId, { tutorial_complete: true }));
             setReady(true);
             return;
           }

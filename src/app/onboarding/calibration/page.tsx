@@ -259,10 +259,24 @@ export default function CalibrationPage() {
 
     const STARTER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (STARTER_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      const saved = await saveBuilderWorkoutForSelf(userId, starterPlanToBuilderPayload(starterPlan), true);
-      if (!saved) throw new Error("Could not save starter program.");
-      const { markOnboardingComplete } = await import("@/lib/db/onboarding");
-      await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
+      const payload = starterPlanToBuilderPayload(starterPlan);
+      const apiResult = await fetch("/api/onboarding/starter-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          payload,
+          intake: intake as unknown as Record<string, unknown>,
+        }),
+      });
+
+      if (!apiResult.ok) {
+        console.warn("[calibration] server starter save failed; trying client fallback");
+        const saved = await saveBuilderWorkoutForSelf(userId, payload, true);
+        if (!saved) throw new Error("Could not save starter program.");
+        const { markOnboardingComplete } = await import("@/lib/db/onboarding");
+        await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
+      }
     }
 
     completeOnboarding(userId, {

@@ -37,10 +37,8 @@ export function getSessionKey(): string | null {
 /** Returns the first incomplete onboarding step for a userId, or null if done.
  *
  *  Walkthrough is the very first gate — shown once to new users before calibration.
- *  Since the new short calibration form marks ALL other steps complete at once,
- *  only walkthrough + calibration matter for new signups.
- *  The remaining step checks are preserved for users who started the old
- *  long-form onboarding so they can still finish without hitting errors.
+ *  Since the short calibration form creates the starter program and marks the
+ *  profile ready, the current chain is walkthrough → calibration → tutorial.
  */
 function getOnboardingBlocker(userId: string): string | null {
   const s = loadOnboardingState(userId);
@@ -49,16 +47,8 @@ function getOnboardingBlocker(userId: string): string | null {
   // defaulting to false — don't retroactively block them.
   if (!s.walkthrough_seen && !s.onboardingComplete) return "/onboarding/walkthrough";
   if (!s.onboardingComplete) return "/onboarding/calibration";
-  if (s.profileComplete && s.programGenerated && s.tutorialComplete) return null;
-  if (s.profileComplete && s.programGenerated && !s.tutorialComplete) return "/onboarding/tutorial";
-  // Legacy: users mid-way through the old multi-step flow still get routed correctly.
-  // New calibration sets these complete in one pass, so fresh users should never
-  // see these pages.
-  if (!s.bodyFocusComplete)            return "/onboarding/body-focus";
-  if (!s.planningConversationComplete) return "/onboarding/coach-planning";
-  if (!s.programGenerated)             return "/onboarding/program-generation";
+  if (!s.programGenerated || !s.profileComplete) return "/onboarding/calibration";
   if (!s.tutorialComplete)             return "/onboarding/tutorial";
-  if (!s.profileComplete)              return "/onboarding/profile-setup";
   return null;
 }
 

@@ -11,13 +11,8 @@ function resolveOnboardingRoute(state: OnboardingState | null): string | null {
   if (!state) return "/onboarding/walkthrough";
   if (!state.walkthrough_seen && !state.onboarding_complete) return "/onboarding/walkthrough";
   if (!state.onboarding_complete) return "/onboarding/calibration";
-  if (state.profile_complete && state.program_generated && state.tutorial_complete) return null;
-  if (state.profile_complete && state.program_generated && !state.tutorial_complete) return "/onboarding/tutorial";
-  if (!state.body_focus_complete) return "/onboarding/body-focus";
-  if (!state.planning_conversation_complete) return "/onboarding/coach-planning";
-  if (!state.program_generated) return "/onboarding/program-generation";
+  if (!state.program_generated || !state.profile_complete) return "/onboarding/calibration";
   if (!state.tutorial_complete) return "/onboarding/tutorial";
-  if (!state.profile_complete) return "/onboarding/profile-setup";
   return null;
 }
 
