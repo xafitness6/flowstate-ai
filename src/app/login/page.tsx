@@ -72,6 +72,23 @@ function getInviteToken(metadata?: AuthUserMetadata | null): string | null {
   return typeof token === "string" && token.length >= 16 ? token : null;
 }
 
+function friendlyInviteError(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("different email")) {
+    return "This invite is connected to a specific email. Please sign in with the email your coach invited.";
+  }
+  if (normalized.includes("already been used")) {
+    return "This invite has already been used. Sign in with the account you created, or ask your coach for a new invite.";
+  }
+  if (normalized.includes("expired")) {
+    return "This invite has expired. Ask your coach for a fresh invite.";
+  }
+  if (normalized.includes("revoked")) {
+    return "This invite is no longer active. Ask your coach for a new invite.";
+  }
+  return "Could not finish this invite. Please ask your coach for a fresh link.";
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function TextField({
@@ -322,7 +339,7 @@ function LoginPageContent() {
     );
     const body = await res.json().catch(() => ({})) as { role?: string; error?: string };
     if (!res.ok) {
-      throw new Error(body.error ?? "Could not finish this invite. Please ask your coach for a fresh link.");
+      throw new Error(friendlyInviteError(body.error ?? ""));
     }
     return typeof body.role === "string" ? body.role : null;
   }
@@ -466,11 +483,7 @@ function LoginPageContent() {
       }
       const { data, error } = signInResult;
       if (error || !data.user) {
-        setSiError(
-          email === ADMIN_EMAIL
-            ? "Admin login failed. Reset the Supabase admin password with scripts/setup-admin.mjs, then try again."
-            : "Incorrect email or password.",
-        );
+        setSiError("Incorrect email or password.");
         setLoading(false);
         return;
       }
