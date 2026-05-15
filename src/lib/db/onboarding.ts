@@ -75,6 +75,13 @@ export async function resolveOnboardingRoute(userId: string): Promise<string | n
   if (!state)                              return "/onboarding/walkthrough";
   if (!state.walkthrough_seen && !state.onboarding_complete) return "/onboarding/walkthrough";
   if (!state.onboarding_complete)          return "/onboarding/calibration";
+
+  // New onboarding finishes the old long-form steps in one six-question pass.
+  // Some production rows can still carry stale false values for those legacy
+  // flags, which caused users to bounce through old pages after calibration.
+  if (state.profile_complete && state.program_generated && state.tutorial_complete) return null;
+  if (state.profile_complete && state.program_generated && !state.tutorial_complete) return "/onboarding/tutorial";
+
   if (!state.body_focus_complete)          return "/onboarding/body-focus";
   if (!state.planning_conversation_complete) return "/onboarding/coach-planning";
   if (!state.program_generated)            return "/onboarding/program-generation";

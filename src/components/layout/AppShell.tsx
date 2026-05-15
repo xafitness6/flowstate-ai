@@ -106,7 +106,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           catch { return false; }
         })();
         if (justFinishedTutorial) {
-          void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
+          void fetch("/api/onboarding/tutorial-complete", {
+            method: "POST",
+            cache: "no-store",
+          }).catch(() => {
+            void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
+          });
           setReady(true);
           return;
         }
@@ -116,7 +121,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           const localState = loadOnboardingState(supabaseUserId);
 
           if (dbBlocker === "/onboarding/tutorial" && (localState.tutorialComplete || justFinishedTutorial)) {
-            void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
+            void fetch("/api/onboarding/tutorial-complete", {
+              method: "POST",
+              cache: "no-store",
+            }).catch(() => {
+              void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
+            });
             setReady(true);
             return;
           }

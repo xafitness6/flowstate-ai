@@ -150,6 +150,16 @@ export default function TutorialPage() {
 
       if (!UUID_RE.test(userId) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
       try {
+        const response = await withTimeout(
+          fetch("/api/onboarding/tutorial-complete", {
+            method: "POST",
+            cache: "no-store",
+          }),
+          3500,
+          "tutorial complete API",
+        );
+        if (response.ok) return;
+
         const { upsertOnboardingState } = await import("@/lib/db/onboarding");
         await withTimeout(
           upsertOnboardingState(userId, { tutorial_complete: true }),
