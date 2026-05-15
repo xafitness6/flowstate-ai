@@ -2,16 +2,11 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Zap, ArrowRight, Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Zap, ArrowRight, Eye, EyeOff, ChevronDown, MailCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
-import { resolvePostLoginRoute } from "@/lib/routing";
+import { LS_KEY, resolvePostLoginRoute, SS_KEY } from "@/lib/routing";
 import { createClient } from "@/lib/supabase/client";
-import { updateInviteStatusInDB } from "@/lib/db/invites";
-
-// ─── Storage keys ──────────────────────────────────────────────────────────────
-
-const LS_KEY = "flowstate-active-role";
 
 // ─── Goal options ─────────────────────────────────────────────────────────────
 
@@ -35,6 +30,22 @@ function makeUsername(firstName: string, lastName: string, email: string): strin
   return `${base}${Date.now().toString(36).slice(-4)}`;
 }
 
+function seedSession(userId: string) {
+  try { localStorage.setItem(LS_KEY, userId); } catch { /* ignore */ }
+  try { sessionStorage.setItem(SS_KEY, userId); } catch { /* ignore */ }
+}
+
+async function acceptInviteOnServer(token: string) {
+  const res = await fetch(`/api/invites/${encodeURIComponent(token)}`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => ({})) as { error?: string };
+  if (!res.ok) {
+    throw new Error(body.error ?? "Could not accept this invite.");
+  }
+}
+
 // ─── Main form ────────────────────────────────────────────────────────────────
 
 function JoinForm() {
@@ -54,6 +65,7 @@ function JoinForm() {
   const [error,       setError]       = useState<string | null>(null);
   const [loading,     setLoading]     = useState(false);
   const [visible,     setVisible]     = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   useEffect(() => { setTimeout(() => setVisible(true), 60); }, []);
 
@@ -79,6 +91,7 @@ function JoinForm() {
         email:    email.trim().toLowerCase(),
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/finish`,
           data: {
             full_name:           fullName,
             first_name:          firstName.trim(),
@@ -87,6 +100,7 @@ function JoinForm() {
             assigned_trainer_id: trainerParam ?? null,
             join_goal:           joinGoal || null,
             signup_source:       tokenParam ? "personalized_invite" : "open_invite",
+            invite_token:         tokenParam ?? null,
           },
         },
       });
@@ -98,9 +112,17 @@ function JoinForm() {
             email: email.trim().toLowerCase(), password,
           });
           if (!siErr && siData.user) {
-            try { localStorage.setItem(LS_KEY, siData.user.id); } catch { /* ignore */ }
             try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-            if (tokenParam) await updateInviteStatusInDB(tokenParam, "accepted", siData.user.id);
+            if (tokenParam) {
+              try {
+                await acceptInviteOnServer(tokenParam);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Could not accept this invite.");
+                setLoading(false);
+                return;
+              }
+            }
+            seedSession(siData.user.id);
             router.replace("/onboarding");
             return;
           }
@@ -112,13 +134,28 @@ function JoinForm() {
         return;
       }
 
-      // Mark invite as accepted if a token was provided
-      if (tokenParam && data.user) {
-        await updateInviteStatusInDB(tokenParam, "accepted", data.user.id);
-      }
       if (data.user) {
-        try { localStorage.setItem(LS_KEY, data.user.id); } catch { /* ignore */ }
+        if (!data.session) {
+          setConfirmationSent(true);
+          setLoading(false);
+          return;
+        }
+
         try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
+        if (tokenParam) {
+          try {
+            await acceptInviteOnServer(tokenParam);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not accept this invite.");
+            setLoading(false);
+            return;
+          }
+        }
+        seedSession(data.user.id);
+      } else {
+        setConfirmationSent(true);
+        setLoading(false);
+        return;
       }
 
       // New Supabase user → start onboarding
@@ -149,7 +186,7 @@ function JoinForm() {
     if ("error" in result) {
       const existing = resolveAccount(email.trim().toLowerCase(), password);
       if (existing) {
-        try { localStorage.setItem(LS_KEY, existing.id); } catch { /* ignore */ }
+        seedSession(existing.id);
         router.replace(resolvePostLoginRoute(existing.id));
         return;
       }
@@ -158,11 +195,51 @@ function JoinForm() {
       return;
     }
 
-    try { localStorage.setItem(LS_KEY, result.id); } catch { /* ignore */ }
+    seedSession(result.id);
     router.replace(resolvePostLoginRoute(result.id));
   }
 
   const canSubmit = firstName && lastName && email && password && confirm && !loading;
+
+  if (confirmationSent) {
+    const cleanEmail = email.trim().toLowerCase();
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-5 py-12 text-white">
+        <div className="max-w-sm w-full text-center space-y-6">
+          <div className="w-14 h-14 rounded-full bg-[#B48B40]/15 border border-[#B48B40]/30 flex items-center justify-center mx-auto">
+            <MailCheck className="w-7 h-7 text-[#B48B40]" strokeWidth={1.5} />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold text-white/85">Account created.</h1>
+            <p className="text-sm text-white/45 leading-relaxed">
+              Check your email to confirm your account, then you&apos;ll continue onboarding.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => router.replace("/login")}
+              className="w-full rounded-2xl bg-[#B48B40] text-black py-3 text-sm font-semibold hover:bg-[#c99840] transition-all"
+            >
+              Go to login
+            </button>
+            <button
+              type="button"
+              onClick={() => router.replace("/")}
+              className="w-full rounded-2xl border border-white/8 py-3 text-sm text-white/45 hover:text-white/75 transition-colors"
+            >
+              Back to Flowstate
+            </button>
+          </div>
+          {cleanEmail && (
+            <p className="text-[11px] text-white/25 leading-relaxed">
+              Use the same email you entered here: {cleanEmail}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-5 py-12 text-white">

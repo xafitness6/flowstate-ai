@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Zap, ArrowRight, Eye, EyeOff, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Zap, ArrowRight, Eye, EyeOff, CheckCircle2, AlertTriangle, MailCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getInviteByToken, isInviteValid, acceptInvite } from "@/lib/invites";
 import { createAccount, resolveAccount } from "@/lib/accounts";
@@ -124,6 +124,7 @@ export default function InvitePage() {
   const [invite,       setInvite]      = useState<Invite | null>(null);
   const [loadError,    setLoadError]   = useState<string | null>(null);
   const [accepted,     setAccepted]    = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
   const [step,         setStep]        = useState<"landing" | "signup">("landing");
 
   // Form fields
@@ -200,6 +201,7 @@ export default function InvitePage() {
         email: cleanEmail,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/finish`,
           data: {
             full_name: name.trim(),
             first_name: firstName,
@@ -245,7 +247,7 @@ export default function InvitePage() {
 
       if (data.user) {
         if (!data.session) {
-          setFormError("Check your email to confirm your account, then log in to finish onboarding.");
+          setConfirmationSent(true);
           setLoading(false);
           return;
         }
@@ -265,7 +267,7 @@ export default function InvitePage() {
         return;
       }
 
-      setFormError("Check your email to confirm your account, then log in.");
+      setConfirmationSent(true);
       setLoading(false);
       return;
     }
@@ -358,6 +360,43 @@ export default function InvitePage() {
             <h1 className="text-xl font-semibold text-white/80">You&apos;re in.</h1>
             <p className="text-sm text-white/40">Setting up your account…</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (confirmationSent) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-5 py-16 text-white">
+        <div className="max-w-sm w-full text-center space-y-6">
+          <div className="w-14 h-14 rounded-full bg-[#B48B40]/15 border border-[#B48B40]/30 flex items-center justify-center mx-auto">
+            <MailCheck className="w-7 h-7 text-[#B48B40]" strokeWidth={1.5} />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold text-white/85">Account created.</h1>
+            <p className="text-sm text-white/45 leading-relaxed">
+              Check your email to confirm your account, then you&apos;ll continue onboarding.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => router.replace("/login")}
+              className="w-full rounded-2xl bg-[#B48B40] text-black py-3 text-sm font-semibold hover:bg-[#c99840] transition-all"
+            >
+              Go to login
+            </button>
+            <button
+              type="button"
+              onClick={() => router.replace("/")}
+              className="w-full rounded-2xl border border-white/8 py-3 text-sm text-white/45 hover:text-white/75 transition-colors"
+            >
+              Back to Flowstate
+            </button>
+          </div>
+          <p className="text-[11px] text-white/25 leading-relaxed">
+            Use the same email you entered here: {email.trim().toLowerCase()}
+          </p>
         </div>
       </div>
     );

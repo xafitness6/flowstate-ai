@@ -20,7 +20,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-function readCachedSupabaseUser(): { id?: string; email?: string } | null {
+function readCachedSupabaseUser(): { id?: string; email?: string; user_metadata?: Record<string, unknown> } | null {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i) ?? "";
@@ -28,14 +28,19 @@ function readCachedSupabaseUser(): { id?: string; email?: string } | null {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
       const parsed = JSON.parse(raw) as {
-        user?: { id?: string; email?: string };
-        currentSession?: { user?: { id?: string; email?: string } };
+        user?: { id?: string; email?: string; user_metadata?: Record<string, unknown> };
+        currentSession?: { user?: { id?: string; email?: string; user_metadata?: Record<string, unknown> } };
       };
       const user = parsed.user ?? parsed.currentSession?.user ?? null;
       if (user?.id || user?.email) return user;
     }
   } catch { /* ignore */ }
   return null;
+}
+
+function getInviteToken(user: { user_metadata?: Record<string, unknown> } | null | undefined): string | null {
+  const token = user?.user_metadata?.invite_token;
+  return typeof token === "string" && token.length >= 16 ? token : null;
 }
 
 function readCachedFlowstateEmail(): string | null {
@@ -79,7 +84,7 @@ export default function AuthFinishPage() {
         return;
       }
       go("/login?error=auth&reason=session_timeout");
-    }, 8000);
+    }, 12000);
 
     async function finish() {
       try {
@@ -121,6 +126,21 @@ export default function AuthFinishPage() {
         if (user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
           go("/admin");
           return;
+        }
+
+        const inviteToken = getInviteToken(user);
+        if (inviteToken) {
+          setMessage("Finishing your invite...");
+          const inviteRes = await withTimeout(
+            fetch(`/api/invites/${encodeURIComponent(inviteToken)}`, { method: "POST" }),
+            5000,
+            "invite acceptance",
+          );
+          if (!inviteRes.ok) {
+            console.error("[auth/finish] invite acceptance failed:", await inviteRes.text().catch(() => ""));
+            go("/login?error=invite&reason=accept");
+            return;
+          }
         }
 
         await withTimeout(
