@@ -51,6 +51,11 @@ async function acceptInviteOnServer(token: string) {
   }
 }
 
+function isEmailRateLimit(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("rate limit") || normalized.includes("too many") || normalized.includes("email rate");
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Field({
@@ -125,6 +130,9 @@ export default function InvitePage() {
   const [loadError,    setLoadError]   = useState<string | null>(null);
   const [accepted,     setAccepted]    = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
+  const [confirmationMessage, setConfirmationMessage] = useState(
+    "Check your email to confirm your account, then you'll continue onboarding.",
+  );
   const [step,         setStep]        = useState<"landing" | "signup">("landing");
 
   // Form fields
@@ -215,7 +223,18 @@ export default function InvitePage() {
       });
 
       if (error) {
-        if (error.message.toLowerCase().includes("already registered")) {
+        const errorMessage = error.message;
+        const normalizedError = errorMessage.toLowerCase();
+        if (isEmailRateLimit(errorMessage)) {
+          setConfirmationMessage(
+            "A confirmation email was already sent. Please check your inbox and spam folder, then use that email link to continue onboarding.",
+          );
+          setConfirmationSent(true);
+          setLoading(false);
+          return;
+        }
+
+        if (normalizedError.includes("already registered")) {
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: cleanEmail,
             password,
@@ -239,7 +258,7 @@ export default function InvitePage() {
 
           setFormError("An account with that email already exists. Check your password.");
         } else {
-          setFormError(error.message);
+          setFormError(errorMessage);
         }
         setLoading(false);
         return;
@@ -247,6 +266,7 @@ export default function InvitePage() {
 
       if (data.user) {
         if (!data.session) {
+          setConfirmationMessage("Check your email to confirm your account, then you'll continue onboarding.");
           setConfirmationSent(true);
           setLoading(false);
           return;
@@ -267,6 +287,7 @@ export default function InvitePage() {
         return;
       }
 
+      setConfirmationMessage("Check your email to confirm your account, then you'll continue onboarding.");
       setConfirmationSent(true);
       setLoading(false);
       return;
@@ -375,7 +396,7 @@ export default function InvitePage() {
           <div className="space-y-2">
             <h1 className="text-xl font-semibold text-white/85">Account created.</h1>
             <p className="text-sm text-white/45 leading-relaxed">
-              Check your email to confirm your account, then you&apos;ll continue onboarding.
+              {confirmationMessage}
             </p>
           </div>
           <div className="space-y-2">
