@@ -24,6 +24,7 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 type AuthStep = "form" | "biometric-prompt" | "enable-biometric";
+type AuthUserMetadata = Record<string, unknown>;
 
 const LS_KEY = "flowstate-active-role";
 const SS_KEY = "flowstate-session-role";
@@ -55,6 +56,20 @@ function resolveDemoCredentials(
   const account = resolveAccount(usernameOrEmail, password);
   if (account) return { sessionKey: account.id };
   return null;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    }),
+  ]);
+}
+
+function getInviteToken(metadata?: AuthUserMetadata | null): string | null {
+  const token = metadata?.invite_token;
+  return typeof token === "string" && token.length >= 16 ? token : null;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -280,7 +295,11 @@ function LoginPageContent() {
 
   async function syncCurrentProfile() {
     try {
-      const res = await fetch("/api/auth/sync-profile", { method: "POST" });
+      const res = await withTimeout(
+        fetch("/api/auth/sync-profile", { method: "POST" }),
+        3500,
+        "profile sync",
+      );
       if (!res.ok) return null;
       const body = await res.json() as { profile?: { role?: string; is_admin?: boolean } };
       return body.profile ?? null;
@@ -289,10 +308,29 @@ function LoginPageContent() {
     }
   }
 
+  async function acceptInviteFromMetadata(metadata?: AuthUserMetadata | null) {
+    const inviteToken = getInviteToken(metadata);
+    if (!inviteToken) return null;
+
+    const res = await withTimeout(
+      fetch(`/api/invites/${encodeURIComponent(inviteToken)}`, {
+        method: "POST",
+        cache:  "no-store",
+      }),
+      5000,
+      "invite acceptance",
+    );
+    const body = await res.json().catch(() => ({})) as { role?: string; error?: string };
+    if (!res.ok) {
+      throw new Error(body.error ?? "Could not finish this invite. Please ask your coach for a fresh link.");
+    }
+    return typeof body.role === "string" ? body.role : null;
+  }
+
   async function routeSupabaseUser(
     userId: string,
     email?: string | null,
-    opts: { offerBiometric?: boolean } = {},
+    opts: { offerBiometric?: boolean; userMetadata?: AuthUserMetadata | null } = {},
   ) {
     saveSession(userId);
     saveSessionEmail(email);
@@ -305,11 +343,20 @@ function LoginPageContent() {
       return;
     }
 
+    let inviteRole: string | null = null;
+    try {
+      inviteRole = await acceptInviteFromMetadata(opts.userMetadata);
+    } catch (error) {
+      setSiError(error instanceof Error ? error.message : "Could not finish this invite. Please try again.");
+      setLoading(false);
+      return;
+    }
+
     const syncedProfile = await syncCurrentProfile();
     const { getMyProfile } = await import("@/lib/db/profiles");
     const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
 
-    const profile = await getMyProfile();
+    const profile = await withTimeout(getMyProfile(), 3500, "profile load").catch(() => null);
 
     // Archived users are locked out — even on a successful sign-in, drop them.
     if (profile?.archived_at) {
@@ -318,7 +365,7 @@ function LoginPageContent() {
       return;
     }
 
-    const role = syncedProfile?.role ?? profile?.role;
+    const role = inviteRole ?? syncedProfile?.role ?? profile?.role;
     const isAdmin =
       email?.trim().toLowerCase() === ADMIN_EMAIL ||
       role === "master" ||
@@ -329,7 +376,11 @@ function LoginPageContent() {
     if (isAdmin) {
       destination = "/admin";
     } else {
-      const blocker = await resolveOnboardingRoute(userId);
+      const blocker = await withTimeout(
+        resolveOnboardingRoute(userId),
+        3500,
+        "onboarding route",
+      ).catch(() => "/onboarding/walkthrough");
       destination = blocker ?? resolvePostLoginRoute(userId, { role });
     }
 
@@ -357,7 +408,7 @@ function LoginPageContent() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-    await routeSupabaseUser(user.id, user.email);
+    await routeSupabaseUser(user.id, user.email, { userMetadata: user.user_metadata });
     return true;
   }
 
@@ -370,7 +421,9 @@ function LoginPageContent() {
     const supabase = createClient();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
-        void routeSupabaseUser(session.user.id, session.user.email);
+        void routeSupabaseUser(session.user.id, session.user.email, {
+          userMetadata: session.user.user_metadata,
+        });
       }
     });
     return () => subscription.unsubscribe();
@@ -396,10 +449,22 @@ function LoginPageContent() {
       setLoading(true);
       const email = siEmail.trim().toLowerCase();
       const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: siPassword,
-      });
+      let signInResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
+      try {
+        signInResult = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email,
+            password: siPassword,
+          }),
+          10000,
+          "password sign-in",
+        );
+      } catch {
+        setSiError("Sign-in is taking longer than expected. Check your connection and try again.");
+        setLoading(false);
+        return;
+      }
+      const { data, error } = signInResult;
       if (error || !data.user) {
         setSiError(
           email === ADMIN_EMAIL
@@ -409,7 +474,9 @@ function LoginPageContent() {
         setLoading(false);
         return;
       }
-      await routeSupabaseUser(data.user.id, data.user.email);
+      await routeSupabaseUser(data.user.id, data.user.email, {
+        userMetadata: data.user.user_metadata,
+      });
       return;
     }
 
@@ -495,7 +562,9 @@ function LoginPageContent() {
           access_token:  data.session.access_token,
           refresh_token: data.session.refresh_token,
         });
-        await routeSupabaseUser(data.user.id, data.user.email);
+        await routeSupabaseUser(data.user.id, data.user.email, {
+          userMetadata: data.user.user_metadata,
+        });
         return;
       } catch {
         clearBiometric();
@@ -535,8 +604,8 @@ function LoginPageContent() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-5 md:px-8 py-16 text-white">
-      <div className="max-w-sm w-full space-y-8">
+    <div className="min-h-[100dvh] overflow-y-auto flex flex-col items-center justify-start sm:justify-center px-5 md:px-8 py-8 sm:py-10 text-white">
+      <div className="max-w-sm w-full space-y-6 sm:space-y-7">
 
         {/* ── Biometric prompt ────────────────────────────────────────────── */}
         {step === "biometric-prompt" && (
@@ -647,13 +716,20 @@ function LoginPageContent() {
           <>
             {/* Brand */}
             <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
                 <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
               <p className="text-sm text-white/40">Sign in to continue.</p>
             </div>
+
+            {siNotice && (
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-3 py-2 text-xs leading-relaxed text-emerald-300/80">
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                <span>{siNotice}</span>
+              </div>
+            )}
 
             {/* Google OAuth */}
             <button
@@ -683,7 +759,7 @@ function LoginPageContent() {
             </div>
 
             {/* Sign in form */}
-            <form onSubmit={handleSignIn} className="space-y-4">
+            <form onSubmit={handleSignIn} className="space-y-3.5">
               <TextField
                 label="Email"
                 value={siEmail}
@@ -703,13 +779,6 @@ function LoginPageContent() {
                 autoComplete="current-password"
                 error={!!siError}
               />
-
-              {siNotice && (
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-3 py-2 text-xs leading-relaxed text-emerald-300/80">
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                  <span>{siNotice}</span>
-                </div>
-              )}
 
               <div className="flex items-center justify-between min-h-[18px]">
                 {siError
