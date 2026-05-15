@@ -4,7 +4,7 @@ Use these in Supabase Dashboard -> Authentication -> Email Templates.
 
 For production, set up custom SMTP in Supabase Dashboard -> Authentication -> Emails -> SMTP Settings. Without custom SMTP, emails can still show Supabase as the sender and can hit Supabase's built-in email rate limits.
 
-Keep the Supabase variables exactly as written. The most important one is `{{ .ConfirmationURL }}` because it contains the secure auth link.
+Keep the Supabase variables exactly as written. For confirmation-style links, use `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=...&next=...` so Flowstate verifies the token server-side and avoids mobile callback failures.
 
 ## Shared Email Style
 
@@ -56,7 +56,7 @@ Body:
             </tr>
             <tr>
               <td style="padding:28px 30px 8px;">
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/auth/finish" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
                   Confirm email
                 </a>
               </td>
@@ -70,7 +70,7 @@ Body:
                   If the button does not work, copy and paste this link into your browser:
                 </p>
                 <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#B48B40;word-break:break-all;">
-                  {{ .ConfirmationURL }}
+                  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/auth/finish
                 </p>
               </td>
             </tr>
@@ -122,7 +122,7 @@ Body:
             </tr>
             <tr>
               <td style="padding:28px 30px 8px;">
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/finish" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
                   Accept invite
                 </a>
               </td>
@@ -136,7 +136,7 @@ Body:
                   If the button does not work, copy and paste this link:
                 </p>
                 <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#B48B40;word-break:break-all;">
-                  {{ .ConfirmationURL }}
+                  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/finish
                 </p>
               </td>
             </tr>
@@ -180,11 +180,11 @@ Body:
                 <p style="margin:14px 0 24px;font-size:16px;line-height:1.6;color:#A8A8A8;">
                   Use this secure link to sign in. It expires soon and can only be used once.
                 </p>
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink&next=/auth/finish" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
                   Sign in
                 </a>
                 <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#666666;word-break:break-all;">
-                  {{ .ConfirmationURL }}
+                  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink&next=/auth/finish
                 </p>
               </td>
             </tr>
@@ -225,14 +225,14 @@ Body:
                 <p style="margin:14px 0 24px;font-size:16px;line-height:1.6;color:#A8A8A8;">
                   Use this secure link to create a new password for your Flowstate account.
                 </p>
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
                   Reset password
                 </a>
                 <p style="margin:22px 0 0;font-size:13px;line-height:1.6;color:#777777;">
                   If you did not request this, you can ignore this email.
                 </p>
                 <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#666666;word-break:break-all;">
-                  {{ .ConfirmationURL }}
+                  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password
                 </p>
               </td>
             </tr>
@@ -273,14 +273,14 @@ Body:
                 <p style="margin:14px 0 24px;font-size:16px;line-height:1.6;color:#A8A8A8;">
                   Confirm this change so your Flowstate account stays secure.
                 </p>
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email_change&next=/profile" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
                   Confirm email change
                 </a>
                 <p style="margin:22px 0 0;font-size:13px;line-height:1.6;color:#777777;">
                   If you did not request this change, ignore this email and keep using your current login.
                 </p>
                 <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#666666;word-break:break-all;">
-                  {{ .ConfirmationURL }}
+                  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email_change&next=/profile
                 </p>
               </td>
             </tr>
@@ -350,6 +350,6 @@ Body:
 ## Notes
 
 - The app currently uses `/auth/callback?next=/auth/finish` for invite signup confirmation redirects.
-- The templates above use `{{ .ConfirmationURL }}`. Do not replace it with a hard-coded URL.
+- The templates above use `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=...&next=...`. Do not replace `{{ .SiteURL }}` or `{{ .TokenHash }}` with hard-coded values.
 - Supabase's default sender can still show `Supabase Auth <noreply@mail.app.supabase.io>` until custom SMTP is configured.
 - If rate limits appear during testing, wait before retrying or delete the test user from Authentication -> Users and use a fresh test email.
