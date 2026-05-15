@@ -7,6 +7,7 @@ import { BugReportButton } from "@/components/feedback/BugReportButton";
 import { BottomNav } from "./BottomNav";
 import { Sidebar }   from "./Sidebar";
 import { getSessionKey, getBlockingRoute } from "@/lib/routing";
+import { loadOnboardingState } from "@/lib/onboarding";
 import { signOutEverywhere } from "@/lib/auth/signOut";
 import { useUser }                        from "@/context/UserContext";
 
@@ -99,9 +100,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
 
         const supabaseUserId = session.user.id;
-        const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
+        const { resolveOnboardingRoute, upsertOnboardingState } = await import("@/lib/db/onboarding");
         const dbBlocker = await resolveOnboardingRoute(supabaseUserId);
-        if (dbBlocker) { router.replace(dbBlocker); return; }
+        if (dbBlocker) {
+          const localState = loadOnboardingState(supabaseUserId);
+          const justFinishedTutorial = (() => {
+            try {
+              return (
+                dbBlocker === "/onboarding/tutorial" &&
+                sessionStorage.getItem("flowstate-tutorial-finished") === "true" &&
+                getSessionKey() === supabaseUserId
+              );
+            } catch {
+              return false;
+            }
+          })();
+
+          if (dbBlocker === "/onboarding/tutorial" && (localState.tutorialComplete || justFinishedTutorial)) {
+            void upsertOnboardingState(supabaseUserId, { tutorial_complete: true }).catch(() => {});
+            setReady(true);
+            return;
+          }
+
+          router.replace(dbBlocker);
+          return;
+        }
 
         setReady(true);
         return;
