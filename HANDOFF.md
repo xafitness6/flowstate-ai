@@ -1,157 +1,233 @@
-# Flowstate AI — Session Handoff
+# Flowstate AI Handoff: Invite Onboarding Starter Plan Then Upgrade
 
-**Purpose:** Drop this into a fresh Claude Code chat so the next session has full context, no relearning required. The current session worked toward a same-day client launch; this doc captures what shipped, what's still on fire, and what to tackle next.
+## Current User-Reported Blocker
 
----
+The concierge tutorial final actions are not working:
 
-## Project facts (do not relearn)
+- `Show me my plan` on the final tutorial card does not advance to `/program`.
+- `Skip tour` also does not advance to `/program`.
 
-- Next.js 16 App Router · TypeScript 5 · React 19 · Supabase · OpenAI gpt-4o · Stripe · Tailwind v4
-- Production: `https://flowstate-ai-pi.vercel.app`
-- Repo: `https://github.com/xafitness6/flowstate-ai`
-- Admin email (hardcoded everywhere): `xavellis4@gmail.com`
-- Dev server: launch is **deployment-only** — no localhost workflow. Commit → push → Vercel auto-deploys.
-- Working dir: `/Users/xavierellis/Projects/flowstate-ai`
-- Read [brain-graph.md](brain-graph.md) before touching anything
+Observed in the UI on `/onboarding/tutorial`, final card:
 
-## Top priorities for next session (in order)
+- Title: `Let's start training.`
+- Button: `Show me my plan`
+- Link/button: `Skip tour`
 
-### 1. PROGRAM PAGE — verify it actually loads on production
-The user has reported the `/program` page stuck on a spinner across multiple sessions. Three fix passes have shipped:
-- `347bed4` — Wait for auth, finally block, swallow errors
-- `a1809f3` — 4s failsafe timer
-- `b3559dc` — **Default `loaded=true`; empty state renders instantly**
+This needs to be debugged first in the next session.
 
-The latest fix in `b3559dc` makes an infinite spinner architecturally impossible — `loaded` starts true, only ever gets set true again, and the spinner branch was deleted. **First task: have the user pull up `/program` on the latest deploy and confirm.** If still broken, check:
-- Vercel deployment status (latest commit may not be live yet — confirm `b3559dc` shows READY)
-- Browser cache (hard refresh, `Cmd+Shift+R`)
-- AppShell guard might be showing its own spinner — that one is in [src/components/layout/AppShell.tsx](src/components/layout/AppShell.tsx) and has a 5s timeout
-- UserContext might be hanging — has a 5s timeout in [src/context/UserContext.tsx](src/context/UserContext.tsx)
+## Goal Of The Change
 
-If still broken, ask the user to open browser DevTools console and copy any errors.
+Implement invite onboarding as:
 
-### 2. ONBOARDING — Phase 2 deep calibration is scaffolded; wire it through
+1. Invite link -> auth/account creation.
+2. Invite users skip old pre-calibration walkthrough.
+3. Six-question calibration runs first.
+4. Six-question calibration creates and saves an active deterministic starter plan.
+5. User sees concierge tour.
+6. Tour ends at `/program`.
+7. Program page shows a one-time starter reveal: `Your starter plan is ready.`
+8. Program page prompts user to complete deep calibration with `Make this plan smarter`.
+9. Deep calibration generates a new AI plan, archives the starter, saves the AI plan active.
+10. Program page shows one-time upgrade reveal: `Your program has been updated.`
 
-A new route `/onboarding/deep-calibration` was shipped in `b3559dc`. **Five chunked steps** (~10 min total):
+## Important Files Changed
 
-| Chunk | Captures |
-|-------|----------|
-| **A — Body & history** | height_cm, weight_kg, goal_weight_kg, goal_timeframe, body_fat_pct, training_years, longest_streak, best_lift, injuries[], injury_details |
-| **B — Goal elaboration** | goal_why (open), success_in_90_days (open), tried_not_worked (open), motivation_style |
-| **C — Lifestyle** | preferred_time, available_days[], travel_frequency, bed_time, wake_time, stress_level (1-10) |
-| **D — Nutrition specifics** | cooking_ability, foods_hate, foods_anchor, eating_start, eating_end, cheat_style, supplements, hydration_l |
-| **E — Coach calibration** | coach_tone, profanity, push_level (1-10) |
+- `src/app/invite/[token]/page.tsx`
+  - Invite account completion now routes to `/onboarding/calibration`.
+  - Sets `flowstate-via-invite=true`.
 
-**Persistence:** Auto-saves a draft to `localStorage` (`flowstate-deepcal-draft-${userId}`) on every change so a refresh doesn't lose progress. On finish, merges into `onboarding_state.intakeData.deep` and flips `hasCompletedDeepCal=true`.
+- `src/app/auth/finish/page.tsx`
+  - If invite acceptance succeeds or `flowstate-via-invite` is present, routes to `/onboarding/calibration`.
 
-**What's still missing for Phase 2:**
-1. **Regenerate the program after deep cal completes.** Currently the new answers just save — the active Supabase `programs` row isn't refreshed. Need to call `syncGeneratedProgram()` with a better plan derived from the richer data (real body composition → real macros, injuries → exercise substitutions, available_days → real schedule).
-2. **AI-powered re-generation.** The starter plan generator (`generateStarterPlan`) is rule-based. With deep cal data we can feed everything to GPT-4o and get a properly personalized plan. Add `/api/ai/program-generator` endpoint.
-3. **Trigger.** The `DeepCalPrompt` shows on the dashboard when `hasCompletedQuickStart && !hasCompletedDeepCal`. Verify this fires for real Supabase users — `loadOnboardingState()` reads from localStorage only and might miss the Supabase flag.
-4. **Server-side persistence.** Right now deep cal answers save via `saveOnboardingState` which goes to both localStorage and `onboarding_state.raw_answers`. The `raw_answers` column already exists, so no migration needed — but verify the merge works (existing `intakeData` shouldn't get nuked).
-5. **Validation.** No required fields — every chunk is skippable. May want to enforce at least height + weight in Chunk A for macros.
+- `src/app/login/page.tsx`
+  - Existing invite-user login bypasses `/onboarding/walkthrough` and routes to `/onboarding/calibration`.
 
-**Phase 1 (the 6-question calibration that runs at first signup):** already wired correctly in `27d2652` — creates a real Supabase `programs` row via `syncGeneratedProgram`. No changes needed.
+- `src/app/onboarding/page.tsx`
+  - Smart onboarding router also respects `flowstate-via-invite` and bypasses walkthrough only when the next blocker is `/onboarding/walkthrough`.
 
-### 3. Manual Supabase work (still pending)
-Run this SQL in the Supabase SQL Editor for the production project — it adds the archived_at column the admin bulk archive/unarchive needs:
+- `src/app/onboarding/calibration/page.tsx`
+  - Six-question calibration now:
+    - Saves intake.
+    - Generates starter plan.
+    - Saves starter metadata.
+    - Saves active v2 starter program for real Supabase UUID users using `saveBuilderWorkoutForSelf`.
+    - Saves local active starter program fallback for non-Supabase/demo users.
+    - Marks onboarding complete but leaves tutorial incomplete.
+    - Sets `sessionStorage.flowstate-program-reveal=starter`.
+    - Routes to `/onboarding/tutorial`.
 
-```sql
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+- `src/app/onboarding/tutorial/page.tsx`
+  - Changed UUID detection so real Supabase UUIDs are not treated as `anonymous`.
+  - `finishTutorial()` now:
+    - Calls `completeTutorial(userId)`.
+    - For real UUID users, awaits `upsertOnboardingState(userId, { tutorial_complete: true })`.
+    - Calls `router.push("/program")`.
+  - Current blocker likely lives here.
 
-CREATE INDEX IF NOT EXISTS profiles_archived_at_idx
-  ON public.profiles (archived_at)
-  WHERE archived_at IS NOT NULL;
+- `src/app/onboarding/deep-calibration/page.tsx`
+  - Deep calibration now acts as upgrade path.
+  - It waits for `/api/ai/program-generator`.
+  - Saves returned AI program active with `saveBuilderWorkoutForSelf(userId, payload, true)`.
+  - That function archives prior active program, so starter becomes archived.
+  - Sets `sessionStorage.flowstate-program-reveal=upgraded`.
+  - Routes to `/program`.
+
+- `src/app/(app)/program/ProgramClient.tsx`
+  - Adds one-time reveal banner support:
+    - `starter`: `Your starter plan is ready.`
+    - `upgraded`: `Your program has been updated.`
+  - Starter reveal includes:
+    - plan name
+    - goal
+    - days/week
+    - next workout
+    - first 2-3 exercises
+    - `Start Workout`
+    - `Make this plan smarter`
+  - Suppresses `DeepCalPrompt` while reveal banner is visible.
+  - Refetches active program client-side if SSR returns no program.
+  - Shows loading state before falling back to `No active program`.
+
+- `src/app/(app)/program/page.tsx`
+  - SSR Program page now supports both v2 and legacy weekly split shapes.
+
+- `src/lib/starterPlan.ts`
+  - Added `starterPlanToBuilderPayload(plan)`, converting deterministic starter plan into the same v2 builder payload shape the Program page prefers.
+
+- `src/lib/workout.ts`
+  - Added `saveActiveProgram(userId, stored)` for local/demo active-program fallback.
+
+- `src/lib/onboarding.ts`
+  - `completeOnboarding()` now marks quick start complete but deep calibration incomplete.
+  - `profileComplete` is true so Program is not blocked by profile setup.
+
+- `src/lib/db/onboarding.ts`
+  - `markOnboardingComplete()` now leaves `tutorial_complete=false`, so the concierge tour still happens after calibration.
+
+## Verification Already Run
+
+These passed:
+
+```bash
+npm run build
+git diff --check
 ```
 
-Also confirm in Supabase Dashboard → Authentication → URL Configuration:
-- **Site URL:** `https://flowstate-ai-pi.vercel.app`
-- **Redirect URLs:** `https://flowstate-ai-pi.vercel.app/**`
+There is no `npm run lint` script in this repo.
 
-And Authentication → Sessions → JWT expiry → `2592000` (30 days).
+Dev server was started on:
 
----
-
-## What's working solidly (don't touch)
-
-- **Admin dashboard** ([src/app/(app)/admin/page.tsx](src/app/(app)/admin/page.tsx)) — real Supabase data, 10s polling, all 6 KPI cards clickable, plan filter, leads view (renamed to Members), inline plan picker per row (upgrade/downgrade), bulk archive/unarchive/delete with checkboxes, clickable tier rows + alerts that filter the table
-- **Member detail page** ([src/app/(app)/profile/[id]/page.tsx](src/app/(app)/profile/[id]/page.tsx)) — for UUIDs, fetches `{ profile, onboarding, activeProgram }` from a new `GET /api/admin/users/[id]` endpoint
-- **Auth flow** — Google OAuth, magic link, password, biometric all wired. Login redirects archived users out. Sign out is centralized via `signOutEverywhere()` in [src/lib/auth/signOut.ts](src/lib/auth/signOut.ts) — clears all `flowstate-*` keys + Supabase session + biometric
-- **Sidebar** — `fixed` positioned, persistently floats while content scrolls
-- **Welcome page** — eliminated; unauthenticated users go straight to `/login`
-- **Phase 1 calibration → Supabase program** — `/onboarding/calibration` now creates a real `programs` row via `starterPlanToProgram()` + `syncGeneratedProgram()`
-- **Coach page** — hardcoded "Week 3 of 8" context replaced with live `loadActiveProgramForUser` data
-- **Today's Snapshot** — new dashboard card for clients/members shows today's workout + today's meals + today's habits with big plain-English copy and tap targets
-- **Leaderboard** — fake user list emptied; renders "No rankings yet" empty state
-- **Calendar** — fake EVENTS / DAY_SYNOPSES wiped; renders empty until real workout_logs queries are wired
-
-## What's still mock (deferred)
-
-| Surface | What's mock | Effort to fix |
-|---------|-------------|--------------|
-| Admin Trainer Performance | SEED `getTrainerMetrics` | High — need real analytics rollup |
-| Calendar daily synopses | Empty after cleanup | Medium — wire workout_logs + nutrition_logs queries by date |
-| Leaderboard rankings | Empty after cleanup | Medium — needs analytics rollup |
-| /form (form analyzer) | Fake submit button | High — needs video upload + AI scoring backend |
-| /library "Add Video" | Stub button | Medium — needs upload + Supabase storage |
-| /profile/[id] for demo accounts (u1-u12) | Static USER_DIRECTORY | Low — replace when demo accounts are retired |
-| KPI "AI explanation" feature | Not built | Medium — would need `/api/admin/insights` calling GPT-4o |
-
-## Recent commits (most recent first)
-
-```
-b3559dc Phase 2 deep calibration + program spinner final fix
-a1809f3 Today's Snapshot + program spinner failsafe + KPI/adherence resize
-6fb135a Launch prep batch 2: real profile-by-id, inline plan picker, kill mock data
-27d2652 Launch prep: fixed sidebar, clickable KPIs, calibration → real program
-347bed4 Fix infinite spinner on program pages
-8748954 Wire real data + invite lookup; remove fake seeds; build fixes
+```text
+http://localhost:3001
 ```
 
-## Coding rules (from CLAUDE.md and project memory)
+Port `3000` was already in use, so Next used `3001`.
 
-- All post-login routing goes through `resolvePostLoginRoute()` in [src/lib/routing.ts](src/lib/routing.ts)
-- UUID guard before any Supabase call: `UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL`
-- Service role key is server-only — `createAdminClient()` in [src/lib/supabase/server.ts](src/lib/supabase/server.ts)
-- Sign-out goes through `signOutEverywhere()` — do NOT add new logout call sites
-- TypeScript checking is the quality gate: `npx tsc --noEmit` (no test runner configured)
-- Build verification: `npm run build`
-- No gamification push notifications — hard rule
-- Don't create CLAUDE.md/docs/README files unless explicitly asked
-- Default to NO comments; only when WHY is non-obvious
-- Don't add backwards-compat shims for unused code — delete it
+## Current Git Status At Handoff Time
 
-## Useful file paths
+Expected modified files:
 
-| What | Where |
-|------|-------|
-| Admin dashboard | [src/app/(app)/admin/page.tsx](src/app/(app)/admin/page.tsx) |
-| Profile by ID | [src/app/(app)/profile/[id]/page.tsx](src/app/(app)/profile/[id]/page.tsx) |
-| Program page | [src/app/(app)/program/page.tsx](src/app/(app)/program/page.tsx) |
-| Workout player | [src/app/(app)/program/workout/[workoutId]/page.tsx](src/app/(app)/program/workout/[workoutId]/page.tsx) |
-| Dashboard | [src/app/(app)/dashboard/page.tsx](src/app/(app)/dashboard/page.tsx) |
-| Today's Snapshot | [src/components/dashboard/TodaySnapshot.tsx](src/components/dashboard/TodaySnapshot.tsx) |
-| Phase 1 calibration | [src/app/onboarding/calibration/page.tsx](src/app/onboarding/calibration/page.tsx) |
-| Phase 2 deep cal | [src/app/onboarding/deep-calibration/page.tsx](src/app/onboarding/deep-calibration/page.tsx) |
-| Onboarding state | [src/lib/onboarding.ts](src/lib/onboarding.ts) |
-| Starter plan + program mapper | [src/lib/starterPlan.ts](src/lib/starterPlan.ts) |
-| Login | [src/app/login/page.tsx](src/app/login/page.tsx) |
-| Auth callback | [src/app/auth/callback/route.ts](src/app/auth/callback/route.ts) |
-| AppShell guard | [src/components/layout/AppShell.tsx](src/components/layout/AppShell.tsx) |
-| Sidebar | [src/components/layout/Sidebar.tsx](src/components/layout/Sidebar.tsx) |
-| User context | [src/context/UserContext.tsx](src/context/UserContext.tsx) |
-| Sign out helper | [src/lib/auth/signOut.ts](src/lib/auth/signOut.ts) |
-| Profile mapper | [src/lib/admin/profileMapper.ts](src/lib/admin/profileMapper.ts) |
-| /api/admin/users | [src/app/api/admin/users/route.ts](src/app/api/admin/users/route.ts) |
-| /api/admin/users/[id] (GET+PATCH) | [src/app/api/admin/users/[id]/route.ts](src/app/api/admin/users/[id]/route.ts) |
-| /api/admin/users/bulk | [src/app/api/admin/users/bulk/route.ts](src/app/api/admin/users/bulk/route.ts) |
-| Setup admin script | [scripts/setup-admin.mjs](scripts/setup-admin.mjs) |
+```text
+M src/app/(app)/program/ProgramClient.tsx
+M src/app/(app)/program/page.tsx
+M src/app/auth/finish/page.tsx
+M src/app/invite/[token]/page.tsx
+M src/app/login/page.tsx
+M src/app/onboarding/calibration/page.tsx
+M src/app/onboarding/deep-calibration/page.tsx
+M src/app/onboarding/page.tsx
+M src/app/onboarding/tutorial/page.tsx
+M src/lib/db/onboarding.ts
+M src/lib/onboarding.ts
+M src/lib/starterPlan.ts
+M src/lib/workout.ts
+```
 
----
+Also this file:
 
-## Suggested first message for the next chat
+```text
+HANDOFF.md
+```
 
-> "Here's the handoff doc. Top priority: confirm `/program` actually loads now (commit `b3559dc` made it impossible to hang on a spinner). Second priority: wire the Phase 2 deep calibration (`/onboarding/deep-calibration`) so finishing it regenerates the active Supabase program with the richer data — likely via a new `/api/ai/program-generator` endpoint calling GPT-4o with the full intake + deep answers. Don't touch anything in the 'working solidly' list."
+## Likely Next Debugging Target
 
-Attach this file (`HANDOFF.md`) and the next session has everything it needs.
+Start with `src/app/onboarding/tutorial/page.tsx`.
+
+The current implementation:
+
+```ts
+async function finishTutorial() {
+  const userId = getActiveUserId();
+  completeTutorial(userId);
+
+  if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const { upsertOnboardingState } = await import("@/lib/db/onboarding");
+      await upsertOnboardingState(userId, { tutorial_complete: true });
+    } catch (error) {
+      console.warn("[tutorial] tutorial sync skipped:", error);
+    }
+  }
+
+  router.push("/program");
+}
+```
+
+Potential causes to check:
+
+1. The click handler may be firing, but `router.push("/program")` is blocked by AppShell/onboarding gating.
+2. `completeTutorial(userId)` may be using the wrong user id.
+3. `upsertOnboardingState` may hang/fail in the browser, preventing `router.push("/program")`.
+4. The button may be inside a layout/state where `isLast` is not true or the handler is not firing.
+5. If `userId` resolves to `anonymous`, local onboarding state is written for the wrong key and routing will still block.
+
+Recommended quick fix path:
+
+1. Add temporary `console.log` lines in `finishTutorial`, `goNext`, and `handleSkip`.
+2. Change `finishTutorial` to route in a `finally` block so Supabase sync cannot trap the user:
+
+```ts
+async function finishTutorial() {
+  const userId = getActiveUserId();
+  completeTutorial(userId);
+
+  try {
+    if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const { upsertOnboardingState } = await import("@/lib/db/onboarding");
+      await upsertOnboardingState(userId, { tutorial_complete: true });
+    }
+  } catch (error) {
+    console.warn("[tutorial] tutorial sync skipped:", error);
+  } finally {
+    router.replace("/program");
+  }
+}
+```
+
+3. If Program still redirects back to tutorial, inspect the AppShell route guard and DB `onboarding_state` row for the current user.
+4. If the current user id is not a UUID or expected local key, fix `getActiveUserId()`.
+
+## Product Flow To Re-Test
+
+1. Fresh invite user opens invite link.
+2. Invite user creates/signs into account.
+3. User lands on `/onboarding/calibration`, not `/onboarding/walkthrough`.
+4. User finishes six-question calibration.
+5. Active starter program exists in `programs` table for real users.
+6. User lands on `/onboarding/tutorial`.
+7. `Show me my plan` routes to `/program`.
+8. `Skip tour` routes to `/program`.
+9. `/program` does not show `No active program`.
+10. Starter reveal appears once.
+11. `Make this plan smarter` opens `/onboarding/deep-calibration`.
+12. Deep calibration completion saves upgraded AI program active.
+13. Old starter plan is archived.
+14. `/program` shows upgraded reveal once.
+15. `Start Workout` opens the correct generated workout.
+
+## Notes
+
+- `saveBuilderWorkoutForSelf(userId, payload, true)` archives all current active programs before inserting the new active program.
+- This is what should archive the starter when deep calibration saves the upgraded AI program.
+- The starter plan is deterministic and intentionally fast.
+- The deep calibration AI generation is now blocking on finish by design, so the user sees the updated plan immediately after returning to Program.
