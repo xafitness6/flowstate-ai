@@ -91,6 +91,16 @@ function readCookie(name: string): string | null {
     ?.slice(prefix.length) ?? null;
 }
 
+function clearStaleAdminMarkers() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(EMAIL_KEY);
+    sessionStorage.removeItem(EMAIL_KEY);
+    document.cookie = `${EMAIL_KEY}=; Max-Age=0; path=/; SameSite=Lax`;
+    document.cookie = `${ID_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+  } catch { /* ignore */ }
+}
+
 /** Load a demo/local user from storage — used only when no Supabase session exists. */
 function loadDemoUser(): MockUser | null {
   if (typeof window === "undefined") return null;
@@ -170,12 +180,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return null;
     })();
 
-    if (cachedAdmin) {
-      setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: cachedAdmin.key }));
-      setIsSupabase(true);
-      setIsLoading(false);
-    }
-
     const supabase = createClient();
 
     async function applySession(session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) {
@@ -196,6 +200,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        if (session.user.email?.trim().toLowerCase() !== ADMIN_EMAIL) {
+          clearStaleAdminMarkers();
+        }
+
         const profile = await getMyProfile();
         if (cancelled) return;
 

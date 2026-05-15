@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 const EMAIL_KEY = "flowstate-session-email";
 const ID_KEY = "flowstate-session-id";
+const ROLE_KEYS = ["flowstate-active-role", "flowstate-session-role"];
 
 function go(path: string) {
   window.location.replace(path);
@@ -43,26 +44,40 @@ function getInviteToken(user: { user_metadata?: Record<string, unknown> } | null
   return typeof token === "string" && token.length >= 16 ? token : null;
 }
 
-function readCachedFlowstateEmail(): string | null {
+function persistResolvedSession(userId: string) {
   try {
-    return (
-      sessionStorage.getItem(EMAIL_KEY) ||
-      localStorage.getItem(EMAIL_KEY) ||
-      readCookie(EMAIL_KEY) ||
-      null
-    );
-  } catch {
-    return null;
-  }
+    localStorage.setItem("flowstate-active-role", userId);
+    sessionStorage.setItem("flowstate-session-role", userId);
+  } catch { /* ignore */ }
 }
 
-function readCookie(name: string): string | null {
-  const prefix = `${name}=`;
-  return document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(prefix))
-    ?.slice(prefix.length) ?? null;
+function persistAdminSession(email: string, userId: string) {
+  persistResolvedSession(userId);
+  try {
+    localStorage.setItem(EMAIL_KEY, email);
+    sessionStorage.setItem(EMAIL_KEY, email);
+    document.cookie = `${EMAIL_KEY}=${encodeURIComponent(email)}; Max-Age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
+    document.cookie = `${ID_KEY}=${encodeURIComponent(userId)}; Max-Age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
+  } catch { /* ignore */ }
+}
+
+function clearStaleAdminMarkers() {
+  try {
+    localStorage.removeItem(EMAIL_KEY);
+    sessionStorage.removeItem(EMAIL_KEY);
+    document.cookie = `${EMAIL_KEY}=; Max-Age=0; path=/; SameSite=Lax`;
+    document.cookie = `${ID_KEY}=; Max-Age=0; path=/; SameSite=Lax`;
+  } catch { /* ignore */ }
+}
+
+function clearGhostSessionMarkers() {
+  try {
+    ROLE_KEYS.forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+    clearStaleAdminMarkers();
+  } catch { /* ignore */ }
 }
 
 export default function AuthFinishPage() {
@@ -78,29 +93,11 @@ export default function AuthFinishPage() {
 
     const hardFallbackTimer = window.setTimeout(() => {
       if (cancelled) return;
-      const cached = readCachedSupabaseUser();
-      if (cached?.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-        go("/admin");
-        return;
-      }
       go("/login?error=auth&reason=session_timeout");
     }, 12000);
 
     async function finish() {
       try {
-        const flowstateEmail = readCachedFlowstateEmail();
-        if (flowstateEmail?.trim().toLowerCase() === ADMIN_EMAIL) {
-          try {
-            const id = readCookie(ID_KEY);
-            if (id) {
-              localStorage.setItem("flowstate-active-role", id);
-              sessionStorage.setItem("flowstate-session-role", id);
-            }
-          } catch { /* ignore */ }
-          go("/admin");
-          return;
-        }
-
         const supabase = createClient();
         const { data: { session } } = await withTimeout(
           supabase.auth.getSession(),
@@ -112,21 +109,27 @@ export default function AuthFinishPage() {
 
         if (cancelled) return;
         if (!user) {
+          clearGhostSessionMarkers();
           go("/login");
           return;
         }
 
-        try {
-          if (user.id) {
-            localStorage.setItem("flowstate-active-role", user.id);
-            sessionStorage.setItem("flowstate-session-role", user.id);
-          }
-        } catch { /* ignore */ }
+        const email = user.email?.trim().toLowerCase() ?? "";
 
-        if (user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+        if (!user.id) {
+          clearGhostSessionMarkers();
+          go("/login?error=auth&reason=no_session");
+          return;
+        }
+
+        if (email === ADMIN_EMAIL) {
+          persistAdminSession(email, user.id);
           go("/admin");
           return;
         }
+
+        clearStaleAdminMarkers();
+        persistResolvedSession(user.id);
 
         const inviteToken = getInviteToken(user);
         if (inviteToken) {
@@ -152,16 +155,6 @@ export default function AuthFinishPage() {
       } catch (error) {
         console.error("[auth/finish] failed:", error);
         if (cancelled) return;
-        const flowstateEmail = readCachedFlowstateEmail();
-        if (flowstateEmail?.trim().toLowerCase() === ADMIN_EMAIL) {
-          go("/admin");
-          return;
-        }
-        const cached = readCachedSupabaseUser();
-        if (cached?.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-          go("/admin");
-          return;
-        }
         go("/login?error=auth&reason=finish");
       }
     }

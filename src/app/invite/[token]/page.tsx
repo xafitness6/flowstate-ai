@@ -209,7 +209,7 @@ export default function InvitePage() {
         email: cleanEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/finish`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/finish`,
           data: {
             full_name: name.trim(),
             first_name: firstName,

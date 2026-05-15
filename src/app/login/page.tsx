@@ -446,7 +446,7 @@ function LoginPageContent() {
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmed,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/finish`,
         },
       });
       if (error) {

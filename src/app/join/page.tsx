@@ -96,7 +96,7 @@ function JoinForm() {
         email:    email.trim().toLowerCase(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/finish`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/finish`,
           data: {
             full_name:           fullName,
             first_name:          firstName.trim(),

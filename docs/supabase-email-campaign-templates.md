@@ -56,7 +56,7 @@ Body:
             </tr>
             <tr>
               <td style="padding:28px 30px 8px;">
-                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/auth/finish" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=/auth/finish" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-size:15px;font-weight:700;padding:15px 24px;border-radius:12px;">
                   Confirm email
                 </a>
               </td>
@@ -70,7 +70,7 @@ Body:
                   If the button does not work, copy and paste this link into your browser:
                 </p>
                 <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#B48B40;word-break:break-all;">
-                  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/auth/finish
+                  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=/auth/finish
                 </p>
               </td>
             </tr>

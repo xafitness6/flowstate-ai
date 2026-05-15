@@ -11,9 +11,19 @@ function safeNext(value: string | null): string {
 
 export async function GET(req: NextRequest) {
   const { origin, searchParams } = new URL(req.url);
+  const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") ?? "email";
   const next = safeNext(searchParams.get("next"));
+
+  if (code) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      return NextResponse.redirect(`${origin}/login?error=auth&reason=exchange`);
+    }
+    return NextResponse.redirect(`${origin}${next}`);
+  }
 
   if (!tokenHash || !ALLOWED_TYPES.has(type)) {
     return NextResponse.redirect(`${origin}/login?error=auth&reason=confirm_link`);
