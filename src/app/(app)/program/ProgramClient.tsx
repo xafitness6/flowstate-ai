@@ -14,9 +14,14 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
 import {
   loadActiveProgram, loadActiveProgramForUser, saveActiveProgramSnapshot,
+  saveActiveProgram,
   getLogsThisWeekForUser, getWorkoutLogsForUser, getNextWorkout,
   type ActiveProgram, type Workout, type WorkoutLog,
 } from "@/lib/workout";
+import {
+  loadStarterPlan, generateStarterPlan, starterPlanToProgram, starterPlanToBuilderPayload,
+} from "@/lib/starterPlan";
+import { loadIntake } from "@/lib/data/intake";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -297,6 +302,35 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
         setNextWo(getNextWorkout(prog, []));
       }
       if (!visibleProgram) {
+        // Self-heal: no active program anywhere, but the user finished
+        // calibration. Rebuild the deterministic starter from their saved
+        // starter plan (or intake) and persist it — locally always, and
+        // server-side for real UUID accounts so it survives a refresh.
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const intake = loadIntake(user.id);
+        const plan = loadStarterPlan(user.id) ?? (intake ? generateStarterPlan(intake) : null);
+        if (plan && active) {
+          saveActiveProgram(user.id, starterPlanToProgram(plan));
+          const healed = loadActiveProgram(user.id);
+          if (healed) {
+            setProgram(healed);
+            setNextWo(getNextWorkout(healed, []));
+            setReveal((r) => r ?? "starter");
+          }
+          setLoadingProgram(false);
+          if (UUID_RE.test(user.id) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+            void fetch("/api/onboarding/starter-complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({
+                payload: starterPlanToBuilderPayload(plan),
+                intake: (intake ?? undefined) as unknown as Record<string, unknown> | undefined,
+              }),
+            }).catch(() => {});
+          }
+          return;
+        }
         setLoadingProgram(false);
         return;
       }
