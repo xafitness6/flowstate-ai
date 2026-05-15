@@ -69,6 +69,11 @@ function JoinForm() {
 
   useEffect(() => { setTimeout(() => setVisible(true), 60); }, []);
 
+  useEffect(() => {
+    if (!tokenParam) return;
+    router.replace(`/invite/${encodeURIComponent(tokenParam)}`);
+  }, [router, tokenParam]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -200,6 +205,42 @@ function JoinForm() {
   }
 
   const canSubmit = firstName && lastName && email && password && confirm && !loading;
+
+  if (tokenParam) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-5 text-white">
+        <div className="text-center space-y-3">
+          <div className="mx-auto h-6 w-6 rounded-full border border-[#B48B40]/25 border-t-[#B48B40] animate-spin" />
+          <p className="text-sm text-white/55">Opening your invite...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!tokenParam) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-5 py-12 text-white">
+        <div className="max-w-sm w-full text-center space-y-6">
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-[#B48B40]/15 border border-[#B48B40]/25 flex items-center justify-center">
+            <Zap className="w-5 h-5 text-[#B48B40]" strokeWidth={2.5} />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold text-white/85">Invite required</h1>
+            <p className="text-sm text-white/45 leading-relaxed">
+              Flowstate accounts are created from a coach invite. Ask your coach for your personal signup link.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.replace("/login")}
+            className="w-full rounded-2xl border border-white/8 py-3 text-sm text-white/45 hover:text-white/75 transition-colors"
+          >
+            Go to login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (confirmationSent) {
     const cleanEmail = email.trim().toLowerCase();

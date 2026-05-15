@@ -90,7 +90,6 @@ export default function MyClientsPage() {
   const [error,           setError          ] = useState<string | null>(null);
   const [showInvite,      setShowInvite     ] = useState(false);
   const [copiedToken,     setCopiedToken    ] = useState<string | null>(null);
-  const [copiedOpenLink,  setCopiedOpenLink ] = useState(false);
 
   // Invite form
   const [invFirst,    setInvFirst  ] = useState("");
@@ -193,13 +192,6 @@ export default function MyClientsPage() {
     setTimeout(() => setCopiedToken(null), 2000);
   }
 
-  async function handleCopyOpenLink() {
-    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/join?trainer=${user.id}`;
-    try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
-    setCopiedOpenLink(true);
-    setTimeout(() => setCopiedOpenLink(false), 2000);
-  }
-
   function getLeadStatus(lead: StoredAccount): { label: string; badge: string } {
     const s = loadOnboardingState(lead.id);
     if (s.programGenerated) return { label: "Active",        badge: "text-emerald-400 border-emerald-400/20 bg-emerald-400/8" };
@@ -236,19 +228,6 @@ export default function MyClientsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleCopyOpenLink}
-            className={cn(
-              "flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all",
-              copiedOpenLink
-                ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
-                : "border-white/10 bg-white/[0.04] text-white/40 hover:text-white/70 hover:border-white/18"
-            )}
-          >
-            {copiedOpenLink
-              ? <><Check className="w-3.5 h-3.5" strokeWidth={2} /> Copied</>
-              : <><Copy className="w-3.5 h-3.5" strokeWidth={1.5} /> Open invite link</>}
-          </button>
           <button
             onClick={() => { setShowInvite(true); setInvCreated(null); setInvError(null); }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B48B40]/12 border border-[#B48B40]/25 text-[#B48B40] text-xs font-semibold hover:bg-[#B48B40]/20 transition-all"
