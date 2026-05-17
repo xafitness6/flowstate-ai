@@ -194,6 +194,11 @@ export default function CalibrationPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answers.primaryGoal, answers.experience]);
 
+  // Start every step at the top of the page, not where the last one scrolled.
+  useEffect(() => {
+    try { window.scrollTo({ top: 0, behavior: "auto" }); } catch { /* ignore */ }
+  }, [step]);
+
   function navigate(target: Step) {
     setFading(true);
     setTimeout(() => { setStep(target); setFading(false); }, 160);

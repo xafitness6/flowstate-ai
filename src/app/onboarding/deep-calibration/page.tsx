@@ -162,6 +162,7 @@ export default function DeepCalibrationPage() {
   const [answers, setAnswers] = useState<DeepCalAnswers>(DEFAULTS);
   const [saving,  setSaving]  = useState(false);
   const [finishStatus, setFinishStatus] = useState<string>("");
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>("24h");
 
   // Restore in-progress draft
   useEffect(() => {
@@ -177,6 +178,12 @@ export default function DeepCalibrationPage() {
     if (!userId) return;
     try { localStorage.setItem(DRAFT_KEY(userId), JSON.stringify(answers)); } catch { /* ignore */ }
   }, [userId, answers]);
+
+  // Each step is a fresh "page" — start it at the top, not wherever the
+  // previous step left the scroll position.
+  useEffect(() => {
+    try { window.scrollTo({ top: 0, behavior: "auto" }); } catch { /* ignore */ }
+  }, [stepIdx]);
 
   const step = STEPS[stepIdx];
   const isLast = stepIdx === STEPS.length - 1;
@@ -305,6 +312,8 @@ export default function DeepCalibrationPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white flex flex-col">
+
+      {saving && <BuildingScreen />}
 
       {/* Progress bar */}
       <div className="h-1 bg-white/5 shrink-0">
@@ -513,9 +522,12 @@ export default function DeepCalibrationPage() {
               prompt="When do you sleep?"
               coach="Bedtime and wake time, not 'I get about 7 hours.' Patterns matter more than averages."
             >
+              <div className="mb-3">
+                <TimeFormatToggle value={timeFormat} onChange={setTimeFormat} />
+              </div>
               <Grid2>
-                <TextField label="Typical bedtime"  type="time" value={answers.bedTime}  onChange={(v) => update("bedTime", v)} />
-                <TextField label="Typical wake time" type="time" value={answers.wakeTime} onChange={(v) => update("wakeTime", v)} />
+                <TimeField label="Typical bedtime"  format={timeFormat} value={answers.bedTime}  onChange={(v) => update("bedTime", v)} />
+                <TimeField label="Typical wake time" format={timeFormat} value={answers.wakeTime} onChange={(v) => update("wakeTime", v)} />
               </Grid2>
             </Question>
 
@@ -569,9 +581,12 @@ export default function DeepCalibrationPage() {
               prompt="When do you start and stop eating each day?"
               coach="Your real eating window, not the IF protocol you read about. I'll fit meals into your day, not against it."
             >
+              <div className="mb-3">
+                <TimeFormatToggle value={timeFormat} onChange={setTimeFormat} />
+              </div>
               <Grid2>
-                <TextField label="First meal" type="time" value={answers.eatingStart} onChange={(v) => update("eatingStart", v)} />
-                <TextField label="Last meal"  type="time" value={answers.eatingEnd}   onChange={(v) => update("eatingEnd", v)} />
+                <TimeField label="First meal" format={timeFormat} value={answers.eatingStart} onChange={(v) => update("eatingStart", v)} />
+                <TimeField label="Last meal"  format={timeFormat} value={answers.eatingEnd}   onChange={(v) => update("eatingEnd", v)} />
               </Grid2>
             </Question>
 
@@ -689,11 +704,175 @@ function TextField({
       <Label>{label}</Label>
       <input
         type={type}
+        inputMode={type === "number" ? "decimal" : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors"
+        className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums"
       />
+    </div>
+  );
+}
+
+type TimeFormat = "24h" | "12h";
+
+function to12h(hhmm: string): { hour: string; minute: string; mer: "AM" | "PM" } {
+  const [hStr, mStr] = (hhmm || "").split(":");
+  const h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return { hour: "", minute: "", mer: "AM" };
+  const mer: "AM" | "PM" = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const m = parseInt(mStr, 10);
+  return { hour: String(h12), minute: String(Number.isNaN(m) ? 0 : m).padStart(2, "0"), mer };
+}
+
+function from12h(hour: string, minute: string, mer: "AM" | "PM"): string {
+  let h = parseInt(hour, 10);
+  const m = parseInt(minute, 10);
+  if (Number.isNaN(h)) return "";
+  h = h % 12;
+  if (mer === "PM") h += 12;
+  return `${String(h).padStart(2, "0")}:${String(Number.isNaN(m) ? 0 : Math.min(59, Math.max(0, m))).padStart(2, "0")}`;
+}
+
+// Canonical value is always 24h "HH:MM" so downstream logic is unchanged.
+// `format` only controls how it's entered/displayed.
+function TimeField({
+  label, value, onChange, format,
+}: { label: string; value: string; onChange: (v: string) => void; format: TimeFormat }) {
+  const parts = to12h(value);
+  const [hour, setHour]     = useState(parts.hour);
+  const [minute, setMinute] = useState(parts.minute);
+  const [mer, setMer]       = useState<"AM" | "PM">(parts.mer);
+
+  if (format === "24h") {
+    return (
+      <div>
+        <Label>{label}</Label>
+        <input
+          type="time"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number" inputMode="numeric" min={1} max={12} placeholder="7"
+          value={hour}
+          onChange={(e) => { setHour(e.target.value); onChange(from12h(e.target.value, minute || "0", mer)); }}
+          className="w-14 bg-white/[0.03] border border-white/8 rounded-xl px-2.5 py-2.5 text-sm text-white text-center placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums"
+        />
+        <span className="text-white/40 font-semibold">:</span>
+        <input
+          type="number" inputMode="numeric" min={0} max={59} placeholder="30"
+          value={minute}
+          onChange={(e) => { setMinute(e.target.value); onChange(from12h(hour || "12", e.target.value, mer)); }}
+          className="w-16 bg-white/[0.03] border border-white/8 rounded-xl px-2.5 py-2.5 text-sm text-white text-center placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums"
+        />
+        <div className="flex rounded-xl border border-white/8 overflow-hidden ml-1">
+          {(["AM", "PM"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => { setMer(p); onChange(from12h(hour || "12", minute || "0", p)); }}
+              className={cn(
+                "px-3 py-2.5 text-xs font-semibold transition-colors",
+                mer === p ? "bg-[#B48B40]/15 text-[#B48B40]" : "text-white/40 hover:text-white/70",
+              )}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimeFormatToggle({ value, onChange }: { value: TimeFormat; onChange: (v: TimeFormat) => void }) {
+  return (
+    <div className="flex items-center gap-2 justify-end">
+      <span className="text-[10px] uppercase tracking-[0.18em] text-white/30 mr-1">Time format</span>
+      {([["24h", "24-hour"], ["12h", "AM / PM"]] as [TimeFormat, string][]).map(([v, l]) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          className={cn(
+            "rounded-lg px-3 py-1 text-[11px] font-medium border transition-all",
+            value === v
+              ? "border-[#B48B40]/40 bg-[#B48B40]/[0.08] text-[#B48B40]"
+              : "border-white/8 bg-white/[0.02] text-white/45 hover:border-white/15 hover:text-white/70",
+          )}
+        >
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const BUILD_STAGES = [
+  "Reading your calibration…",
+  "Synthesizing your training split…",
+  "Combobulating progression curves…",
+  "Calibrating intensity to your push level…",
+  "Balancing volume against recovery…",
+  "Negotiating with your past self…",
+  "Reticulating splines…",
+  "Dialing in macros and meal timing…",
+  "Stress-testing week 4…",
+  "Polishing the final block…",
+] as const;
+
+function BuildingScreen() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      setI((prev) => (prev + 1) % BUILD_STAGES.length);
+    }, 1700);
+    return () => window.clearInterval(t);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-[#0A0A0A] flex flex-col items-center justify-center px-6 text-white">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[520px] h-[320px] rounded-full bg-[#B48B40]/[0.06] blur-[120px]" />
+      </div>
+
+      <div className="relative flex flex-col items-center text-center max-w-sm">
+        <div className="w-12 h-12 rounded-2xl border border-[#B48B40]/30 bg-[#B48B40]/[0.08] flex items-center justify-center mb-6">
+          <div className="h-5 w-5 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
+        </div>
+
+        <p className="text-[10px] uppercase tracking-[0.3em] text-[#B48B40]/70 mb-3">
+          Building your program
+        </p>
+
+        <p key={i} className="text-lg font-medium text-white/90 leading-snug animate-[fadeIn_0.4s_ease-out] min-h-[3.5rem] flex items-center">
+          {BUILD_STAGES[i]}
+        </p>
+
+        <div className="mt-6 w-56 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+          <div
+            className="h-full bg-[#B48B40] transition-all duration-700 ease-out"
+            style={{ width: `${Math.round(((i + 1) / BUILD_STAGES.length) * 100)}%` }}
+          />
+        </div>
+
+        <p className="mt-5 text-[12px] text-white/35 leading-relaxed">
+          This usually takes 10–20 seconds. We&apos;re tailoring every set to your answers — hang tight.
+        </p>
+      </div>
+
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     </div>
   );
 }
@@ -824,6 +1003,54 @@ function UnitToggle({ value, onChange }: { value: Units; onChange: (v: Units) =>
   );
 }
 
+// IMPORTANT: HeightInput/WeightInput must NOT call hooks conditionally. The
+// metric vs imperial branches are split into separate components so each one
+// always runs the same hooks every render — toggling Units no longer changes
+// the hook count (which previously crashed with "Rendered more hooks…").
+
+function ImperialHeight({
+  valueCm, onChange,
+}: { valueCm: string; onChange: (cm: string) => void }) {
+  const cm0 = parseFloat(valueCm) || 0;
+  const init = cmToFeetInches(cm0);
+  const [ftRaw, setFtRaw] = useState(cm0 > 0 ? String(init.ft) : "");
+  const [inRaw, setInRaw] = useState(cm0 > 0 ? String(init.inches) : "");
+
+  function push(nextFt: string, nextIn: string) {
+    const f = parseInt(nextFt, 10) || 0;
+    const i = parseInt(nextIn, 10) || 0;
+    onChange(f > 0 || i > 0 ? String(feetInchesToCm(f, i)) : "");
+  }
+
+  return (
+    <div>
+      <Label>Height (ft / in)</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="relative">
+          <input
+            type="number" inputMode="numeric" min={3} max={8}
+            value={ftRaw}
+            placeholder="5"
+            onChange={(e) => { setFtRaw(e.target.value); push(e.target.value, inRaw); }}
+            className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums pr-9"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">ft</span>
+        </div>
+        <div className="relative">
+          <input
+            type="number" inputMode="numeric" min={0} max={11}
+            value={inRaw}
+            placeholder="10"
+            onChange={(e) => { setInRaw(e.target.value); push(ftRaw, e.target.value); }}
+            className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums pr-9"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">in</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HeightInput({
   units, valueCm, onChange,
 }: {
@@ -831,9 +1058,6 @@ function HeightInput({
   valueCm: string;
   onChange: (cm: string) => void;
 }) {
-  const cm = parseFloat(valueCm) || 0;
-  const { ft, inches } = cmToFeetInches(cm);
-
   if (units === "metric") {
     return (
       <TextField
@@ -845,42 +1069,33 @@ function HeightInput({
       />
     );
   }
+  return <ImperialHeight valueCm={valueCm} onChange={onChange} />;
+}
+
+function ImperialWeight({
+  valueKg, onChange, label,
+}: { valueKg: string; onChange: (kg: string) => void; label: string }) {
+  // Keep the typed lbs string in local state. Convert to canonical kg for
+  // storage on every change, but never feed the re-rounded value back into
+  // the input — that round-trip turned "200" into "20.1".
+  const kg0 = parseFloat(valueKg) || 0;
+  const [lbsRaw, setLbsRaw] = useState(kg0 > 0 ? String(kgToLbs(kg0)) : "");
 
   return (
     <div>
-      <Label>Height (ft / in)</Label>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="relative">
-          <input
-            type="number"
-            min={3}
-            max={8}
-            value={cm > 0 ? ft : ""}
-            placeholder="5"
-            onChange={(e) => {
-              const nextFt = parseInt(e.target.value) || 0;
-              onChange(String(feetInchesToCm(nextFt, inches)));
-            }}
-            className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums pr-9"
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">ft</span>
-        </div>
-        <div className="relative">
-          <input
-            type="number"
-            min={0}
-            max={11}
-            value={cm > 0 ? inches : ""}
-            placeholder="10"
-            onChange={(e) => {
-              const nextIn = parseInt(e.target.value) || 0;
-              onChange(String(feetInchesToCm(ft, nextIn)));
-            }}
-            className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums pr-9"
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">in</span>
-        </div>
-      </div>
+      <Label>{label} (lbs)</Label>
+      <input
+        type="number" inputMode="decimal"
+        value={lbsRaw}
+        placeholder="180"
+        onChange={(e) => {
+          const raw = e.target.value;
+          setLbsRaw(raw);
+          const lbs = parseFloat(raw) || 0;
+          onChange(lbs > 0 ? String(lbsToKg(lbs)) : "");
+        }}
+        className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums"
+      />
     </div>
   );
 }
@@ -904,25 +1119,7 @@ function WeightInput({
       />
     );
   }
-
-  const kg = parseFloat(valueKg) || 0;
-  const displayLbs = kg > 0 ? String(kgToLbs(kg)) : "";
-
-  return (
-    <div>
-      <Label>{label} (lbs)</Label>
-      <input
-        type="number"
-        value={displayLbs}
-        placeholder="180"
-        onChange={(e) => {
-          const lbs = parseFloat(e.target.value) || 0;
-          onChange(lbs > 0 ? String(lbsToKg(lbs)) : "");
-        }}
-        className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-[#B48B40]/40 transition-colors tabular-nums"
-      />
-    </div>
-  );
+  return <ImperialWeight valueKg={valueKg} onChange={onChange} label={label} />;
 }
 
 function BodyFatSlider({
