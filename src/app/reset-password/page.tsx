@@ -17,15 +17,58 @@ export default function ResetPasswordPage() {
   const [error,     setError]     = useState<string | null>(null);
   const [sessionOk, setSessionOk] = useState<boolean | null>(null);
 
-  // Verify we have an active recovery session. The user only lands here after
-  // clicking the email link, which the /auth/callback route has just turned
-  // into a Supabase session via exchangeCodeForSession.
+  // Establish the recovery session HERE, in client JS, from the token in the
+  // URL. The email links straight to this page (not the server callback) so
+  // the one-time code is only spent when a real browser runs this effect —
+  // email-client prefetch bots fetch HTML but don't execute this code.
   useEffect(() => {
     const supabase = createClient();
 
+    function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+      return Promise.race([
+        p,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Link verification timed out.")), ms),
+        ),
+      ]);
+    }
+
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSessionOk(!!session);
+      try {
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        const tokenHash = url.searchParams.get("token_hash");
+        const type = url.searchParams.get("type");
+        const urlError = url.searchParams.get("error_description") || url.searchParams.get("error");
+
+        if (urlError) { setSessionOk(false); return; }
+
+        if (code) {
+          const { error: exErr } = await withTimeout(supabase.auth.exchangeCodeForSession(code), 12_000);
+          if (exErr) { setSessionOk(false); return; }
+        } else if (tokenHash && type === "recovery") {
+          const { error: otpErr } = await withTimeout(
+            supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash }),
+            12_000,
+          );
+          if (otpErr) { setSessionOk(false); return; }
+        }
+        // (Implicit #access_token links are picked up automatically by the
+        // supabase-js client via detectSessionInUrl.)
+
+        // Strip the token from the address bar so a refresh can't replay a
+        // now-spent code.
+        if (code || tokenHash) {
+          window.history.replaceState({}, "", "/reset-password");
+        }
+
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8_000);
+        setSessionOk(!!session);
+      } catch {
+        // Timed out or threw — let the user request a fresh link rather than
+        // sit on a spinner.
+        setSessionOk(false);
+      }
     })();
 
     // Supabase also emits PASSWORD_RECOVERY in some flows — treat that as ok.
@@ -53,12 +96,28 @@ export default function ResetPasswordPage() {
 
     try {
       const supabase = createClient();
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      // Race the auth call against a timeout. Supabase's updateUser can hang
+      // indefinitely when the recovery session is missing/expired — without
+      // this the button sticks on "Updating…" forever with no feedback.
+      const result = await Promise.race([
+        supabase.auth.updateUser({ password }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("This reset link has expired. Request a new one and try again.")),
+            12_000,
+          ),
+        ),
+      ]);
+      const { error: updateError } = result;
       if (updateError) {
         setError(updateError.message);
         setLoading(false);
         return;
       }
+      // Clear the recovery session so the "Sign in" button lands on a clean
+      // login instead of a half-authenticated state. Fire-and-forget — the
+      // success screen shows regardless.
+      void supabase.auth.signOut().catch(() => {});
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
@@ -85,6 +144,13 @@ export default function ResetPasswordPage() {
               : "Choose a strong password for your account."}
           </p>
         </div>
+
+        {sessionOk === null && !done && (
+          <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-5 py-6 flex items-center justify-center gap-3">
+            <div className="h-4 w-4 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
+            <p className="text-sm text-white/45">Verifying your reset link…</p>
+          </div>
+        )}
 
         {sessionOk === false && !done && (
           <div className="space-y-4">

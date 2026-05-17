@@ -27,7 +27,12 @@ export default function ForgotPasswordPage() {
 
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=/reset-password`;
+      // Point directly at the client reset page — NOT through the server
+      // /auth/callback route. Email clients pre-fetch links to build previews;
+      // a server route would consume the one-time recovery code on that
+      // prefetch, leaving the real click with a dead link. The reset page
+      // exchanges the code in client JS, which prefetch bots don't execute.
+      const redirectTo = `${window.location.origin}/reset-password`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmed, {
         redirectTo,
       });
