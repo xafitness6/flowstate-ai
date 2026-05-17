@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { OnboardingState } from "@/lib/supabase/types";
 import { decideOnboardingRoute } from "@/lib/onboardingRoute";
+import { trace, mark } from "@/lib/authTrace";
 
 export type OnboardingUpdate = Partial<
   Omit<OnboardingState, "id" | "user_id" | "created_at" | "updated_at">
@@ -26,11 +27,11 @@ export async function upsertOnboardingState(
 /** Get onboarding state for a user. Returns null if not started. */
 export async function getOnboardingState(userId: string): Promise<OnboardingState | null> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("onboarding_state")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const { data, error } = await trace(
+    "getOnboardingState",
+    () => supabase.from("onboarding_state").select("*").eq("user_id", userId).maybeSingle(),
+    { detail: `uid=${userId.slice(0, 8)}`, isError: (r) => r.error?.message ?? null },
+  );
   if (error) { console.error("[onboarding] get:", error.message); return null; }
   return data as OnboardingState | null;
 }
@@ -74,5 +75,7 @@ export async function resetOnboardingState(userId: string): Promise<void> {
  *  server root (`src/app/page.tsx`) and this client helper never drift. */
 export async function resolveOnboardingRoute(userId: string): Promise<string | null> {
   const state = await getOnboardingState(userId);
-  return decideOnboardingRoute(state);
+  const route = decideOnboardingRoute(state);
+  mark("resolveOnboardingRoute", `→ ${route ?? "null (done)"}`);
+  return route;
 }

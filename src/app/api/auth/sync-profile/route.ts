@@ -48,10 +48,12 @@ export async function POST() {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user?.email) {
+    console.error("[sync-profile] not authenticated:", error?.message ?? "no user/email on session");
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
   if (!getSupabaseServiceRoleKey()) {
+    console.error("[sync-profile] service role key missing on server");
     return NextResponse.json(
       { error: missingServiceRoleMessage() },
       { status: 500 },
@@ -118,8 +120,10 @@ export async function POST() {
     .single();
 
   if (upsertError) {
+    console.error("[sync-profile] profiles upsert failed:", upsertError.message, "| uid:", user.id);
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
+  console.info("[sync-profile] ok — profile ensured for", user.id);
 
   return NextResponse.json({ profile: data });
 }

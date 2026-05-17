@@ -10,6 +10,7 @@ import { getSessionKey, getBlockingRoute } from "@/lib/routing";
 import { loadOnboardingState } from "@/lib/onboarding";
 import { signOutEverywhere } from "@/lib/auth/signOut";
 import { useUser }                        from "@/context/UserContext";
+import { trace as authTrace, mark as authMark } from "@/lib/authTrace";
 
 const ADMIN_EMAIL = "xavellis4@gmail.com";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,15 +86,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         let sessionCheckTimedOut = false;
 
         try {
-          const sessionResult = await Promise.race([
-            supabase.auth.getSession(),
-            new Promise<never>((_, reject) =>
-              window.setTimeout(() => reject(new Error("Supabase session check timed out")), 10_000),
-            ),
-          ]);
+          const sessionResult = await authTrace("AppShell.getSession", () =>
+            Promise.race([
+              supabase.auth.getSession(),
+              new Promise<never>((_, reject) =>
+                window.setTimeout(() => reject(new Error("Supabase session check timed out")), 10_000),
+              ),
+            ]),
+          );
           sessionUser = sessionResult.data.session?.user ?? null;
         } catch (error) {
           sessionCheckTimedOut = true;
+          authMark("AppShell.getSession", "TIMED OUT — falling back to getUser");
           console.warn("[AppShell] Supabase session check skipped:", error);
           try {
             const userResult = await Promise.race([
@@ -173,10 +177,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             return;
           }
 
+          authMark("AppShell.guard", `redirect → ${dbBlocker}`);
           router.replace(dbBlocker);
           return;
         }
 
+        authMark("AppShell.guard", "passed → app");
         setReady(true);
         return;
       }
@@ -192,6 +198,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // on the page and lets the real error surface for debugging.
     guard().catch((error) => {
       console.error("[AppShell] guard failed:", error);
+      authMark("AppShell.guard", `EXCEPTION → /auth/finish: ${error instanceof Error ? error.message : String(error)}`);
       router.replace("/auth/finish");
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps

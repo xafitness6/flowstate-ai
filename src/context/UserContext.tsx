@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import type { MockUser, Plan, Role } from "@/types";
 import type { Profile } from "@/lib/supabase/types";
+import { trace as authTrace, mark as authMark } from "@/lib/authTrace";
 import { getAccountById, accountToMockUser } from "@/lib/accounts";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
@@ -215,6 +216,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     async function applySession(session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) {
       if (cancelled) return;
 
+      authMark("UserContext.applySession", session ? "has session" : "no session");
+
       if (!session) {
         if (cachedAdmin) {
           setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: cachedAdmin.key }));
@@ -238,20 +241,34 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
 
         if (profile) {
+          authMark("UserContext.identity", "profile row → real identity");
           setUser(applyEarlyAccess(profileToMockUser(profile)));
         } else if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+          authMark("UserContext.identity", "admin, no profile → master persona");
           setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
         } else {
           // No profiles row — the handle_new_user trigger may not have fired
           // or a prior sync failed. Recover it server-side (service role),
           // then refetch once. Only if that still fails do we fall back to a
           // session-derived identity (never the demo "member" persona).
+          authMark("UserContext.identity", "NO profile row — attempting sync-profile recovery");
           let recovered: Profile | null = null;
           try {
-            await fetch("/api/auth/sync-profile", { method: "POST" });
+            const res = await authTrace("UserContext.syncProfile", () =>
+              fetch("/api/auth/sync-profile", { method: "POST" }),
+            );
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({} as { error?: string }));
+              authMark("UserContext.syncProfile", `FAILED status=${res.status} err=${body?.error ?? "?"}`);
+            }
             recovered = await getMyProfile();
-          } catch { /* ignore — use session identity below */ }
+          } catch (e) {
+            authMark("UserContext.syncProfile", `threw: ${e instanceof Error ? e.message : String(e)}`);
+          }
           if (cancelled) return;
+          authMark("UserContext.identity", recovered
+            ? "recovered profile after sync"
+            : "FELL BACK to session-derived identity (no profile)");
           setUser(recovered
             ? applyEarlyAccess(profileToMockUser(recovered))
             : sessionToMockUser(session.user));
@@ -260,6 +277,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (cancelled) return;
         console.error("[UserContext] session profile resolution failed:", error);
+        authMark("UserContext.identity", `EXCEPTION in resolution: ${error instanceof Error ? error.message : String(error)}`);
         if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
           setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
           setIsSupabase(true);
@@ -274,8 +292,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     // Initial session check — always resolves isLoading so the app never parks
     // forever on the black routing shell after OAuth.
-    supabase.auth
-      .getSession()
+    authTrace("UserContext.getSession", () => supabase.auth.getSession())
       .then(({ data: { session } }) => applySession(session))
       .catch((error) => {
         if (cancelled) return;

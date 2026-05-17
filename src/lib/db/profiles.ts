@@ -4,6 +4,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/supabase/types";
+import { trace, mark } from "@/lib/authTrace";
 
 export type ProfileUpdate = Partial<
   Pick<Profile, "first_name" | "last_name" | "full_name" | "avatar_url" | "bio" | "role" | "plan" | "push_level" | "default_dashboard" | "assigned_trainer_id">
@@ -12,14 +13,19 @@ export type ProfileUpdate = Partial<
 /** Get the currently authenticated user's profile. */
 export async function getMyProfile(): Promise<Profile | null> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const { data: { user } } = await trace(
+    "getMyProfile.getUser",
+    () => supabase.auth.getUser(),
+    { isError: (r) => r.error?.message ?? null },
+  );
+  if (!user) { mark("getMyProfile", "no auth user"); return null; }
+
+  const { data, error } = await trace(
+    "getMyProfile.select",
+    () => supabase.from("profiles").select("*").eq("id", user.id).single(),
+    { detail: `uid=${user.id.slice(0, 8)}`, isError: (r) => r.error?.message ?? null },
+  );
 
   if (error) { console.error("[profiles] getMyProfile:", error.message); return null; }
   return data as Profile;
