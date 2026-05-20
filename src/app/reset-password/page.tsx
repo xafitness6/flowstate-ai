@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
         if (code) {
           const { data, error: exErr } = await withTimeout(
             supabase.auth.exchangeCodeForSession(code),
-            15_000,
+            1_800_000, // 30 min — per user request
             "exchange",
           );
           if (cancelled) return;
@@ -101,7 +101,7 @@ export default function ResetPasswordPage() {
         } else if (tokenHash && type === "recovery") {
           const { data, error: otpErr } = await withTimeout(
             supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash }),
-            15_000,
+            1_800_000, // 30 min — per user request
             "verifyOtp",
           );
           if (cancelled) return;
@@ -174,7 +174,7 @@ export default function ResetPasswordPage() {
         new Promise<never>((_, reject) =>
           setTimeout(
             () => reject(new Error("This reset link has expired. Request a new one and try again.")),
-            12_000,
+            1_800_000, // 30 min — per user request
           ),
         ),
       ]);
