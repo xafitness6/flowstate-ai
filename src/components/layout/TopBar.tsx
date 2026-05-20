@@ -24,6 +24,7 @@ export function TopBar() {
   const { user, logout } = useUser();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const menuRef  = useRef<HTMLDivElement>(null);
 
   const initials = user.name
@@ -52,13 +53,20 @@ export function TopBar() {
     return () => document.removeEventListener("keydown", handleKey);
   }, [open]);
 
-  function handleItem(href: string | null) {
-    setOpen(false);
+  async function handleItem(href: string | null) {
     if (href) {
+      setOpen(false);
       router.push(href);
-    } else {
-      logout(); // clears storage + hard-navigates to /login
+      return;
     }
+    if (signingOut) return;
+    // Keep the dropdown open + show "Signing out…" so the user gets feedback.
+    // signOutEverywhere hard-navigates to /login, so the unmount handles cleanup.
+    setSigningOut(true);
+    // Ultimate safety net: if for some reason signOutEverywhere can't navigate
+    // (it shouldn't — it has timeouts), force the redirect after 4s.
+    const fallback = window.setTimeout(() => { window.location.href = "/login"; }, 4000);
+    try { await logout(); } finally { clearTimeout(fallback); }
   }
 
   return (
@@ -111,21 +119,30 @@ export function TopBar() {
 
             {/* Menu items */}
             <div className="py-1">
-              {MENU_ITEMS.map(({ label, icon: Icon, href }) => (
-                <button
-                  key={label}
-                  onClick={() => handleItem(href)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left",
-                    href === null
-                      ? "text-[#F87171]/70 hover:text-[#F87171] hover:bg-white/[0.02]"
-                      : "text-white/55 hover:text-white/85 hover:bg-white/[0.03]"
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
-                  {label}
-                </button>
-              ))}
+              {MENU_ITEMS.map(({ label, icon: Icon, href }) => {
+                const isLogout = href === null;
+                const showSpinner = isLogout && signingOut;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => handleItem(href)}
+                    disabled={signingOut}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left disabled:opacity-60 disabled:cursor-default",
+                      isLogout
+                        ? "text-[#F87171]/70 hover:text-[#F87171] hover:bg-white/[0.02]"
+                        : "text-white/55 hover:text-white/85 hover:bg-white/[0.03]"
+                    )}
+                  >
+                    {showSpinner ? (
+                      <div className="w-3.5 h-3.5 shrink-0 rounded-full border-2 border-[#F87171]/30 border-t-[#F87171] animate-spin" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+                    )}
+                    {showSpinner ? "Signing out…" : label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
