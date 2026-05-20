@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Eye, EyeOff, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { mark as authMark } from "@/lib/authTrace";
+
+type LinkStatus =
+  | { kind: "verifying" }
+  | { kind: "ok" }
+  | { kind: "timeout"; reason: string }   // network/timeout — retry helpful
+  | { kind: "invalid"; reason: string };  // actually bad link — need a new one
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -15,71 +22,134 @@ export default function ResetPasswordPage() {
   const [loading,   setLoading]   = useState(false);
   const [done,      setDone]      = useState(false);
   const [error,     setError]     = useState<string | null>(null);
-  const [sessionOk, setSessionOk] = useState<boolean | null>(null);
+  const [link, setLink] = useState<LinkStatus>({ kind: "verifying" });
+  const [verifyAttempt, setVerifyAttempt] = useState(0);
 
   // Establish the recovery session HERE, in client JS, from the token in the
   // URL. The email links straight to this page (not the server callback) so
-  // the one-time code is only spent when a real browser runs this effect —
-  // email-client prefetch bots fetch HTML but don't execute this code.
+  // the one-time code is only spent when a real browser runs this effect.
+  //
+  // Distinguishes timeout (retryable, surface "Try again") from actually-bad
+  // links (need a fresh email) — the previous version showed the same scary
+  // "expired" message for both, which made every slow network look like a
+  // dead link.
+  const retry = useCallback(() => {
+    setLink({ kind: "verifying" });
+    setVerifyAttempt((n) => n + 1);
+  }, []);
+
   useEffect(() => {
     const supabase = createClient();
+    let cancelled = false;
 
-    function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-      return Promise.race([
-        p,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Link verification timed out.")), ms),
-        ),
-      ]);
+    function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error(`${label}_timeout`)), ms);
+        Promise.resolve(p).then(
+          (v) => { clearTimeout(t); resolve(v); },
+          (e) => { clearTimeout(t); reject(e); },
+        );
+      });
     }
 
     (async () => {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      const tokenHash = url.searchParams.get("token_hash");
+      const type = url.searchParams.get("type");
+      const urlError = url.searchParams.get("error_description") || url.searchParams.get("error");
+
+      authMark("resetPassword.verify", `attempt=${verifyAttempt + 1} code=${!!code} tokenHash=${!!tokenHash} type=${type ?? "-"} err=${urlError ?? "-"}`);
+
+      if (urlError) {
+        if (!cancelled) setLink({ kind: "invalid", reason: urlError });
+        return;
+      }
+
+      // 1) Already have a recovery session from a previous attempt? Done.
       try {
-        const url = new URL(window.location.href);
-        const code = url.searchParams.get("code");
-        const tokenHash = url.searchParams.get("token_hash");
-        const type = url.searchParams.get("type");
-        const urlError = url.searchParams.get("error_description") || url.searchParams.get("error");
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 4_000, "getSession");
+        if (session) {
+          authMark("resetPassword.verify", "pre-existing session, skipping exchange");
+          if (!cancelled) setLink({ kind: "ok" });
+          return;
+        }
+      } catch { /* fall through to token exchange */ }
 
-        if (urlError) { setSessionOk(false); return; }
-
+      // 2) Exchange the token in the URL. Use the SESSION RETURNED BY THE
+      //    EXCHANGE directly — calling getSession() again right after races
+      //    cookie persistence and was the source of false "expired" errors.
+      try {
         if (code) {
-          const { error: exErr } = await withTimeout(supabase.auth.exchangeCodeForSession(code), 12_000);
-          if (exErr) { setSessionOk(false); return; }
-        } else if (tokenHash && type === "recovery") {
-          const { error: otpErr } = await withTimeout(
-            supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash }),
-            12_000,
+          const { data, error: exErr } = await withTimeout(
+            supabase.auth.exchangeCodeForSession(code),
+            15_000,
+            "exchange",
           );
-          if (otpErr) { setSessionOk(false); return; }
-        }
-        // (Implicit #access_token links are picked up automatically by the
-        // supabase-js client via detectSessionInUrl.)
-
-        // Strip the token from the address bar so a refresh can't replay a
-        // now-spent code.
-        if (code || tokenHash) {
+          if (cancelled) return;
+          if (exErr) {
+            authMark("resetPassword.verify", `exchange err: ${exErr.message}`);
+            setLink({ kind: "invalid", reason: exErr.message });
+            return;
+          }
           window.history.replaceState({}, "", "/reset-password");
+          if (data.session) {
+            authMark("resetPassword.verify", "exchange ok");
+            setLink({ kind: "ok" });
+            return;
+          }
+        } else if (tokenHash && type === "recovery") {
+          const { data, error: otpErr } = await withTimeout(
+            supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash }),
+            15_000,
+            "verifyOtp",
+          );
+          if (cancelled) return;
+          if (otpErr) {
+            authMark("resetPassword.verify", `verifyOtp err: ${otpErr.message}`);
+            setLink({ kind: "invalid", reason: otpErr.message });
+            return;
+          }
+          window.history.replaceState({}, "", "/reset-password");
+          if (data.session) {
+            authMark("resetPassword.verify", "verifyOtp ok");
+            setLink({ kind: "ok" });
+            return;
+          }
+        } else {
+          // Nothing in the URL and no existing session — the user navigated
+          // here directly without a link.
+          if (!cancelled) setLink({ kind: "invalid", reason: "no token in URL" });
+          return;
         }
 
-        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8_000);
-        setSessionOk(!!session);
-      } catch {
-        // Timed out or threw — let the user request a fresh link rather than
-        // sit on a spinner.
-        setSessionOk(false);
+        // Exchange/verifyOtp returned no error AND no session — give the SDK
+        // a beat to persist, then check once more.
+        await new Promise((r) => setTimeout(r, 250));
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 4_000, "getSession");
+        if (!cancelled) setLink(session ? { kind: "ok" } : { kind: "invalid", reason: "no session after exchange" });
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : String(e);
+        const isTimeout = msg.endsWith("_timeout");
+        authMark("resetPassword.verify", `caught: ${msg}`);
+        // Timeout = network/SDK was slow; offer retry. Anything else = real
+        // link problem; tell the user to request a new one.
+        setLink(isTimeout
+          ? { kind: "timeout", reason: msg }
+          : { kind: "invalid", reason: msg });
       }
     })();
 
     // Supabase also emits PASSWORD_RECOVERY in some flows — treat that as ok.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
-        setSessionOk(true);
+        setLink({ kind: "ok" });
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => { cancelled = true; subscription.unsubscribe(); };
+  }, [verifyAttempt]);
 
   function validate(): string | null {
     if (password.length < 8)  return "Password must be at least 8 characters.";
@@ -145,14 +215,37 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        {sessionOk === null && !done && (
+        {link.kind === "verifying" && !done && (
           <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-5 py-6 flex items-center justify-center gap-3">
             <div className="h-4 w-4 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
             <p className="text-sm text-white/45">Verifying your reset link…</p>
           </div>
         )}
 
-        {sessionOk === false && !done && (
+        {link.kind === "timeout" && !done && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-[#B48B40]/20 bg-[#B48B40]/[0.05] px-5 py-5 text-center">
+              <p className="text-sm text-white/85">Couldn&apos;t verify your link in time.</p>
+              <p className="text-xs text-white/40 mt-1.5 leading-relaxed">
+                The network or sign-in service was slow — your link is probably still good. Try again.
+              </p>
+            </div>
+            <button
+              onClick={retry}
+              className="w-full rounded-2xl py-4 text-sm font-semibold tracking-wide bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98] transition-all duration-200"
+            >
+              Try again
+            </button>
+            <button
+              onClick={() => router.push("/forgot-password")}
+              className="w-full text-xs text-white/40 hover:text-white/70 transition-colors"
+            >
+              Or request a fresh link
+            </button>
+          </div>
+        )}
+
+        {link.kind === "invalid" && !done && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-red-400/15 bg-red-400/5 px-5 py-5 text-center">
               <p className="text-sm text-red-400/80">
@@ -188,7 +281,7 @@ export default function ResetPasswordPage() {
           </div>
         )}
 
-        {sessionOk === true && !done && (
+        {link.kind === "ok" && !done && (
           <form onSubmit={handleSubmit} className="space-y-4">
 
             <div className="space-y-1.5">
