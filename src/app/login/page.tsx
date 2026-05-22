@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/client";
-import { signInWithPassword } from "@/lib/auth/service";
+import { redirectPasswordSessionToReset, signInWithPassword } from "@/lib/auth/service";
 import { resolvePostAuthDestination } from "@/lib/auth/postLogin";
 import { signOutEverywhere } from "@/lib/auth/signOut";
 
@@ -68,6 +68,8 @@ export default function LoginPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
+    if (redirectPasswordSessionToReset()) return;
+
     try {
       const params = new URLSearchParams(window.location.search);
       const authError = params.get("error");

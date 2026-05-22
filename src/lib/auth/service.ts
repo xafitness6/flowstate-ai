@@ -23,6 +23,7 @@ export type RecoveryVerifyResult =
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RECOVERY_SESSION_READY_KEY = "flowstate:recovery-session-ready";
+const PASSWORD_SESSION_TYPES = new Set(["recovery", "invite", "signup"]);
 
 let recoveryVerification:
   | { signature: string; promise: Promise<RecoveryVerifyResult> }
@@ -73,6 +74,31 @@ function isRecoverySessionReady(): boolean {
 
 function cleanRecoveryUrl() {
   window.history.replaceState({}, "", "/reset-password");
+}
+
+function isPasswordSessionType(type: string | null): boolean {
+  return !type || PASSWORD_SESSION_TYPES.has(type);
+}
+
+export function redirectPasswordSessionToReset(urlString = window.location.href): boolean {
+  const url = new URL(urlString);
+  if (url.pathname === "/reset-password") return false;
+
+  const type = urlParam(url, "type");
+  if (!type || !PASSWORD_SESSION_TYPES.has(type)) return false;
+
+  const hasPasswordSessionPayload = Boolean(
+    urlParam(url, "access_token") ||
+    urlParam(url, "refresh_token") ||
+    urlParam(url, "code") ||
+    urlParam(url, "token_hash") ||
+    urlParam(url, "error") ||
+    urlParam(url, "error_description")
+  );
+  if (!hasPasswordSessionPayload) return false;
+
+  window.location.replace(`/reset-password${url.search}${url.hash}`);
+  return true;
 }
 
 function timeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
@@ -256,6 +282,13 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
     return { kind: "invalid", message: friendlyAuthMessage(urlError) };
   }
 
+  if (!isPasswordSessionType(type)) {
+    return {
+      kind: "invalid",
+      message: "This link is not a password setup link. Open the newest invite or reset email.",
+    };
+  }
+
   const existingSession = await safeAuth(
     "auth.recovery.getSession",
     () => supabase.auth.getSession(),
@@ -271,13 +304,6 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
   }
 
   if (accessToken && refreshToken) {
-    if (type && type !== "recovery") {
-      return {
-        kind: "invalid",
-        message: "Open the password reset link from your email to set a new password.",
-      };
-    }
-
     const session = await safeAuth(
       "auth.setRecoverySession",
       () => supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }),
@@ -313,10 +339,13 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
       cleanRecoveryUrl();
       return { kind: "ok" };
     }
-  } else if (tokenHash && (!type || type === "recovery")) {
+  } else if (tokenHash) {
     const verified = await safeAuth(
       "auth.verifyRecoveryOtp",
-      () => supabase.auth.verifyOtp({ type: "recovery" as EmailOtpType, token_hash: tokenHash }),
+      () => supabase.auth.verifyOtp({
+        type: (type ?? "recovery") as EmailOtpType,
+        token_hash: tokenHash,
+      }),
       30_000,
       "Could not verify this reset link yet. Try again, or request a fresh link.",
     );

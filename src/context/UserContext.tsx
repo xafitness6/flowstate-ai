@@ -288,24 +288,31 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        try {
-          if (session) {
-            await applySession(session);
-            return;
-          }
-          // Session ended — check for demo fallback
-          if (cancelled) return;
-          setIsSupabase(false);
-          const demo = loadDemoUser();
-          setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
-          setIsLoading(false);
-        } catch (error) {
-          if (cancelled) return;
-          console.error("[UserContext] auth state change failed:", error);
-          setIsLoading(false);
-        }
-      }
+      (_event, session) => {
+        // Supabase holds an internal auth lock while this callback runs. Doing
+        // awaited Supabase reads here can block setSession/updateUser calls,
+        // which is especially painful on reset/invite password links.
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              if (session) {
+                await applySession(session);
+                return;
+              }
+              // Session ended — check for demo fallback
+              if (cancelled) return;
+              setIsSupabase(false);
+              const demo = loadDemoUser();
+              setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
+              setIsLoading(false);
+            } catch (error) {
+              if (cancelled) return;
+              console.error("[UserContext] auth state change failed:", error);
+              setIsLoading(false);
+            }
+          })();
+        }, 0);
+      },
     );
 
     return () => {
