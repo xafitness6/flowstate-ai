@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supabase/env";
 
-const ADMIN_EMAIL = "xavellis4@gmail.com";
-const ALLOWED_ROLES = new Set(["trainer", "client", "member"]);
+const ALLOWED_ROLES = new Set(["master", "trainer", "client", "member"]);
+const SIGNUP_ROLES = new Set(["trainer", "client", "member"]);
 const PLAN_RANK = {
   foundation:  1,
   training:    2,
@@ -26,14 +26,15 @@ function isPlan(value: unknown): value is Plan {
   return typeof value === "string" && value in PLAN_RANK;
 }
 
-function minimumPlanForRole(role: string): Plan {
+function minimumPlanForRole(role: string, isAdmin: boolean): Plan {
+  if (isAdmin || role === "master") return "coaching";
   if (role === "client" || role === "trainer") return "training";
   return "foundation";
 }
 
 function resolveProfilePlan(existingPlan: unknown, role: string, isAdmin: boolean): Plan {
   if (isAdmin) return "coaching";
-  const minimum = minimumPlanForRole(role);
+  const minimum = minimumPlanForRole(role, isAdmin);
   if (isPlan(existingPlan) && PLAN_RANK[existingPlan] >= PLAN_RANK[minimum]) {
     return existingPlan;
   }
@@ -81,16 +82,14 @@ export async function POST() {
       ? metadata.last_name.trim()
       : split.lastName;
 
-  const isAdmin = email === ADMIN_EMAIL;
   const metadataRole = typeof metadata.role === "string" ? metadata.role : "";
   const existingRole = typeof existingProfile?.role === "string" ? existingProfile.role : "";
-  const role = isAdmin
-    ? "master"
-    : ALLOWED_ROLES.has(existingRole)
-      ? existingRole
-      : ALLOWED_ROLES.has(metadataRole)
-        ? metadataRole
-        : "client";
+  const role = ALLOWED_ROLES.has(existingRole)
+    ? existingRole
+    : SIGNUP_ROLES.has(metadataRole)
+      ? metadataRole
+      : "client";
+  const isAdmin = existingProfile?.is_admin === true || role === "master";
   const plan = resolveProfilePlan(existingProfile?.plan, role, isAdmin);
 
   const { data, error: upsertError } = await (admin.from("profiles") as any)

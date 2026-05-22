@@ -7,9 +7,24 @@ import { createBrowserClient } from "@supabase/ssr";
 // to regenerate fully typed tables. Until then, tables are typed via our manual types.ts.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createClient(): ReturnType<typeof createBrowserClient<any>> {
-  return createBrowserClient(
+export type BrowserSupabaseClient = ReturnType<typeof createBrowserClient<any>>;
+
+let browserClient: BrowserSupabaseClient | null = null;
+
+export function isSupabaseConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+}
+
+export function createClient(): BrowserSupabaseClient {
+  if (browserClient) return browserClient;
+
+  browserClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
+
+  return browserClient;
 }

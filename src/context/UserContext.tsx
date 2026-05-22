@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
 import { signOutEverywhere } from "@/lib/auth/signOut";
 import { applyEarlyAccess } from "@/lib/earlyAccess";
+import { DEMO_AUTH_ENABLED } from "@/lib/auth/config";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
@@ -55,11 +56,8 @@ export const DEMO_USERS: Record<string, MockUser> = {
 
 const LS_KEY        = "flowstate-active-role";
 const SS_KEY        = "flowstate-session-role";
-const EMAIL_KEY     = "flowstate-session-email";
-const ID_COOKIE     = "flowstate-session-id";
 const VIEW_MODE_KEY = "flowstate-view-mode";
 const PLAN_KEY      = (id: string) => `flowstate-plan-${id}`;
-const ADMIN_EMAIL   = "xavellis4@gmail.com";
 
 export type ViewMode = "operator" | "personal";
 
@@ -71,41 +69,18 @@ export type ViewMode = "operator" | "personal";
  */
 function getInitialUser(): MockUser {
   if (typeof window === "undefined") return applyEarlyAccess(DEMO_USERS.member);
+  if (!DEMO_AUTH_ENABLED) return applyEarlyAccess(DEMO_USERS.member);
   try {
     const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
-    const cookieId = readCookie(ID_COOKIE);
-    const email = sessionStorage.getItem(EMAIL_KEY) || localStorage.getItem(EMAIL_KEY) || readCookie(EMAIL_KEY);
-    if (email?.trim().toLowerCase() === ADMIN_EMAIL) {
-      return applyEarlyAccess({ ...DEMO_USERS.master, id: key ?? cookieId ?? DEMO_USERS.master.id });
-    }
     if (key && DEMO_USERS[key]) return applyEarlyAccess(DEMO_USERS[key]);
   } catch { /* ignore */ }
   return applyEarlyAccess(DEMO_USERS.member);
 }
 
-function readCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const prefix = `${name}=`;
-  return document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(prefix))
-    ?.slice(prefix.length) ?? null;
-}
-
-function clearStaleAdminMarkers() {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(EMAIL_KEY);
-    sessionStorage.removeItem(EMAIL_KEY);
-    document.cookie = `${EMAIL_KEY}=; Max-Age=0; path=/; SameSite=Lax`;
-    document.cookie = `${ID_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
-  } catch { /* ignore */ }
-}
-
 /** Load a demo/local user from storage — used only when no Supabase session exists. */
 function loadDemoUser(): MockUser | null {
   if (typeof window === "undefined") return null;
+  if (!DEMO_AUTH_ENABLED) return null;
   try {
     const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
     if (!key) return null;
@@ -157,6 +132,22 @@ function sessionToMockUser(sessionUser: {
   });
 }
 
+function withAuthTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 type UserContextValue = {
   user:        MockUser;
   isLoading:   boolean;  // true until user identity is fully resolved (async)
@@ -199,18 +190,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const cachedAdmin = (() => {
-      try {
-        const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY);
-        const cookieId = readCookie(ID_COOKIE);
-        const email = sessionStorage.getItem(EMAIL_KEY) || localStorage.getItem(EMAIL_KEY) || readCookie(EMAIL_KEY);
-        if (email?.trim().toLowerCase() === ADMIN_EMAIL) {
-          return { key: key ?? cookieId ?? DEMO_USERS.master.id };
-        }
-      } catch { /* ignore */ }
-      return null;
-    })();
-
     const supabase = createClient();
 
     async function applySession(session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) {
@@ -219,12 +198,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       authMark("UserContext.applySession", session ? "has session" : "no session");
 
       if (!session) {
-        if (cachedAdmin) {
-          setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: cachedAdmin.key }));
-          setIsSupabase(true);
-          setIsLoading(false);
-          return;
-        }
         const demo = loadDemoUser();
         if (demo) setUser(demo);
         setIsSupabase(false);
@@ -233,19 +206,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        if (session.user.email?.trim().toLowerCase() !== ADMIN_EMAIL) {
-          clearStaleAdminMarkers();
-        }
-
-        const profile = await getMyProfile();
+        const profile = await withAuthTimeout(
+          getMyProfile(),
+          3_500,
+          "UserContext.getMyProfile",
+        ).catch((error) => {
+          authMark("UserContext.getMyProfile", error instanceof Error ? error.message : String(error));
+          return null;
+        });
         if (cancelled) return;
 
         if (profile) {
           authMark("UserContext.identity", "profile row → real identity");
           setUser(applyEarlyAccess(profileToMockUser(profile)));
-        } else if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-          authMark("UserContext.identity", "admin, no profile → master persona");
-          setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
         } else {
           // No profiles row — the handle_new_user trigger may not have fired
           // or a prior sync failed. Recover it server-side (service role),
@@ -261,7 +234,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
               const body = await res.json().catch(() => ({} as { error?: string }));
               authMark("UserContext.syncProfile", `FAILED status=${res.status} err=${body?.error ?? "?"}`);
             }
-            recovered = await getMyProfile();
+            recovered = await withAuthTimeout(
+              getMyProfile(),
+              3_500,
+              "UserContext.recoveredProfile",
+            ).catch(() => null);
           } catch (e) {
             authMark("UserContext.syncProfile", `threw: ${e instanceof Error ? e.message : String(e)}`);
           }
@@ -278,13 +255,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         console.error("[UserContext] session profile resolution failed:", error);
         authMark("UserContext.identity", `EXCEPTION in resolution: ${error instanceof Error ? error.message : String(error)}`);
-        if (session.user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-          setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id }));
-          setIsSupabase(true);
-        } else {
-          setUser(sessionToMockUser(session.user));
-          setIsSupabase(true);
-        }
+        setUser(sessionToMockUser(session.user));
+        setIsSupabase(true);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -292,7 +264,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     // Initial session check — always resolves isLoading so the app never parks
     // forever on the black routing shell after OAuth.
-    authTrace("UserContext.getSession", () => supabase.auth.getSession())
+    authTrace("UserContext.getSession", () =>
+      withAuthTimeout(supabase.auth.getSession(), 5_000, "UserContext.getSession"),
+    )
       .then(({ data: { session } }) => applySession(session))
       .catch((error) => {
         if (cancelled) return;
@@ -322,12 +296,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           }
           // Session ended — check for demo fallback
           if (cancelled) return;
-          if (cachedAdmin) {
-            setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: cachedAdmin.key }));
-            setIsSupabase(true);
-            setIsLoading(false);
-            return;
-          }
           setIsSupabase(false);
           const demo = loadDemoUser();
           setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));

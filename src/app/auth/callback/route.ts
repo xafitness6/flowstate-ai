@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
-const ADMIN_EMAIL = "xavellis4@gmail.com";
-const EMAIL_COOKIE = "flowstate-session-email";
-const ID_COOKIE = "flowstate-session-id";
-const ALLOWED_TOKEN_TYPES = new Set(["signup", "magiclink", "recovery", "invite", "email_change", "email"]);
+const ALLOWED_TOKEN_TYPES = new Set(["signup", "recovery", "invite", "email_change", "email"]);
 
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
@@ -54,19 +51,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}${safeNext}`);
     }
 
-    const email = user.email?.trim().toLowerCase();
-    const response = NextResponse.redirect(`${origin}${email === ADMIN_EMAIL ? "/admin" : "/onboarding"}`);
-    if (email === ADMIN_EMAIL) {
-      const cookieOptions = {
-        path: "/",
-        sameSite: "lax" as const,
-        secure: origin.startsWith("https://"),
-        maxAge: 60 * 60 * 24 * 30,
-      };
-      response.cookies.set(EMAIL_COOKIE, email, cookieOptions);
-      response.cookies.set(ID_COOKIE, user.id, cookieOptions);
-    }
-    return response;
+    return NextResponse.redirect(`${origin}/auth/finish`);
   }
 
   return NextResponse.redirect(`${origin}/login`);

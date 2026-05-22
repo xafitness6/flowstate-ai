@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { LS_KEY, resolvePostLoginRoute, SS_KEY } from "@/lib/routing";
 import { createClient } from "@/lib/supabase/client";
+import { PUBLIC_SIGNUP_ENABLED } from "@/lib/auth/config";
 
 // ─── Goal options ─────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ function JoinForm() {
     if (!firstName.trim())          { setError("First name is required.");          return; }
     if (!lastName.trim())           { setError("Last name is required.");            return; }
     if (!email.trim() || !email.includes("@")) { setError("Enter a valid email."); return; }
-    if (password.length < 6)        { setError("Password must be at least 6 characters."); return; }
+    if (password.length < 8)        { setError("Password must be at least 8 characters."); return; }
     if (password !== confirm)       { setError("Passwords don't match.");            return; }
 
     setLoading(true);
@@ -123,7 +124,7 @@ function JoinForm() {
             full_name:           fullName,
             first_name:          firstName.trim(),
             last_name:           lastName.trim(),
-            role:                "client",
+            role:                "member",
             assigned_trainer_id: trainerParam ?? null,
             join_goal:           joinGoal || null,
             signup_source:       tokenParam ? "personalized_invite" : "open_invite",
@@ -189,7 +190,7 @@ function JoinForm() {
     const result = createAccount(
       username,
       password,
-      "client",
+      "member",
       fullName,
       email.trim().toLowerCase(),
       {
@@ -233,7 +234,7 @@ function JoinForm() {
     );
   }
 
-  if (!tokenParam) {
+  if (!tokenParam && !PUBLIC_SIGNUP_ENABLED) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-5 py-12 text-white">
         <div className="max-w-sm w-full text-center space-y-6">
@@ -385,7 +386,7 @@ function JoinForm() {
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(null); }}
                 autoComplete="new-password"
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 className="w-full bg-white/[0.04] border border-white/8 rounded-xl px-4 py-3 pr-10 text-sm text-white placeholder:text-white/18 outline-none focus:border-white/22 transition-all"
               />
               <button type="button" onClick={() => setShowPass((v) => !v)}

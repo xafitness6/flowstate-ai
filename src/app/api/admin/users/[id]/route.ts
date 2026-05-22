@@ -86,7 +86,10 @@ export async function PATCH(
 
   // ── Update profiles ───────────────────────────────────────────────────────
   const profileFields: Record<string, unknown> = {};
-  if (body.role               !== undefined) profileFields.role               = body.role;
+  if (body.role               !== undefined) {
+    profileFields.role = body.role;
+    profileFields.is_admin = body.role === "master";
+  }
   if (body.plan               !== undefined) profileFields.plan               = body.plan;
   if (body.subscription_status !== undefined) profileFields.subscription_status = body.subscription_status;
 

@@ -1,191 +1,43 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, Fingerprint, ArrowRight, Eye, EyeOff, Mail, Check } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { resolveAccount } from "@/lib/accounts";
-import { resolvePostLoginRoute } from "@/lib/routing";
-import { createClient } from "@/lib/supabase/client";
-import {
-  isPlatformAuthenticatorAvailable,
-  hasSavedCredential,
-  getBiometricLabel,
-  registerBiometric,
-  registerBiometricWithSession,
-  authenticateWithBiometric,
-  authenticateWithBiometricSession,
-  saveBiometricSession,
-  clearBiometric,
-  type BiometricSession,
-} from "@/lib/biometric";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-type AuthStep = "form" | "biometric-prompt" | "enable-biometric";
-type AuthUserMetadata = Record<string, unknown>;
-
-const LS_KEY = "flowstate-active-role";
-const SS_KEY = "flowstate-session-role";
-const EMAIL_KEY = "flowstate-session-email";
-const PENDING_INVITE_TOKEN_KEY = "flowstate-pending-invite-token";
-const ADMIN_EMAIL = "xavellis4@gmail.com";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Resolve demo/local credentials. Returns session key or null. */
-function resolveDemoCredentials(
-  usernameOrEmail: string,
-  password: string,
-): { sessionKey: string } | null {
-  // Hard-coded demo accounts (alex/flowstate, kai/flowstate, luca/flowstate)
-  const DEMO: Record<string, { username: string; password: string }> = {
-    trainer: { username: "alex", password: "flowstate" },
-    client:  { username: "kai",  password: "flowstate" },
-    member:  { username: "luca", password: "flowstate" },
-  };
-  for (const [key, entry] of Object.entries(DEMO)) {
-    if (
-      usernameOrEmail.trim().toLowerCase() === entry.username.toLowerCase() &&
-      password === entry.password
-    ) {
-      return { sessionKey: key };
-    }
-  }
-  // Dynamically created local accounts
-  const account = resolveAccount(usernameOrEmail, password);
-  if (account) return { sessionKey: account.id };
-  return null;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => {
-      window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
-    }),
-  ]);
-}
-
-function getInviteToken(metadata?: AuthUserMetadata | null): string | null {
-  const token = metadata?.invite_token;
-  return typeof token === "string" && token.length >= 16 ? token : null;
-}
-
-function getPendingInviteToken(): string | null {
-  try {
-    const token =
-      sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY) ||
-      localStorage.getItem(PENDING_INVITE_TOKEN_KEY);
-    return token && token.length >= 16 ? token : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearPendingInviteToken() {
-  try {
-    sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
-    localStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
-  } catch { /* ignore */ }
-}
-
-function friendlyInviteError(message: string): string {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("different email")) {
-    return "This invite is connected to a specific email. Please sign in with the email your coach invited.";
-  }
-  if (normalized.includes("already been used")) {
-    return "This invite has already been used. Sign in with the account you created, or ask your coach for a new invite.";
-  }
-  if (normalized.includes("expired")) {
-    return "This invite has expired. Ask your coach for a fresh invite.";
-  }
-  if (normalized.includes("revoked")) {
-    return "This invite is no longer active. Ask your coach for a new invite.";
-  }
-  return "Could not finish this invite. Please ask your coach for a fresh link.";
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function TextField({
-  label,
-  value,
-  onChange,
-  autoComplete,
-  type = "text",
-  error,
-  inputRef,
-  placeholder,
-}: {
-  label:        string;
-  value:        string;
-  onChange:     (v: string) => void;
-  autoComplete?: string;
-  type?:        string;
-  error?:       boolean;
-  inputRef?:    React.RefObject<HTMLInputElement | null>;
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">{label}</label>
-      <input
-        ref={inputRef as React.RefObject<HTMLInputElement> | undefined}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        autoComplete={autoComplete}
-        autoCapitalize="none"
-        spellCheck={false}
-        placeholder={placeholder}
-        className={cn(
-          "w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/20 outline-none transition-all",
-          error
-            ? "border-red-400/30 focus:border-red-400/50"
-            : "border-white/8 focus:border-white/20",
-        )}
-      />
-    </div>
-  );
-}
+import { isSupabaseConfigured, createClient } from "@/lib/supabase/client";
+import { signInWithPassword } from "@/lib/auth/service";
+import { resolvePostAuthDestination } from "@/lib/auth/postLogin";
+import { signOutEverywhere } from "@/lib/auth/signOut";
 
 function PasswordField({
-  label,
   value,
   onChange,
   show,
   onToggle,
-  autoComplete,
-  placeholder,
   error,
 }: {
-  label:        string;
-  value:        string;
-  onChange:     (v: string) => void;
-  show:         boolean;
-  onToggle:     () => void;
-  autoComplete?: string;
-  placeholder?: string;
-  error?:       boolean;
+  value: string;
+  onChange: (v: string) => void;
+  show: boolean;
+  onToggle: () => void;
+  error?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">{label}</label>
+      <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+        Password
+      </label>
       <div className="relative">
         <input
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          autoComplete={autoComplete}
-          placeholder={placeholder ?? "••••••••"}
+          autoComplete="current-password"
+          placeholder="••••••••"
           className={cn(
             "w-full bg-white/[0.04] border rounded-xl px-4 py-3 pr-10 text-sm text-white placeholder:text-white/18 outline-none transition-all",
-            error
-              ? "border-red-400/30 focus:border-red-400/50"
-              : "border-white/8 focus:border-white/20",
+            error ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20",
           )}
         />
         <button
@@ -193,734 +45,203 @@ function PasswordField({
           onClick={onToggle}
           tabIndex={-1}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-white/22 hover:text-white/50 transition-colors"
+          aria-label={show ? "Hide password" : "Show password"}
         >
           {show
             ? <EyeOff className="w-4 h-4" strokeWidth={1.5} />
-            : <Eye    className="w-4 h-4" strokeWidth={1.5} />}
+            : <Eye className="w-4 h-4" strokeWidth={1.5} />}
         </button>
       </div>
     </div>
   );
 }
 
-function RememberMe({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2.5 cursor-pointer group">
-      <div
-        className={cn(
-          "w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-all",
-          checked
-            ? "border-[#B48B40]/60 bg-[#B48B40]/20"
-            : "border-white/15 bg-transparent group-hover:border-white/25",
-        )}
-        onClick={() => onChange(!checked)}
-      >
-        {checked && (
-          <svg className="w-2.5 h-2.5 text-[#B48B40]" viewBox="0 0 10 10" fill="none">
-            <path d="M1.5 5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </div>
-      <span className="text-xs text-white/40 select-none">Remember me</span>
-    </label>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-function LoginPageContent() {
+export default function LoginPage() {
   const router = useRouter();
-
-  const [step,     setStep]     = useState<AuthStep>("form");
-  const [loading,  setLoading]  = useState(false);
-
-  // Sign in
-  const [siEmail,    setSiEmail]    = useState("");
-  const [siPassword, setSiPassword] = useState("");
-  const [siShowPass, setSiShowPass] = useState(false);
-  const [siError,    setSiError]    = useState<string | null>(null);
-  const [siNotice,   setSiNotice]   = useState<string | null>(null);
-  const [rememberMe, setRememberMe] = useState(true);
-
-  // Biometric
-  const [resolvedKey,      setResolvedKey]      = useState<string | null>(null);
-  const [bioLabel,         setBioLabel]         = useState("Quick Login");
-  const [bioError,         setBioError]         = useState(false);
-  const [bioAvailable,     setBioAvailable]     = useState(false);
-  const [pendingSession,   setPendingSession]   = useState<BiometricSession | null>(null);
-  const [pendingDestination, setPendingDestination] = useState<string | null>(null);
-
-  // Magic link
-  const [magicSent, setMagicSent] = useState(false);
-
   const emailRef = useRef<HTMLInputElement>(null);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const authError = params.get("error");
       const reason = params.get("reason");
-      const notice = params.get("notice");
-      if (notice === "confirmation_used" || notice === "email_confirmed") {
-        setSiNotice("Your email is already confirmed. Sign in to continue onboarding.");
+      const queryNotice = params.get("notice");
+
+      if (queryNotice === "confirmation_used" || queryNotice === "email_confirmed") {
+        setNotice("Your email is confirmed. Sign in to continue onboarding.");
       }
-      if (authError === "auth") {
-        if (reason === "confirm" || reason === "confirm_link") {
-          setSiNotice("That email link was already used or expired. Sign in to continue.");
-        } else {
-          setSiError(
-            reason === "exchange"
-              ? "Sign-in started, but could not be completed. Try signing in again."
-              : "Sign-in could not be completed. Try email and password again.",
-          );
-        }
+      if (authError === "archived") {
+        setError("This account is not currently active. Contact your coach for access.");
+      } else if (authError === "auth") {
+        setError(
+          reason === "exchange"
+            ? "Sign-in started, but could not be completed. Try signing in again."
+            : "Sign-in could not be completed. Try email and password again.",
+        );
       } else if (authError === "invite") {
-        setSiError("Sign in with the email your coach invited to continue onboarding.");
-      } else if (authError === "archived") {
-        setSiError("This account is not currently active. Contact your coach for access.");
+        setError("Sign in with the email your coach invited to continue onboarding.");
       }
     } catch { /* ignore */ }
 
-    setBioLabel(getBiometricLabel());
-
-    if (hasSavedCredential()) {
-      isPlatformAuthenticatorAvailable().then((ok) => {
-        if (ok) setStep("biometric-prompt");
-      });
-    } else {
-      isPlatformAuthenticatorAvailable().then(setBioAvailable);
-    }
-
-    setTimeout(() => emailRef.current?.focus(), 50);
+    window.setTimeout(() => emailRef.current?.focus(), 50);
   }, []);
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  function saveSession(key: string) {
-    try {
-      if (rememberMe) {
-        localStorage.setItem(LS_KEY, key);
-        sessionStorage.removeItem(SS_KEY);
-      } else {
-        sessionStorage.setItem(SS_KEY, key);
-        localStorage.removeItem(LS_KEY);
-      }
-      document.cookie = `flowstate-session-id=${encodeURIComponent(key)}; Max-Age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
-    } catch { /* ignore */ }
-  }
-
-  function saveSessionEmail(email?: string | null) {
-    const normalized = email?.trim().toLowerCase();
-    if (!normalized) return;
-    try {
-      localStorage.setItem(EMAIL_KEY, normalized);
-      sessionStorage.setItem(EMAIL_KEY, normalized);
-      document.cookie = `${EMAIL_KEY}=${encodeURIComponent(normalized)}; Max-Age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
-    } catch { /* ignore */ }
-  }
-
-  function afterLogin(sessionKey: string) {
-    setResolvedKey(sessionKey);
-    saveSession(sessionKey);
-
-    if (bioAvailable && !hasSavedCredential()) {
-      setLoading(false);
-      setStep("enable-biometric");
-    } else {
-      router.replace(resolvePostLoginRoute(sessionKey));
-    }
-  }
-
-  async function syncCurrentProfile() {
-    try {
-      const res = await withTimeout(
-        fetch("/api/auth/sync-profile", { method: "POST" }),
-        3500,
-        "profile sync",
-      );
-      if (!res.ok) return null;
-      const body = await res.json() as { profile?: { role?: string; is_admin?: boolean } };
-      return body.profile ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  async function acceptInviteFromMetadata(metadata?: AuthUserMetadata | null) {
-    const tokens = [
-      getPendingInviteToken(),
-      getInviteToken(metadata),
-    ].filter((token, index, all): token is string =>
-      Boolean(token) && all.indexOf(token) === index,
-    );
-
-    let lastError = "";
-    for (const inviteToken of tokens) {
-      const res = await withTimeout(
-        fetch(`/api/invites/${encodeURIComponent(inviteToken)}`, {
-          method: "POST",
-          cache:  "no-store",
-        }),
-        5000,
-        "invite acceptance",
-      );
-      const body = await res.json().catch(() => ({})) as { role?: string; error?: string };
-      if (res.ok) {
-        clearPendingInviteToken();
-        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
-        return typeof body.role === "string" ? body.role : null;
-      }
-      lastError = body.error ?? "";
-    }
-
-    const currentInviteRole = await acceptCurrentInviteByEmail();
-    if (currentInviteRole) return currentInviteRole;
-
-    if (lastError) {
-      console.warn("[login] invite token acceptance skipped:", lastError);
-    }
-    return null;
-  }
-
-  async function acceptCurrentInviteByEmail() {
-    try {
-      const res = await withTimeout(
-        fetch("/api/invites/accept-current", {
-          method: "POST",
-          cache:  "no-store",
-        }),
-        5000,
-        "current invite acceptance",
-      );
-      const body = await res.json().catch(() => ({})) as { ok?: boolean; role?: string };
-      if (res.ok && body.ok) {
-        clearPendingInviteToken();
-        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
-        return typeof body.role === "string" ? body.role : null;
-      }
-    } catch (error) {
-      console.warn("[login] email invite lookup skipped:", error);
-    }
-    return null;
-  }
-
-  async function routeSupabaseUser(
-    userId: string,
-    email?: string | null,
-    opts: { offerBiometric?: boolean; userMetadata?: AuthUserMetadata | null } = {},
-  ) {
-    saveSession(userId);
-    saveSessionEmail(email);
-
-    // Launch-critical admin fast path: the Supabase password/OAuth step already
-    // succeeded, so don't wait on profile sync/onboarding/client session probes
-    // before opening the admin portal.
-    if (email?.trim().toLowerCase() === ADMIN_EMAIL) {
-      window.location.replace("/admin");
-      return;
-    }
-
-    let inviteRole: string | null = null;
-    try {
-      inviteRole = await acceptInviteFromMetadata(opts.userMetadata);
-    } catch (error) {
-      setSiError(error instanceof Error ? error.message : "Could not finish this invite. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    const syncedProfile = await syncCurrentProfile();
-    const { getMyProfile } = await import("@/lib/db/profiles");
-    const { resolveOnboardingRoute } = await import("@/lib/db/onboarding");
-
-    const profile = await withTimeout(getMyProfile(), 3500, "profile load").catch(() => null);
-
-    // Archived users are locked out — even on a successful sign-in, drop them.
-    if (profile?.archived_at) {
-      const { signOutEverywhere } = await import("@/lib/auth/signOut");
-      await signOutEverywhere({ redirect: "/login?error=archived" });
-      return;
-    }
-
-    const role = inviteRole ?? syncedProfile?.role ?? profile?.role;
-    const isAdmin =
-      email?.trim().toLowerCase() === ADMIN_EMAIL ||
-      role === "master" ||
-      syncedProfile?.is_admin ||
-      profile?.is_admin;
-
-    let destination: string;
-    if (isAdmin) {
-      destination = "/admin";
-    } else {
-      const viaInvite = (() => {
-        try { return localStorage.getItem("flowstate-via-invite") === "true"; }
-        catch { return false; }
-      })();
-      const blocker = await withTimeout(
-        resolveOnboardingRoute(userId),
-        3500,
-        "onboarding route",
-      ).catch(() => "/onboarding/walkthrough");
-      destination = viaInvite && blocker === "/onboarding/walkthrough"
-        ? "/onboarding/calibration"
-        : blocker ?? resolvePostLoginRoute(userId, { role });
-    }
-
-    if (opts.offerBiometric && bioAvailable && !hasSavedCredential()) {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token && session?.refresh_token) {
-        setResolvedKey(userId);
-        setPendingSession({
-          access_token:  session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        setPendingDestination(destination);
-        setLoading(false);
-        setStep("enable-biometric");
-        return;
-      }
-    }
-
-    window.location.replace(destination);
-  }
-
-  async function routeExistingSession() {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return false;
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-    await routeSupabaseUser(user.id, user.email, { userMetadata: user.user_metadata });
-    return true;
-  }
 
   useEffect(() => {
-    void routeExistingSession();
+    if (!isSupabaseConfigured()) return;
+    let cancelled = false;
 
-    // Backstop: if the session arrives via a delayed cookie write
-    // (post-OAuth race) the SIGNED_IN event fires and we route immediately.
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
-    const supabase = createClient();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        void routeSupabaseUser(session.user.id, session.user.email, {
-          userMetadata: session.user.user_metadata,
-        });
+    async function routeExistingSession() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+
+      const routed = await resolvePostAuthDestination({
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata,
+      });
+      if (cancelled) return;
+      if (routed.kind === "archived") {
+        await signOutEverywhere({ redirect: routed.destination });
+        return;
       }
-    });
-    return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      window.location.replace(routed.destination);
+    }
+
+    void routeExistingSession().catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
-  // ── Sign in ────────────────────────────────────────────────────────────────
-
-  async function handleSignIn(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSiError(null);
+    setError(null);
+    setNotice(null);
 
-    // Demo / local account path (accepts username or email)
-    const demo = siEmail.includes("@") ? null : resolveDemoCredentials(siEmail, siPassword);
-    if (demo) {
-      setLoading(true);
-      afterLogin(demo.sessionKey);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail.includes("@")) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setError("Enter your password.");
+      return;
+    }
+    if (!isSupabaseConfigured()) {
+      setError("Supabase is not configured for this environment.");
       return;
     }
 
-    // Supabase path
-    if (siEmail.includes("@")) {
-      setLoading(true);
-      const email = siEmail.trim().toLowerCase();
-      const supabase = createClient();
-      let signInResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
-      try {
-        signInResult = await withTimeout(
-          supabase.auth.signInWithPassword({
-            email,
-            password: siPassword,
-          }),
-          10000,
-          "password sign-in",
-        );
-      } catch {
-        setSiError("Sign-in is taking longer than expected. Check your connection and try again.");
-        setLoading(false);
-        return;
-      }
-      const { data, error } = signInResult;
-      if (error || !data.user) {
-        setSiError("Incorrect email or password.");
-        setLoading(false);
-        return;
-      }
-      await routeSupabaseUser(data.user.id, data.user.email, {
-        userMetadata: data.user.user_metadata,
-      });
-      return;
-    }
-
-    setSiError("Incorrect email or password.");
-  }
-
-  // ── Google OAuth ──────────────────────────────────────────────────────────
-
-  async function handleGoogleLogin() {
-    setSiError(null);
     setLoading(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-      if (error) {
-        setSiError("Google sign-in is not available. Try email instead.");
-        setLoading(false);
-      }
-      // On success, the browser navigates to Google; nothing else to do here.
-    } catch {
-      setSiError("Google sign-in failed. Try email instead.");
+    const result = await signInWithPassword(cleanEmail, password);
+    if (!result.ok) {
+      setError(result.error.message);
       setLoading(false);
-    }
-  }
-
-  // ── Magic link ────────────────────────────────────────────────────────────
-
-  async function handleMagicLink() {
-    setSiError(null);
-    const trimmed = siEmail.trim().toLowerCase();
-    if (!trimmed.includes("@")) {
-      setSiError("Enter your email above first.");
       return;
     }
-    setLoading(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: trimmed,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/finish`,
-        },
-      });
-      if (error) {
-        setSiError(error.message);
-        setLoading(false);
-        return;
-      }
-      setMagicSent(true);
-    } catch {
-      setSiError("Couldn't send the link. Try again.");
-    } finally {
+
+    const user = result.data.data.user;
+    if (!user) {
+      setError("Sign-in could not be completed. Try again.");
       setLoading(false);
-    }
-  }
-
-  // ── Biometric ─────────────────────────────────────────────────────────────
-
-  async function handleBiometricLogin() {
-    setLoading(true);
-    setBioError(false);
-
-    // Path 1: session-aware (real Supabase user). Restore the session and route.
-    const bioSession = await authenticateWithBiometricSession();
-    if (bioSession) {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase.auth.setSession(bioSession);
-        if (error || !data.session || !data.user) {
-          clearBiometric();
-          setLoading(false);
-          setBioError(true);
-          setStep("form");
-          return;
-        }
-        // Supabase rotates refresh tokens — persist the fresh pair for next time.
-        saveBiometricSession({
-          access_token:  data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-        await routeSupabaseUser(data.user.id, data.user.email, {
-          userMetadata: data.user.user_metadata,
-        });
-        return;
-      } catch {
-        clearBiometric();
-        setLoading(false);
-        setBioError(true);
-        setStep("form");
-        return;
-      }
-    }
-
-    // Path 2: legacy demo-role biometric (no Supabase session was stored).
-    const savedKey = await authenticateWithBiometric();
-    if (savedKey && savedKey !== "__supabase__") {
-      try { localStorage.setItem(LS_KEY, savedKey); } catch { /* ignore */ }
-      router.replace(resolvePostLoginRoute(savedKey));
       return;
     }
 
-    setLoading(false);
-    setBioError(true);
-  }
+    const routed = await resolvePostAuthDestination({
+      id: user.id,
+      email: user.email,
+      user_metadata: user.user_metadata,
+    });
 
-  async function handleEnableBiometric() {
-    setLoading(true);
-    if (pendingSession) {
-      await registerBiometricWithSession(pendingSession);
-    } else if (resolvedKey) {
-      await registerBiometric(resolvedKey);
+    if (routed.kind === "archived") {
+      await signOutEverywhere({ redirect: routed.destination });
+      return;
     }
-    setLoading(false);
 
-    const dest = pendingDestination
-      ?? (resolvedKey ? resolvePostLoginRoute(resolvedKey) : "/");
-    router.replace(dest);
+    window.location.replace(routed.destination);
   }
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-[100dvh] overflow-y-auto flex flex-col items-center justify-start sm:justify-center px-5 md:px-8 py-8 sm:py-10 text-white">
-      <div className="max-w-sm w-full space-y-6 sm:space-y-7">
+      <div className="max-w-sm w-full space-y-7">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
+            <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
+          <p className="text-sm text-white/40">Sign in with your invited account.</p>
+        </div>
 
-        {/* ── Biometric prompt ────────────────────────────────────────────── */}
-        {step === "biometric-prompt" && (
-          <>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
-              </div>
-              <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-              <p className="text-sm text-white/40">Use {bioLabel} to sign in instantly.</p>
-            </div>
-
-            <div className="space-y-4">
-              <button
-                onClick={handleBiometricLogin}
-                disabled={loading}
-                className={cn(
-                  "w-full rounded-2xl border py-5 flex flex-col items-center gap-3 transition-all duration-150",
-                  loading
-                    ? "border-white/6 bg-white/[0.02] cursor-default"
-                    : "border-[#B48B40]/40 bg-[#B48B40]/5 hover:bg-[#B48B40]/10 active:scale-[0.98]",
-                )}
-              >
-                <Fingerprint
-                  className={cn("w-9 h-9", loading ? "text-white/20" : "text-[#B48B40]")}
-                  strokeWidth={1.5}
-                />
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-white/80">
-                    {loading ? "Waiting for biometric…" : `Sign in with ${bioLabel}`}
-                  </p>
-                  {bioError && (
-                    <p className="text-xs text-red-400/70 mt-1">Authentication failed. Try again.</p>
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={() => { clearBiometric(); setStep("form"); setBioError(false); }}
-                className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
-              >
-                Use email and password instead
-              </button>
-            </div>
-          </>
+        {notice && (
+          <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-3 py-2 text-xs leading-relaxed text-emerald-300/80">
+            {notice}
+          </div>
         )}
 
-        {/* ── Enable biometric ─────────────────────────────────────────────── */}
-        {step === "enable-biometric" && (
-          <>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
-              </div>
-              <h1 className="text-2xl font-semibold tracking-tight">Quick Login</h1>
-              <p className="text-sm text-white/40">Sign in faster next time.</p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-5 py-6 flex flex-col items-center gap-4 text-center">
-                <div className="w-12 h-12 rounded-full border border-[#B48B40]/30 bg-[#B48B40]/8 flex items-center justify-center">
-                  <Fingerprint className="w-6 h-6 text-[#B48B40]" strokeWidth={1.5} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-white/80">Enable {bioLabel}</p>
-                  <p className="text-xs text-white/35 leading-relaxed">
-                    Sign in instantly on your next visit using your device biometrics.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={handleEnableBiometric}
-                disabled={loading}
-                className={cn(
-                  "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all duration-200",
-                  loading
-                    ? "bg-white/5 text-white/25 cursor-default"
-                    : "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]",
-                )}
-              >
-                {loading
-                  ? "Setting up…"
-                  : <>{`Enable ${bioLabel}`} <ArrowRight className="w-4 h-4" strokeWidth={2} /></>}
-              </button>
-
-              <button
-                onClick={() => {
-                  if (pendingDestination) {
-                    router.replace(pendingDestination);
-                    return;
-                  }
-                  const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY) || "member";
-                  router.replace(resolvePostLoginRoute(key));
-                }}
-                className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
-              >
-                Not now
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ── Main auth form ────────────────────────────────────────────────── */}
-        {step === "form" && (
-          <>
-            {/* Brand */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-3">
-                <Zap className="w-4 h-4 text-[#B48B40]" strokeWidth={2.5} />
-                <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate</p>
-              </div>
-              <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-              <p className="text-sm text-white/40">Sign in to continue.</p>
-            </div>
-
-            {siNotice && (
-              <div className="flex items-start gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-3 py-2 text-xs leading-relaxed text-emerald-300/80">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                <span>{siNotice}</span>
-              </div>
-            )}
-
-            {/* Google OAuth */}
-            <button
-              onClick={handleGoogleLogin}
-              disabled={loading}
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div className="space-y-1.5">
+            <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+              Email
+            </label>
+            <input
+              ref={emailRef}
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(null); setNotice(null); }}
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="you@example.com"
               className={cn(
-                "w-full rounded-2xl border py-3.5 text-sm font-medium flex items-center justify-center gap-2.5 transition-all duration-150",
-                loading
-                  ? "border-white/6 bg-white/[0.02] text-white/30 cursor-default"
-                  : "border-white/10 bg-white/[0.04] text-white/85 hover:bg-white/[0.07] hover:border-white/15 active:scale-[0.99]",
+                "w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/20 outline-none transition-all",
+                error ? "border-red-400/30 focus:border-red-400/50" : "border-white/8 focus:border-white/20",
               )}
+            />
+          </div>
+
+          <PasswordField
+            value={password}
+            onChange={(v) => { setPassword(v); setError(null); setNotice(null); }}
+            show={showPass}
+            onToggle={() => setShowPass((v) => !v)}
+            error={!!error}
+          />
+
+          <div className="flex items-center justify-between min-h-[18px]">
+            {error ? <p className="text-xs text-red-400/70">{error}</p> : <span />}
+            <Link
+              href="/forgot-password"
+              className="text-xs text-white/22 hover:text-white/45 transition-colors"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Continue with Google
-            </button>
+              Forgot password?
+            </Link>
+          </div>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-white/6" />
-              <p className="text-[10px] uppercase tracking-[0.22em] text-white/22">Or with email</p>
-              <div className="flex-1 h-px bg-white/6" />
-            </div>
+          <button
+            type="submit"
+            disabled={!email || !password || loading}
+            className={cn(
+              "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2 flex items-center justify-center gap-2",
+              email && password && !loading
+                ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
+                : "bg-white/5 text-white/25 cursor-default",
+            )}
+          >
+            {loading ? "Signing in..." : <>Sign in <ArrowRight className="w-4 h-4" strokeWidth={2} /></>}
+          </button>
+        </form>
 
-            {/* Sign in form */}
-            <form onSubmit={handleSignIn} className="space-y-3.5">
-              <TextField
-                label="Email"
-                value={siEmail}
-                onChange={(v) => { setSiEmail(v); setSiError(null); setSiNotice(null); }}
-                autoComplete="email"
-                type="text"
-                error={!!siError}
-                inputRef={emailRef}
-                placeholder="you@example.com"
-              />
-              <PasswordField
-                label="Password"
-                value={siPassword}
-                onChange={(v) => { setSiPassword(v); setSiError(null); setSiNotice(null); }}
-                show={siShowPass}
-                onToggle={() => setSiShowPass((v) => !v)}
-                autoComplete="current-password"
-                error={!!siError}
-              />
-
-              <div className="flex items-center justify-between min-h-[18px]">
-                {siError
-                  ? <p className="text-xs text-red-400/70">{siError}</p>
-                  : <span />}
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-white/22 hover:text-white/45 transition-colors"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              <RememberMe checked={rememberMe} onChange={setRememberMe} />
-
-              <button
-                type="submit"
-                disabled={!siEmail || !siPassword || loading}
-                className={cn(
-                  "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide transition-all duration-200 mt-2",
-                  siEmail && siPassword && !loading
-                    ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
-                    : "bg-white/5 text-white/25 cursor-default",
-                )}
-              >
-                {loading ? "Signing in…" : "Sign in"}
-              </button>
-
-              {magicSent ? (
-                <div className="flex items-center gap-2 justify-center text-xs text-emerald-400/80 py-1">
-                  <Check className="w-3.5 h-3.5" strokeWidth={2} />
-                  Magic link sent — check your inbox
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleMagicLink}
-                  disabled={!siEmail || loading}
-                  className={cn(
-                    "w-full flex items-center justify-center gap-1.5 text-xs transition-colors py-1",
-                    siEmail && !loading
-                      ? "text-white/45 hover:text-white/70"
-                      : "text-white/20 cursor-default",
-                  )}
-                >
-                  <Mail className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  Email me a sign-in link instead
-                </button>
-              )}
-            </form>
-
-            {/* Invite-only note */}
-            <p className="text-center text-[11px] text-white/18 leading-relaxed">
-              Invite only — contact your coach to get access.
-            </p>
-          </>
-        )}
-
+        <p className="text-center text-[11px] text-white/18 leading-relaxed">
+          Invite only - contact your coach or admin for access.
+        </p>
       </div>
     </div>
   );
-}
-
-export default function LoginPage() {
-  return <LoginPageContent />;
 }

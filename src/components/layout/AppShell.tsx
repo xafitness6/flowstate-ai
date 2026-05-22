@@ -12,7 +12,6 @@ import { signOutEverywhere } from "@/lib/auth/signOut";
 import { useUser }                        from "@/context/UserContext";
 import { trace as authTrace, mark as authMark } from "@/lib/authTrace";
 
-const ADMIN_EMAIL = "xavellis4@gmail.com";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function clearFinishedOnboardingMarkers() {
@@ -90,7 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Promise.race([
               supabase.auth.getSession(),
               new Promise<never>((_, reject) =>
-                window.setTimeout(() => reject(new Error("Supabase session check timed out")), 10_000),
+                window.setTimeout(() => reject(new Error("Supabase session check timed out")), 4_000),
               ),
             ]),
           );
@@ -103,7 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const userResult = await Promise.race([
               supabase.auth.getUser(),
               new Promise<never>((_, reject) =>
-                window.setTimeout(() => reject(new Error("Supabase user check timed out")), 5_000),
+                window.setTimeout(() => reject(new Error("Supabase user check timed out")), 4_000),
               ),
             ]);
             sessionUser = userResult.data.user ?? null;
@@ -131,11 +130,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (sessionUser.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-          setReady(true);
-          return;
-        }
-
         const supabaseUserId = sessionUser.id;
         const { resolveOnboardingRoute, upsertOnboardingState } = await import("@/lib/db/onboarding");
 
@@ -156,14 +150,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         // Archived users are locked out of the app shell. This column was added
         // after launch, so treat query errors as non-blocking to avoid wedging the
         // whole app during a code/schema deployment mismatch.
-        const { data: archivedCheck, error: archivedError } = await supabase
+        const { data: profileCheck, error: profileError } = await supabase
           .from("profiles")
-          .select("archived_at")
+          .select("archived_at,role,is_admin")
           .eq("id", sessionUser.id)
           .maybeSingle();
 
-        if (!archivedError && archivedCheck?.archived_at) {
+        if (!profileError && profileCheck?.archived_at) {
           await signOutEverywhere({ redirect: "/login?error=archived" });
+          return;
+        }
+
+        if (!profileError && (profileCheck?.role === "master" || profileCheck?.is_admin)) {
+          setReady(true);
           return;
         }
 

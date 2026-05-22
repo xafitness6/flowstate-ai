@@ -14,7 +14,6 @@ const LOCAL_STORAGE_KEYS = [
   "flowstate-session-email",
   "flowstate-view-mode",
   // Cached credentials & demo accounts
-  "flowstate-admin-password",
   "flowstate-accounts",
   "flowstate-platform-users",
   "flowstate-platform-seeded-v2",

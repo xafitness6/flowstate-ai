@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { getSessionKey, resolvePostLoginRoute, LS_KEY, SS_KEY } from "@/lib/routing";
 import { signOutEverywhere } from "@/lib/auth/signOut";
 
-const ADMIN_EMAIL = "xavellis4@gmail.com";
-
 // /onboarding smart router — sends the user to their next incomplete step.
 // Checks Supabase session first (handles magic-link flow where localStorage
 // is stale), then falls back to localStorage for demo mode.
@@ -40,10 +38,7 @@ export default function OnboardingRouter() {
               import("@/lib/db/profiles"),
             ]);
             const profile = await getMyProfile();
-            const isAdmin =
-              user.email?.trim().toLowerCase() === ADMIN_EMAIL ||
-              profile?.role === "master" ||
-              profile?.is_admin;
+            const isAdmin = profile?.role === "master" || profile?.is_admin;
             if (isAdmin && !personalMode) {
               router.replace("/admin");
               return;

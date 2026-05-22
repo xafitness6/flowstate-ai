@@ -7,7 +7,11 @@ import { cn } from "@/lib/utils";
 import { getInviteByToken, isInviteValid, acceptInvite } from "@/lib/invites";
 import { createAccount, resolveAccount } from "@/lib/accounts";
 import { LS_KEY, SS_KEY } from "@/lib/routing";
-import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { DEMO_AUTH_ENABLED } from "@/lib/auth/config";
+import { resolvePostAuthDestination } from "@/lib/auth/postLogin";
+import { signInWithPassword, signUpWithPassword } from "@/lib/auth/service";
+import { signOutEverywhere } from "@/lib/auth/signOut";
 import type { Invite } from "@/lib/invites";
 import type { Invite as DBInvite } from "@/lib/supabase/types";
 
@@ -54,17 +58,6 @@ function clearPendingInvite() {
     localStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
     sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
   } catch { /* ignore */ }
-}
-
-async function acceptInviteOnServer(token: string) {
-  const res = await fetch(`/api/invites/${encodeURIComponent(token)}`, {
-    method: "POST",
-    cache: "no-store",
-  });
-  const body = await res.json().catch(() => ({})) as { error?: string };
-  if (!res.ok) {
-    throw new Error(body.error ?? "Could not accept this invite.");
-  }
 }
 
 function isEmailRateLimit(message: string) {
@@ -214,58 +207,51 @@ export default function InvitePage() {
 
     if (!name.trim())         { setFormError("Please enter your name.");              return; }
     if (!email.trim() || !email.includes("@")) { setFormError("Enter a valid email."); return; }
+    if (invite.inviteEmail && email.trim().toLowerCase() !== invite.inviteEmail.trim().toLowerCase()) {
+      setFormError("Use the email address this invite was sent to.");
+      return;
+    }
     if (!username.trim() || username.length < 3) { setFormError("Username must be at least 3 characters."); return; }
-    if (password.length < 6)  { setFormError("Password must be at least 6 characters."); return; }
+    if (password.length < 8)  { setFormError("Password must be at least 8 characters."); return; }
     if (password !== confirm)  { setFormError("Passwords don't match.");               return; }
 
     setLoading(true);
 
-    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      const supabase = createClient();
+    if (isSupabaseConfigured()) {
       const cleanEmail = email.trim().toLowerCase();
       const nameParts = name.trim().split(/\s+/).filter(Boolean);
       const firstName = invite.firstName || nameParts[0] || "";
       const lastName = invite.lastName || nameParts.slice(1).join(" ");
 
-      async function completeSignedInInvite(userId: string) {
-        try { await fetch("/api/auth/sync-profile", { method: "POST" }); } catch { /* non-blocking */ }
-        try {
-          await acceptInviteOnServer(token);
-        } catch (e) {
-          setFormError(e instanceof Error ? e.message : "Could not accept this invite.");
-          setLoading(false);
-          return false;
+      async function completeSignedInInvite(user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null }) {
+        const routed = await resolvePostAuthDestination(user);
+        if (routed.kind === "archived") {
+          await signOutEverywhere({ redirect: routed.destination });
+          return true;
         }
         if (shouldConsumeLocalInvite(activeInvite)) acceptInvite(token);
-        clearPendingInvite();
-        seedSession(userId);
-        // Flag this user as an invite signup so post-auth routing starts at
-        // the six-question calibration and skips the old pre-cal walkthrough.
-        try { localStorage.setItem("flowstate-via-invite", "true"); } catch { /* ignore */ }
         setAccepted(true);
-        setTimeout(() => router.replace("/onboarding/calibration"), 800);
+        setTimeout(() => window.location.replace(routed.destination), 800);
         return true;
       }
 
-      const { data, error } = await supabase.auth.signUp({
+      const result = await signUpWithPassword({
         email: cleanEmail,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/finish`,
-          data: {
-            full_name: name.trim(),
-            first_name: firstName,
-            last_name: lastName,
-            role: invite.inviteRole,
-            assigned_trainer_id: invite.assignedTrainerId || null,
-            signup_source: "personalized_invite",
-            invite_token: token,
-          },
+        redirectTo: `${window.location.origin}/auth/confirm?next=/auth/finish`,
+        metadata: {
+          full_name: name.trim(),
+          first_name: firstName,
+          last_name: lastName,
+          role: invite.inviteRole,
+          assigned_trainer_id: invite.assignedTrainerId || null,
+          signup_source: "personalized_invite",
+          invite_token: token,
         },
       });
 
-      if (error) {
-        const errorMessage = error.message;
+      if (!result.ok) {
+        const errorMessage = result.error.raw;
         const normalizedError = errorMessage.toLowerCase();
         if (isEmailRateLimit(errorMessage)) {
           setConfirmationMessage(
@@ -277,33 +263,28 @@ export default function InvitePage() {
         }
 
         if (normalizedError.includes("already registered")) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          });
+          const signInResult = await signInWithPassword(cleanEmail, password);
 
-          if (!signInError && signInData.user) {
-            await completeSignedInInvite(signInData.user.id);
+          if (signInResult.ok && signInResult.data.data.user) {
+            await completeSignedInInvite(signInResult.data.data.user);
             return;
           }
 
           setFormError("An account with that email already exists. Check your password.");
         } else {
-          setFormError(errorMessage);
+          setFormError(result.error.message);
         }
         setLoading(false);
         return;
       }
 
+      const { data } = result.data;
       if (data.user) {
         if (isExistingSupabaseSignupUser(data.user)) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          });
+          const signInResult = await signInWithPassword(cleanEmail, password);
 
-          if (!signInError && signInData.user) {
-            await completeSignedInInvite(signInData.user.id);
+          if (signInResult.ok && signInResult.data.data.user) {
+            await completeSignedInInvite(signInResult.data.data.user);
             return;
           }
 
@@ -319,7 +300,7 @@ export default function InvitePage() {
           return;
         }
 
-        await completeSignedInInvite(data.user.id);
+        await completeSignedInInvite(data.user);
         return;
       }
 
@@ -329,7 +310,13 @@ export default function InvitePage() {
       return;
     }
 
-    // Try to create account; if email already exists, try to sign in
+    if (!DEMO_AUTH_ENABLED) {
+      setFormError("Supabase is not configured for account creation.");
+      setLoading(false);
+      return;
+    }
+
+    // Dev-only local account fallback when Supabase is not configured.
     const result = createAccount(
       username.trim(),
       password,
@@ -578,7 +565,7 @@ export default function InvitePage() {
             show={showPass}
             onToggle={() => setShowPass((v) => !v)}
             autoComplete="new-password"
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
             error={!!formError}
           />
 

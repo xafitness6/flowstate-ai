@@ -5,7 +5,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser }   from "@/context/UserContext";
 
-const ADMIN_EMAIL = "xavellis4@gmail.com";
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 /**
  * Protects admin-only pages.
@@ -21,9 +35,10 @@ const ADMIN_EMAIL = "xavellis4@gmail.com";
 export function useAdminGuard(): boolean {
   const router = useRouter();
   const { user, isLoading } = useUser();
-  const [sessionAdmin, setSessionAdmin] = useState(false);
+  const [serverChecked, setServerChecked] = useState(false);
+  const [serverAdmin, setServerAdmin] = useState(false);
 
-  const isAdmin = !isLoading && (user.role === "master" || !!user.isAdmin || sessionAdmin);
+  const isAdmin = !isLoading && (user.role === "master" || !!user.isAdmin || serverAdmin);
 
   useEffect(() => {
     if (isLoading) return; // wait — don't redirect until role is resolved
@@ -39,18 +54,41 @@ export function useAdminGuard(): boolean {
 
         const { createClient } = await import("@/lib/supabase/client");
         const supabase = createClient();
-        const { data: { user: sessionUser } } = await supabase.auth.getUser();
-        if (sessionUser?.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-          setSessionAdmin(true);
+        const { data: { user: sessionUser } } = await withTimeout(
+          supabase.auth.getUser(),
+          4_000,
+          "admin user check",
+        );
+        if (!sessionUser) {
+          router.replace("/login");
+          return;
+        }
+
+        const { data: profile } = await withTimeout(
+          supabase
+            .from("profiles")
+            .select("role,is_admin")
+            .eq("id", sessionUser.id)
+            .maybeSingle(),
+          4_000,
+          "admin profile check",
+        );
+
+        if (profile?.role === "master" || profile?.is_admin) {
+          setServerAdmin(true);
           return;
         }
       } catch { /* fall through to login */ }
 
-      router.replace("/login");
+      setServerChecked(true);
     }
 
     void verifySessionAdmin();
   }, [isLoading, isAdmin, router]);
+
+  useEffect(() => {
+    if (!isLoading && serverChecked && !isAdmin) router.replace("/login");
+  }, [isLoading, serverChecked, isAdmin, router]);
 
   return isAdmin;
 }

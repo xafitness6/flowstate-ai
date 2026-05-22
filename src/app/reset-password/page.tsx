@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Eye, EyeOff, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { mark as authMark } from "@/lib/authTrace";
+import { updatePasswordAndSignOut, verifyRecoveryLink } from "@/lib/auth/service";
 
 type LinkStatus =
   | { kind: "verifying" }
@@ -39,116 +38,19 @@ export default function ResetPasswordPage() {
   }, []);
 
   useEffect(() => {
-    const supabase = createClient();
     let cancelled = false;
 
-    function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
-      return new Promise<T>((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error(`${label}_timeout`)), ms);
-        Promise.resolve(p).then(
-          (v) => { clearTimeout(t); resolve(v); },
-          (e) => { clearTimeout(t); reject(e); },
-        );
-      });
-    }
-
     (async () => {
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
-      const tokenHash = url.searchParams.get("token_hash");
-      const type = url.searchParams.get("type");
-      const urlError = url.searchParams.get("error_description") || url.searchParams.get("error");
-
-      authMark("resetPassword.verify", `attempt=${verifyAttempt + 1} code=${!!code} tokenHash=${!!tokenHash} type=${type ?? "-"} err=${urlError ?? "-"}`);
-
-      if (urlError) {
-        if (!cancelled) setLink({ kind: "invalid", reason: urlError });
-        return;
-      }
-
-      // 1) Already have a recovery session from a previous attempt? Done.
-      try {
-        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 4_000, "getSession");
-        if (session) {
-          authMark("resetPassword.verify", "pre-existing session, skipping exchange");
-          if (!cancelled) setLink({ kind: "ok" });
-          return;
-        }
-      } catch { /* fall through to token exchange */ }
-
-      // 2) Exchange the token in the URL. Use the SESSION RETURNED BY THE
-      //    EXCHANGE directly — calling getSession() again right after races
-      //    cookie persistence and was the source of false "expired" errors.
-      try {
-        if (code) {
-          const { data, error: exErr } = await withTimeout(
-            supabase.auth.exchangeCodeForSession(code),
-            1_800_000, // 30 min — per user request
-            "exchange",
-          );
-          if (cancelled) return;
-          if (exErr) {
-            authMark("resetPassword.verify", `exchange err: ${exErr.message}`);
-            setLink({ kind: "invalid", reason: exErr.message });
-            return;
-          }
-          window.history.replaceState({}, "", "/reset-password");
-          if (data.session) {
-            authMark("resetPassword.verify", "exchange ok");
-            setLink({ kind: "ok" });
-            return;
-          }
-        } else if (tokenHash && type === "recovery") {
-          const { data, error: otpErr } = await withTimeout(
-            supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash }),
-            1_800_000, // 30 min — per user request
-            "verifyOtp",
-          );
-          if (cancelled) return;
-          if (otpErr) {
-            authMark("resetPassword.verify", `verifyOtp err: ${otpErr.message}`);
-            setLink({ kind: "invalid", reason: otpErr.message });
-            return;
-          }
-          window.history.replaceState({}, "", "/reset-password");
-          if (data.session) {
-            authMark("resetPassword.verify", "verifyOtp ok");
-            setLink({ kind: "ok" });
-            return;
-          }
-        } else {
-          // Nothing in the URL and no existing session — the user navigated
-          // here directly without a link.
-          if (!cancelled) setLink({ kind: "invalid", reason: "no token in URL" });
-          return;
-        }
-
-        // Exchange/verifyOtp returned no error AND no session — give the SDK
-        // a beat to persist, then check once more.
-        await new Promise((r) => setTimeout(r, 250));
-        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 4_000, "getSession");
-        if (!cancelled) setLink(session ? { kind: "ok" } : { kind: "invalid", reason: "no session after exchange" });
-      } catch (e) {
-        if (cancelled) return;
-        const msg = e instanceof Error ? e.message : String(e);
-        const isTimeout = msg.endsWith("_timeout");
-        authMark("resetPassword.verify", `caught: ${msg}`);
-        // Timeout = network/SDK was slow; offer retry. Anything else = real
-        // link problem; tell the user to request a new one.
-        setLink(isTimeout
-          ? { kind: "timeout", reason: msg }
-          : { kind: "invalid", reason: msg });
-      }
+      const result = await verifyRecoveryLink(window.location.href);
+      if (cancelled) return;
+      setLink(
+        result.kind === "ok"
+          ? { kind: "ok" }
+          : { kind: result.kind, reason: result.message },
+      );
     })();
 
-    // Supabase also emits PASSWORD_RECOVERY in some flows — treat that as ok.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
-        setLink({ kind: "ok" });
-      }
-    });
-
-    return () => { cancelled = true; subscription.unsubscribe(); };
+    return () => { cancelled = true; };
   }, [verifyAttempt]);
 
   function validate(): string | null {
@@ -165,32 +67,15 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      // Race the auth call against a timeout. Supabase's updateUser can hang
-      // indefinitely when the recovery session is missing/expired — without
-      // this the button sticks on "Updating…" forever with no feedback.
-      const result = await Promise.race([
-        supabase.auth.updateUser({ password }),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("This reset link has expired. Request a new one and try again.")),
-            1_800_000, // 30 min — per user request
-          ),
-        ),
-      ]);
-      const { error: updateError } = result;
-      if (updateError) {
-        setError(updateError.message);
+      const result = await updatePasswordAndSignOut(password);
+      if (!result.ok) {
+        setError(result.error.message);
         setLoading(false);
         return;
       }
-      // Clear the recovery session so the "Sign in" button lands on a clean
-      // login instead of a half-authenticated state. Fire-and-forget — the
-      // success screen shows regardless.
-      void supabase.auth.signOut().catch(() => {});
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      setError("Something went wrong. Try again.");
     } finally {
       setLoading(false);
     }

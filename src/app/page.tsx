@@ -6,8 +6,6 @@ import { decideOnboardingRoute } from "@/lib/onboardingRoute";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ADMIN_EMAIL = "xavellis4@gmail.com";
-
 function finalRoute(profile: Pick<Profile, "role"> | null): string {
   if (profile?.role === "trainer") return "/trainers";
   if (profile?.role === "master") return "/admin";
@@ -27,10 +25,6 @@ export default async function Root() {
 
   if (!user) {
     redirect("/login");
-  }
-
-  if (user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
-    redirect("/admin");
   }
 
   const { data: profile } = await supabase
