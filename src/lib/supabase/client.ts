@@ -24,6 +24,14 @@ export function createClient(): BrowserSupabaseClient {
   browserClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        // Auth callback/reset pages handle URL tokens explicitly. Leaving the
+        // SDK to auto-consume them can race those pages and make valid reset
+        // links look expired.
+        detectSessionInUrl: false,
+      },
+    },
   );
 
   return browserClient;

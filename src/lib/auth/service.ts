@@ -22,6 +22,7 @@ export type RecoveryVerifyResult =
   | { kind: "invalid"; message: string };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const RECOVERY_SESSION_READY_KEY = "flowstate:recovery-session-ready";
 
 let recoveryVerification:
   | { signature: string; promise: Promise<RecoveryVerifyResult> }
@@ -36,6 +37,42 @@ function rawMessage(error: unknown): string {
     return typeof message === "string" ? message : String(message ?? "");
   }
   return String(error);
+}
+
+function urlHashParams(url: URL): URLSearchParams {
+  return new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+}
+
+function urlParam(url: URL, name: string): string | null {
+  return url.searchParams.get(name) ?? urlHashParams(url).get(name);
+}
+
+function markRecoverySessionReady() {
+  try {
+    window.sessionStorage.setItem(RECOVERY_SESSION_READY_KEY, "true");
+  } catch {
+    // Ignore storage failures. The verified Supabase session is still enough.
+  }
+}
+
+function clearRecoverySessionReady() {
+  try {
+    window.sessionStorage.removeItem(RECOVERY_SESSION_READY_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function isRecoverySessionReady(): boolean {
+  try {
+    return window.sessionStorage.getItem(RECOVERY_SESSION_READY_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function cleanRecoveryUrl() {
+  window.history.replaceState({}, "", "/reset-password");
 }
 
 function timeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
@@ -194,16 +231,25 @@ export async function sendPasswordReset(email: string, redirectTo: string) {
 }
 
 async function runRecoveryVerification(urlString: string): Promise<RecoveryVerifyResult> {
-  const supabase = createClient();
   const url = new URL(urlString);
-  const code = url.searchParams.get("code");
-  const tokenHash = url.searchParams.get("token_hash");
-  const type = url.searchParams.get("type");
-  const urlError = url.searchParams.get("error_description") || url.searchParams.get("error");
+  const code = urlParam(url, "code");
+  const tokenHash = urlParam(url, "token_hash");
+  const type = urlParam(url, "type");
+  const accessToken = urlParam(url, "access_token");
+  const refreshToken = urlParam(url, "refresh_token");
+  const urlError = urlParam(url, "error_description") || urlParam(url, "error");
+  const hasLinkCredentials = Boolean(code || tokenHash || (accessToken && refreshToken));
+  const supabase = createClient();
 
   authMark(
     "auth.verifyRecoveryLink",
-    `code=${!!code} tokenHash=${!!tokenHash} type=${type ?? "-"} err=${urlError ?? "-"}`,
+    [
+      `code=${!!code}`,
+      `tokenHash=${!!tokenHash}`,
+      `hashSession=${!!(accessToken && refreshToken)}`,
+      `type=${type ?? "-"}`,
+      `err=${urlError ?? "-"}`,
+    ].join(" "),
   );
 
   if (urlError) {
@@ -213,17 +259,48 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
   const existingSession = await safeAuth(
     "auth.recovery.getSession",
     () => supabase.auth.getSession(),
-    4_000,
+    8_000,
   );
-  if (existingSession.ok && existingSession.data.data.session) {
+  if (
+    existingSession.ok &&
+    existingSession.data.data.session &&
+    !hasLinkCredentials &&
+    isRecoverySessionReady()
+  ) {
     return { kind: "ok" };
   }
 
-  if (code) {
+  if (accessToken && refreshToken) {
+    if (type && type !== "recovery") {
+      return {
+        kind: "invalid",
+        message: "Open the password reset link from your email to set a new password.",
+      };
+    }
+
+    const session = await safeAuth(
+      "auth.setRecoverySession",
+      () => supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }),
+      30_000,
+      "Could not verify this reset link yet. Try again, or request a fresh link.",
+    );
+    if (!session.ok) {
+      return {
+        kind: session.error.kind === "timeout" ? "timeout" : "invalid",
+        message: session.error.message,
+      };
+    }
+    if (session.data.data.session) {
+      markRecoverySessionReady();
+      cleanRecoveryUrl();
+      return { kind: "ok" };
+    }
+  } else if (code) {
     const exchanged = await safeAuth(
       "auth.exchangeRecoveryCode",
       () => supabase.auth.exchangeCodeForSession(code),
-      15_000,
+      30_000,
+      "Could not verify this reset link yet. Try again, or request a fresh link.",
     );
     if (!exchanged.ok) {
       return {
@@ -232,14 +309,16 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
       };
     }
     if (exchanged.data.data.session) {
-      window.history.replaceState({}, "", "/reset-password");
+      markRecoverySessionReady();
+      cleanRecoveryUrl();
       return { kind: "ok" };
     }
-  } else if (tokenHash && type === "recovery") {
+  } else if (tokenHash && (!type || type === "recovery")) {
     const verified = await safeAuth(
       "auth.verifyRecoveryOtp",
       () => supabase.auth.verifyOtp({ type: "recovery" as EmailOtpType, token_hash: tokenHash }),
-      15_000,
+      30_000,
+      "Could not verify this reset link yet. Try again, or request a fresh link.",
     );
     if (!verified.ok) {
       return {
@@ -248,7 +327,8 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
       };
     }
     if (verified.data.data.session) {
-      window.history.replaceState({}, "", "/reset-password");
+      markRecoverySessionReady();
+      cleanRecoveryUrl();
       return { kind: "ok" };
     }
   } else {
@@ -261,10 +341,11 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
   const settledSession = await safeAuth(
     "auth.recovery.settleSession",
     () => supabase.auth.getSession(),
-    4_000,
+    8_000,
   );
   if (settledSession.ok && settledSession.data.data.session) {
-    window.history.replaceState({}, "", "/reset-password");
+    markRecoverySessionReady();
+    cleanRecoveryUrl();
     return { kind: "ok" };
   }
 
@@ -277,11 +358,12 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
 export async function verifyRecoveryLink(urlString = window.location.href): Promise<RecoveryVerifyResult> {
   const url = new URL(urlString);
   const signature = [
-    url.searchParams.get("code") ?? "",
-    url.searchParams.get("token_hash") ?? "",
-    url.searchParams.get("type") ?? "",
-    url.searchParams.get("error") ?? "",
-    url.searchParams.get("error_description") ?? "",
+    urlParam(url, "code") ?? "",
+    urlParam(url, "token_hash") ?? "",
+    urlParam(url, "access_token") ? "hash-session" : "",
+    urlParam(url, "type") ?? "",
+    urlParam(url, "error") ?? "",
+    urlParam(url, "error_description") ?? "",
   ].join(":");
 
   if (recoveryVerification?.signature === signature) {
@@ -307,5 +389,6 @@ export async function updatePasswordAndSignOut(password: string): Promise<AuthRe
   if (!updated.ok) return updated;
 
   await safeAuth("auth.signOutAfterPasswordUpdate", () => supabase.auth.signOut(), 2_500);
+  clearRecoverySessionReady();
   return { ok: true, data: undefined };
 }
