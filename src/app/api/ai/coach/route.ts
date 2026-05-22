@@ -32,8 +32,9 @@ function buildSystem(params: {
   style:     string;
   profanity: string;
   context:   { goal: string; phase: string; week: string; status: string };
+  athleteProfile?: string;
 }): string {
-  const { tone, style, profanity, context } = params;
+  const { tone, style, profanity, context, athleteProfile } = params;
 
   return `You are the AI coach inside Flowstate, an elite training system.
 
@@ -42,6 +43,10 @@ ATHLETE CONTEXT:
 - Phase: ${context.phase}
 - Week: ${context.week}
 - Status: ${context.status}
+${athleteProfile ? `
+ATHLETE INTAKE (from their onboarding — coach to THIS person specifically; respect injuries, equipment, diet, and their stated reasons):
+${athleteProfile}
+` : ""}
 
 YOUR COACHING PHILOSOPHY:
 You believe moving better is the foundation of building muscle, feeling better, and getting results. You emphasize:
@@ -122,6 +127,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Empty message" }, { status: 400 });
     }
 
+    // Pull the signed-in athlete's onboarding intake so the coach speaks to
+    // THEIR specifics (injuries, equipment, diet, goals). Best-effort — never
+    // block the reply if it's missing or slow.
+    let athleteProfile = "";
+    try {
+      const { createClient } = await import("@/lib/supabase/server");
+      const { summarizeIntakeForCoach } = await import("@/lib/intake/format");
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        const { data } = await supabase
+          .from("onboarding_state")
+          .select("raw_answers")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        athleteProfile = summarizeIntakeForCoach((data?.raw_answers ?? null) as Record<string, unknown> | null);
+      }
+    } catch { /* coach still works without the intake */ }
+
     // Build conversation history — last 10 messages (5 exchanges) for context
     const historyMessages = history
       .slice(-10)
@@ -134,7 +158,7 @@ export async function POST(req: NextRequest) {
       model:      "gpt-4o",
       max_tokens: style === "lite" ? 400 : 700,
       messages:   [
-        { role: "system", content: buildSystem({ tone, style, profanity, context }) },
+        { role: "system", content: buildSystem({ tone, style, profanity, context, athleteProfile }) },
         ...historyMessages,
         { role: "user",   content: message.trim() },
       ],

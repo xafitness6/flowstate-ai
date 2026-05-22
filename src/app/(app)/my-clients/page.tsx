@@ -513,7 +513,12 @@ export default function MyClientsPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <p className={cn("text-sm font-medium", isInactive ? "text-white/40" : "text-white/80")}>{c.name}</p>
+                          <button
+                            onClick={() => router.push(`/clients/${c.id}`)}
+                            className={cn("text-sm font-medium text-left hover:text-[#B48B40] transition-colors", isInactive ? "text-white/40" : "text-white/80")}
+                          >
+                            {c.name}
+                          </button>
                           <span className={cn(
                             "text-[9px] font-semibold uppercase tracking-wider",
                             (c.plan === "performance" || c.plan === "coaching") ? "text-[#B48B40]" : "text-white/28"
@@ -557,9 +562,9 @@ export default function MyClientsPage() {
                     {/* Actions */}
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => router.push(`/admin`)}
+                        onClick={() => router.push(`/clients/${c.id}`)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg border border-transparent hover:border-white/10 hover:bg-white/[0.04] text-white/18 hover:text-white/50 transition-all"
-                        title="View in platform"
+                        title="View intake & notes"
                       >
                         <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.5} />
                       </button>
