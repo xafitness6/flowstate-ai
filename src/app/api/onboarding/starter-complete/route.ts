@@ -42,20 +42,24 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  let programSaved = false;
+  let programWarning: string | null = null;
 
   const archive = await (admin.from("programs") as any)
     .update({ status: "archived" })
     .eq("user_id", user.id)
     .eq("status", "active");
   if (archive.error) {
-    return NextResponse.json({ error: archive.error.message }, { status: 500 });
-  }
-
-  const row = builderPayloadToProgramRow(body.payload, { status: "active" });
-  const insert = await (admin.from("programs") as any)
-    .insert({ ...row, user_id: user.id });
-  if (insert.error) {
-    return NextResponse.json({ error: insert.error.message }, { status: 500 });
+    programWarning = archive.error.message;
+  } else {
+    const row = builderPayloadToProgramRow(body.payload, { status: "active" });
+    const insert = await (admin.from("programs") as any)
+      .insert({ ...row, user_id: user.id });
+    if (insert.error) {
+      programWarning = insert.error.message;
+    } else {
+      programSaved = true;
+    }
   }
 
   const onboarding = await (admin.from("onboarding_state") as any)
@@ -78,5 +82,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: onboarding.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  if (programWarning) {
+    console.warn("[onboarding/starter-complete] program save skipped:", programWarning);
+  }
+
+  return NextResponse.json({ ok: true, programSaved, warning: programWarning });
 }

@@ -6,7 +6,6 @@ import { ArrowRight, ArrowLeft, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveIntake, type IntakeData } from "@/lib/data/intake";
 import { completeOnboarding } from "@/lib/onboarding";
-import { saveBuilderWorkoutForSelf } from "@/lib/db/programs";
 import { generateStarterPlan, saveStarterPlan, starterPlanToBuilderPayload, starterPlanToProgram } from "@/lib/starterPlan";
 import { saveActiveProgram } from "@/lib/workout";
 import { DEMO_USERS } from "@/context/UserContext";
@@ -104,13 +103,57 @@ const EQUIPMENT_OPTIONS: { value: string; label: string }[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getActiveUserId(): string {
+const LS_KEY = "flowstate-active-role";
+const SS_KEY = "flowstate-session-role";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_EQUIPMENT = "Bodyweight only";
+
+function readStoredUserId(): string {
   try {
-    const key = sessionStorage.getItem("flowstate-session-role") || localStorage.getItem("flowstate-active-role") || "";
+    const key = sessionStorage.getItem(SS_KEY) || localStorage.getItem(LS_KEY) || "";
     if (DEMO_USERS[key as keyof typeof DEMO_USERS]) return DEMO_USERS[key as keyof typeof DEMO_USERS].id;
-    if (key) return key; // real UUID or usr_ id
+    if (key.startsWith("usr_") || UUID_RE.test(key)) return key;
   } catch { /* ignore */ }
   return "anonymous";
+}
+
+function rememberUserId(userId: string) {
+  try {
+    localStorage.setItem(LS_KEY, userId);
+    sessionStorage.setItem(SS_KEY, userId);
+  } catch { /* ignore */ }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    }),
+  ]);
+}
+
+async function getActiveUserId(): Promise<string> {
+  const stored = readStoredUserId();
+  if (UUID_RE.test(stored) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return stored;
+
+  try {
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { data: { user } } = await withTimeout(
+      supabase.auth.getUser(),
+      4_000,
+      "Supabase user lookup",
+    );
+    if (user?.id) {
+      rememberUserId(user.id);
+      return user.id;
+    }
+  } catch (error) {
+    console.warn("[calibration] user lookup skipped:", error);
+  }
+
+  return stored;
 }
 
 function toggle(arr: string[], item: string): string[] {
@@ -220,7 +263,8 @@ export default function CalibrationPage() {
     setSaving(true);
     setSaveError(null);
     try {
-    const userId = getActiveUserId();
+    const userId = await getActiveUserId();
+    const equipment = answers.equipment.length > 0 ? answers.equipment : [DEFAULT_EQUIPMENT];
 
     // Minimal intake object for storage — empty fields are fine
     const intake: IntakeData = {
@@ -250,7 +294,7 @@ export default function CalibrationPage() {
       restrictions:    [],
       hydration:       "",
       injuries:        "",
-      equipment:       answers.equipment,
+      equipment,
       limitedDays:     [],
       coachNote:       "",
       completedAt:     new Date().toISOString(),
@@ -262,25 +306,35 @@ export default function CalibrationPage() {
     saveStarterPlan(userId, starterPlan);
     saveActiveProgram(userId, starterPlanToProgram(starterPlan));
 
-    const STARTER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (STARTER_UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const payload = starterPlanToBuilderPayload(starterPlan);
-      const apiResult = await fetch("/api/onboarding/starter-complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({
-          payload,
-          intake: intake as unknown as Record<string, unknown>,
+      const apiResult = await withTimeout(
+        fetch("/api/onboarding/starter-complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({
+            payload,
+            intake: intake as unknown as Record<string, unknown>,
+          }),
         }),
+        8_000,
+        "starter setup sync",
+      ).catch((error) => {
+        console.warn("[calibration] server starter sync skipped:", error);
+        return null;
       });
 
-      if (!apiResult.ok) {
-        console.warn("[calibration] server starter save failed; trying client fallback");
-        const saved = await saveBuilderWorkoutForSelf(userId, payload, true);
-        if (!saved) throw new Error("Could not save starter program.");
+      if (!apiResult?.ok) {
+        console.warn("[calibration] server starter save did not complete; continuing with local setup");
         const { markOnboardingComplete } = await import("@/lib/db/onboarding");
-        await markOnboardingComplete(userId, intake as unknown as Record<string, unknown>);
+        void withTimeout(
+          markOnboardingComplete(userId, intake as unknown as Record<string, unknown>),
+          4_000,
+          "onboarding fallback sync",
+        ).catch((error) => {
+          console.warn("[calibration] onboarding fallback sync skipped:", error);
+        });
       }
     }
 
@@ -288,7 +342,7 @@ export default function CalibrationPage() {
       primaryGoal:   answers.primaryGoal,
       experience:    answers.experience,
       daysPerWeek:   answers.daysPerWeek,
-      equipment:     answers.equipment,
+      equipment,
       mainStruggle:  answers.mainStruggle.join(" · "),
       sessionLength: answers.sessionLength,
       weight:        "",
@@ -297,6 +351,7 @@ export default function CalibrationPage() {
     });
 
     try { sessionStorage.setItem("flowstate-program-reveal", "starter"); } catch { /* ignore */ }
+    try { sessionStorage.setItem("flowstate-calibration-finished", "true"); } catch { /* ignore */ }
     router.replace("/onboarding/tutorial");
 
     } catch (err) {

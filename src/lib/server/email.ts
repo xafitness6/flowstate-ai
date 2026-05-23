@@ -1,7 +1,13 @@
 type SendEmailResult =
-  | { ok: true; sent: true }
+  | { ok: true; sent: true; id?: string }
   | { ok: true; sent: false; reason: "not_configured" }
   | { ok: false; sent: false; error: string };
+
+type SendViaResendArgs = {
+  to: string;
+  subject: string;
+  text: string;
+};
 
 function textToHtml(text: string): string {
   return text
@@ -20,24 +26,27 @@ function textToHtml(text: string): string {
     .join("");
 }
 
-export async function sendPasswordResetEmail(args: {
-  to: string;
-  code: string;
-  resetUrl: string;
-}): Promise<SendEmailResult> {
+function emailConfig() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.PASSWORD_RESET_FROM_EMAIL?.trim() || "Flowstate AI <onboarding@resend.dev>";
-  if (!apiKey) return { ok: true, sent: false, reason: "not_configured" };
+  return { apiKey, from };
+}
 
-  const subject = "Reset your Flowstate AI password";
-  const text = [
-    "Use this Flowstate AI code to reset your password:",
-    args.code,
-    "Then open the password reset page:",
-    args.resetUrl,
-    "This code expires in 10 minutes and is only used when you submit your new password.",
-    "If you did not request this, you can ignore this email.",
-  ].join("\n\n");
+export function getEmailDiagnostics() {
+  const { apiKey, from } = emailConfig();
+  return {
+    hasResendApiKey: Boolean(apiKey),
+    hasFromEmail: Boolean(process.env.PASSWORD_RESET_FROM_EMAIL?.trim()),
+    from,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.APP_URL?.trim() || null,
+    hasResetCodeSecret: Boolean(process.env.PASSWORD_RESET_CODE_SECRET?.trim()),
+    usingResendSandboxSender: from.includes("onboarding@resend.dev"),
+  };
+}
+
+async function sendViaResend(args: SendViaResendArgs): Promise<SendEmailResult> {
+  const { apiKey, from } = emailConfig();
+  if (!apiKey) return { ok: true, sent: false, reason: "not_configured" };
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -48,14 +57,14 @@ export async function sendPasswordResetEmail(args: {
     body: JSON.stringify({
       from,
       to: args.to,
-      subject,
-      text,
-      html: textToHtml(text),
+      subject: args.subject,
+      text: args.text,
+      html: textToHtml(args.text),
     }),
   });
 
+  const body = await response.text().catch(() => "");
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
     return {
       ok: false,
       sent: false,
@@ -63,5 +72,48 @@ export async function sendPasswordResetEmail(args: {
     };
   }
 
-  return { ok: true, sent: true };
+  let id: string | undefined;
+  try {
+    const parsed = body ? JSON.parse(body) as { id?: unknown } : {};
+    id = typeof parsed.id === "string" ? parsed.id : undefined;
+  } catch { /* ignore */ }
+
+  return { ok: true, sent: true, id };
+}
+
+export async function sendPasswordResetEmail(args: {
+  to: string;
+  code: string;
+  resetUrl: string;
+}): Promise<SendEmailResult> {
+  const text = [
+    "Use this Flowstate AI code to reset your password:",
+    args.code,
+    "Then open the password reset page:",
+    args.resetUrl,
+    "This code expires in 10 minutes and is only used when you submit your new password.",
+    "If you did not request this, you can ignore this email.",
+  ].join("\n\n");
+
+  return sendViaResend({
+    to: args.to,
+    subject: "Reset your Flowstate AI password",
+    text,
+  });
+}
+
+export async function sendEmailDiagnostic(args: {
+  to: string;
+}): Promise<SendEmailResult> {
+  const text = [
+    "Flowstate AI email diagnostics test.",
+    "If you received this message, the deployed app can send email through Resend.",
+    `Sent at: ${new Date().toISOString()}`,
+  ].join("\n\n");
+
+  return sendViaResend({
+    to: args.to,
+    subject: "Flowstate AI email test",
+    text,
+  });
 }
