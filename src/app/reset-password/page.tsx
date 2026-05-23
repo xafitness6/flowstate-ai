@@ -67,6 +67,15 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
+      const verified = await verifyRecoveryLink(window.location.href);
+      if (verified.kind !== "ok") {
+        setLink({ kind: verified.kind, reason: verified.message });
+        setError(verified.message);
+        setLoading(false);
+        return;
+      }
+      setLink({ kind: "ok" });
+
       const result = await updatePasswordAndSignOut(password);
       if (!result.ok) {
         setError(result.error.message);
@@ -80,6 +89,8 @@ export default function ResetPasswordPage() {
       setLoading(false);
     }
   }
+
+  const showPasswordForm = !done && link.kind !== "invalid";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 md:px-8 py-16 text-white">
@@ -103,7 +114,7 @@ export default function ResetPasswordPage() {
         {link.kind === "verifying" && !done && (
           <div className="rounded-2xl border border-white/6 bg-white/[0.02] px-5 py-6 flex items-center justify-center gap-3">
             <div className="h-4 w-4 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
-            <p className="text-sm text-white/45">Verifying your reset link…</p>
+            <p className="text-sm text-white/45">Preparing your secure password session…</p>
           </div>
         )}
 
@@ -112,7 +123,7 @@ export default function ResetPasswordPage() {
             <div className="rounded-2xl border border-[#B48B40]/20 bg-[#B48B40]/[0.05] px-5 py-5 text-center">
               <p className="text-sm text-white/85">Couldn&apos;t verify your link in time.</p>
               <p className="text-xs text-white/40 mt-1.5 leading-relaxed">
-                The network or sign-in service was slow — your link is probably still good. Try again.
+                You can keep entering your password. We&apos;ll retry verification when you submit.
               </p>
             </div>
             <button
@@ -166,7 +177,7 @@ export default function ResetPasswordPage() {
           </div>
         )}
 
-        {link.kind === "ok" && !done && (
+        {showPasswordForm && (
           <form onSubmit={handleSubmit} className="space-y-4">
 
             <div className="space-y-1.5">
