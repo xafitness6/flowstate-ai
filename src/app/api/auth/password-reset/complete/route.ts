@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
-  getPasswordToken,
+  getPasswordResetCode,
   markPasswordTokenUsed,
+  normalizeResetEmail,
   updateAuthPassword,
   validatePasswordToken,
 } from "@/lib/server/passwordResetTokens";
 
 type Body = {
-  token?: unknown;
+  email?: unknown;
+  code?: unknown;
   password?: unknown;
 };
 
@@ -20,10 +22,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const token = typeof body.token === "string" ? body.token.trim() : "";
+  const email = typeof body.email === "string" ? normalizeResetEmail(body.email) : "";
+  const code = typeof body.code === "string" ? body.code.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
-  if (!token) {
-    return NextResponse.json({ error: "Reset token is missing." }, { status: 400 });
+  if (!email.includes("@")) {
+    return NextResponse.json({ error: "Enter the email for this reset code." }, { status: 400 });
+  }
+  if (!/^\d{6}$/.test(code)) {
+    return NextResponse.json({ error: "Enter the 6-digit reset code from your email." }, { status: 400 });
   }
   if (password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
@@ -31,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const admin = await createAdminClient();
-    const row = await getPasswordToken(admin, token);
+    const row = await getPasswordResetCode({ admin, email, code });
     const tokenError = validatePasswordToken(row);
     if (tokenError || !row) {
       return NextResponse.json({ error: tokenError ?? "This reset link is invalid." }, { status: 400 });

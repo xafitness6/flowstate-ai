@@ -22,6 +22,7 @@ function textToHtml(text: string): string {
 
 export async function sendPasswordResetEmail(args: {
   to: string;
+  code: string;
   resetUrl: string;
 }): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
@@ -30,9 +31,11 @@ export async function sendPasswordResetEmail(args: {
 
   const subject = "Reset your Flowstate AI password";
   const text = [
-    "Use this secure Flowstate AI link to set a new password:",
+    "Use this Flowstate AI code to reset your password:",
+    args.code,
+    "Then open the password reset page:",
     args.resetUrl,
-    "This link expires in 60 minutes and is only used when you submit a new password.",
+    "This code expires in 10 minutes and is only used when you submit your new password.",
     "If you did not request this, you can ignore this email.",
   ].join("\n\n");
 

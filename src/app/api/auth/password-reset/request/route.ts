@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
-  createPasswordResetToken,
+  createPasswordResetCode,
   findPasswordResetUser,
   normalizeResetEmail,
 } from "@/lib/server/passwordResetTokens";
@@ -20,7 +20,7 @@ function appOrigin(req: NextRequest): string {
   return req.headers.get("origin") ?? new URL(req.url).origin;
 }
 
-function allowDebugResetUrl() {
+function allowDebugResetCode() {
   return process.env.NODE_ENV !== "production" || process.env.ENABLE_DEV_ROUTE === "true";
 }
 
@@ -42,27 +42,28 @@ export async function POST(req: NextRequest) {
     const user = await findPasswordResetUser(admin, email);
     if (!user) return NextResponse.json({ ok: true });
 
-    const { token } = await createPasswordResetToken({
+    const { code } = await createPasswordResetCode({
       admin,
       userId: user.id,
       email: user.email,
       purpose: "reset",
     });
-    const resetUrl = `${appOrigin(req)}/reset-password?token=${encodeURIComponent(token)}`;
-    const emailResult = await sendPasswordResetEmail({ to: user.email, resetUrl });
+    const resetUrl = `${appOrigin(req)}/reset-password?email=${encodeURIComponent(user.email)}`;
+    const emailResult = await sendPasswordResetEmail({ to: user.email, code, resetUrl });
 
     if (!emailResult.ok) {
       console.error("[password-reset/request] email send failed:", emailResult.error);
     }
     if (!emailResult.sent) {
-      console.info("[password-reset/request] reset link generated; email sending not configured.");
+      console.info("[password-reset/request] reset code generated; email sending not configured.");
+      console.info(`Reset code for ${user.email}: ${code}`);
       console.info(resetUrl);
     }
 
     return NextResponse.json({
       ok: true,
       emailSent: emailResult.sent,
-      ...(allowDebugResetUrl() ? { resetUrl } : {}),
+      ...(allowDebugResetCode() ? { resetCode: code, resetUrl } : {}),
     });
   } catch (error) {
     console.error("[password-reset/request] failed:", error);

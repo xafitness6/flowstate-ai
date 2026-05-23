@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHmac, randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type AdminClient = SupabaseClient<any>;
@@ -22,22 +22,31 @@ type ProfileLookupRow = {
   archived_at?: string | null;
 };
 
-const TOKEN_BYTES = 32;
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const RESET_CODE_TTL_MS = 10 * 60 * 1000;
 
 export function normalizeResetEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-export function generatePasswordToken(): string {
-  return randomBytes(TOKEN_BYTES).toString("base64url");
+function resetCodeSecret(): string {
+  return (
+    process.env.PASSWORD_RESET_CODE_SECRET?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+    "flowstate-dev-reset-code-secret"
+  );
 }
 
-export function hashPasswordToken(token: string): string {
-  return createHash("sha256").update(token, "utf8").digest("hex");
+export function generatePasswordResetCode(): string {
+  return randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
-export function passwordTokenExpiresAt(ttlMs = RESET_TOKEN_TTL_MS): string {
+export function hashPasswordResetCode(email: string, code: string): string {
+  return createHmac("sha256", resetCodeSecret())
+    .update(`${normalizeResetEmail(email)}:${code.trim()}`, "utf8")
+    .digest("hex");
+}
+
+export function passwordTokenExpiresAt(ttlMs = RESET_CODE_TTL_MS): string {
   return new Date(Date.now() + ttlMs).toISOString();
 }
 
@@ -55,14 +64,14 @@ export async function findPasswordResetUser(admin: AdminClient, email: string) {
   return row;
 }
 
-export async function createPasswordResetToken(args: {
+export async function createPasswordResetCode(args: {
   admin: AdminClient;
   userId: string;
   email: string;
   purpose?: PasswordTokenPurpose;
 }) {
-  const token = generatePasswordToken();
-  const tokenHash = hashPasswordToken(token);
+  const code = generatePasswordResetCode();
+  const tokenHash = hashPasswordResetCode(args.email, code);
   const expiresAt = passwordTokenExpiresAt();
 
   const { data, error } = await args.admin
@@ -78,14 +87,18 @@ export async function createPasswordResetToken(args: {
     .single();
 
   if (error) throw new Error(error.message);
-  return { token, row: data as PasswordTokenRow };
+  return { code, row: data as PasswordTokenRow };
 }
 
-export async function getPasswordToken(admin: AdminClient, token: string) {
-  const { data, error } = await admin
+export async function getPasswordResetCode(args: {
+  admin: AdminClient;
+  email: string;
+  code: string;
+}) {
+  const { data, error } = await args.admin
     .from("auth_password_tokens")
     .select("*")
-    .eq("token_hash", hashPasswordToken(token))
+    .eq("token_hash", hashPasswordResetCode(args.email, args.code))
     .maybeSingle();
 
   if (error) throw new Error(error.message);

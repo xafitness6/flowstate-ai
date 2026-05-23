@@ -51,8 +51,8 @@ export default function ForgotPasswordPage() {
           </h1>
           <p className="text-sm text-white/40">
             {sent
-              ? "If an account exists for that address, a reset link has been sent."
-              : "Enter your account email and we'll send a reset link."}
+              ? "If an account exists for that address, a reset code has been sent."
+              : "Enter your account email and we'll send a reset code."}
           </p>
         </div>
 
@@ -75,8 +75,15 @@ export default function ForgotPasswordPage() {
             </div>
 
             <button
-              onClick={() => router.push("/login")}
+              onClick={() => router.push(`/reset-password?email=${encodeURIComponent(email.trim().toLowerCase())}`)}
               className="w-full rounded-2xl py-4 text-sm font-semibold tracking-wide bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98] transition-all duration-200"
+            >
+              Enter reset code
+            </button>
+
+            <button
+              onClick={() => router.push("/login")}
+              className="w-full rounded-2xl py-4 text-sm font-semibold tracking-wide bg-white/[0.04] text-white/55 hover:bg-white/[0.07] hover:text-white/75 active:scale-[0.98] transition-all duration-200"
             >
               Back to sign in
             </button>
@@ -120,7 +127,7 @@ export default function ForgotPasswordPage() {
                   : "bg-white/5 text-white/25 cursor-default"
               )}
             >
-              {loading ? "Sending…" : "Send reset link"}
+              {loading ? "Sending..." : "Send reset code"}
             </button>
 
             <button
