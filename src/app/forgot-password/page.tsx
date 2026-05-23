@@ -11,6 +11,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent,    setSent]    = useState(false);
   const [error,   setError]   = useState<string | null>(null);
+  const [debugResetCode, setDebugResetCode] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,13 +23,21 @@ export default function ForgotPasswordPage() {
       return;
     }
     setLoading(true);
+    setDebugResetCode(null);
 
     try {
-      await fetch("/api/auth/password-reset/request", {
+      const response = await fetch("/api/auth/password-reset/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),
       });
+      const body = await response.json().catch(() => ({})) as {
+        emailSent?: boolean;
+        resetCode?: string;
+      };
+      if (body.emailSent === false && body.resetCode) {
+        setDebugResetCode(body.resetCode);
+      }
     } catch (err) {
       console.error("Unexpected password reset error:", err);
     } finally {
@@ -47,10 +56,12 @@ export default function ForgotPasswordPage() {
             <p className="text-[10px] uppercase tracking-[0.35em] text-white/30">Flowstate AI</p>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {sent ? "Check your email" : "Forgot password?"}
+            {sent && debugResetCode ? "Reset code ready" : sent ? "Check your email" : "Forgot password?"}
           </h1>
           <p className="text-sm text-white/40">
-            {sent
+            {sent && debugResetCode
+              ? "Email is not configured in this environment, so use this dev code to finish testing."
+              : sent
               ? "If an account exists for that address, a reset code has been sent."
               : "Enter your account email and we'll send a reset code."}
           </p>
@@ -73,6 +84,20 @@ export default function ForgotPasswordPage() {
                 .
               </p>
             </div>
+
+            {debugResetCode && (
+              <div className="rounded-2xl border border-[#B48B40]/20 bg-[#B48B40]/8 px-5 py-4 text-center space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48B40]/75">
+                  Development reset code
+                </p>
+                <p className="font-mono text-2xl tracking-[0.35em] text-white">
+                  {debugResetCode}
+                </p>
+                <p className="text-xs text-white/40 leading-relaxed">
+                  This only appears when dev reset-code access is enabled.
+                </p>
+              </div>
+            )}
 
             <button
               onClick={() => router.push(`/reset-password?email=${encodeURIComponent(email.trim().toLowerCase())}`)}

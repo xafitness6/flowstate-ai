@@ -62,8 +62,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      emailSent: emailResult.sent,
-      ...(allowDebugResetCode() ? { resetCode: code, resetUrl } : {}),
+      ...(allowDebugResetCode()
+        ? {
+            emailSent: emailResult.sent,
+            resetCode: emailResult.sent ? undefined : code,
+            resetUrl,
+          }
+        : {}),
     });
   } catch (error) {
     console.error("[password-reset/request] failed:", error);

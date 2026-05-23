@@ -58,3 +58,20 @@ test('forgot password requests an email code and links to code entry', async ({ 
 
   await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible();
 });
+
+test('forgot password shows dev reset code when email is not configured', async ({ page }) => {
+  await page.route('**/api/auth/password-reset/request', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, emailSent: false, resetCode: '654321' }),
+    });
+  });
+
+  await page.goto('/forgot-password');
+  await page.locator('input[type="email"]').fill('member@example.com');
+  await page.getByRole('button', { name: /send reset code/i }).click();
+
+  await expect(page.getByRole('heading', { name: /reset code ready/i })).toBeVisible();
+  await expect(page.getByText('654321')).toBeVisible();
+});
