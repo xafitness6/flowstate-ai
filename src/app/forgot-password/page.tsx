@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, ArrowLeft, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { sendPasswordReset } from "@/lib/auth/service";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -23,26 +21,14 @@ export default function ForgotPasswordPage() {
       setError("Enter a valid email address.");
       return;
     }
-    if (!isSupabaseConfigured()) {
-      setError("Supabase is not configured for this environment.");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // Point directly at the client reset page — NOT through the server
-      // /auth/callback route. Email clients pre-fetch links to build previews;
-      // a server route would consume the one-time recovery code on that
-      // prefetch, leaving the real click with a dead link. The reset page
-      // exchanges the code in client JS, which prefetch bots don't execute.
-      const redirectTo = `${window.location.origin}/reset-password`;
-      const result = await sendPasswordReset(trimmed, redirectTo);
-
-      // Always show success — never reveal whether the email exists (email enumeration protection)
-      if (!result.ok) {
-        console.error("Password reset error:", result.error.raw);
-      }
+      await fetch("/api/auth/password-reset/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
     } catch (err) {
       console.error("Unexpected password reset error:", err);
     } finally {

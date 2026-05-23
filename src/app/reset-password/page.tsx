@@ -21,8 +21,16 @@ function hasPasswordLinkPayload(urlString: string): boolean {
     get("refresh_token") ||
     get("code") ||
     get("token_hash") ||
-    get("type"),
+    get("type") ||
+    get("error") ||
+    get("error_code") ||
+    get("error_description"),
   );
+}
+
+function getAppResetToken(urlString: string): string | null {
+  const token = new URL(urlString).searchParams.get("token");
+  return token?.trim() || null;
 }
 
 export default function ResetPasswordPage() {
@@ -56,6 +64,11 @@ export default function ResetPasswordPage() {
     const currentHasPayload = hasPasswordLinkPayload(window.location.href);
     setHasLinkPayload(currentHasPayload);
 
+    if (getAppResetToken(window.location.href)) {
+      setLink({ kind: "ok" });
+      return () => { cancelled = true; };
+    }
+
     (async () => {
       const result = await verifyRecoveryLink(window.location.href);
       if (cancelled) return;
@@ -83,6 +96,23 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
+      const appToken = getAppResetToken(window.location.href);
+      if (appToken) {
+        const res = await fetch("/api/auth/password-reset/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: appToken, password }),
+        });
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        if (!res.ok) {
+          setError(body.error ?? "Could not update the password. Request a fresh link and try again.");
+          setLoading(false);
+          return;
+        }
+        setDone(true);
+        return;
+      }
+
       const verified = await verifyRecoveryLink(window.location.href);
       if (verified.kind !== "ok") {
         setLink({ kind: verified.kind, reason: verified.message });

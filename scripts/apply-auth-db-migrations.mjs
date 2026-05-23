@@ -6,6 +6,7 @@ const envPath = path.join(repoRoot, ".env.local");
 const migrationFiles = [
   "supabase/migrations/016_db_first_admin_auth.sql",
   "supabase/migrations/017_fix_profiles_rls_recursion.sql",
+  "supabase/migrations/018_app_owned_password_reset_tokens.sql",
 ];
 
 function parseEnv(text) {
@@ -107,7 +108,13 @@ async function main() {
           and tablename = 'profiles'
           and policyname = 'profiles_select_admin'
           and qual like '%current_user_is_admin%'
-      ) as has_admin_policy;
+      ) as has_admin_policy,
+      exists (
+        select 1
+        from information_schema.tables
+        where table_schema = 'public'
+          and table_name = 'auth_password_tokens'
+      ) as has_auth_password_tokens;
   `;
   const result = await runSql({
     ref,
