@@ -106,10 +106,10 @@ export async function getPasswordResetCode(args: {
 }
 
 export function validatePasswordToken(row: PasswordTokenRow | null): string | null {
-  if (!row) return "This reset link is invalid or has expired.";
-  if (row.used_at) return "This reset link has already been used. Request a fresh link.";
+  if (!row) return "This reset code is invalid or has expired.";
+  if (row.used_at) return "This reset code has already been used. Request a fresh code.";
   if (new Date(row.expires_at).getTime() < Date.now()) {
-    return "This reset link has expired. Request a fresh link.";
+    return "This reset code has expired. Request a fresh code.";
   }
   return null;
 }

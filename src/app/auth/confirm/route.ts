@@ -2,7 +2,7 @@ import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const ALLOWED_TYPES = new Set(["signup", "recovery", "invite", "email_change", "email"]);
+const ALLOWED_TYPES = new Set(["signup", "invite", "email_change", "email"]);
 
 function safeNext(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/auth/finish";

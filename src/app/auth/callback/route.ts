@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
-const ALLOWED_TOKEN_TYPES = new Set(["signup", "recovery", "invite", "email_change", "email"]);
+const ALLOWED_TOKEN_TYPES = new Set(["signup", "invite", "email_change", "email"]);
 
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);

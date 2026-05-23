@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("[password-reset/complete] failed:", error);
     return NextResponse.json(
-      { error: "Could not update the password. Request a fresh link and try again." },
+      { error: "Could not update the password. Request a fresh code and try again." },
       { status: 500 },
     );
   }

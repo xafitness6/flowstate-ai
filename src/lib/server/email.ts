@@ -34,6 +34,8 @@ function emailConfig() {
 
 export function getEmailDiagnostics() {
   const { apiKey, from } = emailConfig();
+  const productionDebugResetCodes =
+    process.env.NODE_ENV === "production" && process.env.ENABLE_DEV_ROUTE === "true";
   return {
     hasResendApiKey: Boolean(apiKey),
     hasFromEmail: Boolean(process.env.PASSWORD_RESET_FROM_EMAIL?.trim()),
@@ -41,6 +43,7 @@ export function getEmailDiagnostics() {
     appUrl: process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.APP_URL?.trim() || null,
     hasResetCodeSecret: Boolean(process.env.PASSWORD_RESET_CODE_SECRET?.trim()),
     usingResendSandboxSender: from.includes("onboarding@resend.dev"),
+    productionDebugResetCodes,
   };
 }
 

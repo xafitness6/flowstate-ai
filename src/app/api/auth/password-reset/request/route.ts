@@ -21,7 +21,7 @@ function appOrigin(req: NextRequest): string {
 }
 
 function allowDebugResetCode() {
-  return process.env.NODE_ENV !== "production" || process.env.ENABLE_DEV_ROUTE === "true";
+  return process.env.NODE_ENV !== "production";
 }
 
 export async function POST(req: NextRequest) {

@@ -23,7 +23,7 @@ export type RecoveryVerifyResult =
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RECOVERY_SESSION_READY_KEY = "flowstate:recovery-session-ready";
-const PASSWORD_SESSION_TYPES = new Set(["recovery", "invite", "signup"]);
+const PASSWORD_SESSION_TYPES = new Set(["recovery"]);
 
 let recoveryVerification:
   | { signature: string; promise: Promise<RecoveryVerifyResult> }
