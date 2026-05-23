@@ -311,6 +311,16 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
       "Could not verify this reset link yet. Try again, or request a fresh link.",
     );
     if (!session.ok) {
+      const currentSession = await safeAuth(
+        "auth.recovery.sessionAfterSetFailure",
+        () => supabase.auth.getSession(),
+        8_000,
+      );
+      if (currentSession.ok && currentSession.data.data.session) {
+        markRecoverySessionReady();
+        cleanRecoveryUrl();
+        return { kind: "ok" };
+      }
       return {
         kind: session.error.kind === "timeout" ? "timeout" : "invalid",
         message: session.error.message,
@@ -329,6 +339,16 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
       "Could not verify this reset link yet. Try again, or request a fresh link.",
     );
     if (!exchanged.ok) {
+      const currentSession = await safeAuth(
+        "auth.recovery.sessionAfterCodeFailure",
+        () => supabase.auth.getSession(),
+        8_000,
+      );
+      if (currentSession.ok && currentSession.data.data.session) {
+        markRecoverySessionReady();
+        cleanRecoveryUrl();
+        return { kind: "ok" };
+      }
       return {
         kind: exchanged.error.kind === "timeout" ? "timeout" : "invalid",
         message: exchanged.error.message,
@@ -350,6 +370,16 @@ async function runRecoveryVerification(urlString: string): Promise<RecoveryVerif
       "Could not verify this reset link yet. Try again, or request a fresh link.",
     );
     if (!verified.ok) {
+      const currentSession = await safeAuth(
+        "auth.recovery.sessionAfterOtpFailure",
+        () => supabase.auth.getSession(),
+        8_000,
+      );
+      if (currentSession.ok && currentSession.data.data.session) {
+        markRecoverySessionReady();
+        cleanRecoveryUrl();
+        return { kind: "ok" };
+      }
       return {
         kind: verified.error.kind === "timeout" ? "timeout" : "invalid",
         message: verified.error.message,

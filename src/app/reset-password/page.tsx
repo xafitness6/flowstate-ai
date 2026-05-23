@@ -12,6 +12,19 @@ type LinkStatus =
   | { kind: "timeout"; reason: string }   // network/timeout — retry helpful
   | { kind: "invalid"; reason: string };  // actually bad link — need a new one
 
+function hasPasswordLinkPayload(urlString: string): boolean {
+  const url = new URL(urlString);
+  const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+  const get = (name: string) => url.searchParams.get(name) ?? hashParams.get(name);
+  return Boolean(
+    get("access_token") ||
+    get("refresh_token") ||
+    get("code") ||
+    get("token_hash") ||
+    get("type"),
+  );
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
 
@@ -23,6 +36,7 @@ export default function ResetPasswordPage() {
   const [error,     setError]     = useState<string | null>(null);
   const [link, setLink] = useState<LinkStatus>({ kind: "verifying" });
   const [verifyAttempt, setVerifyAttempt] = useState(0);
+  const [hasLinkPayload, setHasLinkPayload] = useState(true);
 
   // Establish the recovery session HERE, in client JS, from the token in the
   // URL. The email links straight to this page (not the server callback) so
@@ -39,6 +53,8 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const currentHasPayload = hasPasswordLinkPayload(window.location.href);
+    setHasLinkPayload(currentHasPayload);
 
     (async () => {
       const result = await verifyRecoveryLink(window.location.href);
@@ -90,7 +106,7 @@ export default function ResetPasswordPage() {
     }
   }
 
-  const showPasswordForm = !done && link.kind !== "invalid";
+  const showPasswordForm = !done && (link.kind !== "invalid" || hasLinkPayload);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 md:px-8 py-16 text-white">
@@ -141,7 +157,7 @@ export default function ResetPasswordPage() {
           </div>
         )}
 
-        {link.kind === "invalid" && !done && (
+        {link.kind === "invalid" && !done && !hasLinkPayload && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-red-400/15 bg-red-400/5 px-5 py-5 text-center">
               <p className="text-sm text-red-400/80">
