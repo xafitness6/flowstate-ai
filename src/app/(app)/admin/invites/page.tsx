@@ -51,7 +51,15 @@ export default function AdminInvitesPage() {
       if (!userRes.ok || userJson.error) throw new Error(userJson.error ?? "Failed to load trainers");
 
       setInvites(invJson.invites ?? []);
-      setTrainers((userJson.users ?? []).filter((u) => u.role === "trainer"));
+      // Trainers AND the owner/admin can be assigned clients — the owner stays
+      // master (keeps admin) but can coach clients directly.
+      setTrainers(
+        (userJson.users ?? [])
+          .filter((u) => u.role === "trainer" || u.role === "master")
+          .map((u) => u.role === "master"
+            ? { ...u, full_name: (u.full_name?.trim() ? `${u.full_name} (you)` : "You (owner)") }
+            : u),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Network error");
     } finally {
