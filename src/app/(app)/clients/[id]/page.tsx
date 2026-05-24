@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Download, Loader2, Trash2, StickyNote, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
+import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import type { RawIntake } from "@/lib/intake/format";
 
 type ClientProfile = {
@@ -128,6 +129,11 @@ export default function ClientDetailPage() {
           >
             <Download className="w-3.5 h-3.5" strokeWidth={2} /> Download PDF
           </button>
+        </div>
+
+        {/* Pre-fill onboarding from the trainer's notes (AI-assisted, review-gated) */}
+        <div className="no-print mb-6">
+          <PrefillPanel clientId={id} onSaved={load} />
         </div>
 
         {/* Printable region: intake */}

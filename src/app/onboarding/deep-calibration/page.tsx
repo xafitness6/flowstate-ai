@@ -164,13 +164,36 @@ export default function DeepCalibrationPage() {
   const [finishStatus, setFinishStatus] = useState<string>("");
   const [timeFormat, setTimeFormat] = useState<TimeFormat>("24h");
 
-  // Restore in-progress draft
+  // Restore: prefer a local in-progress draft; otherwise hydrate from anything
+  // a coach pre-filled (onboarding_state.raw_answers.deep) so the client
+  // confirms/edits instead of starting from scratch.
   useEffect(() => {
     if (!userId) return;
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY(userId));
-      if (raw) setAnswers({ ...DEFAULTS, ...JSON.parse(raw) });
-    } catch { /* ignore */ }
+    let active = true;
+    (async () => {
+      try {
+        const draft = localStorage.getItem(DRAFT_KEY(userId));
+        if (draft) { setAnswers({ ...DEFAULTS, ...JSON.parse(draft) }); return; }
+      } catch { /* ignore */ }
+
+      if (!UUID_RE.test(userId) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+      try {
+        const { getOnboardingState } = await import("@/lib/db/onboarding");
+        const state = await getOnboardingState(userId);
+        const raw = state?.raw_answers as Record<string, unknown> | null | undefined;
+        const deep = raw && typeof raw.deep === "object" ? raw.deep as Record<string, unknown> : null;
+        if (!active || !deep || Object.keys(deep).length === 0) return;
+        // Only copy keys that exist on DeepCalAnswers; ignore the rest.
+        setAnswers((a) => {
+          const next = { ...a } as Record<string, unknown>;
+          for (const k of Object.keys(DEFAULTS)) {
+            if (deep[k] !== undefined && deep[k] !== null) next[k] = deep[k];
+          }
+          return next as DeepCalAnswers;
+        });
+      } catch { /* no pre-fill — start from DEFAULTS */ }
+    })();
+    return () => { active = false; };
   }, [userId]);
 
   // Auto-save draft on every change

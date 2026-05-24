@@ -222,12 +222,51 @@ export default function CalibrationPage() {
   const [fading,   setFading]   = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
+  const [interacted, setInteracted] = useState(false);
 
   const stepIndex   = STEPS.indexOf(step);
   const progressPct = ((stepIndex + 1) / STEPS.length) * 100;
 
-  // Auto-advance on single-select steps when an option is chosen
+  // Hydrate from anything a coach pre-filled (onboarding_state.raw_answers) so
+  // the client confirms/edits instead of answering from scratch. Pre-filled
+  // values do NOT auto-advance — the client still sees each step.
   useEffect(() => {
+    let active = true;
+    (async () => {
+      const userId = await getActiveUserId();
+      if (!UUID_RE.test(userId) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+      try {
+        const { getOnboardingState } = await import("@/lib/db/onboarding");
+        const state = await getOnboardingState(userId);
+        const raw = state?.raw_answers as Record<string, unknown> | null | undefined;
+        if (!active || !raw) return;
+        const asArr = (v: unknown): string[] | undefined =>
+          Array.isArray(v) ? v.map(String)
+          : typeof v === "string" && v.trim() ? v.split(/·|,/).map((s) => s.trim()).filter(Boolean)
+          : undefined;
+        setAnswers((a) => ({
+          ...a,
+          primaryGoal:   typeof raw.primaryGoal === "string" ? raw.primaryGoal : a.primaryGoal,
+          experience:    typeof raw.experience === "string" ? raw.experience : a.experience,
+          daysPerWeek:   typeof raw.daysPerWeek === "number" ? raw.daysPerWeek : a.daysPerWeek,
+          sessionLength: typeof raw.sessionLength === "string" ? raw.sessionLength : a.sessionLength,
+          mealsPerDay:   typeof raw.mealsPerDay === "string" ? raw.mealsPerDay : a.mealsPerDay,
+          sleepHours:    typeof raw.sleepHours === "string" ? raw.sleepHours : a.sleepHours,
+          dietStyle:     asArr(raw.dietStyle) ?? a.dietStyle,
+          mainStruggle:  asArr(raw.mainStruggle) ?? a.mainStruggle,
+          equipment:     asArr(raw.equipment) ?? a.equipment,
+        }));
+        if (typeof raw.primaryGoal === "string" || typeof raw.experience === "string") setPrefilled(true);
+      } catch { /* no pre-fill — start blank */ }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Auto-advance on single-select steps — only when the USER picks (not on
+  // hydration), so pre-filled answers aren't skipped past unseen.
+  useEffect(() => {
+    if (!interacted) return;
     if (step === "goal" && answers.primaryGoal) {
       setTimeout(() => advance(), 200);
     }
@@ -426,7 +465,7 @@ export default function CalibrationPage() {
                   label={opt.label}
                   sub={opt.sub}
                   active={answers.primaryGoal === opt.value}
-                  onClick={() => setAnswers((a) => ({ ...a, primaryGoal: opt.value }))}
+                  onClick={() => { setInteracted(true); setAnswers((a) => ({ ...a, primaryGoal: opt.value })); }}
                 />
               ))}
             </div>
@@ -449,7 +488,7 @@ export default function CalibrationPage() {
                   label={opt.label}
                   sub={opt.sub}
                   active={answers.experience === opt.value}
-                  onClick={() => setAnswers((a) => ({ ...a, experience: opt.value }))}
+                  onClick={() => { setInteracted(true); setAnswers((a) => ({ ...a, experience: opt.value })); }}
                 />
               ))}
             </div>
