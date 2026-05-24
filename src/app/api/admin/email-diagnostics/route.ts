@@ -67,14 +67,29 @@ export async function GET(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
+  const url = new URL(req.url);
   const diagnostics = getEmailDiagnostics();
-  const email = new URL(req.url).searchParams.get("email")?.trim().toLowerCase();
-  const preflight = await passwordResetPreflight(auth.admin, email || adminEmail(auth.user));
+  const email = url.searchParams.get("email")?.trim().toLowerCase();
+  const target = email || adminEmail(auth.user);
+  const preflight = await passwordResetPreflight(auth.admin, target);
+
+  // ?send=1 → fire a REAL test email and return Resend's exact outcome, so a
+  // silent send failure (bad key, unverified sender, rate limit) becomes
+  // visible from the browser without needing a POST tool.
+  let liveSend: Record<string, unknown> | undefined;
+  if (url.searchParams.get("send") === "1" && target.includes("@")) {
+    const result = await sendEmailDiagnostic({ to: target });
+    liveSend = result.ok
+      ? { attempted: true, sent: result.sent, id: result.sent ? result.id ?? null : null, reason: result.sent ? null : result.reason }
+      : { attempted: true, sent: false, error: result.error };
+  }
+
   return NextResponse.json({
     ok: true,
     diagnostics,
     passwordResetPreflight: preflight,
     canSendEmail: diagnostics.hasResendApiKey,
+    liveSend,
     notes: diagnosticNotes(diagnostics, preflight),
   });
 }
