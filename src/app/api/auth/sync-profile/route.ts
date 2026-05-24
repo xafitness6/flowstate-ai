@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supabase/env";
+import { isOwnerEmail } from "@/lib/auth/owner";
 
 const ALLOWED_ROLES = new Set(["master", "trainer", "client", "member"]);
 const SIGNUP_ROLES = new Set(["trainer", "client", "member"]);
@@ -84,12 +85,17 @@ export async function POST() {
 
   const metadataRole = typeof metadata.role === "string" ? metadata.role : "";
   const existingRole = typeof existingProfile?.role === "string" ? existingProfile.role : "";
-  const role = ALLOWED_ROLES.has(existingRole)
-    ? existingRole
-    : SIGNUP_ROLES.has(metadataRole)
-      ? metadataRole
-      : "client";
-  const isAdmin = existingProfile?.is_admin === true || role === "master";
+  const owner = isOwnerEmail(email);
+  // Owner is always master. Otherwise keep an existing role, honor an invite's
+  // requested role, and default brand-new self-signups to "member".
+  const role = owner
+    ? "master"
+    : ALLOWED_ROLES.has(existingRole)
+      ? existingRole
+      : SIGNUP_ROLES.has(metadataRole)
+        ? metadataRole
+        : "member";
+  const isAdmin = owner || existingProfile?.is_admin === true || role === "master";
   const plan = resolveProfilePlan(existingProfile?.plan, role, isAdmin);
 
   const { data, error: upsertError } = await (admin.from("profiles") as any)

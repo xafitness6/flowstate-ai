@@ -10,6 +10,7 @@ import { getMyProfile, profileToMockUser } from "@/lib/db/profiles";
 import { signOutEverywhere } from "@/lib/auth/signOut";
 import { applyEarlyAccess } from "@/lib/earlyAccess";
 import { DEMO_AUTH_ENABLED } from "@/lib/auth/config";
+import { isOwnerEmail } from "@/lib/auth/owner";
 
 export const DEMO_USERS: Record<string, MockUser> = {
   master: {
@@ -202,6 +203,23 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         if (demo) setUser(demo);
         setIsSupabase(false);
         setIsLoading(false);
+        return;
+      }
+
+      // OWNER SAFETY NET — the owner is admin by email, full stop. Set master
+      // identity immediately and NEVER fall through to a member persona, even
+      // if the profiles row is slow/unreadable. (Belt-and-suspenders with the
+      // DB role.) Repair the DB profile in the background.
+      if (isOwnerEmail(session.user.email)) {
+        authMark("UserContext.identity", "owner email → master (safety net)");
+        const meta = session.user.user_metadata ?? {};
+        const ownerName = typeof meta.full_name === "string" && meta.full_name.trim()
+          ? meta.full_name.trim()
+          : DEMO_USERS.master.name;
+        setUser(applyEarlyAccess({ ...DEMO_USERS.master, id: session.user.id, name: ownerName }));
+        setIsSupabase(true);
+        setIsLoading(false);
+        void fetch("/api/auth/sync-profile", { method: "POST" }).catch(() => {});
         return;
       }
 

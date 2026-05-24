@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { OnboardingState, Profile } from "@/lib/supabase/types";
 import { decideOnboardingRoute } from "@/lib/onboardingRoute";
+import { isOwnerEmail } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,6 +26,12 @@ export default async function Root() {
 
   if (!user) {
     redirect("/login");
+  }
+
+  // Owner safety net — always admin, straight to /admin, even if the profile
+  // read below fails. (Matches the client-side rule in UserContext.)
+  if (isOwnerEmail(user.email)) {
+    redirect("/admin");
   }
 
   const { data: profile } = await supabase

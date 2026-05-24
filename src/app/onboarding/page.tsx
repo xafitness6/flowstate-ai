@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getSessionKey, resolvePostLoginRoute, LS_KEY, SS_KEY } from "@/lib/routing";
 import { signOutEverywhere } from "@/lib/auth/signOut";
+import { isOwnerEmail } from "@/lib/auth/owner";
 
 // /onboarding smart router — sends the user to their next incomplete step.
 // Checks Supabase session first (handles magic-link flow where localStorage
@@ -38,7 +39,10 @@ export default function OnboardingRouter() {
               import("@/lib/db/profiles"),
             ]);
             const profile = await getMyProfile();
-            const isAdmin = profile?.role === "master" || profile?.is_admin;
+            // Owner is admin by email too — so a failed profile read can't
+            // route the owner into the client onboarding flow. Owner still
+            // lands on /admin unless they explicitly opt into personal mode.
+            const isAdmin = isOwnerEmail(user.email) || profile?.role === "master" || profile?.is_admin;
             if (isAdmin && !personalMode) {
               router.replace("/admin");
               return;
