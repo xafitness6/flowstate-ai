@@ -21,6 +21,7 @@ import {
   Check,
   X,
   Plus,
+  Dumbbell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserNameLink } from "@/components/profile/UserHoverCard";
@@ -609,6 +610,14 @@ export default function AdminDashboard() {
           >
             <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
             Manage users
+          </button>
+          <button
+            onClick={() => router.push("/onboarding?mode=personal")}
+            title="Walk the onboarding flow as a user — for your own training or to test it. You stay admin."
+            className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-xs text-white/45 hover:text-white/70 hover:bg-white/[0.05] transition-colors"
+          >
+            <Dumbbell className="w-3.5 h-3.5" strokeWidth={1.5} />
+            My training
           </button>
           <span className="text-[10px] text-white/22 hidden sm:block tabular-nums">
             {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}
