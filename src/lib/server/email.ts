@@ -116,27 +116,29 @@ function passwordResetHtml(code: string, resetUrl: string): string {
   const safeUrl = resetUrl.replace(/"/g, "");
   return `<!DOCTYPE html>
 <html>
-  <body style="margin:0;padding:0;background:#0A0A0A;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0A0A0A;padding:32px 0;">
+  <body style="margin:0;padding:0;background:#000000;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000000;padding:40px 16px;">
       <tr><td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#111111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden;">
-          <tr><td style="padding:28px 32px 8px;">
-            <p style="margin:0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#B48B40;">Flowstate AI</p>
-            <h1 style="margin:8px 0 0;font-size:22px;color:#ffffff;font-weight:600;">Reset your password</h1>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:24px;">
+          <tr><td style="padding:40px 44px 0;">
+            <p style="margin:0;font-size:13px;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.6);">
+              <span style="color:#F5C24B;">&#9889;</span>&nbsp;&nbsp;Flowstate AI
+            </p>
+            <h1 style="margin:24px 0 0;font-size:34px;line-height:1.1;color:#ffffff;font-weight:700;">Reset your password</h1>
           </td></tr>
-          <tr><td style="padding:16px 32px 8px;">
-            <p style="margin:0;font-size:14px;line-height:1.6;color:rgba(255,255,255,0.55);">Enter this code on the reset page to set a new password:</p>
+          <tr><td style="padding:20px 44px 0;">
+            <p style="margin:0;font-size:16px;line-height:1.6;color:rgba(255,255,255,0.55);">Use this secure code to create a new password for your Flowstate account.</p>
           </td></tr>
-          <tr><td style="padding:12px 32px;">
-            <div style="background:rgba(180,139,64,0.10);border:1px solid rgba(180,139,64,0.30);border-radius:12px;padding:18px;text-align:center;">
-              <span style="font-size:30px;letter-spacing:8px;font-weight:700;color:#E5C07B;font-family:monospace;">${safeCode}</span>
+          <tr><td style="padding:24px 44px 0;">
+            <div style="background:rgba(184,145,80,0.10);border:1px solid rgba(184,145,80,0.30);border-radius:14px;padding:20px;text-align:center;">
+              <span style="font-size:34px;letter-spacing:10px;font-weight:700;color:#E5C07B;font-family:'SF Mono',Menlo,Consolas,monospace;">${safeCode}</span>
             </div>
           </td></tr>
-          <tr><td style="padding:8px 32px 4px;" align="center">
-            <a href="${safeUrl}" style="display:inline-block;background:#B48B40;color:#000000;text-decoration:none;font-weight:600;font-size:14px;padding:12px 28px;border-radius:12px;">Open reset page</a>
+          <tr><td style="padding:24px 44px 0;">
+            <a href="${safeUrl}" style="display:inline-block;background:#B8924F;color:#000000;text-decoration:none;font-weight:700;font-size:16px;padding:16px 32px;border-radius:14px;">Reset password</a>
           </td></tr>
-          <tr><td style="padding:16px 32px 28px;">
-            <p style="margin:0;font-size:12px;line-height:1.6;color:rgba(255,255,255,0.35);">This code expires in 10 minutes and is only used when you submit your new password. If you didn&rsquo;t request this, you can safely ignore this email.</p>
+          <tr><td style="padding:28px 44px 40px;">
+            <p style="margin:0;font-size:14px;line-height:1.6;color:rgba(255,255,255,0.4);">This code expires in 10 minutes. If you did not request this, you can ignore this email.</p>
           </td></tr>
         </table>
       </td></tr>
