@@ -214,8 +214,14 @@ Auth on all `/api/clients/[id]/*` routes goes through `requireClientAccess(id)` 
 
 **Planned next slices (client file):** weight chart (needs new `weight_logs` table), progress photos (new table + storage bucket + signed URLs), shared trainer↔client chat (new conversations table). Plus a later automation layer: text sequences + calendar assignments (weigh-ins/workouts/messages). DONE: hub shell, program view, send-through-onboarding, nutrition summary.
 
+## Two client-detail pages (important)
+
+- **`/profile/[id]`** — reached from the **admin dashboard** (`/admin` → click user) + leaderboard + hover cards. Real-Supabase branch loads via `GET /api/admin/users/[id]` (admin-only). Has identity + **Assigned coach** (admin assign/change/remove) + active program + onboarding snapshot.
+- **`/clients/[id]`** — reached from **My Clients**. The tabbed hub (Overview/Program/Nutrition/Notes). NOTE: `/my-clients` currently reads DEMO data so real clients may not appear there yet.
+
 ## Trainer assignment
 
+- **On `/profile/[id]`** (admin-only) — "Assigned coach" select; `GET/PATCH /api/clients/[id]/trainer` (GET lists trainers+admins; PATCH admin-only, null/"" clears, UUID verified → writes id + name). This is the primary place to assign since admin → /profile/[id] is the path the owner uses.
 - **Admin assign/change/remove** — `/admin/users` has a Trainer column (select). `PATCH /api/admin/users/[id]` accepts `assigned_trainer_id` (`null`/`""` clears; a UUID is verified to be a trainer/master, then id + `assigned_trainer_name` are written to the client's profile). Trainers + admins are assignable (owner-as-trainer supported).
 - **Invite reliability — KNOWN GAP (next slice):** invited clients lose their trainer. Causes: (1) `handle_new_user` trigger creates the profile but does NOT copy `assigned_trainer_id` from `raw_user_meta_data`; (2) `sync-profile` reads metadata's `assigned_trainer_id` but only runs when the profile row is MISSING (the trigger already made it) and never sets `assigned_trainer_name`. Fix plan: have sync-profile set the name + run on login when assignment missing (reconcile from metadata), or fix the trigger (migration).
 - **`/my-clients` reads DEMO data** (`getMyClients(role,id)` from `src/lib/data/store.ts`), NOT the real Supabase `getMyClients()` in `src/lib/db/profiles.ts` — so real assigned clients don't appear. Switch to real data for Supabase users (next slice).

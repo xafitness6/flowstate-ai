@@ -101,6 +101,44 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(isUUID);
   const [error,   setError]   = useState<string | null>(null);
 
+  // Trainer assignment (admin-only). Reflects the client's current coach and
+  // lets an admin assign / change / remove it from this profile.
+  const viewerIsAdmin = viewer.role === "master" || !!viewer.isAdmin;
+  const [trainerOptions, setTrainerOptions] = useState<{ value: string; label: string }[]>([]);
+  const [assignedId,   setAssignedId]   = useState<string | null>(null);
+  const [assignedName, setAssignedName] = useState<string | null>(null);
+  const [assignBusy,   setAssignBusy]   = useState(false);
+
+  useEffect(() => {
+    if (!detail) return;
+    setAssignedId(detail.profile.assigned_trainer_id ?? null);
+    setAssignedName(detail.profile.assigned_trainer_name ?? null);
+    if (!viewerIsAdmin) return;
+    fetch(`/api/clients/${id}/trainer`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { if (Array.isArray(j.options)) setTrainerOptions(j.options); })
+      .catch(() => {});
+  }, [detail, id, viewerIsAdmin]);
+
+  async function assignTrainer(value: string) {
+    setAssignBusy(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/trainer`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigned_trainer_id: value || null }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Couldn't update trainer.");
+      setAssignedId(j.assigned_trainer_id ?? null);
+      setAssignedName(j.assigned_trainer_name ?? null);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Couldn't update trainer.");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!isUUID) { setLoading(false); return; }
     let active = true;
@@ -228,6 +266,35 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </button>
           </div>
         </div>
+
+        {/* Assigned coach — admin can assign / change / remove */}
+        {viewerIsAdmin && (
+          <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
+            <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-3">Assigned coach</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <select
+                value={assignedId ?? ""}
+                disabled={assignBusy}
+                onChange={(e) => void assignTrainer(e.target.value)}
+                className="bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 outline-none focus:border-white/25 disabled:opacity-50 cursor-pointer"
+              >
+                <option value="">— No trainer —</option>
+                {trainerOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              {assignBusy && <span className="text-[11px] text-white/30">Saving…</span>}
+              {!assignBusy && assignedName && (
+                <span className="text-[11px] text-white/30">
+                  Current: <span className="text-[#B48B40]/70">{assignedName}</span>
+                </span>
+              )}
+              {!assignBusy && !assignedId && (
+                <span className="text-[11px] text-white/25">No coach assigned</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Active program */}
         <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">

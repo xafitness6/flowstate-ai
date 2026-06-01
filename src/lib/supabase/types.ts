@@ -23,6 +23,7 @@ export interface Profile {
   role:                Role;
   is_admin:            boolean;
   assigned_trainer_id: string | null;
+  assigned_trainer_name: string | null;
   plan:                Plan;
   default_dashboard:   string;
   push_level:          number;
