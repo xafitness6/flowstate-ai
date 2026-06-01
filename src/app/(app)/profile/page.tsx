@@ -353,18 +353,32 @@ export default function ProfilePage() {
 
   // Real assigned trainer (replaces placeholder). Only Supabase users have one.
   const [trainerName, setTrainerName] = useState<string | null>(null);
+  // Real activity stats (no fake numbers). null until loaded / for demo users.
+  const [realStats, setRealStats] = useState<
+    { sessions: number; currentStreak: number; longestStreak: number; last30: number; joinedLabel: string } | null
+  >(null);
+
   useEffect(() => {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuid.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
     let cancelled = false;
-    void createClient()
-      .from("profiles")
-      .select("assigned_trainer_name")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setTrainerName((data?.assigned_trainer_name as string | null) ?? null);
-      });
+
+    // Real activity stats from workout_logs.
+    fetch("/api/me/activity", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled && typeof j.sessions === "number") setRealStats(j); })
+      .catch(() => {});
+
+    // Assigned coach name (derived — there is no assigned_trainer_name column).
+    void (async () => {
+      const sb = createClient();
+      const { data: me } = await sb.from("profiles").select("assigned_trainer_id").eq("id", user.id).maybeSingle();
+      const tid = (me as { assigned_trainer_id?: string | null } | null)?.assigned_trainer_id;
+      if (!tid) return;
+      const { data: tr } = await sb.from("profiles").select("full_name,email").eq("id", tid).maybeSingle();
+      if (!cancelled && tr) setTrainerName((typeof tr.full_name === "string" && tr.full_name.trim()) || (tr.email as string) || null);
+    })();
+
     return () => { cancelled = true; };
   }, [user.id]);
 
@@ -577,7 +591,7 @@ export default function ProfilePage() {
         <div className="border-t border-white/[0.05] px-5 py-3 flex items-center gap-5 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-white/25">Joined</span>
-            <span className="text-[10px] font-medium text-white/45">{stats.joinedLabel}</span>
+            <span className="text-[10px] font-medium text-white/45">{(realStats && realStats.joinedLabel) || stats.joinedLabel}</span>
           </div>
           {trainerName && (
             <div className="flex items-center gap-1.5">
@@ -602,13 +616,17 @@ export default function ProfilePage() {
         <SectionHeader>Activity</SectionHeader>
         <Card>
           <div className="px-5 py-5 grid grid-cols-2 gap-x-8 gap-y-5">
-            <StatTile value={stats.sessions} label="Sessions" />
-            <StatTile value={stats.streak} label="Current streak" unit="days" />
-            <StatTile value={stats.longestStreak} label="Longest streak" unit="days" />
-            <StatTile
-              value={stats.compliance} label="Compliance · 30d" unit="%"
-              bar={stats.compliance} barColor={complianceColor}
-            />
+            <StatTile value={realStats ? realStats.sessions : stats.sessions} label="Sessions" />
+            <StatTile value={realStats ? realStats.currentStreak : stats.streak} label="Current streak" unit="days" />
+            <StatTile value={realStats ? realStats.longestStreak : stats.longestStreak} label="Longest streak" unit="days" />
+            {realStats ? (
+              <StatTile value={realStats.last30} label="Last 30 days" unit="sessions" />
+            ) : (
+              <StatTile
+                value={stats.compliance} label="Compliance · 30d" unit="%"
+                bar={stats.compliance} barColor={complianceColor}
+              />
+            )}
           </div>
 
           {/* Tracking rows — last activity is visible to staff (admin/trainer) only. */}
