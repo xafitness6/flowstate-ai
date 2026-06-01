@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
+import { notifyClient } from "@/lib/server/notifications";
 
 export async function POST(
   req: Request,
@@ -44,5 +45,15 @@ export async function POST(
     .upsert(reset, { onConflict: "user_id" });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await notifyClient({
+    userId:    id,
+    type:      "onboarding",
+    title:     "Your coach started your onboarding",
+    body:      "Open the app to complete your setup — it only takes a few minutes.",
+    link:      "/",
+    actorName: auth.authorName,
+  });
+
   return NextResponse.json({ ok: true });
 }

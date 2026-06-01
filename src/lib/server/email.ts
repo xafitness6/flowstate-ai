@@ -170,6 +170,42 @@ function passwordResetHtml(code: string, resetUrl: string): string {
 </html>`;
 }
 
+// Generic branded notification email (program assigned/changed, nutrition or
+// workout added). Dark card matching the reset email, optional CTA button.
+function notificationHtml(heading: string, body: string, ctaText?: string, ctaUrl?: string): string {
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] ?? c));
+  const safeUrl = (ctaUrl ?? "").replace(/"/g, "");
+  const cta = ctaText && safeUrl
+    ? `<tr><td style="padding:24px 44px 0;"><a href="${safeUrl}" style="display:inline-block;background:#B8924F;color:#000;text-decoration:none;font-weight:700;font-size:16px;padding:14px 28px;border-radius:14px;">${esc(ctaText)}</a></td></tr>`
+    : "";
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#000;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000;padding:40px 16px;"><tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:24px;">
+        <tr><td style="padding:40px 44px 0;"><p style="margin:0;font-size:13px;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.6);"><span style="color:#F5C24B;">&#9889;</span>&nbsp;&nbsp;Flowstate AI</p>
+          <h1 style="margin:20px 0 0;font-size:26px;line-height:1.2;color:#fff;font-weight:700;">${esc(heading)}</h1></td></tr>
+        ${body ? `<tr><td style="padding:16px 44px 0;"><p style="margin:0;font-size:16px;line-height:1.6;color:rgba(255,255,255,0.6);">${esc(body)}</p></td></tr>` : ""}
+        ${cta}
+        <tr><td style="padding:28px 44px 40px;"><p style="margin:0;font-size:13px;line-height:1.6;color:rgba(255,255,255,0.35);">You're receiving this because your coach made an update to your plan in Flowstate AI.</p></td></tr>
+      </table></td></tr></table></body></html>`;
+}
+
+export async function sendNotificationEmail(args: {
+  to: string;
+  subject: string;
+  heading: string;
+  body: string;
+  ctaText?: string;
+  ctaUrl?: string;
+}): Promise<SendEmailResult> {
+  const text = [args.heading, args.body, args.ctaUrl ? `Open: ${args.ctaUrl}` : ""].filter(Boolean).join("\n\n");
+  return sendViaResend({
+    to: args.to,
+    subject: args.subject,
+    text,
+    html: notificationHtml(args.heading, args.body, args.ctaText, args.ctaUrl),
+  });
+}
+
 export async function sendEmailDiagnostic(args: {
   to: string;
 }): Promise<SendEmailResult> {

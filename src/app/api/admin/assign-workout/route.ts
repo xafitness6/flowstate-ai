@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { builderPayloadToProgramRow, type BuilderProgramPayload } from "@/lib/db/programs";
 import { isProgramSplitV2 } from "@/lib/program/types";
+import { notifyClient } from "@/lib/server/notifications";
 
 type Body = {
   targetUserId?: unknown;
@@ -79,6 +80,18 @@ export async function POST(req: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Notify + email the client when this becomes their active program.
+  if (activate) {
+    await notifyClient({
+      userId: targetUserId,
+      type:   "program_assigned",
+      title:  "New program assigned",
+      body:   `Your coach assigned you "${body.payload.name}". Tap to open your program.`,
+      link:   "/program",
+      email:  target.email,
+    });
   }
 
   return NextResponse.json({ ok: true, program: data, target });
