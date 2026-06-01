@@ -1171,7 +1171,11 @@ export default function AdminDashboard() {
                     {
                       label: "View details",
                       icon: <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />,
-                      onClick: () => router.push(`/profile/${u.id}`),
+                      // Clients & members open the full client file (program /
+                      // nutrition / notes / onboarding); others get the snapshot.
+                      onClick: () => router.push(
+                        (u.role === "client" || u.role === "member") ? `/clients/${u.id}` : `/profile/${u.id}`,
+                      ),
                     },
                     {
                       label: u.archivedAt ? "Unarchive" : "Archive",

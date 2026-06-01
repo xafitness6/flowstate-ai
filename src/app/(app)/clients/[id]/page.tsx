@@ -11,11 +11,13 @@ import {
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
+import { useUser } from "@/context/UserContext";
 import type { RawIntake } from "@/lib/intake/format";
 
 type ClientProfile = {
   id: string; full_name: string | null; first_name: string | null; last_name: string | null;
   email: string | null; role: string; plan: string;
+  assigned_trainer_id: string | null;
   assigned_trainer_name: string | null;
 };
 type Note = { id: string; body: string; author_name: string | null; created_at: string };
@@ -65,6 +67,8 @@ function currentWeek(startDate: string | null, durationWeeks: number): number | 
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user: viewer } = useUser();
+  const viewerIsAdmin = viewer.role === "master" || !!viewer.isAdmin;
   const id = params?.id as string;
 
   const [profile, setProfile] = useState<ClientProfile | null>(null);
@@ -83,6 +87,9 @@ export default function ClientDetailPage() {
   const [nutrition, setNutrition] = useState<NutritionSummary | null>(null);
   const [nutritionLoading, setNutritionLoading] = useState(false);
   const [nutritionError, setNutritionError] = useState<string | null>(null);
+
+  const [trainerOptions, setTrainerOptions] = useState<{ value: string; label: string }[]>([]);
+  const [assignBusy, setAssignBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -109,6 +116,32 @@ export default function ClientDetailPage() {
   }, [id]);
 
   useEffect(() => { if (id) void load(); }, [id, load]);
+
+  // Load assignable trainers (admins only) for the coach selector.
+  useEffect(() => {
+    if (!viewerIsAdmin || !id) return;
+    fetch(`/api/clients/${id}/trainer`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { if (Array.isArray(j.options)) setTrainerOptions(j.options); })
+      .catch(() => {});
+  }, [viewerIsAdmin, id]);
+
+  async function assignTrainer(value: string) {
+    setAssignBusy(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/trainer`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigned_trainer_id: value || null }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Couldn't update trainer.");
+      setProfile((p) => p ? { ...p, assigned_trainer_id: j.assigned_trainer_id ?? null, assigned_trainer_name: j.assigned_trainer_name ?? null } : p);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update trainer.");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
 
   // Lazy-load the nutrition summary the first time the Nutrition tab is opened.
   useEffect(() => {
@@ -261,6 +294,29 @@ export default function ClientDetailPage() {
         {/* ── Overview tab: onboarding action + intake + prefill ── */}
         {tab === "overview" && (
           <>
+            {viewerIsAdmin && (
+              <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white/85">Assigned coach</p>
+                  <p className="text-xs text-white/40 mt-0.5">
+                    {profile?.assigned_trainer_name
+                      ? <>Currently <span className="text-[#B48B40]/80">{profile.assigned_trainer_name}</span></>
+                      : "No coach assigned yet."}
+                  </p>
+                </div>
+                <select
+                  value={profile?.assigned_trainer_id ?? ""}
+                  disabled={assignBusy}
+                  onChange={(e) => void assignTrainer(e.target.value)}
+                  className="shrink-0 bg-[#1A1A1A] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/80 outline-none focus:border-white/25 disabled:opacity-50 cursor-pointer"
+                >
+                  <option value="">— No trainer —</option>
+                  {trainerOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3 min-w-0">
                 {onboardingStatus === "Complete"
