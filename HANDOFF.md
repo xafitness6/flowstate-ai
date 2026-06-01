@@ -1,233 +1,217 @@
-# Flowstate AI Handoff: Invite Onboarding Starter Plan Then Upgrade
+# HANDOFF — Password Reset Code Not Delivering
 
-## Current User-Reported Blocker
+**Date:** 2026-05-24
+**Status:** Bug isolated to ONE Vercel env value. Fix is below.
 
-The concierge tutorial final actions are not working:
+> Supersedes the prior 2026-05-15 handoff (tutorial bounce-loop) — that issue
+> is resolved.
 
-- `Show me my plan` on the final tutorial card does not advance to `/program`.
-- `Skip tour` also does not advance to `/program`.
+---
 
-Observed in the UI on `/onboarding/tutorial`, final card:
+## 1. The verdict (one line)
 
-- Title: `Let's start training.`
-- Button: `Show me my plan`
-- Link/button: `Skip tour`
+The reset code never lands in inboxes because Vercel's
+`PASSWORD_RESET_FROM_EMAIL` is set to the **placeholder value with literal
+quote marks around it**. Resend rejects the malformed `from` field (HTTP 422)
+and the app route swallows the error silently. Nothing else is wrong.
 
-This needs to be debugged first in the next session.
+---
 
-## Goal Of The Change
+## 2. The definitive evidence
 
-Implement invite onboarding as:
+Authenticated as admin and hit the live diagnostic
+(`GET /api/admin/email-diagnostics?send=1` on
+`https://flowstate-ai-pi.vercel.app`). Live server returned:
 
-1. Invite link -> auth/account creation.
-2. Invite users skip old pre-calibration walkthrough.
-3. Six-question calibration runs first.
-4. Six-question calibration creates and saves an active deterministic starter plan.
-5. User sees concierge tour.
-6. Tour ends at `/program`.
-7. Program page shows a one-time starter reveal: `Your starter plan is ready.`
-8. Program page prompts user to complete deep calibration with `Make this plan smarter`.
-9. Deep calibration generates a new AI plan, archives the starter, saves the AI plan active.
-10. Program page shows one-time upgrade reveal: `Your program has been updated.`
+```json
+{
+  "diagnostics": {
+    "hasResendApiKey": true,
+    "hasFromEmail": true,
+    "from": "\"Flowstate AI <no-reply@your-verified-domain.com>\"",
+    "appUrl": "https://flowstate-ai-pi.vercel.app",
+    "hasResetCodeSecret": true,
+    "usingResendSandboxSender": false,
+    "productionDebugResetCodes": true
+  },
+  "passwordResetPreflight": {
+    "authPasswordTokensTable": { "ok": true, "error": null },
+    "profile": { "checked": true, "found": true, "archived": false, "error": null }
+  },
+  "liveSend": {
+    "attempted": true,
+    "sent": false,
+    "error": "{\"statusCode\":422,\"name\":\"validation_error\",\"message\":\"Invalid `from` field. The email address needs to follow the `email@example.com` or `Name <email@example.com>` format.\"}"
+  }
+}
+```
 
-## Important Files Changed
+Two problems with the live `from` value:
 
-- `src/app/invite/[token]/page.tsx`
-  - Invite account completion now routes to `/onboarding/calibration`.
-  - Sets `flowstate-via-invite=true`.
+1. **Placeholder text:** `no-reply@your-verified-domain.com` instead of the
+   real verified sender on `flowstateai.site`.
+2. **Literal quotes around it:** the JSON shows `"\"...\""` — the stored
+   value includes `"` characters. Vercel takes raw text; surrounding quotes
+   are kept verbatim and break the `Name <addr>` format.
 
-- `src/app/auth/finish/page.tsx`
-  - If invite acceptance succeeds or `flowstate-via-invite` is present, routes to `/onboarding/calibration`.
+Everything else is green: API key present, reset secret present, token
+table works, profile found, app URL correct, sender not the Resend sandbox.
 
-- `src/app/login/page.tsx`
-  - Existing invite-user login bypasses `/onboarding/walkthrough` and routes to `/onboarding/calibration`.
+---
 
-- `src/app/onboarding/page.tsx`
-  - Smart onboarding router also respects `flowstate-via-invite` and bypasses walkthrough only when the next blocker is `/onboarding/walkthrough`.
+## 3. The fix (Vercel — one env var, then redeploy)
 
-- `src/app/onboarding/calibration/page.tsx`
-  - Six-question calibration now:
-    - Saves intake.
-    - Generates starter plan.
-    - Saves starter metadata.
-    - Saves active v2 starter program for real Supabase UUID users using `saveBuilderWorkoutForSelf`.
-    - Saves local active starter program fallback for non-Supabase/demo users.
-    - Marks onboarding complete but leaves tutorial incomplete.
-    - Sets `sessionStorage.flowstate-program-reveal=starter`.
-    - Routes to `/onboarding/tutorial`.
+1. Vercel → project `flowstate-ai` → **Settings → Environment Variables**.
+2. Edit **`PASSWORD_RESET_FROM_EMAIL`**.
+3. Set the value to **exactly** (NO surrounding quotes):
 
-- `src/app/onboarding/tutorial/page.tsx`
-  - Changed UUID detection so real Supabase UUIDs are not treated as `anonymous`.
-  - `finishTutorial()` now:
-    - Calls `completeTutorial(userId)`.
-    - For real UUID users, awaits `upsertOnboardingState(userId, { tutorial_complete: true })`.
-    - Calls `router.push("/program")`.
-  - Current blocker likely lives here.
+```
+Flowstate AI <noreply@flowstateai.site>
+```
 
-- `src/app/onboarding/deep-calibration/page.tsx`
-  - Deep calibration now acts as upgrade path.
-  - It waits for `/api/ai/program-generator`.
-  - Saves returned AI program active with `saveBuilderWorkoutForSelf(userId, payload, true)`.
-  - That function archives prior active program, so starter becomes archived.
-  - Sets `sessionStorage.flowstate-program-reveal=upgraded`.
-  - Routes to `/program`.
+4. Save → **Redeploy** (env changes only apply to new builds).
 
-- `src/app/(app)/program/ProgramClient.tsx`
-  - Adds one-time reveal banner support:
-    - `starter`: `Your starter plan is ready.`
-    - `upgraded`: `Your program has been updated.`
-  - Starter reveal includes:
-    - plan name
-    - goal
-    - days/week
-    - next workout
-    - first 2-3 exercises
-    - `Start Workout`
-    - `Make this plan smarter`
-  - Suppresses `DeepCalPrompt` while reveal banner is visible.
-  - Refetches active program client-side if SSR returns no program.
-  - Shows loading state before falling back to `No active program`.
+That's it. After redeploy, the reset code email will arrive.
 
-- `src/app/(app)/program/page.tsx`
-  - SSR Program page now supports both v2 and legacy weekly split shapes.
+---
 
-- `src/lib/starterPlan.ts`
-  - Added `starterPlanToBuilderPayload(plan)`, converting deterministic starter plan into the same v2 builder payload shape the Program page prefers.
+## 4. How to verify the fix in 10 seconds
 
-- `src/lib/workout.ts`
-  - Added `saveActiveProgram(userId, stored)` for local/demo active-program fallback.
+While logged into the live site as admin, open:
 
-- `src/lib/onboarding.ts`
-  - `completeOnboarding()` now marks quick start complete but deep calibration incomplete.
-  - `profileComplete` is true so Program is not blocked by profile setup.
+```
+https://flowstate-ai-pi.vercel.app/api/admin/email-diagnostics?send=1
+```
 
-- `src/lib/db/onboarding.ts`
-  - `markOnboardingComplete()` now leaves `tutorial_complete=false`, so the concierge tour still happens after calibration.
+Expected JSON:
 
-## Verification Already Run
+```json
+"diagnostics": { "from": "Flowstate AI <noreply@flowstateai.site>", ... },
+"liveSend": { "attempted": true, "sent": true, "id": "<resend-uuid>" }
+```
 
-These passed:
+If `liveSend.sent` is `true`, real users' reset emails will deliver.
+If `liveSend` shows another error, the JSON tells you exactly what to fix.
+
+---
+
+## 5. Headless verification (no browser needed)
+
+`?send=1` is admin-gated. To call it from a script:
 
 ```bash
-npm run build
-git diff --check
+# 1. sign in as admin to get a session
+ANON=<NEXT_PUBLIC_SUPABASE_ANON_KEY from .env.local>
+URL=https://czofyrwvzbdnmngrhgqj.supabase.co
+curl -s -X POST "$URL/auth/v1/token?grant_type=password" \
+  -H "apikey: $ANON" -H "Content-Type: application/json" \
+  -d '{"email":"xavellis4@gmail.com","password":"<your password>"}' > /tmp/sess.json
+
+# 2. build the @supabase/ssr cookie + call the diagnostic
+node --input-type=module -e '
+import fs from "node:fs";
+const sess = JSON.parse(fs.readFileSync("/tmp/sess.json","utf8"));
+const ref  = "czofyrwvzbdnmngrhgqj";
+const name = `sb-${ref}-auth-token`;
+const payload = "base64-" + Buffer.from(JSON.stringify(sess)).toString("base64");
+const CHUNK = 3180;
+const cookies = [];
+if (payload.length <= CHUNK) cookies.push(`${name}=${payload}`);
+else for (let i=0,n=0; i<payload.length; i+=CHUNK,n++) cookies.push(`${name}.${n}=${payload.slice(i,i+CHUNK)}`);
+const res = await fetch(
+  "https://flowstate-ai-pi.vercel.app/api/admin/email-diagnostics?send=1&email=xavellis4@gmail.com",
+  { headers: { Cookie: cookies.join("; ") } },
+);
+console.log("HTTP", res.status);
+console.log(await res.text());
+'
 ```
 
-There is no `npm run lint` script in this repo.
+This is exactly how the bug above was confirmed.
 
-Dev server was started on:
+---
 
-```text
-http://localhost:3001
+## 6. Emergency: log in without the reset email
+
+If the email path is broken you can always reset the admin password directly
+via the setup script (service-role admin API, bypasses email entirely):
+
+```bash
+ADMIN_PASSWORD='your-new-pass' node scripts/setup-admin.mjs
 ```
 
-Port `3000` was already in use, so Next used `3001`.
+Requires `SUPABASE_SERVICE_ROLE_KEY` + `NEXT_PUBLIC_SUPABASE_URL` in
+`.env.local`. Sets `xavellis4@gmail.com`'s password and ensures
+master/is_admin.
 
-## Current Git Status At Handoff Time
+---
 
-Expected modified files:
+## 7. If it's STILL not working after the fix
 
-```text
-M src/app/(app)/program/ProgramClient.tsx
-M src/app/(app)/program/page.tsx
-M src/app/auth/finish/page.tsx
-M src/app/invite/[token]/page.tsx
-M src/app/login/page.tsx
-M src/app/onboarding/calibration/page.tsx
-M src/app/onboarding/deep-calibration/page.tsx
-M src/app/onboarding/page.tsx
-M src/app/onboarding/tutorial/page.tsx
-M src/lib/db/onboarding.ts
-M src/lib/onboarding.ts
-M src/lib/starterPlan.ts
-M src/lib/workout.ts
-```
+Run the verification in §4. The JSON will narrow it to one of:
 
-Also this file:
+| `liveSend.error` includes | Cause | Fix |
+|---|---|---|
+| `Invalid \`from\` field` | Env value still has placeholder/quotes | Re-edit; remove quotes; redeploy |
+| `401` / `Invalid API Key` | Vercel `RESEND_API_KEY` doesn't match a current Resend key | Generate a fresh Resend key, paste into Vercel, redeploy |
+| `domain ... not verified` | `flowstateai.site` lost verified status in Resend | Resend → Domains → re-verify |
+| `rate limit` / `too many` | Hit free-tier rate cap | Wait or upgrade Resend |
+| `liveSend.sent: true` | Email IS sending | **Check Gmail Spam / All Mail** — repeated reset emails get filtered |
 
-```text
-HANDOFF.md
-```
+If `diagnostics.hasResendApiKey: false` — the key isn't reaching the runtime
+(env not saved, or saved to wrong scope/branch, or no redeploy after save).
 
-## Likely Next Debugging Target
+---
 
-Start with `src/app/onboarding/tutorial/page.tsx`.
+## 8. Code paths involved (for future debugging)
 
-The current implementation:
+- **Request route** (creates code + calls send):
+  `src/app/api/auth/password-reset/request/route.ts`
+  Note: catches errors and returns `{ok:true}` to prevent email enumeration —
+  THIS is why send failures are invisible without the diagnostic.
+- **Complete route** (consumes code + sets password):
+  `src/app/api/auth/password-reset/complete/route.ts`
+- **Send + template** (the HTML, the Resend call):
+  `src/lib/server/email.ts` → `sendPasswordResetEmail`, `passwordResetHtml`,
+  `sendViaResend`, `emailConfig`.
+- **Token store** (HMAC + insert/lookup):
+  `src/lib/server/passwordResetTokens.ts`. Table: `auth_password_tokens`.
+- **Diagnostic endpoint** (the tool that found the bug):
+  `src/app/api/admin/email-diagnostics/route.ts`. GET = config + preflight;
+  GET `?send=1` = real send; POST = real send.
+- **Forgot-password page**:
+  `src/app/forgot-password/page.tsx` → POSTs to the request route above.
+- **Reset-password page** (enters code, sets new password):
+  `src/app/reset-password/page.tsx`.
 
-```ts
-async function finishTutorial() {
-  const userId = getActiveUserId();
-  completeTutorial(userId);
+---
 
-  if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    try {
-      const { upsertOnboardingState } = await import("@/lib/db/onboarding");
-      await upsertOnboardingState(userId, { tutorial_complete: true });
-    } catch (error) {
-      console.warn("[tutorial] tutorial sync skipped:", error);
-    }
-  }
+## 9. Required env vars (for the full reset flow)
 
-  router.push("/program");
-}
-```
+| Var | Where | Value |
+|---|---|---|
+| `RESEND_API_KEY` | Vercel + `.env.local` | Live Resend key, starts with `re_` |
+| `PASSWORD_RESET_FROM_EMAIL` | Vercel + `.env.local` | `Flowstate AI <noreply@flowstateai.site>` (no quotes!) |
+| `PASSWORD_RESET_CODE_SECRET` | Vercel + `.env.local` | 32-byte hex from `openssl rand -hex 32` |
+| `NEXT_PUBLIC_APP_URL` | Vercel | `https://flowstate-ai-pi.vercel.app` (or custom domain) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Vercel + `.env.local` | Supabase service role |
+| `NEXT_PUBLIC_SUPABASE_URL` | Vercel + `.env.local` | `https://czofyrwvzbdnmngrhgqj.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel + `.env.local` | Supabase anon key |
+| `ENABLE_DEV_ROUTE` | `.env.local` ONLY | `true` (do NOT set in production — diagnostic flagged this is currently on in prod) |
 
-Potential causes to check:
+---
 
-1. The click handler may be firing, but `router.push("/program")` is blocked by AppShell/onboarding gating.
-2. `completeTutorial(userId)` may be using the wrong user id.
-3. `upsertOnboardingState` may hang/fail in the browser, preventing `router.push("/program")`.
-4. The button may be inside a layout/state where `isLast` is not true or the handler is not firing.
-5. If `userId` resolves to `anonymous`, local onboarding state is written for the wrong key and routing will still block.
+## 10. Wider context (set by this session)
 
-Recommended quick fix path:
-
-1. Add temporary `console.log` lines in `finishTutorial`, `goNext`, and `handleSkip`.
-2. Change `finishTutorial` to route in a `finally` block so Supabase sync cannot trap the user:
-
-```ts
-async function finishTutorial() {
-  const userId = getActiveUserId();
-  completeTutorial(userId);
-
-  try {
-    if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      const { upsertOnboardingState } = await import("@/lib/db/onboarding");
-      await upsertOnboardingState(userId, { tutorial_complete: true });
-    }
-  } catch (error) {
-    console.warn("[tutorial] tutorial sync skipped:", error);
-  } finally {
-    router.replace("/program");
-  }
-}
-```
-
-3. If Program still redirects back to tutorial, inspect the AppShell route guard and DB `onboarding_state` row for the current user.
-4. If the current user id is not a UUID or expected local key, fix `getActiveUserId()`.
-
-## Product Flow To Re-Test
-
-1. Fresh invite user opens invite link.
-2. Invite user creates/signs into account.
-3. User lands on `/onboarding/calibration`, not `/onboarding/walkthrough`.
-4. User finishes six-question calibration.
-5. Active starter program exists in `programs` table for real users.
-6. User lands on `/onboarding/tutorial`.
-7. `Show me my plan` routes to `/program`.
-8. `Skip tour` routes to `/program`.
-9. `/program` does not show `No active program`.
-10. Starter reveal appears once.
-11. `Make this plan smarter` opens `/onboarding/deep-calibration`.
-12. Deep calibration completion saves upgraded AI program active.
-13. Old starter plan is archived.
-14. `/program` shows upgraded reveal once.
-15. `Start Workout` opens the correct generated workout.
-
-## Notes
-
-- `saveBuilderWorkoutForSelf(userId, payload, true)` archives all current active programs before inserting the new active program.
-- This is what should archive the starter when deep calibration saves the upgraded AI program.
-- The starter plan is deterministic and intentionally fast.
-- The deep calibration AI generation is now blocking on finish by design, so the user sees the updated plan immediately after returning to Program.
+- **Migration drift** is the recurring root cause across this whole app —
+  live Supabase DB lags repo migrations because they don't auto-apply.
+  Apply via Supabase SQL editor. Still missing on live: 008
+  (`daily_checkins`, `nutrition_notes`), 014 (`google_calendar_tokens`),
+  015 (calendar reminder columns). See `docs/app-audit.md` for the full
+  service-by-service breakdown.
+- **Owner-always-admin** fix is in: `xavellis4@gmail.com` is master by both
+  email + DB role; never falls back to a member persona.
+- **Silent-failure pattern** is the second root cause — auth/email routes
+  catch errors and return `{ok:true}` to avoid leaking info. The
+  `email-diagnostics` `?send=1` is the antidote for the reset path; consider
+  similar visibility for other auth routes.
