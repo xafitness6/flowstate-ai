@@ -19,6 +19,8 @@ import { calculateNutritionTargets } from "@/lib/nutrition";
 import { getMealsForDate, localDateISO } from "@/lib/nutrition/store";
 import type { LoggedMeal } from "@/lib/nutrition/types";
 import { loadStarterPlan } from "@/lib/starterPlan";
+import { useEntitlement } from "@/hooks/useEntitlement";
+import { FEATURES } from "@/lib/entitlements";
 
 const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -76,6 +78,8 @@ function loadHabitsToday(): { total: number; completed: number } {
 
 export function TodaySnapshot({ userId }: { userId: string }) {
   const router = useRouter();
+  const { can } = useEntitlement();
+  const canNutrition = can(FEATURES.NUTRITION);
   const [state, setState] = useState<SnapshotState | null>(null);
 
   useEffect(() => {
@@ -206,7 +210,8 @@ export function TodaySnapshot({ userId }: { userId: string }) {
         </div>
       </button>
 
-      {/* Nutrition */}
+      {/* Nutrition — only shown when the plan includes it (no paywall bounce). */}
+      {canNutrition && (
       <button
         onClick={() => router.push("/nutrition")}
         className="w-full text-left rounded-2xl border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/12 transition-all px-5 py-4 group"
@@ -243,6 +248,7 @@ export function TodaySnapshot({ userId }: { userId: string }) {
           />
         </div>
       </button>
+      )}
 
       {/* Habits */}
       <button

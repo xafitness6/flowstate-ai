@@ -343,6 +343,27 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Re-fetch the profile (plan / role) when the tab regains focus, so an admin
+  // change like a plan upgrade takes effect without a full re-login. Supabase
+  // non-owner accounts only; the owner is always master.
+  useEffect(() => {
+    if (!isSupabase) return;
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      void (async () => {
+        try {
+          const supabase = createClient();
+          const { data: { user: sUser } } = await supabase.auth.getUser();
+          if (!sUser?.id || isOwnerEmail(sUser.email)) return;
+          const profile = await getMyProfile().catch(() => null);
+          if (profile) setUser(applyEarlyAccess(profileToMockUser(profile)));
+        } catch { /* ignore */ }
+      })();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [isSupabase]);
+
   function setRole(role: Role) {
     if (isSupabase) return; // don't allow role switching on real accounts
     const match = Object.values(DEMO_USERS).find((u) => u.role === role) ?? { ...user, role };
