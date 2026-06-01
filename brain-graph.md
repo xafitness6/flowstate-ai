@@ -217,7 +217,7 @@ Auth on all `/api/clients/[id]/*` routes goes through `requireClientAccess(id)` 
 ## Two client-detail pages (important)
 
 - **`/profile/[id]`** — reached from the **admin dashboard** (`/admin` → click user) + leaderboard + hover cards. Real-Supabase branch loads via `GET /api/admin/users/[id]` (admin-only). Has identity + **Assigned coach** (admin assign/change/remove) + active program + onboarding snapshot.
-- **`/clients/[id]`** — reached from **My Clients**. The tabbed hub (Overview/Program/Nutrition/Notes). NOTE: `/my-clients` currently reads DEMO data so real clients may not appear there yet.
+- **`/clients/[id]`** — reached from **My Clients**. The tabbed hub (Overview/Program/Nutrition/Notes). `/my-clients` now loads REAL assigned clients for Supabase users via `GET /api/my-clients` (service-role; profiles where `assigned_trainer_id` = caller + each client's active program name). Demo accounts keep the local store. Delete is hidden for real clients. Per-client adherence/check-in metrics are still 0 (Progress slice).
 
 ## Trainer assignment
 

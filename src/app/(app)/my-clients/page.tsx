@@ -29,6 +29,8 @@ import { loadOnboardingState } from "@/lib/onboarding";
 
 type ClientRow = PlatformUser & ClientTrainingData;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const STATUS_CFG = {
@@ -81,6 +83,9 @@ function StatCard({
 export default function MyClientsPage() {
   const router       = useRouter();
   const { user }     = useUser();
+  // Real (Supabase) accounts load their actual assigned clients from the API;
+  // demo accounts keep the local store.
+  const isSupabaseUser = UUID_RE.test(user.id) && !!process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const [clients,         setClients        ] = useState<ClientRow[]>([]);
   const [invites,         setInvites        ] = useState<Invite[]>([]);
@@ -101,11 +106,49 @@ export default function MyClientsPage() {
 
   useEffect(() => {
     initStore();
+    if (!canTrainerViewAssignedClients(user.role)) {
+      router.replace("/");
+      return;
+    }
+
+    // ── Real account: load actual assigned clients from Supabase ────────────
+    if (isSupabaseUser) {
+      let active = true;
+      (async () => {
+        try {
+          const res  = await fetch("/api/my-clients", { cache: "no-store" });
+          const json = await res.json();
+          if (!active) return;
+          if (!res.ok) { setError(json.error ?? "Couldn't load your clients."); return; }
+          const statusMap: Record<string, ClientRow["status"]> = {
+            active: "active", inactive: "paused", past_due: "at-risk",
+          };
+          type ApiClient = { id: string; name: string; email: string; plan: ClientRow["plan"]; subscription_status: string; program: string | null; created_at: string };
+          const rows: ClientRow[] = ((json.clients ?? []) as ApiClient[]).map((c) => ({
+            id:                c.id,
+            name:              c.name,
+            email:             c.email,
+            role:              "client",
+            plan:              c.plan,
+            status:            statusMap[c.subscription_status] ?? "active",
+            lastActive:        "—",
+            joinDate:          c.created_at ? new Date(c.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "",
+            trainerId:         user.id,
+            program:           c.program ?? "No program",
+            adherence:         0,
+            executionScore:    0,
+            checkInCompletion: 0,
+          }));
+          setClients(rows);
+        } catch {
+          if (active) setError("Couldn't load your clients.");
+        }
+      })();
+      return () => { active = false; };
+    }
+
+    // ── Demo account: local store ───────────────────────────────────────────
     try {
-      if (!canTrainerViewAssignedClients(user.role)) {
-        router.replace("/");
-        return;
-      }
       const raw = getMyClients(user.role, user.id);
       const rows: ClientRow[] = raw.map((c) => ({ ...c, ...getClientTrainingData(c.id) }));
       setClients(rows);
@@ -114,7 +157,7 @@ export default function MyClientsPage() {
     } catch (e) {
       if (e instanceof PermissionError) router.replace("/");
     }
-  }, [user.role, user.id, router]);
+  }, [user.role, user.id, router, isSupabaseUser]);
 
   // ── Derived stats ──────────────────────────────────────────────────────────
   const activeClients  = clients.filter((c) => c.status === "active");
@@ -568,14 +611,16 @@ export default function MyClientsPage() {
                       >
                         <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.5} />
                       </button>
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        disabled={isDeleting}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg border border-transparent hover:border-red-400/20 hover:bg-red-400/8 text-white/18 hover:text-red-400/70 transition-all disabled:opacity-30"
-                        title="Remove client"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
-                      </button>
+                      {!isSupabaseUser && (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          disabled={isDeleting}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-transparent hover:border-red-400/20 hover:bg-red-400/8 text-white/18 hover:text-red-400/70 transition-all disabled:opacity-30"
+                          title="Remove client"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
