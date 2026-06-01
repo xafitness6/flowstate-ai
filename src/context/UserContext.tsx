@@ -317,11 +317,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 await applySession(session);
                 return;
               }
-              // Session ended — check for demo fallback
+              // Session ended (logout / expiry). If there's a genuine demo
+              // session in storage, restore it; otherwise show a NEUTRAL
+              // signed-out identity — never DEMO_USERS.member, or a logging-out
+              // user briefly sees a real demo persona's name ("Luca Ferretti").
               if (cancelled) return;
               setIsSupabase(false);
               const demo = loadDemoUser();
-              setUser(applyEarlyAccess(demo ?? DEMO_USERS.member));
+              setUser(applyEarlyAccess(demo ?? { ...DEMO_USERS.member, id: "signed-out", name: "" }));
               setIsLoading(false);
             } catch (error) {
               if (cancelled) return;

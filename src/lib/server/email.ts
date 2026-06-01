@@ -27,9 +27,32 @@ function textToHtml(text: string): string {
     .join("");
 }
 
+const DEFAULT_FROM = "Flowstate AI <onboarding@resend.dev>";
+
+// The `from` value comes from a raw Vercel env var, so it's easy to paste in
+// with surrounding quotes or leave as the setup placeholder. Both break the
+// Resend `Name <email@example.com>` format and cause a silent 422. Normalize
+// defensively so a misconfigured env var can never break delivery again.
+export function normalizeFromEmail(raw: string | undefined): string {
+  let value = raw?.trim() ?? "";
+  // Strip one pair of matching surrounding quotes (single or double).
+  if (value.length >= 2) {
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' || first === "'") && first === last) {
+      value = value.slice(1, -1).trim();
+    }
+  }
+  // Reject the setup placeholder — Resend would 422 on the unverified domain.
+  if (!value || value.includes("your-verified-domain.com")) {
+    return DEFAULT_FROM;
+  }
+  return value;
+}
+
 function emailConfig() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.PASSWORD_RESET_FROM_EMAIL?.trim() || "Flowstate AI <onboarding@resend.dev>";
+  const from = normalizeFromEmail(process.env.PASSWORD_RESET_FROM_EMAIL);
   return { apiKey, from };
 }
 

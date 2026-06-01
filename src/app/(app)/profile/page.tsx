@@ -10,6 +10,7 @@ import type { Plan } from "@/types";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -350,6 +351,26 @@ export default function ProfilePage() {
   const [lastActionType]                = useLocalStorage<string>(`flowstate-last-action-type-${user.id}`, "");
   const [prevLogin,    setPrevLogin]    = useState<string>("");
 
+  // Real assigned trainer (replaces placeholder). Only Supabase users have one.
+  const [trainerName, setTrainerName] = useState<string | null>(null);
+  useEffect(() => {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    let cancelled = false;
+    void createClient()
+      .from("profiles")
+      .select("assigned_trainer_name")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setTrainerName((data?.assigned_trainer_name as string | null) ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [user.id]);
+
+  // "Last activity" (last active / last login / last action) is staff-only.
+  const isStaff = user.role === "master" || user.role === "trainer" || !!user.isAdmin;
+
   const statusCfg     = STATUS_CONFIG[user.status];
   const initials      = (displayName || user.name).split(" ").map((n) => n[0]).join("").toUpperCase();
   const resolvedName  = displayName || user.name;
@@ -558,16 +579,18 @@ export default function ProfilePage() {
             <span className="text-[10px] text-white/25">Joined</span>
             <span className="text-[10px] font-medium text-white/45">{stats.joinedLabel}</span>
           </div>
-          {user.role === "client" && (
+          {trainerName && (
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-white/25">Trainer</span>
-              <span className="text-[10px] font-medium text-white/45">Alex Rivera</span>
+              <span className="text-[10px] font-medium text-white/45">{trainerName}</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-white/25">Last active</span>
-            <span className="text-[10px] font-medium text-white/45">{stats.lastActive}</span>
-          </div>
+          {isStaff && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-white/25">Last active</span>
+              <span className="text-[10px] font-medium text-white/45">{stats.lastActive}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 ml-auto">
             <span className="text-[10px] text-white/22">{ROLE_DESCRIPTIONS[user.role]}</span>
           </div>
@@ -588,17 +611,19 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* Tracking rows */}
-          <div className="border-t border-white/[0.045] divide-y divide-white/[0.04]">
-            <div className="px-5 py-3 flex items-center justify-between">
-              <p className="text-xs text-white/30">Last login</p>
-              <p className="text-xs font-medium text-white/50">{lastLoginDisplay}</p>
+          {/* Tracking rows — last activity is visible to staff (admin/trainer) only. */}
+          {isStaff && (
+            <div className="border-t border-white/[0.045] divide-y divide-white/[0.04]">
+              <div className="px-5 py-3 flex items-center justify-between">
+                <p className="text-xs text-white/30">Last login</p>
+                <p className="text-xs font-medium text-white/50">{lastLoginDisplay}</p>
+              </div>
+              <div className="px-5 py-3 flex items-center justify-between">
+                <p className="text-xs text-white/30">Last action</p>
+                <p className="text-xs font-medium text-white/50">{lastActionDisplay}</p>
+              </div>
             </div>
-            <div className="px-5 py-3 flex items-center justify-between">
-              <p className="text-xs text-white/30">Last action</p>
-              <p className="text-xs font-medium text-white/50">{lastActionDisplay}</p>
-            </div>
-          </div>
+          )}
         </Card>
       </div>
 
@@ -769,9 +794,6 @@ export default function ProfilePage() {
       <div>
         <SectionHeader>Account</SectionHeader>
         <Card>
-          <SettingsRow label="Email">
-            <span className="text-xs text-white/30 font-mono">xavier@flowstate.ai</span>
-          </SettingsRow>
           {user.role === "master" ? (
             <SettingsRow label="Plan" last>
               <span className="text-xs text-white/30">Platform admin — no personal subscription</span>

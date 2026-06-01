@@ -199,6 +199,29 @@ Optional upgrade on top of the iCal feed: connect Google directly via OAuth so w
 
 **Scope used:** `calendar.events` + `calendar.readonly` — minimum needed to insert/update on the user's primary calendar. Two-way sync (changes from Google → Flowstate) is not yet wired; that would require Google watch API + webhook reconciliation.
 
+## Client file (trainer view)
+
+`/clients/[id]` is the trainer/admin "trainer's-eyes" view of one client. Tabbed hub:
+- **Overview** (built) — onboarding status + "Send through onboarding" action (resets `onboarding_state` flags so the client is routed into setup on next app open; keeps their answers as prefill) + intake readout + AI prefill panel; printable to PDF
+- **Program** (built) — active program card: name, goal, week X/Y progress bar, training days, session length, focus tags, coaching notes. "Assign / change program" links to `/program/builder` (which has the admin "Send to user" → `/api/admin/assign-workout` flow)
+- **Notes** (built) — trainer free-text notes (`client_notes` table)
+- **Nutrition** (built) — lazy-loaded when tab opens; `GET /api/clients/[id]/nutrition` returns 14-day daily buckets + 7-day macro averages + recent meals. UI: macro tiles, today, 14-day calories mini-chart, recent meals list
+- **Progress · Chat** — placeholder "Coming next" tabs, built one at a time
+- Header shows stat tiles: Plan · Onboarding status · Program · Notes count
+
+Auth on all `/api/clients/[id]/*` routes goes through `requireClientAccess(id)` in [src/lib/admin/requireClientAccess.ts](src/lib/admin/requireClientAccess.ts) — admin = any client, trainer = only `assigned_trainer_id` matches. Returns a service-role `admin` client.
+- API routes: `/api/clients/[id]/intake` (GET/PATCH), `/notes` (GET/POST/DELETE), `/program` (GET — active program + count), `/onboarding/reset` (POST — resets onboarding_state; `{clearAnswers:true}` to wipe answers), `/prefill-intake` (POST).
+
+**Planned next slices (client file):** weight chart (needs new `weight_logs` table), progress photos (new table + storage bucket + signed URLs), shared trainer↔client chat (new conversations table). Plus a later automation layer: text sequences + calendar assignments (weigh-ins/workouts/messages). DONE: hub shell, program view, send-through-onboarding, nutrition summary.
+
+## Plan labels (single source of truth)
+
+`PLAN_LABELS` in [src/lib/plans.ts](src/lib/plans.ts) is canonical: `foundation`→"Foundation", `training`→"Training", `performance`→"AI Performance", `coaching`→"Hybrid Coaching". (admin/leaderboard/profile-[id] pages have local label maps that match these.) `PLAN_FEATURES.coaching` enables every feature flag — Hybrid Coaching = full access.
+
+## Cross-device onboarding
+
+Onboarding completion is server-side (`onboarding_state` flags), so a returning user on a new device should NOT replay it. `resolveOnboardingRoute` (db/onboarding.ts) retries the read once and FAILS OPEN (returns null = don't block) on a genuine read error, so a flaky read can't force a completed user back through onboarding. A genuinely-new user has a clean empty read and is still onboarded. AppShell guard reads this for Supabase users.
+
 ## In Progress / Planned
 - Obsidian vault = this project folder (`/Users/xavierellis/Projects/flowstate-ai`)
 - brain-graph.md = this file — read it first, not individual files

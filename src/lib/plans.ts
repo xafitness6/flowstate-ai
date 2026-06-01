@@ -11,11 +11,14 @@ export const PLAN_HIERARCHY: Record<Plan, number> = {
   coaching:    4,
 };
 
+// Canonical, user-facing plan names — single source of truth. Keep these in
+// sync with the admin plan dropdown and the pricing page so a client never sees
+// two different names for the same plan.
 export const PLAN_LABELS: Record<Plan, string> = {
   foundation:  "Foundation",
-  training:    "Core",
-  performance: "Pro",
-  coaching:    "Elite",
+  training:    "Training",
+  performance: "AI Performance",
+  coaching:    "Hybrid Coaching",
 };
 
 export const PLAN_PRICES: Record<Plan, number | null> = {
