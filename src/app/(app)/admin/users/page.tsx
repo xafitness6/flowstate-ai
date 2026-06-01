@@ -14,16 +14,20 @@ import type { Role, Plan, SubscriptionStatus } from "@/lib/supabase/types";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AdminUser = {
-  id:                   string;
-  email:                string;
-  full_name:            string | null;
-  role:                 Role;
-  plan:                 Plan;
-  subscription_status:  SubscriptionStatus;
-  onboarding_complete:  boolean;
-  stripe_customer_id:   string | null;
-  created_at:           string;
+  id:                    string;
+  email:                 string;
+  full_name:             string | null;
+  role:                  Role;
+  plan:                  Plan;
+  subscription_status:   SubscriptionStatus;
+  onboarding_complete:   boolean;
+  stripe_customer_id:    string | null;
+  assigned_trainer_id:   string | null;
+  assigned_trainer_name: string | null;
+  created_at:            string;
 };
+
+type TrainerOption = { value: string; label: string };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -37,10 +41,10 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
 ];
 
 const PLAN_OPTIONS: { value: Plan; label: string }[] = [
-  { value: "foundation",  label: "Foundation" },
-  { value: "training",    label: "Core"        },
-  { value: "performance", label: "Pro"         },
-  { value: "coaching",    label: "Elite"       },
+  { value: "foundation",  label: PLAN_LABELS.foundation  },
+  { value: "training",    label: PLAN_LABELS.training     },
+  { value: "performance", label: PLAN_LABELS.performance  },
+  { value: "coaching",    label: PLAN_LABELS.coaching     },
 ];
 
 const STATUS_OPTIONS: { value: SubscriptionStatus; label: string }[] = [
@@ -113,9 +117,10 @@ function SaveIcon({ state }: { state: SaveState }) {
 
 // ─── User row ─────────────────────────────────────────────────────────────────
 
-function UserRow({ user, onUpdate }: {
+function UserRow({ user, onUpdate, trainerOptions }: {
   user: AdminUser;
   onUpdate: (id: string, patch: Partial<AdminUser>) => Promise<void>;
+  trainerOptions: TrainerOption[];
 }) {
   const [local,     setLocal    ] = useState(user);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -161,6 +166,22 @@ function UserRow({ user, onUpdate }: {
             void patch({ role: v });
           }}
         />
+      </td>
+
+      {/* Trainer — assign / change / remove. Only meaningful for clients & members. */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {(local.role === "client" || local.role === "member") ? (
+          <InlineSelect
+            value={local.assigned_trainer_id ?? ""}
+            options={trainerOptions}
+            onChange={(v) => {
+              const label = trainerOptions.find((t) => t.value === v)?.label ?? null;
+              void patch({ assigned_trainer_id: v || null, assigned_trainer_name: v ? label : null });
+            }}
+          />
+        ) : (
+          <span className="text-[10px] text-white/20">—</span>
+        )}
       </td>
 
       {/* Plan */}
@@ -276,6 +297,14 @@ export default function AdminUsersPage() {
     const matchRole = roleFilter === "all" || u.role === roleFilter;
     return matchSearch && matchRole;
   });
+
+  // Trainers + admins are assignable as a client's coach. "" = no trainer.
+  const trainerOptions: TrainerOption[] = [
+    { value: "", label: "— No trainer —" },
+    ...users
+      .filter((u) => u.role === "trainer" || u.role === "master")
+      .map((u) => ({ value: u.id, label: u.full_name || u.email })),
+  ];
 
   const counts = {
     total:   users.length,
@@ -400,7 +429,7 @@ export default function AdminUsersPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/[0.06]">
-                    {["Email", "Role", "Plan", "Status", "Onboarding", "Stripe", "Joined", ""].map((h) => (
+                    {["Email", "Role", "Trainer", "Plan", "Status", "Onboarding", "Stripe", "Joined", ""].map((h) => (
                       <th key={h} className="px-4 py-2.5 text-left text-[10px] uppercase tracking-wider text-white/20 font-medium whitespace-nowrap">
                         {h}
                       </th>
@@ -409,7 +438,7 @@ export default function AdminUsersPage() {
                 </thead>
                 <tbody>
                   {filtered.map((u) => (
-                    <UserRow key={u.id} user={u} onUpdate={handleUpdate} />
+                    <UserRow key={u.id} user={u} onUpdate={handleUpdate} trainerOptions={trainerOptions} />
                   ))}
                 </tbody>
               </table>

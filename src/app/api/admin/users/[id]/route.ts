@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import type { Role, Plan, SubscriptionStatus } from "@/lib/supabase/types";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const ALLOWED_ROLES: Role[]                       = ["member", "client", "trainer", "master"];
 const ALLOWED_PLANS: Plan[]                       = ["foundation", "training", "performance", "coaching"];
 const ALLOWED_STATUSES: SubscriptionStatus[]      = ["inactive", "active", "past_due"];
@@ -63,6 +65,7 @@ export async function PATCH(
     plan?:                  Plan;
     subscription_status?:   SubscriptionStatus;
     onboarding_complete?:   boolean;
+    assigned_trainer_id?:   string | null;
   };
   try {
     body = await req.json() as typeof body;
@@ -92,6 +95,31 @@ export async function PATCH(
   }
   if (body.plan               !== undefined) profileFields.plan               = body.plan;
   if (body.subscription_status !== undefined) profileFields.subscription_status = body.subscription_status;
+
+  // ── Trainer assignment (assign / change / remove) ─────────────────────────
+  // null or "" clears it. A UUID assigns that trainer — verified to actually be
+  // a trainer/admin — and stores their name so it's "known" on both files.
+  if ("assigned_trainer_id" in body) {
+    const tid = body.assigned_trainer_id;
+    if (tid === null || tid === "") {
+      profileFields.assigned_trainer_id   = null;
+      profileFields.assigned_trainer_name = null;
+    } else if (typeof tid === "string" && UUID_RE.test(tid)) {
+      const { data: trainer } = await (admin as any)
+        .from("profiles")
+        .select("id,role,is_admin,full_name,email")
+        .eq("id", tid)
+        .maybeSingle();
+      if (!trainer || !(trainer.role === "trainer" || trainer.role === "master" || trainer.is_admin === true)) {
+        return NextResponse.json({ error: "Assigned trainer must be a trainer or admin." }, { status: 400 });
+      }
+      profileFields.assigned_trainer_id   = trainer.id;
+      profileFields.assigned_trainer_name =
+        (typeof trainer.full_name === "string" && trainer.full_name.trim()) || trainer.email || "Coach";
+    } else {
+      return NextResponse.json({ error: "Invalid assigned_trainer_id" }, { status: 400 });
+    }
+  }
 
   if (Object.keys(profileFields).length > 0) {
     profileFields.updated_at = now;
