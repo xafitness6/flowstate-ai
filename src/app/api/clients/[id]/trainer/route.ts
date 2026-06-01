@@ -48,10 +48,13 @@ export async function PATCH(
   }
 
   const tid = body.assigned_trainer_id;
-  let fields: { assigned_trainer_id: string | null; assigned_trainer_name: string | null };
+  // Only assigned_trainer_id is stored on profiles (there is no
+  // assigned_trainer_name column). The name is derived for the response only.
+  let newId: string | null;
+  let newName: string | null;
 
   if (tid === null || tid === "") {
-    fields = { assigned_trainer_id: null, assigned_trainer_name: null };
+    newId = null; newName = null;
   } else if (typeof tid === "string" && UUID_RE.test(tid)) {
     const { data: trainer } = await auth.admin
       .from("profiles")
@@ -61,16 +64,16 @@ export async function PATCH(
     if (!trainer || !(trainer.role === "trainer" || trainer.role === "master" || trainer.is_admin === true)) {
       return NextResponse.json({ error: "Assigned trainer must be a trainer or admin." }, { status: 400 });
     }
-    fields = { assigned_trainer_id: trainer.id, assigned_trainer_name: labelFor(trainer) };
+    newId = trainer.id; newName = labelFor(trainer);
   } else {
     return NextResponse.json({ error: "Invalid assigned_trainer_id" }, { status: 400 });
   }
 
   const { error } = await auth.admin
     .from("profiles")
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .update({ assigned_trainer_id: newId, updated_at: new Date().toISOString() })
     .eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, ...fields });
+  return NextResponse.json({ ok: true, assigned_trainer_id: newId, assigned_trainer_name: newName });
 }

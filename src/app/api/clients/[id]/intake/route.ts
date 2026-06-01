@@ -16,7 +16,7 @@ export async function GET(
 
   const [{ data: profile }, { data: onboarding }] = await Promise.all([
     admin.from("profiles")
-      .select("id,full_name,first_name,last_name,email,role,plan,assigned_trainer_id,assigned_trainer_name")
+      .select("id,full_name,first_name,last_name,email,role,plan,assigned_trainer_id")
       .eq("id", id)
       .maybeSingle(),
     admin.from("onboarding_state")
@@ -29,8 +29,20 @@ export async function GET(
     return NextResponse.json({ error: "Client not found." }, { status: 404 });
   }
 
+  // The trainer's NAME isn't stored on profiles — derive it from the trainer's
+  // own profile so we never depend on a column that may not exist.
+  let assigned_trainer_name: string | null = null;
+  if (profile.assigned_trainer_id) {
+    const { data: tr } = await admin
+      .from("profiles")
+      .select("full_name,email")
+      .eq("id", profile.assigned_trainer_id)
+      .maybeSingle();
+    if (tr) assigned_trainer_name = (typeof tr.full_name === "string" && tr.full_name.trim()) || tr.email || null;
+  }
+
   return NextResponse.json({
-    profile,
+    profile: { ...profile, assigned_trainer_name },
     intake: onboarding?.raw_answers ?? null,
     meta: onboarding
       ? {

@@ -99,23 +99,21 @@ export async function PATCH(
   // ── Trainer assignment (assign / change / remove) ─────────────────────────
   // null or "" clears it. A UUID assigns that trainer — verified to actually be
   // a trainer/admin — and stores their name so it's "known" on both files.
+  // Only assigned_trainer_id is stored (profiles has no assigned_trainer_name).
   if ("assigned_trainer_id" in body) {
     const tid = body.assigned_trainer_id;
     if (tid === null || tid === "") {
-      profileFields.assigned_trainer_id   = null;
-      profileFields.assigned_trainer_name = null;
+      profileFields.assigned_trainer_id = null;
     } else if (typeof tid === "string" && UUID_RE.test(tid)) {
       const { data: trainer } = await (admin as any)
         .from("profiles")
-        .select("id,role,is_admin,full_name,email")
+        .select("id,role,is_admin")
         .eq("id", tid)
         .maybeSingle();
       if (!trainer || !(trainer.role === "trainer" || trainer.role === "master" || trainer.is_admin === true)) {
         return NextResponse.json({ error: "Assigned trainer must be a trainer or admin." }, { status: 400 });
       }
-      profileFields.assigned_trainer_id   = trainer.id;
-      profileFields.assigned_trainer_name =
-        (typeof trainer.full_name === "string" && trainer.full_name.trim()) || trainer.email || "Coach";
+      profileFields.assigned_trainer_id = trainer.id;
     } else {
       return NextResponse.json({ error: "Invalid assigned_trainer_id" }, { status: 400 });
     }

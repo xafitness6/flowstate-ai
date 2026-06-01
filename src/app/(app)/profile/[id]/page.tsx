@@ -106,13 +106,13 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const viewerIsAdmin = viewer.role === "master" || !!viewer.isAdmin;
   const [trainerOptions, setTrainerOptions] = useState<{ value: string; label: string }[]>([]);
   const [assignedId,   setAssignedId]   = useState<string | null>(null);
-  const [assignedName, setAssignedName] = useState<string | null>(null);
   const [assignBusy,   setAssignBusy]   = useState(false);
+  // The coach's name isn't stored on the profile — derive it from the options.
+  const assignedName = trainerOptions.find((o) => o.value === assignedId)?.label ?? null;
 
   useEffect(() => {
     if (!detail) return;
     setAssignedId(detail.profile.assigned_trainer_id ?? null);
-    setAssignedName(detail.profile.assigned_trainer_name ?? null);
     if (!viewerIsAdmin) return;
     fetch(`/api/clients/${id}/trainer`, { cache: "no-store" })
       .then((r) => r.json())
@@ -131,7 +131,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Couldn't update trainer.");
       setAssignedId(j.assigned_trainer_id ?? null);
-      setAssignedName(j.assigned_trainer_name ?? null);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Couldn't update trainer.");
     } finally {
