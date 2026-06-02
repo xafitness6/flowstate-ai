@@ -20,7 +20,7 @@ type ClientProfile = {
   assigned_trainer_id: string | null;
   assigned_trainer_name: string | null;
 };
-type Note = { id: string; body: string; author_name: string | null; created_at: string };
+type Note = { id: string; body: string; author_name: string | null; created_at: string; shared_with_client?: boolean };
 type IntakeMeta = {
   onboarding_complete: boolean | null;
   program_generated: boolean | null;
@@ -81,6 +81,7 @@ export default function ClientDetailPage() {
   const [tab,     setTab]     = useState<TabKey>("overview");
 
   const [draft, setDraft] = useState("");
+  const [shareNew, setShareNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [obBusy, setObBusy] = useState(false);
 
@@ -164,17 +165,27 @@ export default function ClientDetailPage() {
     try {
       const res = await fetch(`/api/clients/${id}/notes`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, shared: shareNew }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Couldn't save note.");
       setNotes((prev) => [json.note, ...prev]);
       setDraft("");
+      setShareNew(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save note.");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function toggleShareNote(noteId: string, shared: boolean) {
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, shared_with_client: shared } : n)));
+    const res = await fetch(`/api/clients/${id}/notes`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ noteId, shared }),
+    });
+    if (!res.ok) setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, shared_with_client: !shared } : n)));
   }
 
   async function deleteNote(noteId: string) {
@@ -454,7 +465,16 @@ export default function ClientDetailPage() {
                 placeholder="Add a note about this client — observations, adjustments, things to follow up on…"
                 className="w-full bg-transparent text-sm text-white/90 placeholder:text-white/25 outline-none resize-y leading-relaxed px-1"
               />
-              <div className="flex justify-end mt-2">
+              <div className="flex items-center justify-between gap-3 mt-2 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={shareNew}
+                    onChange={(e) => setShareNew(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-white/15 bg-white/[0.04] accent-[#B48B40]"
+                  />
+                  <span className="text-[11px] text-white/45">Share with client (sends a notification)</span>
+                </label>
                 <button
                   onClick={addNote}
                   disabled={!draft.trim() || saving}
@@ -473,17 +493,36 @@ export default function ClientDetailPage() {
                 {notes.map((n) => (
                   <div key={n.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 group">
                     <p className="text-sm text-white/85 whitespace-pre-wrap leading-relaxed">{n.body}</p>
-                    <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center justify-between mt-2 gap-2">
                       <span className="text-[10px] text-white/30">
                         {n.author_name ?? "Coach"} · {new Date(n.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
-                      <button
-                        onClick={() => deleteNote(n.id)}
-                        className={cn("text-white/25 hover:text-red-300/80 transition-colors opacity-0 group-hover:opacity-100")}
-                        aria-label="Delete note"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {n.shared_with_client ? (
+                          <button
+                            onClick={() => toggleShareNote(n.id, false)}
+                            className="text-[9px] uppercase tracking-wider text-emerald-400/70 border border-emerald-400/20 bg-emerald-400/8 rounded px-1.5 py-0.5 hover:border-emerald-400/40"
+                            title="Shared with client — click to make private"
+                          >
+                            Shared
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => toggleShareNote(n.id, true)}
+                            className="text-[9px] uppercase tracking-wider text-white/35 hover:text-[#B48B40] border border-white/10 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Share with client (sends a notification)"
+                          >
+                            Share
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteNote(n.id)}
+                          className={cn("text-white/25 hover:text-red-300/80 transition-colors opacity-0 group-hover:opacity-100")}
+                          aria-label="Delete note"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
