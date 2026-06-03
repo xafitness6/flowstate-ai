@@ -203,22 +203,23 @@ Optional upgrade on top of the iCal feed: connect Google directly via OAuth so w
 
 `/clients/[id]` is the trainer/admin "trainer's-eyes" view of one client. Tabbed hub:
 - **Overview** (built) — onboarding status + "Send through onboarding" action (resets `onboarding_state` flags so the client is routed into setup on next app open; keeps their answers as prefill) + intake readout + AI prefill panel; printable to PDF
-- **Program** (built) — active program card: name, goal, week X/Y progress bar, training days, session length, focus tags, coaching notes. "Assign / change program" links to `/program/builder` (which has the admin "Send to user" → `/api/admin/assign-workout` flow)
+- **Program** (built) — trainer snapshot + active program card: name, goal, week X/Y progress bar, training days, session length, focus tags, coaching notes. "Assign / change program" links to `/program/builder` (which has the admin "Send to user" → `/api/admin/assign-workout` flow)
 - **Notes** (built) — trainer free-text notes (`client_notes` table)
-- **Nutrition** (built) — lazy-loaded when tab opens; `GET /api/clients/[id]/nutrition` returns 14-day daily buckets + 7-day macro averages + recent meals. UI: macro tiles, today, 14-day calories mini-chart, recent meals list
-- **Progress · Chat** — placeholder "Coming next" tabs, built one at a time
+- **Nutrition** (built) — trainer snapshot + lazy-loaded nutrition summary; `GET /api/clients/[id]/nutrition` returns 14-day daily buckets + 7-day macro averages + recent meals. UI: macro tiles, today, 14-day calories mini-chart, recent meals list
+- **Progress** (built) — trainer snapshot + bodyweight chart with clickable points/drill-in (`weight_logs`) + progress photos in private Supabase Storage (`progress-photos`) returned via signed URLs only. APIs: `/api/clients/[id]/weight`, `/api/clients/[id]/photos`.
+- **Chat** — placeholder "Coming next" tab
 - Header shows stat tiles: Plan · Onboarding status · Program · Notes count
 
 Auth on all `/api/clients/[id]/*` routes goes through `requireClientAccess(id)` in [src/lib/admin/requireClientAccess.ts](src/lib/admin/requireClientAccess.ts) — admin = any client, trainer = only `assigned_trainer_id` matches. Returns a service-role `admin` client.
-- API routes: `/api/clients/[id]/intake` (GET/PATCH), `/notes` (GET/POST/DELETE), `/program` (GET — active program + count), `/onboarding/reset` (POST — resets onboarding_state; `{clearAnswers:true}` to wipe answers), `/prefill-intake` (POST).
+- API routes: `/api/clients/[id]/intake` (GET/PATCH), `/activity` (GET workout-log summary), `/notes` (GET/POST/PATCH/DELETE), `/reminders` (GET/POST/PATCH/DELETE), `/program` (GET — active program + count), `/nutrition` (GET), `/weight` (GET/POST/DELETE), `/photos` (GET/POST/DELETE signed URLs only), `/trainer` (GET/PATCH), `/onboarding/reset` (POST), `/prefill-intake` (POST).
 
-**Planned next slices (client file):** weight chart (needs new `weight_logs` table), progress photos (new table + storage bucket + signed URLs), shared trainer↔client chat (new conversations table). Plus a later automation layer: text sequences + calendar assignments (weigh-ins/workouts/messages). DONE: hub shell, program view, send-through-onboarding, nutrition summary.
+**Planned next slices (client file):** shared trainer↔client chat (new conversations table). Later automation layer: text sequences + calendar assignments (weigh-ins/workouts/messages). DONE: hub shell, program view, send-through-onboarding, nutrition summary, per-tab snapshots, mobile nav, Progress tab weight/photos.
 
 ## Two client-detail pages (important)
 
 - **Admin "View details" routes CLIENTS & MEMBERS → `/clients/[id]` (the hub)**, trainers/admins → `/profile/[id]`. The hub now also has the admin-only "Assigned coach" selector (same `/api/clients/[id]/trainer`). So clicking a client from admin lands on the full tabbed file.
 - **`/profile/[id]`** — reached from the **admin dashboard** (for non-client roles) + leaderboard + hover cards. Real-Supabase branch loads via `GET /api/admin/users/[id]` (admin-only). Has identity + **Assigned coach** (admin assign/change/remove) + active program + onboarding snapshot.
-- **`/clients/[id]`** — reached from **My Clients**. The tabbed hub (Overview/Program/Nutrition/Notes). `/my-clients` now loads REAL assigned clients for Supabase users via `GET /api/my-clients` (service-role; profiles where `assigned_trainer_id` = caller + each client's active program name). Demo accounts keep the local store. Delete is hidden for real clients. Per-client adherence/check-in metrics are still 0 (Progress slice).
+- **`/clients/[id]`** — reached from **My Clients**. The tabbed hub (Overview/Program/Nutrition/Progress/Notes). `/my-clients` now loads REAL assigned clients for Supabase users via `GET /api/my-clients` (service-role; profiles where `assigned_trainer_id` = caller + each client's active program name). Demo accounts keep the local store. Delete is hidden for real clients.
 
 ## Trainer assignment
 

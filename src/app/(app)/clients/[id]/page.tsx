@@ -7,6 +7,7 @@ import {
   ChevronLeft, Download, Loader2, Trash2, StickyNote, Send,
   User, Dumbbell, Apple, LineChart, MessageSquare,
   ExternalLink, CalendarDays, Clock, PlayCircle, CheckCircle2,
+  Activity, Camera, Image as ImageIcon, Scale, TrendingUp, Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
@@ -45,13 +46,48 @@ type NutritionSummary = {
   recentMeals: { id: string; meal_type: string | null; label: string; calories: number; protein: number; needs_review: boolean; logged_at: string }[];
 };
 
+type ActivitySummary = {
+  sessions: number;
+  currentStreak: number;
+  longestStreak: number;
+  last30: number;
+  last7: number;
+  thisWeek: number;
+  lastActivityAt: string | null;
+  days: { date: string; sessions: number; minutes: number }[];
+  recentSessions: {
+    id: string;
+    workout_name: string;
+    completed_at: string;
+    duration_minutes: number;
+    sets_completed: number;
+    difficulty: number | null;
+  }[];
+};
+
+type WeightLog = {
+  id: string;
+  logged_at: string;
+  weight_kg: number;
+  note: string | null;
+  created_at: string;
+};
+
+type ProgressPhoto = {
+  id: string;
+  caption: string | null;
+  taken_at: string;
+  created_at: string;
+  signed_url: string | null;
+};
+
 type TabKey = "overview" | "program" | "nutrition" | "progress" | "notes" | "chat";
 
 const TABS: { key: TabKey; label: string; icon: typeof User; ready: boolean }[] = [
   { key: "overview",  label: "Overview",  icon: User,          ready: true  },
   { key: "program",   label: "Program",   icon: Dumbbell,      ready: true  },
-  { key: "nutrition", label: "Nutrition", icon: Apple,         ready: false },
-  { key: "progress",  label: "Progress",  icon: LineChart,     ready: false },
+  { key: "nutrition", label: "Nutrition", icon: Apple,         ready: true  },
+  { key: "progress",  label: "Progress",  icon: LineChart,     ready: true  },
   { key: "notes",     label: "Notes",     icon: StickyNote,    ready: true  },
   { key: "chat",      label: "Chat",      icon: MessageSquare, ready: false },
 ];
@@ -63,6 +99,28 @@ function currentWeek(startDate: string | null, durationWeeks: number): number | 
   if (Number.isNaN(start)) return null;
   const elapsedWeeks = Math.floor((Date.now() - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
   return Math.max(1, Math.min(durationWeeks, elapsedWeeks));
+}
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatShortDate(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatFullDate(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function sortWeightLogs(logs: WeightLog[]) {
+  return [...logs].sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime());
 }
 
 export default function ClientDetailPage() {
@@ -90,6 +148,9 @@ export default function ClientDetailPage() {
   const [nutritionLoading, setNutritionLoading] = useState(false);
   const [nutritionError, setNutritionError] = useState<string | null>(null);
 
+  const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+
   const [trainerOptions, setTrainerOptions] = useState<{ value: string; label: string }[]>([]);
   const [assignBusy, setAssignBusy] = useState(false);
 
@@ -98,6 +159,22 @@ export default function ClientDetailPage() {
   const [reminderDue, setReminderDue] = useState("");
   const [remindersLoaded, setRemindersLoaded] = useState(false);
   const [reminderSaving, setReminderSaving] = useState(false);
+
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+  const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [progressLoaded, setProgressLoaded] = useState(false);
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [progressError, setProgressError] = useState<string | null>(null);
+  const [weightDraft, setWeightDraft] = useState("");
+  const [weightDate, setWeightDate] = useState(todayInputValue);
+  const [weightNote, setWeightNote] = useState("");
+  const [weightSaving, setWeightSaving] = useState(false);
+  const [selectedWeightId, setSelectedWeightId] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [photoDate, setPhotoDate] = useState(todayInputValue);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoInputKey, setPhotoInputKey] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -165,6 +242,39 @@ export default function ClientDetailPage() {
       .finally(() => setNutritionLoading(false));
   }, [tab, id, nutrition, nutritionLoading]);
 
+  // Lazy-load training activity for the trainer-only snapshot tabs.
+  useEffect(() => {
+    if (!["program", "nutrition", "progress"].includes(tab) || !id || activitySummary || activityLoading) return;
+    setActivityLoading(true);
+    fetch(`/api/clients/${id}/activity`, { cache: "no-store" })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Couldn't load activity.");
+        setActivitySummary(json as ActivitySummary);
+      })
+      .catch(() => setActivitySummary(null))
+      .finally(() => setActivityLoading(false));
+  }, [tab, id, activitySummary, activityLoading]);
+
+  // Lazy-load Progress tab data. GET routes are resilient while migration 024 is pending.
+  useEffect(() => {
+    if (tab !== "progress" || !id || progressLoaded) return;
+    setProgressLoaded(true);
+    setProgressLoading(true);
+    setProgressError(null);
+
+    Promise.all([
+      fetch(`/api/clients/${id}/weight`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/clients/${id}/photos`, { cache: "no-store" }).then((r) => r.json()),
+    ])
+      .then(([weightJson, photoJson]) => {
+        setWeightLogs(sortWeightLogs((weightJson.logs ?? []) as WeightLog[]));
+        setPhotos((photoJson.photos ?? []) as ProgressPhoto[]);
+      })
+      .catch((e) => setProgressError(e instanceof Error ? e.message : "Couldn't load progress."))
+      .finally(() => setProgressLoading(false));
+  }, [tab, id, progressLoaded]);
+
   // Lazy-load trainer reminders the first time the Notes tab is opened.
   useEffect(() => {
     if (tab !== "notes" || !id || remindersLoaded) return;
@@ -208,6 +318,75 @@ export default function ClientDetailPage() {
     setReminders((p) => p.filter((r) => r.id !== rid));
     const res = await fetch(`/api/clients/${id}/reminders?id=${encodeURIComponent(rid)}`, { method: "DELETE" });
     if (!res.ok) setReminders(prev);
+  }
+
+  async function addWeightLog() {
+    if (weightSaving) return;
+    const weight = Number(weightDraft);
+    if (!Number.isFinite(weight) || weight <= 0) return;
+
+    setWeightSaving(true);
+    setProgressError(null);
+    try {
+      const res = await fetch(`/api/clients/${id}/weight`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weight_kg: weight, logged_at: weightDate, note: weightNote }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't save weight.");
+      const log = json.log as WeightLog;
+      setWeightLogs((prev) => sortWeightLogs([...prev, log]));
+      setSelectedWeightId(log.id);
+      setWeightDraft("");
+      setWeightNote("");
+      setWeightDate(todayInputValue());
+    } catch (e) {
+      setProgressError(e instanceof Error ? e.message : "Couldn't save weight.");
+    } finally {
+      setWeightSaving(false);
+    }
+  }
+
+  async function deleteWeightLog(logId: string) {
+    const prev = weightLogs;
+    setWeightLogs((logs) => logs.filter((log) => log.id !== logId));
+    if (selectedWeightId === logId) setSelectedWeightId(null);
+    const res = await fetch(`/api/clients/${id}/weight?id=${encodeURIComponent(logId)}`, { method: "DELETE" });
+    if (!res.ok) setWeightLogs(prev);
+  }
+
+  async function uploadPhoto() {
+    if (!photoFile || photoUploading) return;
+
+    setPhotoUploading(true);
+    setProgressError(null);
+    try {
+      const body = new FormData();
+      body.set("file", photoFile);
+      body.set("taken_at", photoDate);
+      body.set("caption", photoCaption);
+
+      const res = await fetch(`/api/clients/${id}/photos`, { method: "POST", body });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't upload photo.");
+      setPhotos((prev) => [json.photo as ProgressPhoto, ...prev]);
+      setPhotoFile(null);
+      setPhotoCaption("");
+      setPhotoDate(todayInputValue());
+      setPhotoInputKey((k) => k + 1);
+    } catch (e) {
+      setProgressError(e instanceof Error ? e.message : "Couldn't upload photo.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  async function deletePhoto(photoId: string) {
+    const prev = photos;
+    setPhotos((p) => p.filter((photo) => photo.id !== photoId));
+    const res = await fetch(`/api/clients/${id}/photos?id=${encodeURIComponent(photoId)}`, { method: "DELETE" });
+    if (!res.ok) setPhotos(prev);
   }
 
   async function addNote() {
@@ -422,6 +601,8 @@ export default function ClientDetailPage() {
         {/* ── Program tab ── */}
         {tab === "program" && (
           <div className="no-print">
+            <ProgramSnapshot activity={activitySummary} program={program} loading={activityLoading} />
+
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-white/80 flex items-center gap-2">
                 <Dumbbell className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Current program
@@ -644,6 +825,7 @@ export default function ClientDetailPage() {
             <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
               <Apple className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Nutrition
             </h2>
+            <NutritionSnapshot n={nutrition} activity={activitySummary} loading={nutritionLoading} />
             {nutritionLoading ? (
               <div className="flex items-center justify-center py-12 text-white/40 text-sm">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading nutrition…
@@ -662,8 +844,38 @@ export default function ClientDetailPage() {
           </div>
         )}
 
-        {/* ── Not-yet-built tabs ── */}
-        {tab === "progress" && <ComingSoon icon={LineChart} title="Progress" blurb="Bodyweight chart, progress photos, and measurement trends — clickable to drill into each chart." />}
+        {/* ── Progress tab ── */}
+        {tab === "progress" && (
+          <ProgressTab
+            activity={activitySummary}
+            activityLoading={activityLoading}
+            weightLogs={weightLogs}
+            photos={photos}
+            loading={progressLoading}
+            error={progressError}
+            weightDraft={weightDraft}
+            weightDate={weightDate}
+            weightNote={weightNote}
+            weightSaving={weightSaving}
+            selectedWeightId={selectedWeightId}
+            photoFile={photoFile}
+            photoCaption={photoCaption}
+            photoDate={photoDate}
+            photoUploading={photoUploading}
+            photoInputKey={photoInputKey}
+            onWeightDraft={setWeightDraft}
+            onWeightDate={setWeightDate}
+            onWeightNote={setWeightNote}
+            onAddWeight={addWeightLog}
+            onDeleteWeight={deleteWeightLog}
+            onSelectWeight={setSelectedWeightId}
+            onPhotoFile={setPhotoFile}
+            onPhotoCaption={setPhotoCaption}
+            onPhotoDate={setPhotoDate}
+            onUploadPhoto={uploadPhoto}
+            onDeletePhoto={deletePhoto}
+          />
+        )}
         {tab === "chat" && <ComingSoon icon={MessageSquare} title="Chat" blurb={`The shared coaching conversation with ${name} will appear here, mirrored from their side.`} />}
       </div>
     </div>
@@ -686,6 +898,154 @@ function ProgramFact({ icon: Icon, label, value }: { icon: typeof User; label: s
         <Icon className="w-3 h-3" strokeWidth={1.8} /> {label}
       </p>
       <p className="text-sm font-medium text-white/85">{value}</p>
+    </div>
+  );
+}
+
+function ProgramSnapshot({
+  activity,
+  program,
+  loading,
+}: {
+  activity: ActivitySummary | null;
+  program: ClientProgram;
+  loading: boolean;
+}) {
+  const target = program?.weekly_training_days ?? null;
+  const thisWeek = activity?.thisWeek ?? 0;
+  const adherence = target ? Math.min(100, Math.round((thisWeek / target) * 100)) : null;
+
+  return (
+    <SnapshotGrid
+      className="mb-5"
+      items={[
+        {
+          icon: Activity,
+          label: "This week",
+          value: loading && !activity ? "…" : target ? `${thisWeek}/${target}` : String(thisWeek),
+          detail: target ? `${adherence}% target` : "sessions",
+        },
+        {
+          icon: CalendarDays,
+          label: "Last activity",
+          value: loading && !activity ? "…" : activity?.lastActivityAt ? formatShortDate(activity.lastActivityAt) : "None",
+          detail: activity?.last7 ? `${activity.last7} in 7 days` : "no recent logs",
+        },
+        {
+          icon: TrendingUp,
+          label: "30-day volume",
+          value: loading && !activity ? "…" : String(activity?.last30 ?? 0),
+          detail: "sessions logged",
+        },
+      ]}
+    />
+  );
+}
+
+function NutritionSnapshot({
+  n,
+  activity,
+  loading,
+}: {
+  n: NutritionSummary | null;
+  activity: ActivitySummary | null;
+  loading: boolean;
+}) {
+  const previousLogged = n?.days.slice(0, 7).filter((d) => d.meals > 0) ?? [];
+  const previousAvg = previousLogged.length
+    ? Math.round(previousLogged.reduce((sum, d) => sum + d.calories, 0) / previousLogged.length)
+    : 0;
+  const calorieDelta = n && previousAvg > 0 ? n.avg.calories - previousAvg : null;
+  const latestMeal = n?.recentMeals[0]?.logged_at ?? null;
+
+  return (
+    <SnapshotGrid
+      className="mb-5"
+      items={[
+        {
+          icon: Apple,
+          label: "Logged days",
+          value: loading && !n ? "…" : `${n?.daysLogged7 ?? 0}/7`,
+          detail: `${n?.totalMeals14 ?? 0} meals in 14 days`,
+        },
+        {
+          icon: TrendingUp,
+          label: "Calories",
+          value: loading && !n ? "…" : `${n?.avg.calories ?? 0}`,
+          detail: calorieDelta == null ? "7-day avg" : `${calorieDelta >= 0 ? "+" : ""}${calorieDelta} vs prior`,
+        },
+        {
+          icon: Activity,
+          label: "Training context",
+          value: String(activity?.last7 ?? 0),
+          detail: latestMeal ? `last meal ${formatShortDate(latestMeal)}` : "sessions in 7 days",
+        },
+      ]}
+    />
+  );
+}
+
+function ProgressSnapshot({
+  activity,
+  weightLogs,
+  photos,
+  loading,
+}: {
+  activity: ActivitySummary | null;
+  weightLogs: WeightLog[];
+  photos: ProgressPhoto[];
+  loading: boolean;
+}) {
+  const latest = weightLogs[weightLogs.length - 1] ?? null;
+  const previous = weightLogs.length > 1 ? weightLogs[weightLogs.length - 2] : null;
+  const delta = latest && previous ? Number(latest.weight_kg) - Number(previous.weight_kg) : null;
+  const lastPhoto = photos[0] ?? null;
+
+  return (
+    <SnapshotGrid
+      className="mb-5"
+      items={[
+        {
+          icon: Scale,
+          label: "Bodyweight",
+          value: loading && !latest ? "…" : latest ? `${Number(latest.weight_kg).toFixed(1)} kg` : "None",
+          detail: delta == null ? "latest log" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} kg`,
+        },
+        {
+          icon: Camera,
+          label: "Photos",
+          value: loading ? "…" : String(photos.length),
+          detail: lastPhoto ? `last ${formatShortDate(lastPhoto.taken_at)}` : "none uploaded",
+        },
+        {
+          icon: Activity,
+          label: "Consistency",
+          value: String(activity?.currentStreak ?? 0),
+          detail: "day training streak",
+        },
+      ]}
+    />
+  );
+}
+
+function SnapshotGrid({
+  items,
+  className,
+}: {
+  items: { icon: typeof User; label: string; value: string; detail: string }[];
+  className?: string;
+}) {
+  return (
+    <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-2.5", className)}>
+      {items.map(({ icon: Icon, label, value, detail }) => (
+        <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-white/30 mb-1 flex items-center gap-1.5">
+            <Icon className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.8} /> {label}
+          </p>
+          <p className="text-sm font-semibold text-white/90">{value}</p>
+          <p className="text-[11px] text-white/35 mt-0.5">{detail}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -763,6 +1123,328 @@ function MacroTile({ label, value, unit }: { label: string; value: number; unit:
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
       <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">{label}</p>
       <p className="text-sm font-semibold text-white/90">{value}<span className="text-white/40 font-normal text-xs"> {unit}</span></p>
+    </div>
+  );
+}
+
+function ProgressTab({
+  activity,
+  activityLoading,
+  weightLogs,
+  photos,
+  loading,
+  error,
+  weightDraft,
+  weightDate,
+  weightNote,
+  weightSaving,
+  selectedWeightId,
+  photoFile,
+  photoCaption,
+  photoDate,
+  photoUploading,
+  photoInputKey,
+  onWeightDraft,
+  onWeightDate,
+  onWeightNote,
+  onAddWeight,
+  onDeleteWeight,
+  onSelectWeight,
+  onPhotoFile,
+  onPhotoCaption,
+  onPhotoDate,
+  onUploadPhoto,
+  onDeletePhoto,
+}: {
+  activity: ActivitySummary | null;
+  activityLoading: boolean;
+  weightLogs: WeightLog[];
+  photos: ProgressPhoto[];
+  loading: boolean;
+  error: string | null;
+  weightDraft: string;
+  weightDate: string;
+  weightNote: string;
+  weightSaving: boolean;
+  selectedWeightId: string | null;
+  photoFile: File | null;
+  photoCaption: string;
+  photoDate: string;
+  photoUploading: boolean;
+  photoInputKey: number;
+  onWeightDraft: (value: string) => void;
+  onWeightDate: (value: string) => void;
+  onWeightNote: (value: string) => void;
+  onAddWeight: () => void;
+  onDeleteWeight: (id: string) => void;
+  onSelectWeight: (id: string | null) => void;
+  onPhotoFile: (file: File | null) => void;
+  onPhotoCaption: (value: string) => void;
+  onPhotoDate: (value: string) => void;
+  onUploadPhoto: () => void;
+  onDeletePhoto: (id: string) => void;
+}) {
+  const selectedWeight =
+    weightLogs.find((log) => log.id === selectedWeightId)
+    ?? weightLogs[weightLogs.length - 1]
+    ?? null;
+  const canSaveWeight = Number(weightDraft) > 0 && !!weightDate && !weightSaving;
+
+  return (
+    <div className="no-print">
+      <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
+        <LineChart className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Progress
+      </h2>
+
+      <ProgressSnapshot
+        activity={activity}
+        weightLogs={weightLogs}
+        photos={photos}
+        loading={loading || activityLoading}
+      />
+
+      {error && (
+        <p className="mb-4 rounded-xl border border-red-400/15 bg-red-400/8 px-3 py-2 text-xs text-red-200/80">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12 text-white/40 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading progress…
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <p className="text-sm font-semibold text-white/85 flex items-center gap-2">
+                  <Scale className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Bodyweight
+                </p>
+                <p className="text-[11px] text-white/35 mt-0.5">{weightLogs.length} log{weightLogs.length === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9rem] gap-2 mb-3">
+              <input
+                value={weightDraft}
+                onChange={(e) => onWeightDraft(e.target.value)}
+                type="number"
+                min="1"
+                step="0.1"
+                inputMode="decimal"
+                placeholder="Weight kg"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50"
+              />
+              <input
+                value={weightDate}
+                onChange={(e) => onWeightDate(e.target.value)}
+                type="date"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/75 outline-none focus:border-[#B48B40]/50 [color-scheme:dark]"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 mb-5">
+              <input
+                value={weightNote}
+                onChange={(e) => onWeightNote(e.target.value)}
+                placeholder="Note"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50"
+              />
+              <button
+                onClick={onAddWeight}
+                disabled={!canSaveWeight}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-3.5 py-2 text-xs font-semibold hover:bg-[#c99840] disabled:opacity-50 transition-all"
+              >
+                {weightSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5" strokeWidth={2} />}
+                Add log
+              </button>
+            </div>
+
+            <WeightChart logs={weightLogs} selectedId={selectedWeight?.id ?? null} onSelect={onSelectWeight} />
+
+            {selectedWeight && (
+              <div className="mt-3 rounded-xl border border-white/[0.06] bg-black/15 px-3 py-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white/85">
+                    {Number(selectedWeight.weight_kg).toFixed(1)} kg
+                    <span className="text-xs font-normal text-white/35"> · {formatFullDate(selectedWeight.logged_at)}</span>
+                  </p>
+                  {selectedWeight.note && <p className="text-xs text-white/50 mt-1 leading-relaxed">{selectedWeight.note}</p>}
+                </div>
+                <button
+                  onClick={() => onDeleteWeight(selectedWeight.id)}
+                  className="text-white/25 hover:text-red-300/80 transition-colors"
+                  aria-label="Delete weight log"
+                >
+                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <p className="text-sm font-semibold text-white/85 flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Progress photos
+                </p>
+                <p className="text-[11px] text-white/35 mt-0.5">Private files · signed previews</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9rem] gap-2 mb-2">
+              <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/60 hover:border-white/20 transition-colors">
+                <Upload className="w-4 h-4 text-white/35" strokeWidth={1.8} />
+                <span className="truncate">{photoFile ? photoFile.name : "Upload image"}</span>
+                <input
+                  key={photoInputKey}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  className="sr-only"
+                  onChange={(e) => onPhotoFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              <input
+                value={photoDate}
+                onChange={(e) => onPhotoDate(e.target.value)}
+                type="date"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/75 outline-none focus:border-[#B48B40]/50 [color-scheme:dark]"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 mb-5">
+              <input
+                value={photoCaption}
+                onChange={(e) => onPhotoCaption(e.target.value)}
+                placeholder="Caption"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50"
+              />
+              <button
+                onClick={onUploadPhoto}
+                disabled={!photoFile || photoUploading}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-3.5 py-2 text-xs font-semibold hover:bg-[#c99840] disabled:opacity-50 transition-all"
+              >
+                {photoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" strokeWidth={2} />}
+                Add photo
+              </button>
+            </div>
+
+            {photos.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/[0.08] bg-black/10 px-5 py-8 text-center">
+                <ImageIcon className="w-7 h-7 text-white/15 mx-auto mb-3" strokeWidth={1.5} />
+                <p className="text-sm text-white/55">No progress photos yet</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {photos.map((photo) => (
+                  <div key={photo.id} className="group overflow-hidden rounded-xl border border-white/[0.06] bg-black/20">
+                    <div className="aspect-[4/5] bg-white/[0.03]">
+                      {photo.signed_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={photo.signed_url} alt={photo.caption ?? "Progress photo"} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-white/25">
+                          <ImageIcon className="w-6 h-6" strokeWidth={1.5} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] text-white/35">{formatFullDate(photo.taken_at)}</p>
+                        <button
+                          onClick={() => onDeletePhoto(photo.id)}
+                          className="text-white/25 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all"
+                          aria-label="Delete progress photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                        </button>
+                      </div>
+                      {photo.caption && <p className="text-xs text-white/65 mt-1 truncate">{photo.caption}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WeightChart({
+  logs,
+  selectedId,
+  onSelect,
+}: {
+  logs: WeightLog[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  if (logs.length === 0) {
+    return (
+      <div className="h-44 rounded-2xl border border-dashed border-white/[0.08] bg-black/10 flex flex-col items-center justify-center text-center">
+        <Scale className="w-7 h-7 text-white/15 mb-3" strokeWidth={1.5} />
+        <p className="text-sm text-white/55">No bodyweight logs yet</p>
+      </div>
+    );
+  }
+
+  const values = logs.map((log) => Number(log.weight_kg));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(1, max - min);
+  const width = 360;
+  const height = 168;
+  const pad = { top: 18, right: 18, bottom: 30, left: 40 };
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
+  const points = logs.map((log, index) => {
+    const x = pad.left + (logs.length === 1 ? chartW / 2 : (index / (logs.length - 1)) * chartW);
+    const y = pad.top + ((max - Number(log.weight_kg)) / span) * chartH;
+    return { log, x, y };
+  });
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-black/15 px-2 py-2">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full overflow-visible">
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top} y2={pad.top} className="stroke-white/5" />
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH / 2} y2={pad.top + chartH / 2} className="stroke-white/5" />
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} className="stroke-white/5" />
+        <text x={8} y={pad.top + 4} className="fill-white/30 text-[10px]">{max.toFixed(1)}</text>
+        <text x={8} y={pad.top + chartH + 4} className="fill-white/30 text-[10px]">{min.toFixed(1)}</text>
+        {logs.length > 1 && <path d={path} fill="none" className="stroke-[#B48B40]" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
+        {points.map(({ log, x, y }) => {
+          const selected = selectedId === log.id;
+          return (
+            <circle
+              key={log.id}
+              cx={x}
+              cy={y}
+              r={selected ? 5.5 : 4}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelect(log.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") onSelect(log.id);
+              }}
+              className={cn(
+                "cursor-pointer stroke-[#0A0A0A] transition-all",
+                selected ? "fill-[#F0C66E]" : "fill-[#B48B40] hover:fill-[#F0C66E]",
+              )}
+              strokeWidth={2}
+            >
+              <title>{`${formatFullDate(log.logged_at)} · ${Number(log.weight_kg).toFixed(1)} kg`}</title>
+            </circle>
+          );
+        })}
+        {points.length > 0 && (
+          <>
+            <text x={pad.left} y={height - 8} className="fill-white/30 text-[10px]">{formatShortDate(points[0].log.logged_at)}</text>
+            <text x={width - pad.right - 44} y={height - 8} className="fill-white/30 text-[10px]">{formatShortDate(points[points.length - 1].log.logged_at)}</text>
+          </>
+        )}
+      </svg>
     </div>
   );
 }

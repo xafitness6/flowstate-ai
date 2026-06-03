@@ -8,20 +8,24 @@ import { useUser } from "@/context/UserContext";
 import type { ViewMode } from "@/context/UserContext";
 import { hasAccess, isAdmin } from "@/lib/roles";
 import { planHasAccess, PLAN_LABELS } from "@/lib/plans";
+import { FEATURES, type Feature } from "@/lib/entitlements";
+import { useEntitlement } from "@/hooks/useEntitlement";
 import type { NavItem } from "@/types";
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Home",           href: "/dashboard",      icon: Home },
-  { label: "Program",        href: "/program",        icon: Dumbbell },
-  { label: "Nutrition",      href: "/nutrition",      icon: Utensils,     roles: ["client"], plan: "training"   },
-  { label: "Calendar",       href: "/calendar",       icon: CalendarDays, roles: ["client"], plan: "training"   },
-  { label: "Coach",          href: "/coach",          icon: Bot,          roles: ["client"], plan: "training"   },
-  { label: "Accountability", href: "/accountability", icon: CheckSquare },
-  { label: "Breathwork",     href: "/breathwork",     icon: Wind },
-  { label: "My Clients",     href: "/my-clients",     icon: UserCheck,    roles: ["trainer"]                },
-  { label: "Library",        href: "/library",        icon: Film,         roles: ["trainer"], plan: "training"  },
-  { label: "Form Analysis",  href: "/form",           icon: Clapperboard, roles: ["trainer"], plan: "performance"},
-  { label: "Leaderboard",    href: "/leaderboard",    icon: Trophy },
+export type AppNavItem = NavItem & { feature?: Feature };
+
+export const NAV_ITEMS: AppNavItem[] = [
+  { label: "Home",           href: "/dashboard",      icon: Home,         feature: FEATURES.DASHBOARD },
+  { label: "Program",        href: "/program",        icon: Dumbbell,     feature: FEATURES.PROGRAM_VIEW },
+  { label: "Nutrition",      href: "/nutrition",      icon: Utensils,     roles: ["client"], plan: "training", feature: FEATURES.NUTRITION },
+  { label: "Calendar",       href: "/calendar",       icon: CalendarDays, roles: ["client"], plan: "training", feature: FEATURES.CALENDAR },
+  { label: "Coach",          href: "/coach",          icon: Bot,          roles: ["client"], plan: "training", feature: FEATURES.COACH },
+  { label: "Accountability", href: "/accountability", icon: CheckSquare,  feature: FEATURES.ACCOUNTABILITY_BASIC },
+  { label: "Breathwork",     href: "/breathwork",     icon: Wind,         feature: FEATURES.BREATHWORK },
+  { label: "My Clients",     href: "/my-clients",     icon: UserCheck,    roles: ["trainer"] },
+  { label: "Library",        href: "/library",        icon: Film,         roles: ["trainer"], plan: "training" },
+  { label: "Form Analysis",  href: "/form",           icon: Clapperboard, roles: ["trainer"], plan: "performance" },
+  { label: "Leaderboard",    href: "/leaderboard",    icon: Trophy,       feature: FEATURES.LEADERBOARD },
   { label: "Profile",        href: "/profile",        icon: User },
 ];
 
@@ -29,6 +33,7 @@ export function Sidebar() {
   const pathname    = usePathname();
   const router      = useRouter();
   const { user, viewMode, setViewMode } = useUser();
+  const { can } = useEntitlement();
 
   function handleViewToggle() {
     const next: ViewMode = viewMode === "operator" ? "personal" : "operator";
@@ -51,7 +56,7 @@ export function Sidebar() {
           const active  = item.href === "/dashboard"
             ? pathname === "/dashboard" || pathname.startsWith("/dashboard/")
             : pathname === item.href;
-          const locked  = !!item.plan && !planHasAccess(user.plan, item.plan);
+          const locked  = item.feature ? !can(item.feature) : !!item.plan && !planHasAccess(user.plan, item.plan);
           const Icon    = item.icon;
 
           return (
