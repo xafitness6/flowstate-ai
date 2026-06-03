@@ -69,6 +69,10 @@ export function FoodSearchModal({ userId, onMealLogged, onClose }: Props) {
   const [selected, setSelected] = useState<FoodEntry | null>(null);
   const [qty,      setQty]      = useState("1");
   const [mealType, setMealType] = useState<MealType>("snack");
+  const [saving,   setSaving]   = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  // Running confirmation so the user can keep adding items without the modal closing
+  const [added,    setAdded]    = useState<{ name: string; count: number } | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
@@ -96,43 +100,59 @@ export function FoodSearchModal({ userId, onMealLogged, onClose }: Props) {
   function handleSelect(food: FoodEntry) {
     setSelected(food);
     setQty("1");
+    setAddError(null);
   }
 
   async function handleAdd() {
-    if (!selected) return;
+    if (!selected || saving) return;
+    const food   = selected;
     const qtyNum = parseFloat(qty) || 1;
-    const macros = scaleMacros(selected, qtyNum);
+    const macros = scaleMacros(food, qtyNum);
     const now    = new Date().toISOString();
 
-    const meal = await saveMeal(userId, {
-      userId,
-      source:          "manual",
-      mealType,
-      eatenAt:         now,
-      rawTranscript:   null,
-      cleanTranscript: selected.name,
-      notes:           null,
-      items: [{
-        id:         `fi_${Date.now()}_0`,
-        name:       selected.name,
-        quantity:   qtyNum,
-        unit:       selected.serving,
-        grams:      Math.round(selected.servingGrams * qtyNum),
-        calories:   macros.calories,
-        protein:    macros.protein,
-        carbs:      macros.carbs,
-        fat:        macros.fat,
-        confidence: 1,
-        source:     "manual",
-        deletedAt:  null,
-      }],
-      totals:      macros,
-      needsReview: false,
-    });
+    setSaving(true);
+    setAddError(null);
+    try {
+      const meal = await saveMeal(userId, {
+        userId,
+        source:          "manual",
+        mealType,
+        eatenAt:         now,
+        rawTranscript:   null,
+        cleanTranscript: food.name,
+        notes:           null,
+        items: [{
+          id:         `fi_${Date.now()}_0`,
+          name:       food.name,
+          quantity:   qtyNum,
+          unit:       food.serving,
+          grams:      Math.round(food.servingGrams * qtyNum),
+          calories:   macros.calories,
+          protein:    macros.protein,
+          carbs:      macros.carbs,
+          fat:        macros.fat,
+          confidence: 1,
+          source:     "manual",
+          deletedAt:  null,
+        }],
+        totals:      macros,
+        needsReview: false,
+      });
 
-    recordFoodUse(userId, selected);
-    onMealLogged(meal);
-    onClose();
+      recordFoodUse(userId, food);
+      onMealLogged(meal);
+
+      // Keep the modal open so the user can add another item in one sitting.
+      setAdded((prev) => ({ name: food.name, count: (prev?.count ?? 0) + 1 }));
+      setSelected(null);
+      setQty("1");
+      setRecents(getRecentFoods(userId, 6));
+      setTimeout(() => inputRef.current?.focus(), 50);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Could not add this food. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const showSearch = query.trim().length > 0;
@@ -243,12 +263,34 @@ export function FoodSearchModal({ userId, onMealLogged, onClose }: Props) {
                 </select>
                 <button
                   onClick={handleAdd}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/30 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 transition-all"
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/30 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
                   <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
-                  Add
+                  {saving ? "Adding…" : "Add"}
                 </button>
               </div>
+
+              {addError && (
+                <p className="mt-2 text-[11px] text-[#EF4444]/80">{addError}</p>
+              )}
+            </div>
+          )}
+
+          {/* Keep-adding confirmation — shown after an item is logged, while nothing is selected */}
+          {added && !selected && (
+            <div className="px-4 py-3 border-b border-white/[0.07] bg-emerald-400/[0.04] flex items-center gap-3">
+              <Check className="w-4 h-4 text-emerald-400/70 shrink-0" strokeWidth={2.5} />
+              <p className="flex-1 text-sm text-white/65 truncate">
+                Added <span className="text-white/85 font-medium">{added.name}</span>
+                <span className="text-white/35"> · {added.count} logged</span>
+              </p>
+              <button
+                onClick={onClose}
+                className="shrink-0 px-3 py-1.5 rounded-lg border border-white/[0.12] text-xs font-semibold text-white/70 hover:text-white hover:border-white/25 transition-all"
+              >
+                Done
+              </button>
             </div>
           )}
 

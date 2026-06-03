@@ -1195,7 +1195,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   }
 
   function handleMealLogged(meal: LoggedMeal) {
-    setAnalysisOpen(false);
+    // Don't slam the modal shut — let PhotoTab/VoiceTab show their "Meal logged ✓"
+    // confirmation (with "Log another"). The user closes the sheet themselves.
+    // Closing instantly here made a successful save look like the meal was deleted.
     addMealToState(meal);
   }
 

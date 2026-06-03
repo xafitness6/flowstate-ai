@@ -61,6 +61,13 @@ html, body {
   overscroll-behavior-y: none;
 }
 
+/* The app is dark-only. Declaring the color-scheme stops Chrome's auto-dark-mode
+   and similar browser features from inverting the UI into a broken "light" theme
+   (which left sticky action bars stranded as black bars on a white background). */
+:root {
+  color-scheme: dark;
+}
+
 /* Flowstate dark theme — default */
 :root {
   --background: #0a0a0a;
