@@ -70,7 +70,7 @@ const PUSH_BAND_LABELS = [
 const COACHING_TONES     = [{ value: "direct", label: "Direct" }, { value: "supportive", label: "Supportive" }, { value: "analytical", label: "Analytical" }];
 const PROFANITY_OPTIONS  = [{ value: "off", label: "Off" }, { value: "mild", label: "Mild" }];
 const STYLE_OPTIONS      = [{ value: "lite", label: "Lite" }, { value: "pro", label: "Pro" }];
-const UNIT_SYSTEMS: { value: UnitSystem; label: string }[] = [{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }];
+const UNIT_SYSTEMS: { value: UnitSystem; label: string }[] = [{ value: "metric", label: "kg" }, { value: "imperial", label: "lbs" }];
 const DASHBOARD_DEFAULTS = [{ value: "overview", label: "Overview" }, { value: "program", label: "Program" }, { value: "nutrition", label: "Nutrition" }, { value: "accountability", label: "Accountability" }];
 
 const COACH_PREVIEW: Record<string, string> = {

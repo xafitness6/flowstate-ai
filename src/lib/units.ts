@@ -73,6 +73,6 @@ export function displayUnitToKg(weight: number, unitSystem: UnitSystem): number 
   return unitSystem === "imperial" ? weight / 2.2046226218 : weight;
 }
 
-export function weightUnitLabel(unitSystem: UnitSystem): "kg" | "lb" {
-  return unitSystem === "imperial" ? "lb" : "kg";
+export function weightUnitLabel(unitSystem: UnitSystem): "kg" | "lbs" {
+  return unitSystem === "imperial" ? "lbs" : "kg";
 }
