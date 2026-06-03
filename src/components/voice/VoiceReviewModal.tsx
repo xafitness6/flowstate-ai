@@ -17,9 +17,10 @@ interface VoiceReviewModalProps {
   isSupported: boolean;
 
   // Content
-  label?:       string;
-  placeholder?: string;
-  helperText?:  string;
+  label?:        string;
+  placeholder?:  string;
+  helperText?:   string;
+  confirmLabel?: string;
 
   // When true, filler words are stripped from the transcript automatically
   // when the user stops recording. The raw transcript is captured separately
@@ -41,7 +42,7 @@ interface VoiceReviewModalProps {
 export function VoiceReviewModal({
   status, transcript, interim, confidence, error, isSupported,
   label = "Voice input", placeholder = "Tap the mic and speak…",
-  helperText,
+  helperText, confirmLabel = "Confirm",
   autoClean = false, onRawTranscript,
   onStart, onStop, onReset, onTranscriptChange, onConfirm, onCancel,
   disabled,
@@ -163,7 +164,7 @@ export function VoiceReviewModal({
               )}
             >
               <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
-              Confirm
+              {confirmLabel}
             </button>
           </div>
         </div>

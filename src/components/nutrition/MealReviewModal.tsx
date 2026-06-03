@@ -468,7 +468,7 @@ export function MealReviewModal({
             className="flex-1 py-2.5 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 hover:border-[#B48B40]/35 disabled:opacity-30 disabled:cursor-not-allowed transition-all inline-flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.6} />}
-            {saving ? "Saving..." : "Save meal"}
+            {saving ? "Confirming..." : "Confirm meal"}
           </button>
         </div>
       </div>

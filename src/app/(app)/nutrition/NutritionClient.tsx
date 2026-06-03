@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useVoiceInput }      from "@/hooks/useVoiceInput";
 import { VoiceReviewModal }   from "@/components/voice/VoiceReviewModal";
-import { MealReviewModal }    from "@/components/nutrition/MealReviewModal";
+import { GroupedMealReviewModal, type ReviewMealInput } from "@/components/nutrition/GroupedMealReviewModal";
 import { MealEditModal }      from "@/components/nutrition/MealEditModal";
 import { AIFoodAnalysis }     from "@/components/nutrition/AIFoodAnalysis";
 import { CalendarOverlay }    from "@/components/nutrition/CalendarOverlay";
@@ -55,13 +55,6 @@ type SuggType    = "warning" | "info" | "positive";
 
 type Suggestion = { id: string; type: SuggType; label: string; body: string };
 type MealLogEntry = { text: string; slot: MealSlotKey | null; mealType: MealType | null };
-type PendingMealReview = {
-  id: string;
-  parseResult: NutritionParseResult;
-  rawTranscript: string;
-  slot: MealSlotKey | null;
-  mealType: MealType | null;
-};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -898,12 +891,14 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   const [calendarOpen,   setCalendarOpen]   = useState(false);
   const [foodSearchOpen, setFoodSearchOpen] = useState(false);
 
-  // Voice → parse → review flow
-  const [parsing,           setParsing]           = useState(false);
-  const [pendingReviews,    setPendingReviews]     = useState<PendingMealReview[]>([]);
+  // Voice → parse → review flow.
+  // Every detected meal routes through one grouped review (no silent auto-save):
+  // the user confirms the whole day at once, organized breakfast → lunch → dinner.
+  const [parsing,     setParsing]     = useState(false);
+  const [reviewMeals, setReviewMeals] = useState<ReviewMealInput[]>([]);
   // Raw transcript captured the moment recording stops — before filler cleaning
   const rawTranscriptRef = useRef<string>("");
-  // Auto-save feedback toast
+  // Save feedback toast
   const [saveFeedback, setSaveFeedback] = useState<{ label: string; calories: number } | null>(null);
 
   // Undo state
@@ -976,7 +971,6 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   }, [meals]);
 
   const isToday = selectedDate === todayISO();
-  const pendingReview = pendingReviews[0] ?? null;
 
   // ── Hydration helpers ───────────────────────────────────────────────────────
 
@@ -1016,7 +1010,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
     setShowVoice(false);
     setParsing(true);
-    setPendingReviews([]);
+    setReviewMeals([]);
 
     // Time-of-day context helps the AI pick the right meal type
     const hour        = new Date().getHours();
@@ -1031,10 +1025,12 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
       ? [{ text: processedTranscript, slot: voiceSlot, mealType: SLOT_TO_MEAL_TYPE[voiceSlot] }]
       : splitMealEntries(processedTranscript);
 
+    const baseTs = Date.now();
+
     try {
-      const needsReview: PendingMealReview[] = [];
-      let savedCount = 0;
-      let savedCalories = 0;
+      // Parse every meal entry, then route them ALL into one grouped review —
+      // nothing auto-saves, so the user confirms the full day at once.
+      const collected: ReviewMealInput[] = [];
 
       for (const [idx, entry] of entries.entries()) {
         const entryContext = [
@@ -1050,81 +1046,60 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
         if (!res.ok) throw new Error("parse failed");
         const parsed: NutritionParseResult = await res.json();
-        const data: NutritionParseResult = {
-          ...parsed,
-          mealType: entry.mealType ?? parsed.mealType,
-        };
+        const mealType: MealType =
+          entry.mealType ?? (parsed.mealType === "unknown" ? "snack" : parsed.mealType);
 
-        if (data.items.length === 0) {
-          if (data.hydrationMl && data.hydrationMl > 0) applyHydration(data.hydrationMl);
+        if (parsed.items.length === 0) {
+          // Water-only entry — nothing to review; apply hydration directly.
+          if (parsed.hydrationMl && parsed.hydrationMl > 0) applyHydration(parsed.hydrationMl);
           continue;
         }
 
-        if (data.confidence >= 0.85) {
-          const meal = await doSaveMeal(data, entry.text, { slot: entry.slot, mealType: entry.mealType });
-          if (data.hydrationMl && data.hydrationMl > 0) applyHydration(data.hydrationMl, meal.id);
-          savedCount += 1;
-          savedCalories += meal.totals.calories;
-          continue;
-        }
-
-        needsReview.push({
-          id: `review_${Date.now()}_${idx}`,
-          parseResult: data,
-          rawTranscript: entry.text,
-          slot: entry.slot,
-          mealType: entry.mealType,
+        collected.push({
+          id:              `review_${baseTs}_${idx}`,
+          mealType,
+          source:          "voice",
+          rawTranscript:   entry.text,
+          cleanTranscript: parsed.cleanTranscript,
+          confidence:      parsed.confidence,
+          hydrationMl:     parsed.hydrationMl ?? null,
+          items:           parsed.items,
         });
       }
 
-      if (needsReview.length > 0) {
-        setPendingReviews(needsReview);
-      }
-
-      if (savedCount > 0) {
-        setSaveFeedback({
-          label: savedCount === 1 ? "Meal saved" : `${savedCount} meals saved`,
-          calories: Math.round(savedCalories),
-        });
-        setTimeout(() => setSaveFeedback(null), 3500);
-      }
+      if (collected.length > 0) setReviewMeals(collected);
 
     } catch {
-      // API unavailable — regex fallback → always goes to review
+      // API unavailable — regex fallback still goes through the same review.
       const { parseMealFromTranscript } = await import("@/lib/voiceParser");
       const fallback = parseMealFromTranscript(processedTranscript);
+      const water    = parseWaterFromTranscript(processedTranscript);
 
-      const water = parseWaterFromTranscript(processedTranscript);
-      if (water.amountMl > 0) applyHydration(water.amountMl);
-
-      const now  = new Date().toISOString();
-      const meal = await saveMeal(user.id, {
-        userId:          user.id,
-        source:          "voice",
-        mealType:        (fallback.mealType as MealType) ?? "unknown",
-        eatenAt:         now,
-        rawTranscript,
-        cleanTranscript: fallback.name,
-        notes:           null,
-        items:           fallback.items.map((i, idx) => ({
-          id:         `fi_${Date.now()}_${idx}`,
-          name:       i.food,
-          quantity:   i.quantity ? parseFloat(i.quantity) : null,
-          unit:       i.unit ?? null,
-          grams:      null,
-          calories:   null,
-          protein:    null,
-          carbs:      null,
-          fat:        null,
-          confidence: fallback.confidence,
-          source:     "voice" as const,
-          deletedAt:  null,
-        })),
-        totals:      { calories: 0, protein: 0, carbs: 0, fat: 0 },
-        needsReview: true,
-      });
-
-      addMealToState(meal);
+      if (fallback.items.length > 0) {
+        setReviewMeals([{
+          id:              `review_${baseTs}_fallback`,
+          mealType:        voiceSlot ? SLOT_TO_MEAL_TYPE[voiceSlot]
+                            : (fallback.mealType as MealType) ?? "snack",
+          source:          "voice",
+          rawTranscript,
+          cleanTranscript: fallback.name,
+          confidence:      fallback.confidence,
+          hydrationMl:     water.amountMl > 0 ? water.amountMl : null,
+          items: fallback.items.map((i) => ({
+            name:       i.food,
+            quantity:   i.quantity ? parseFloat(i.quantity) : null,
+            unit:       i.unit ?? null,
+            grams:      null,
+            calories:   null,
+            protein:    null,
+            carbs:      null,
+            fat:        null,
+            confidence: fallback.confidence,
+          })),
+        }]);
+      } else if (water.amountMl > 0) {
+        applyHydration(water.amountMl);
+      }
     } finally {
       setParsing(false);
       setVoiceSlot(null);
@@ -1133,65 +1108,28 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     }
   }
 
-  async function doSaveMeal(
-    data: NutritionParseResult,
-    rawTranscript: string,
-    opts: { slot: MealSlotKey | null; mealType: MealType | null } = { slot: voiceSlot, mealType: null },
-  ): Promise<LoggedMeal> {
-    return saveParsedMeal(data, rawTranscript, opts);
-  }
-
-  async function saveParsedMeal(
-    data: NutritionParseResult,
-    rawTranscript: string,
-    opts: { slot: MealSlotKey | null; mealType: MealType | null },
-  ): Promise<LoggedMeal> {
-    const now      = new Date().toISOString();
-    const mealType: MealType = opts.mealType
-      ?? (opts.slot ? SLOT_TO_MEAL_TYPE[opts.slot] : data.mealType === "unknown" ? "snack" : data.mealType);
-
-    const meal = await saveMeal(user.id, {
-      userId:          user.id,
-      source:          "voice",
-      mealType,
-      eatenAt:         now,
-      rawTranscript,
-      cleanTranscript: data.cleanTranscript,
-      notes:           null,
-      items:           data.items.map((item, i) => ({
-        id:         `fi_${Date.now()}_${i}`,
-        name:       item.name,
-        quantity:   item.quantity,
-        unit:       item.unit,
-        grams:      item.grams,
-        calories:   item.calories,
-        protein:    item.protein,
-        carbs:      item.carbs,
-        fat:        item.fat,
-        confidence: item.confidence,
-        source:     "voice" as const,
-        deletedAt:  null,
-      })),
-      totals:      data.totals,
-      needsReview: false,
-    });
-
-    addMealToState(meal);
-    return meal;
-  }
-
   function addMealToState(meal: LoggedMeal) {
     if (toDateISO(new Date(meal.eatenAt)) === selectedDate) {
       setMeals((prev) => [meal, ...prev]);
     }
   }
 
-  function handleReviewSave(meal: LoggedMeal) {
-    const reviewed = pendingReview;
-    setPendingReviews((prev) => prev.slice(1));
-    // Apply hydration only after review save so water is not double-counted.
-    if (reviewed?.parseResult.hydrationMl) applyHydration(reviewed.parseResult.hydrationMl, meal.id);
-    addMealToState(meal);
+  function handleGroupedReviewSaved(saved: { meal: LoggedMeal; hydrationMl: number | null }[]) {
+    setReviewMeals([]);
+    let totalCalories = 0;
+    for (const { meal, hydrationMl } of saved) {
+      addMealToState(meal);
+      // Apply hydration only after save so water isn't double-counted.
+      if (hydrationMl && hydrationMl > 0) applyHydration(hydrationMl, meal.id);
+      totalCalories += meal.totals.calories;
+    }
+    if (saved.length > 0) {
+      setSaveFeedback({
+        label: saved.length === 1 ? "Meal saved" : `${saved.length} meals saved`,
+        calories: Math.round(totalCalories),
+      });
+      setTimeout(() => setSaveFeedback(null), 3500);
+    }
   }
 
   function handleMealLogged(meal: LoggedMeal) {
@@ -1624,6 +1562,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
               : "To track multiple meals at once, put each meal on its own line with a label like Breakfast:, Lunch:, Dinner:, or Snack:."
           }
           autoClean
+          confirmLabel="Review meal"
           onRawTranscript={(raw) => { rawTranscriptRef.current = raw; }}
           onStart={voice.start}
           onStop={voice.stop}
@@ -1634,17 +1573,12 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         />
       )}
 
-      {pendingReview && (
-        <MealReviewModal
-          key={pendingReview.id}
-          parseResult={pendingReview.parseResult}
-          rawTranscript={pendingReview.rawTranscript}
-          source="voice"
+      {reviewMeals.length > 0 && (
+        <GroupedMealReviewModal
+          meals={reviewMeals}
           userId={user.id}
-          initialSlot={pendingReview.slot}
-          lowConfidence={pendingReview.parseResult.confidence < 0.6}
-          onSave={handleReviewSave}
-          onCancel={() => setPendingReviews((prev) => prev.slice(1))}
+          onSaved={handleGroupedReviewSaved}
+          onCancel={() => setReviewMeals([])}
         />
       )}
 
