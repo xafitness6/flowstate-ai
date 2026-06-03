@@ -11,9 +11,9 @@ import { planHasAccess, PLAN_LABELS } from "@/lib/plans";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { NAV_ITEMS, type AppNavItem } from "./Sidebar";
 
-const STORAGE_KEY = "flowstate-bottomnav-items";
+const STORAGE_KEY = "flowstate-bottomnav-items-v2";
 const MAX_PINNED = 5;
-const DEFAULT_PINNED = ["/dashboard", "/program", "/nutrition", "/coach", "/progress"];
+const DEFAULT_PINNED = ["/dashboard", "/program", "/nutrition", "/calendar", "/coach"];
 
 function unique(values: string[]) {
   return [...new Set(values)];
