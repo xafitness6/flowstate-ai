@@ -21,6 +21,7 @@ type ClientProfile = {
   assigned_trainer_name: string | null;
 };
 type Note = { id: string; body: string; author_name: string | null; created_at: string; shared_with_client?: boolean };
+type Reminder = { id: string; body: string; due_date: string | null; done: boolean; created_at: string };
 type IntakeMeta = {
   onboarding_complete: boolean | null;
   program_generated: boolean | null;
@@ -92,6 +93,12 @@ export default function ClientDetailPage() {
   const [trainerOptions, setTrainerOptions] = useState<{ value: string; label: string }[]>([]);
   const [assignBusy, setAssignBusy] = useState(false);
 
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminderDraft, setReminderDraft] = useState("");
+  const [reminderDue, setReminderDue] = useState("");
+  const [remindersLoaded, setRemindersLoaded] = useState(false);
+  const [reminderSaving, setReminderSaving] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
@@ -157,6 +164,51 @@ export default function ClientDetailPage() {
       .catch((e) => setNutritionError(e instanceof Error ? e.message : "Couldn't load nutrition."))
       .finally(() => setNutritionLoading(false));
   }, [tab, id, nutrition, nutritionLoading]);
+
+  // Lazy-load trainer reminders the first time the Notes tab is opened.
+  useEffect(() => {
+    if (tab !== "notes" || !id || remindersLoaded) return;
+    setRemindersLoaded(true);
+    fetch(`/api/clients/${id}/reminders`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setReminders(j.reminders ?? []))
+      .catch(() => {});
+  }, [tab, id, remindersLoaded]);
+
+  async function addReminder() {
+    const body = reminderDraft.trim();
+    if (!body || reminderSaving) return;
+    setReminderSaving(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/reminders`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body, due_date: reminderDue || undefined }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Couldn't add reminder.");
+      setReminders((prev) => [j.reminder, ...prev]);
+      setReminderDraft(""); setReminderDue("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't add reminder.");
+    } finally {
+      setReminderSaving(false);
+    }
+  }
+
+  async function toggleReminder(rid: string, done: boolean) {
+    setReminders((prev) => prev.map((r) => (r.id === rid ? { ...r, done } : r)));
+    await fetch(`/api/clients/${id}/reminders`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: rid, done }),
+    }).catch(() => {});
+  }
+
+  async function deleteReminder(rid: string) {
+    const prev = reminders;
+    setReminders((p) => p.filter((r) => r.id !== rid));
+    const res = await fetch(`/api/clients/${id}/reminders?id=${encodeURIComponent(rid)}`, { method: "DELETE" });
+    if (!res.ok) setReminders(prev);
+  }
 
   async function addNote() {
     const body = draft.trim();
@@ -453,6 +505,61 @@ export default function ClientDetailPage() {
         {/* ── Notes tab ── */}
         {tab === "notes" && (
           <div className="no-print">
+            {/* Reminders — private to you (the trainer), never shown to the client */}
+            <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Reminders
+              <span className="text-[10px] font-normal text-white/30">· private to you</span>
+            </h2>
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 mb-3">
+              <input
+                value={reminderDraft}
+                onChange={(e) => setReminderDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void addReminder(); }}
+                placeholder="Add a reminder — e.g. check in on her knee, send new macros…"
+                className="w-full bg-transparent text-sm text-white/90 placeholder:text-white/25 outline-none px-1"
+              />
+              <div className="flex items-center justify-between gap-2 mt-2">
+                <input
+                  type="date"
+                  value={reminderDue}
+                  onChange={(e) => setReminderDue(e.target.value)}
+                  className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 outline-none [color-scheme:dark]"
+                />
+                <button
+                  onClick={addReminder}
+                  disabled={!reminderDraft.trim() || reminderSaving}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-3.5 py-2 text-xs font-semibold hover:bg-[#c99840] disabled:opacity-50 transition-all"
+                >
+                  {reminderSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" strokeWidth={2} />}
+                  Add
+                </button>
+              </div>
+            </div>
+            {reminders.length > 0 && (
+              <div className="space-y-1.5 mb-6">
+                {reminders.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 group">
+                    <button onClick={() => toggleReminder(r.id, !r.done)} className="shrink-0" aria-label="Toggle done">
+                      {r.done
+                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400/80" strokeWidth={2} />
+                        : <span className="block w-4 h-4 rounded-full border border-white/25" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("text-sm leading-snug", r.done ? "text-white/35 line-through" : "text-white/85")}>{r.body}</p>
+                      {r.due_date && (
+                        <p className="text-[10px] text-white/30 mt-0.5">
+                          Due {new Date(r.due_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </p>
+                      )}
+                    </div>
+                    <button onClick={() => deleteReminder(r.id)} className="text-white/25 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Delete reminder">
+                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
               <StickyNote className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Client notes
             </h2>
