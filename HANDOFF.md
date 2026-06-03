@@ -1,7 +1,7 @@
 # HANDOFF — Coaching build-out (client file, trainer assignment, notifications)
 
 **Date:** 2026-06-02
-**Status:** Large feature build-out shipped to production (`main` auto-deploys via Vercel). Two DB migrations are NOT yet applied — see §1. Four features remain — see §4.
+**Status:** Large feature build-out shipped to production (`main` auto-deploys via Vercel). Three DB migrations are NOT yet applied — see §1. Three features remain — see §4.
 
 > Supersedes the 2026-05-24 password-reset handoff — that issue is resolved
 > (Resend `from` fixed, custom domain `flowstateai.site` live, auth redirect
@@ -9,7 +9,7 @@
 
 ---
 
-## 1. ⚠️ ACTION REQUIRED — apply two migrations (Supabase → SQL Editor)
+## 1. ⚠️ ACTION REQUIRED — apply three migrations (Supabase → SQL Editor)
 
 Migrations do NOT auto-apply on this project (no `SUPABASE_ACCESS_TOKEN`); the
 live DB lags the repo. The notification bell stays empty and note-sharing won't
@@ -36,9 +36,26 @@ create policy "notifications_update_own" on public.notifications for update usin
 
 -- 022 note sharing
 alter table public.client_notes add column if not exists shared_with_client boolean not null default false;
+
+-- 023 trainer reminders (private per-client to-dos)
+create table if not exists public.client_reminders (
+  id uuid primary key default gen_random_uuid(),
+  trainer_id uuid not null references public.profiles(id) on delete cascade,
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null,
+  due_date date,
+  done boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_client_reminders_client on public.client_reminders(client_id, done, due_date);
+alter table public.client_reminders enable row level security;
+create policy "client_reminders_select_own" on public.client_reminders for select using (auth.uid() = trainer_id);
+create policy "client_reminders_insert_own" on public.client_reminders for insert with check (auth.uid() = trainer_id);
+create policy "client_reminders_update_own" on public.client_reminders for update using (auth.uid() = trainer_id);
+create policy "client_reminders_delete_own" on public.client_reminders for delete using (auth.uid() = trainer_id);
 ```
 
-Repo copies: `supabase/migrations/021_notifications.sql`, `022_note_sharing.sql`.
+Repo copies: `supabase/migrations/021_notifications.sql`, `022_note_sharing.sql`, `023_client_reminders.sql`.
 **Verify:** assign a program to a test client → they get a bell notification + email.
 
 ---
@@ -78,6 +95,10 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
   program/nutrition/workout types.
 - **Note sharing**: `client_notes.shared_with_client`; notes internal by default,
   trainer toggles "Share with client" → notifies them.
+- **Trainer reminders**: `client_reminders` (migration 023; trainer-private).
+  `GET/POST/PATCH/DELETE /api/clients/[id]/reminders` (scoped to the acting
+  trainer). UI in the client hub **Notes tab** → "Reminders · private to you"
+  (add with optional due date, check off, delete). Never shown to the client.
 - **Plan-access alignment**: dashboard nutrition card gated by entitlement
   (`TodaySnapshot.tsx`); plan re-fetch on tab focus (`UserContext.tsx`) so admin
   upgrades apply without re-login.
@@ -92,30 +113,35 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
 
 ## 4. Remaining build-out (in priority order)
 
-1. **Trainer reminders** — internal trainer-only notes/reminders per client
-   ("so the trainer stays on track"; NOT visible to client; optional due date).
-   Needs a new table `client_reminders (id, trainer_id, client_id, body,
-   due_date, done, created_at)` + migration + an API + UI on the client hub
-   (a "Reminders" affordance, trainer-only). Keep distinct from `client_notes`.
+Trainer reminders are DONE (see §3). Three features remain:
 
-2. **Per-tab progress snapshots (trainer view only)** — on `/clients/[id]` add a
+1. **Per-tab progress snapshots (trainer view only)** — on `/clients/[id]` add a
    short "what's been happening" summary to the **Program**, **Nutrition**, and
    **Progress** tabs (e.g. sessions logged this week, adherence, last activity,
-   recent meals trend). Reuse `/api/me/activity`-style aggregation but keyed by
-   the client id via a new `/api/clients/[id]/activity` (service-role,
-   `requireClientAccess`).
+   recent meals trend). There's already a working pattern: copy
+   `src/app/api/me/activity/route.ts` (sessions/streak/last-30 from
+   `workout_logs`) into a new `GET /api/clients/[id]/activity` keyed by the
+   client id and guarded by `requireClientAccess` (service-role). The Nutrition
+   tab already has `/api/clients/[id]/nutrition` to lean on. Render a compact
+   summary block at the top of each tab in `src/app/(app)/clients/[id]/page.tsx`.
+   Snapshots are trainer-side only — do NOT add them to the client's own pages.
 
-3. **Mobile nav** — (a) client-customizable bottom nav: let the client choose
-   which items show in `src/components/layout/BottomNav.tsx` (persist choice;
-   localStorage is fine, or a profile column); (b) a burger menu for full nav on
-   mobile. Pure front-end. Note Nutrition is gated (`canAccessFeature`), Coach is
-   plan-gated — respect entitlements in the chooser.
+2. **Mobile nav** — (a) client-customizable bottom nav: let the client choose
+   which items show in `src/components/layout/BottomNav.tsx` (persist choice in
+   localStorage, e.g. key `flowstate-bottomnav-items`); (b) a burger menu for
+   full navigation on mobile (the sidebar items don't all fit the bottom bar).
+   Pure front-end. Respect entitlements: Nutrition is gated
+   (`useEntitlement`/`canAccessFeature`), Coach is plan-gated — don't let a
+   client pin an item they can't access. Sidebar item source:
+   `src/components/layout/Sidebar.tsx` `NAV_ITEMS`.
 
-4. **Progress tab content** — bodyweight chart (new `weight_logs` table:
-   `user_id, logged_at, weight_kg, note`) + progress photos (Supabase Storage
-   bucket + **signed URLs only** per the security rule). Both need migrations +
-   APIs. Clickable chart → drill-in. This fills the Progress placeholder on the
-   hub.
+3. **Progress tab content** — fills the Progress placeholder on the hub.
+   Bodyweight chart (new `weight_logs` table: `id, user_id, logged_at,
+   weight_kg, note`) + progress photos (Supabase Storage bucket +
+   **signed URLs only** per the security rule in brain-graph). Both need a
+   migration + APIs (`/api/clients/[id]/weight`, `/api/clients/[id]/photos`).
+   Clickable chart → drill-in. The Progress tab is also where the per-tab
+   snapshot (item 1) lands.
 
 ---
 
