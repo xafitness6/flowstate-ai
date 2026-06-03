@@ -4,6 +4,8 @@
 
 import { NextResponse } from "next/server";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
+import { calculateEnergy, calculateNutritionTargets } from "@/lib/nutrition";
+import type { IntakeData } from "@/lib/data/intake";
 
 type Row = {
   id: string;
@@ -75,6 +77,20 @@ export async function GET(
 
   const today = byDate.get(new Date().toISOString().slice(0, 10)) ?? null;
 
+  // Energy profile (BMR / TDEE / target) + targets from the client's intake.
+  let energy = null;
+  let targets = null;
+  const { data: onb } = await auth.admin
+    .from("onboarding_state")
+    .select("raw_answers")
+    .eq("user_id", id)
+    .single();
+  const intake = onb?.raw_answers as IntakeData | null | undefined;
+  if (intake && typeof intake === "object" && typeof intake.weight === "string") {
+    energy  = calculateEnergy(intake);
+    targets = calculateNutritionTargets(intake);
+  }
+
   const recentMeals = rows.slice(0, 8).map((r) => ({
     id: r.id,
     meal_type: r.meal_type,
@@ -92,5 +108,7 @@ export async function GET(
     daysLogged7: logged7.length,
     totalMeals14: rows.length,
     recentMeals,
+    energy,
+    targets,
   });
 }

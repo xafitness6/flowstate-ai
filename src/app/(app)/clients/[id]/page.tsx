@@ -13,8 +13,10 @@ import {
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
+import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { useUser } from "@/context/UserContext";
 import type { RawIntake } from "@/lib/intake/format";
+import type { EnergyProfile } from "@/lib/nutrition";
 import {
   inferUnitSystemFromRawAnswers,
   kgToDisplayUnit,
@@ -53,6 +55,8 @@ type NutritionSummary = {
   daysLogged7: number;
   totalMeals14: number;
   recentMeals: { id: string; meal_type: string | null; label: string; calories: number; protein: number; needs_review: boolean; logged_at: string }[];
+  energy: EnergyProfile | null;
+  targets: { calories: number; proteinG: number; carbsG: number; fatG: number; waterMl: number } | null;
 };
 
 type ActivitySummary = {
@@ -1039,6 +1043,11 @@ export default function ClientDetailPage() {
               <Apple className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Nutrition
             </h2>
             <NutritionSnapshot n={nutrition} activity={activitySummary} loading={nutritionLoading} />
+            {nutrition?.energy && (
+              <div className="mt-3 sm:max-w-sm">
+                <EnergyCard energy={nutrition.energy} />
+              </div>
+            )}
             {nutritionLoading ? (
               <div className="flex items-center justify-center py-12 text-white/40 text-sm">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading nutrition…

@@ -928,6 +928,15 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     });
   }, [user.id, hasSSR, initial?.targets]);
 
+  // ── Load energy profile (BMR / TDEE) — always, independent of SSR targets ─────
+
+  useEffect(() => {
+    loadIntakeAsync(user.id).then((intake) => {
+      setEnergy(intake ? calculateEnergy(intake) : null);
+      setGoalLabel(intake ? GOAL_LABELS[intake.primaryGoal] : undefined);
+    });
+  }, [user.id]);
+
   // ── Load meals & hydration when date changes ────────────────────────────────
   // Skip the first run when SSR already delivered today's meals.
 
@@ -1303,6 +1312,11 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           <MacrosCard  totals={totals}            targets={targets} />
           <HydrationCard current={hydration}      target={targets.waterMl} onAdd={addWaterMl} />
         </div>
+
+        {/* ── Energy (BMR / maintenance / target) ───────────────────────────── */}
+        {energy && !viewWeek && (
+          <EnergyCard energy={energy} goalLabel={goalLabel} />
+        )}
 
         {/* ── Quick actions ─────────────────────────────────────────────────── */}
         <div>
