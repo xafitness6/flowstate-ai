@@ -18,10 +18,13 @@ import { NutritionAnalytics } from "@/components/nutrition/NutritionAnalytics";
 import { FoodSearchModal }    from "@/components/nutrition/FoodSearchModal";
 import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
-import { loadIntakeAsync }    from "@/lib/data/intake";
+import { loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
+import { EnergyCard }        from "@/components/nutrition/EnergyCard";
 import {
   calculateNutritionTargets,
+  calculateEnergy,
   type NutritionTargets,
+  type EnergyProfile,
 } from "@/lib/nutrition";
 import {
   saveMeal,
@@ -858,6 +861,10 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // Targets — seed from SSR when available
   const [targets,   setTargets]   = useState<NutritionTargets>(initial?.targets ?? FALLBACK);
   const [hasIntake, setHasIntake] = useState(initial?.targets != null);
+
+  // Energy profile (BMR / TDEE / target) for the Energy card
+  const [energy,    setEnergy]    = useState<EnergyProfile | null>(null);
+  const [goalLabel, setGoalLabel] = useState<string | undefined>(undefined);
 
   // Date navigation
   const [selectedDate, setSelectedDate] = useState(todayISO);

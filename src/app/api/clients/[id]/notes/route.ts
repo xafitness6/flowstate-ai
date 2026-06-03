@@ -60,8 +60,9 @@ export async function POST(
   return NextResponse.json({ note: { ...data, shared_with_client: shared } });
 }
 
-// PATCH — toggle a note's "shared with client" state. Sharing a previously
-// private note notifies the client; un-sharing is silent.
+// PATCH — edit a note's text ({ noteId, body }), or toggle its "shared with
+// client" state ({ noteId, shared }). Sharing a previously private note
+// notifies the client; editing/un-sharing is silent.
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -70,13 +71,30 @@ export async function PATCH(
   const auth = await requireClientAccess(id);
   if (!auth.ok) return auth.response;
 
-  let payload: { noteId?: unknown; shared?: unknown };
+  let payload: { noteId?: unknown; shared?: unknown; body?: unknown };
   try { payload = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const noteId = typeof payload.noteId === "string" ? payload.noteId : "";
-  const shared = payload.shared === true;
   if (!noteId) return NextResponse.json({ error: "Missing noteId" }, { status: 400 });
+
+  // ── Edit the note text ───────────────────────────────────────────────────
+  if (typeof payload.body === "string") {
+    const body = payload.body.trim();
+    if (!body) return NextResponse.json({ error: "Note body is required." }, { status: 400 });
+    if (body.length > 5000) return NextResponse.json({ error: "Note is too long (max 5000 chars)." }, { status: 400 });
+
+    // Non-admins may only edit their own notes (same rule as delete).
+    const q = auth.admin.from("client_notes").update({ body }).eq("id", noteId).eq("client_id", id);
+    if (!auth.isAdmin) q.eq("author_id", auth.actorId);
+
+    const { data, error } = await q.select().maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+    return NextResponse.json({ note: data });
+  }
+
+  const shared = payload.shared === true;
 
   // Select only `body` (not the maybe-unmigrated column) so toggling works even
   // before the migration; the UI only sends shared=true from an unshared note.

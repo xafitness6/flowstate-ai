@@ -8,12 +8,20 @@ import {
   User, Dumbbell, Apple, LineChart, MessageSquare,
   ExternalLink, CalendarDays, Clock, PlayCircle, CheckCircle2,
   Activity, Camera, Image as ImageIcon, Scale, TrendingUp, Upload, Bell,
+  Pencil, Check, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { useUser } from "@/context/UserContext";
 import type { RawIntake } from "@/lib/intake/format";
+import {
+  inferUnitSystemFromRawAnswers,
+  kgToDisplayUnit,
+  displayUnitToKg,
+  weightUnitLabel,
+  type UnitSystem,
+} from "@/lib/units";
 
 type ClientProfile = {
   id: string; full_name: string | null; first_name: string | null; last_name: string | null;
@@ -140,6 +148,12 @@ export default function ClientDetailPage() {
 
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [intake,  setIntake]  = useState<RawIntake | null>(null);
+  // Weight is stored canonically as kg; display in the client's preferred unit
+  // (inferred from their onboarding answers).
+  const unitSystem: UnitSystem = useMemo(
+    () => inferUnitSystemFromRawAnswers(intake) ?? "metric",
+    [intake],
+  );
   const [meta,    setMeta]    = useState<IntakeMeta>(null);
   const [notes,   setNotes]   = useState<Note[]>([]);
   const [program, setProgram] = useState<ClientProgram>(null);
@@ -150,6 +164,9 @@ export default function ClientDetailPage() {
   const [draft, setDraft] = useState("");
   const [shareNew, setShareNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const [obBusy, setObBusy] = useState(false);
 
   const [nutrition, setNutrition] = useState<NutritionSummary | null>(null);
@@ -398,7 +415,7 @@ export default function ClientDetailPage() {
       const res = await fetch(`/api/clients/${id}/weight`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weight_kg: weight, logged_at: weightDate, note: weightNote }),
+        body: JSON.stringify({ weight_kg: displayUnitToKg(weight, unitSystem), logged_at: weightDate, note: weightNote }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Couldn't save weight.");
@@ -484,6 +501,36 @@ export default function ClientDetailPage() {
       body: JSON.stringify({ noteId, shared }),
     });
     if (!res.ok) setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, shared_with_client: !shared } : n)));
+  }
+
+  function startEditNote(note: Note) {
+    setEditingNoteId(note.id);
+    setEditDraft(note.body);
+  }
+
+  function cancelEditNote() {
+    setEditingNoteId(null);
+    setEditDraft("");
+  }
+
+  async function saveEditNote(noteId: string) {
+    const body = editDraft.trim();
+    if (!body || editSaving) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/notes`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ noteId, body }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't update note.");
+      setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, ...json.note } : n)));
+      cancelEditNote();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update note.");
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   async function deleteNote(noteId: string) {
@@ -910,38 +957,74 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 {notes.map((n) => (
                   <div key={n.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 group">
-                    <p className="text-sm text-white/85 whitespace-pre-wrap leading-relaxed">{n.body}</p>
-                    <div className="flex items-center justify-between mt-2 gap-2">
-                      <span className="text-[10px] text-white/30">
-                        {n.author_name ?? "Coach"} · {new Date(n.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                      </span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {n.shared_with_client ? (
+                    {editingNoteId === n.id ? (
+                      <div>
+                        <textarea
+                          value={editDraft}
+                          onChange={(e) => setEditDraft(e.target.value)}
+                          rows={3}
+                          autoFocus
+                          className="w-full resize-y bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50"
+                        />
+                        <div className="flex items-center justify-end gap-2 mt-2">
                           <button
-                            onClick={() => toggleShareNote(n.id, false)}
-                            className="text-[9px] uppercase tracking-wider text-emerald-400/70 border border-emerald-400/20 bg-emerald-400/8 rounded px-1.5 py-0.5 hover:border-emerald-400/40"
-                            title="Shared with client — click to make private"
+                            onClick={cancelEditNote}
+                            className="inline-flex items-center gap-1 text-[11px] text-white/45 hover:text-white/70 border border-white/10 rounded-lg px-2.5 py-1 transition-colors"
                           >
-                            Shared
+                            <X className="w-3 h-3" strokeWidth={2} /> Cancel
                           </button>
-                        ) : (
                           <button
-                            onClick={() => toggleShareNote(n.id, true)}
-                            className="text-[9px] uppercase tracking-wider text-white/35 hover:text-[#B48B40] border border-white/10 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-all"
-                            title="Share with client (sends a notification)"
+                            onClick={() => saveEditNote(n.id)}
+                            disabled={!editDraft.trim() || editSaving}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-black bg-[#B48B40] hover:bg-[#c99840] disabled:opacity-50 rounded-lg px-2.5 py-1 transition-all"
                           >
-                            Share
+                            {editSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" strokeWidth={2.5} />} Save
                           </button>
-                        )}
-                        <button
-                          onClick={() => deleteNote(n.id)}
-                          className={cn("text-white/25 hover:text-red-300/80 transition-colors opacity-0 group-hover:opacity-100")}
-                          aria-label="Delete note"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
-                        </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-white/85 whitespace-pre-wrap leading-relaxed">{n.body}</p>
+                        <div className="flex items-center justify-between mt-2 gap-2">
+                          <span className="text-[10px] text-white/30">
+                            {n.author_name ?? "Coach"} · {new Date(n.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {n.shared_with_client ? (
+                              <button
+                                onClick={() => toggleShareNote(n.id, false)}
+                                className="text-[9px] uppercase tracking-wider text-emerald-400/70 border border-emerald-400/20 bg-emerald-400/8 rounded px-1.5 py-0.5 hover:border-emerald-400/40"
+                                title="Shared with client — click to make private"
+                              >
+                                Shared
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => toggleShareNote(n.id, true)}
+                                className="text-[9px] uppercase tracking-wider text-white/35 hover:text-[#B48B40] border border-white/10 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-all"
+                                title="Share with client (sends a notification)"
+                              >
+                                Share
+                              </button>
+                            )}
+                            <button
+                              onClick={() => startEditNote(n)}
+                              className="text-white/25 hover:text-[#B48B40] transition-colors opacity-0 group-hover:opacity-100"
+                              aria-label="Edit note"
+                            >
+                              <Pencil className="w-3.5 h-3.5" strokeWidth={1.7} />
+                            </button>
+                            <button
+                              onClick={() => deleteNote(n.id)}
+                              className={cn("text-white/25 hover:text-red-300/80 transition-colors opacity-0 group-hover:opacity-100")}
+                              aria-label="Delete note"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -979,6 +1062,7 @@ export default function ClientDetailPage() {
           <ProgressTab
             activity={activitySummary}
             activityLoading={activityLoading}
+            unitSystem={unitSystem}
             weightLogs={weightLogs}
             photos={photos}
             loading={progressLoading}
@@ -1120,12 +1204,15 @@ function ProgressSnapshot({
   weightLogs,
   photos,
   loading,
+  unitSystem,
 }: {
   activity: ActivitySummary | null;
   weightLogs: WeightLog[];
   photos: ProgressPhoto[];
   loading: boolean;
+  unitSystem: UnitSystem;
 }) {
+  const unit = weightUnitLabel(unitSystem);
   const latest = weightLogs[weightLogs.length - 1] ?? null;
   const previous = weightLogs.length > 1 ? weightLogs[weightLogs.length - 2] : null;
   const delta = latest && previous ? Number(latest.weight_kg) - Number(previous.weight_kg) : null;
@@ -1138,8 +1225,8 @@ function ProgressSnapshot({
         {
           icon: Scale,
           label: "Bodyweight",
-          value: loading && !latest ? "…" : latest ? `${Number(latest.weight_kg).toFixed(1)} kg` : "None",
-          detail: delta == null ? "latest log" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} kg`,
+          value: loading && !latest ? "…" : latest ? `${kgToDisplayUnit(Number(latest.weight_kg), unitSystem).toFixed(1)} ${unit}` : "None",
+          detail: delta == null ? "latest log" : `${delta >= 0 ? "+" : ""}${kgToDisplayUnit(delta, unitSystem).toFixed(1)} ${unit}`,
         },
         {
           icon: Camera,
@@ -1260,6 +1347,7 @@ function MacroTile({ label, value, unit }: { label: string; value: number; unit:
 function ProgressTab({
   activity,
   activityLoading,
+  unitSystem,
   weightLogs,
   photos,
   loading,
@@ -1288,6 +1376,7 @@ function ProgressTab({
 }: {
   activity: ActivitySummary | null;
   activityLoading: boolean;
+  unitSystem: UnitSystem;
   weightLogs: WeightLog[];
   photos: ProgressPhoto[];
   loading: boolean;
@@ -1314,6 +1403,7 @@ function ProgressTab({
   onUploadPhoto: () => void;
   onDeletePhoto: (id: string) => void;
 }) {
+  const unit = weightUnitLabel(unitSystem);
   const selectedWeight =
     weightLogs.find((log) => log.id === selectedWeightId)
     ?? weightLogs[weightLogs.length - 1]
@@ -1331,6 +1421,7 @@ function ProgressTab({
         weightLogs={weightLogs}
         photos={photos}
         loading={loading || activityLoading}
+        unitSystem={unitSystem}
       />
 
       {error && (
@@ -1363,7 +1454,7 @@ function ProgressTab({
                 min="1"
                 step="0.1"
                 inputMode="decimal"
-                placeholder="Weight kg"
+                placeholder={`Weight ${unit}`}
                 className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50"
               />
               <input
@@ -1390,13 +1481,13 @@ function ProgressTab({
               </button>
             </div>
 
-            <WeightChart logs={weightLogs} selectedId={selectedWeight?.id ?? null} onSelect={onSelectWeight} />
+            <WeightChart logs={weightLogs} selectedId={selectedWeight?.id ?? null} onSelect={onSelectWeight} unitSystem={unitSystem} />
 
             {selectedWeight && (
               <div className="mt-3 rounded-xl border border-white/[0.06] bg-black/15 px-3 py-3 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-white/85">
-                    {Number(selectedWeight.weight_kg).toFixed(1)} kg
+                    {kgToDisplayUnit(Number(selectedWeight.weight_kg), unitSystem).toFixed(1)} {unit}
                     <span className="text-xs font-normal text-white/35"> · {formatFullDate(selectedWeight.logged_at)}</span>
                   </p>
                   {selectedWeight.note && <p className="text-xs text-white/50 mt-1 leading-relaxed">{selectedWeight.note}</p>}
@@ -1505,11 +1596,15 @@ function WeightChart({
   logs,
   selectedId,
   onSelect,
+  unitSystem,
 }: {
   logs: WeightLog[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  unitSystem: UnitSystem;
 }) {
+  const unit = weightUnitLabel(unitSystem);
+  const disp = (kg: number | string) => kgToDisplayUnit(Number(kg), unitSystem);
   if (logs.length === 0) {
     return (
       <div className="h-44 rounded-2xl border border-dashed border-white/[0.08] bg-black/10 flex flex-col items-center justify-center text-center">
@@ -1519,7 +1614,7 @@ function WeightChart({
     );
   }
 
-  const values = logs.map((log) => Number(log.weight_kg));
+  const values = logs.map((log) => disp(log.weight_kg));
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = Math.max(1, max - min);
@@ -1530,7 +1625,7 @@ function WeightChart({
   const chartH = height - pad.top - pad.bottom;
   const points = logs.map((log, index) => {
     const x = pad.left + (logs.length === 1 ? chartW / 2 : (index / (logs.length - 1)) * chartW);
-    const y = pad.top + ((max - Number(log.weight_kg)) / span) * chartH;
+    const y = pad.top + ((max - disp(log.weight_kg)) / span) * chartH;
     return { log, x, y };
   });
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -1564,7 +1659,7 @@ function WeightChart({
               )}
               strokeWidth={2}
             >
-              <title>{`${formatFullDate(log.logged_at)} · ${Number(log.weight_kg).toFixed(1)} kg`}</title>
+              <title>{`${formatFullDate(log.logged_at)} · ${disp(log.weight_kg).toFixed(1)} ${unit}`}</title>
             </circle>
           );
         })}

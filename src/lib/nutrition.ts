@@ -12,6 +12,27 @@ export type NutritionTargets = {
   waterMl:   number;
 };
 
+/** BMR method used — drives the accuracy note shown in the UI. */
+export type BmrMethod = "katch" | "mifflin" | "estimate";
+
+export type EnergyProfile = {
+  bmr:                number;       // basal metabolic rate (kcal/day at rest)
+  tdee:               number;       // maintenance calories (BMR × activity)
+  targetCalories:     number;       // tdee + goal adjustment (matches NutritionTargets.calories)
+  activityMultiplier: number;
+  goalAdjustment:     number;       // +/- kcal applied for the goal
+  method:             BmrMethod;
+  weightKg:           number;
+  leanMassKg:         number | null; // only when body-fat % is known (Katch-McArdle)
+};
+
+// Human-readable note about how the BMR was derived.
+export const BMR_METHOD_LABEL: Record<BmrMethod, string> = {
+  katch:    "From body composition (lean mass)",
+  mifflin:  "From age, height, weight & sex",
+  estimate: "Estimated from bodyweight — add body-fat % for accuracy",
+};
+
 // Activity multiplier based on training days per week
 function activityMultiplier(daysPerWeek: number): number {
   if (daysPerWeek <= 2) return 1.375;
@@ -63,26 +84,86 @@ const INTAKE_DEFAULTS: NutritionTargets = {
   waterMl: 2500,
 };
 
+/** Parse the weight field to kg, or null when missing/unparseable. */
+function weightToKg(intake: IntakeData): number | null {
+  const raw = parseFloat(intake.weight);
+  if (!raw || isNaN(raw)) return null;
+  return intake.weightUnit === "lbs" ? raw * 0.4536 : raw;
+}
+
+/** Parse the height field to cm, or null when missing/unparseable. */
+function heightToCm(intake: IntakeData): number | null {
+  const raw = parseFloat(intake.height);
+  if (!raw || isNaN(raw)) return null;
+  // "ft" stored as decimal feet (e.g. 5.8) — best-effort; cm is the common case.
+  return intake.heightUnit === "ft" ? raw * 30.48 : raw;
+}
+
+/**
+ * Compute BMR + TDEE + target calories from intake (the "hybrid" strategy):
+ *   1. Body-fat % known  → Katch-McArdle (lean-mass based, honors body type)
+ *   2. age + sex known   → Mifflin-St Jeor (classic age/height/weight/sex)
+ *   3. otherwise         → rough bodyweight estimate (weight × 22)
+ * Returns null only when bodyweight is missing (can't compute anything).
+ */
+export function calculateEnergy(intake: IntakeData): EnergyProfile | null {
+  const weightKg = weightToKg(intake);
+  if (weightKg == null) return null;
+
+  const bodyFatPct = parseFloat(intake.bodyFat);
+  const age        = intake.age ? parseInt(intake.age, 10) : NaN;
+  const heightCm   = heightToCm(intake);
+
+  let bmr: number;
+  let method: BmrMethod;
+  let leanMassKg: number | null = null;
+
+  if (!isNaN(bodyFatPct) && bodyFatPct > 0 && bodyFatPct < 70) {
+    // Katch-McArdle: BMR = 370 + 21.6 × lean body mass (kg)
+    leanMassKg = weightKg * (1 - bodyFatPct / 100);
+    bmr = 370 + 21.6 * leanMassKg;
+    method = "katch";
+  } else if (!isNaN(age) && age > 0 && intake.sex && heightCm != null) {
+    // Mifflin-St Jeor
+    const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
+    bmr = intake.sex === "male" ? base + 5 : base - 161;
+    method = "mifflin";
+  } else {
+    bmr = weightKg * 22;
+    method = "estimate";
+  }
+
+  bmr = Math.round(bmr);
+  const mult           = activityMultiplier(intake.daysPerWeek || 4);
+  const tdee           = Math.round(bmr * mult);
+  const goalAdjustment = calorieAdjustment(intake.primaryGoal);
+  const targetCalories = Math.max(1200, tdee + goalAdjustment);
+
+  return {
+    bmr,
+    tdee,
+    targetCalories,
+    activityMultiplier: mult,
+    goalAdjustment,
+    method,
+    weightKg,
+    leanMassKg: leanMassKg != null ? Math.round(leanMassKg * 10) / 10 : null,
+  };
+}
+
 /**
  * Calculate nutrition targets from onboarding intake data.
  * Returns sensible defaults when weight is missing or unparseable —
  * never returns null.
  */
 export function calculateNutritionTargets(intake: IntakeData): NutritionTargets {
-  const rawWeight = parseFloat(intake.weight);
-  if (!rawWeight || isNaN(rawWeight)) return INTAKE_DEFAULTS;
+  const energy = calculateEnergy(intake);
+  if (!energy) return INTAKE_DEFAULTS;
 
-  // Normalise to kg
-  const weightKg = intake.weightUnit === "lbs"
-    ? rawWeight * 0.4536
-    : rawWeight;
+  const weightKg = energy.weightKg;
 
-  // Estimate TDEE: bodyweight × 22 (moderate BMR estimate) × activity multiplier
-  const bmrEstimate = weightKg * 22;
-  const tdee = Math.round(bmrEstimate * activityMultiplier(intake.daysPerWeek || 4));
-
-  // Apply goal-based calorie adjustment
-  const calories = Math.max(1200, tdee + calorieAdjustment(intake.primaryGoal));
+  // Calories from the shared energy profile (BMR × activity ± goal)
+  const calories = energy.targetCalories;
 
   // Protein (g)
   const proteinG = Math.round(weightKg * proteinMultiplier(intake.primaryGoal));

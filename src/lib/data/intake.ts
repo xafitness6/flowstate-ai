@@ -29,6 +29,8 @@ export type IntakeData = {
   heightUnit:      "cm" | "ft";
   bodyFat:         string;
   waist:           string;
+  age?:            string;            // optional — enables Mifflin-St Jeor BMR
+  sex?:            "male" | "female"; // optional — enables Mifflin-St Jeor BMR
 
   // Recovery
   sleepHours:      string;   // "5 or less" | "6" | "7" | "8" | "9+"
