@@ -188,6 +188,10 @@ export default function ClientDetailPage() {
   const [reminderDue, setReminderDue] = useState("");
   const [remindersLoaded, setRemindersLoaded] = useState(false);
   const [reminderSaving, setReminderSaving] = useState(false);
+  const [editRemId, setEditRemId] = useState<string | null>(null);
+  const [editRemBody, setEditRemBody] = useState("");
+  const [editRemDue, setEditRemDue] = useState("");
+  const [editRemSaving, setEditRemSaving] = useState(false);
 
   const [calendarReminders, setCalendarReminders] = useState<CalendarReminder[]>([]);
   const [calendarReminderDraft, setCalendarReminderDraft] = useState("");
@@ -195,6 +199,11 @@ export default function ClientDetailPage() {
   const [calendarReminderTime, setCalendarReminderTime] = useState("09:00");
   const [calendarRemindersLoaded, setCalendarRemindersLoaded] = useState(false);
   const [calendarReminderSaving, setCalendarReminderSaving] = useState(false);
+  const [editCalId, setEditCalId] = useState<string | null>(null);
+  const [editCalTitle, setEditCalTitle] = useState("");
+  const [editCalDate, setEditCalDate] = useState("");
+  const [editCalTime, setEditCalTime] = useState("");
+  const [editCalSaving, setEditCalSaving] = useState(false);
 
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
@@ -366,6 +375,33 @@ export default function ClientDetailPage() {
     if (!res.ok) setReminders(prev);
   }
 
+  function startEditReminder(r: Reminder) {
+    setEditRemId(r.id);
+    setEditRemBody(r.body);
+    setEditRemDue(r.due_date ?? "");
+  }
+  function cancelEditReminder() { setEditRemId(null); }
+  async function saveEditReminder(rid: string) {
+    const body = editRemBody.trim();
+    if (!body || editRemSaving) return;
+    setEditRemSaving(true);
+    try {
+      const due_date = editRemDue || null;
+      const res = await fetch(`/api/clients/${id}/reminders`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: rid, body, due_date }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Couldn't update reminder.");
+      setReminders((prev) => prev.map((r) => (r.id === rid ? { ...r, body, due_date } : r)));
+      setEditRemId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update reminder.");
+    } finally {
+      setEditRemSaving(false);
+    }
+  }
+
   async function addCalendarReminder() {
     const title = calendarReminderDraft.trim();
     if (!title || calendarReminderSaving) return;
@@ -406,6 +442,36 @@ export default function ClientDetailPage() {
     setCalendarReminders((items) => items.filter((r) => r.id !== rid));
     const res = await fetch(`/api/clients/${id}/calendar-reminders?id=${encodeURIComponent(rid)}`, { method: "DELETE" });
     if (!res.ok) setCalendarReminders(prev);
+  }
+
+  function startEditCalReminder(r: CalendarReminder) {
+    const d = new Date(r.due_at);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setEditCalId(r.id);
+    setEditCalTitle(r.title);
+    setEditCalDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    setEditCalTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  }
+  function cancelEditCalReminder() { setEditCalId(null); }
+  async function saveEditCalReminder(rid: string) {
+    const title = editCalTitle.trim();
+    if (!title || editCalSaving) return;
+    setEditCalSaving(true);
+    try {
+      const dueAt = `${editCalDate || todayInputValue()}T${editCalTime || "09:00"}`;
+      const res = await fetch(`/api/clients/${id}/calendar-reminders`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: rid, title, due_at: dueAt }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't update calendar reminder.");
+      setCalendarReminders((prev) => sortCalendarReminders(prev.map((r) => (r.id === rid ? (json.reminder as CalendarReminder) : r))));
+      setEditCalId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update calendar reminder.");
+    } finally {
+      setEditCalSaving(false);
+    }
   }
 
   async function addWeightLog() {
@@ -845,22 +911,53 @@ export default function ClientDetailPage() {
             {calendarReminders.length > 0 ? (
               <div className="space-y-1.5 mb-6">
                 {calendarReminders.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 group">
-                    <button onClick={() => toggleCalendarReminder(r.id, !r.done)} className="shrink-0" aria-label="Toggle client calendar reminder">
-                      {r.done
-                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400/80" strokeWidth={2} />
-                        : <span className="block w-4 h-4 rounded-full border border-amber-300/35" />}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className={cn("text-sm leading-snug", r.done ? "text-white/35 line-through" : "text-white/85")}>{r.title}</p>
-                      <p className="text-[10px] text-white/30 mt-0.5">
-                        {new Date(r.due_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                      </p>
+                  editCalId === r.id ? (
+                    <div key={r.id} className="rounded-xl border border-[#B48B40]/30 bg-white/[0.03] px-3 py-2.5">
+                      <input
+                        value={editCalTitle}
+                        onChange={(e) => setEditCalTitle(e.target.value)}
+                        autoFocus
+                        className="w-full bg-transparent text-sm text-white/90 placeholder:text-white/25 outline-none px-1"
+                      />
+                      <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <input type="date" value={editCalDate} onChange={(e) => setEditCalDate(e.target.value)}
+                            className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 outline-none [color-scheme:dark]" />
+                          <input type="time" value={editCalTime} onChange={(e) => setEditCalTime(e.target.value)}
+                            className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 outline-none [color-scheme:dark]" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={cancelEditCalReminder} className="inline-flex items-center gap-1 text-[11px] text-white/45 hover:text-white/70 border border-white/10 rounded-lg px-2.5 py-1 transition-colors">
+                            <X className="w-3 h-3" strokeWidth={2} /> Cancel
+                          </button>
+                          <button onClick={() => saveEditCalReminder(r.id)} disabled={!editCalTitle.trim() || editCalSaving}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-black bg-[#B48B40] hover:bg-[#c99840] disabled:opacity-50 rounded-lg px-2.5 py-1 transition-all">
+                            {editCalSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" strokeWidth={2.5} />} Save
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <button onClick={() => deleteCalendarReminder(r.id)} className="text-white/25 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Delete client calendar reminder">
-                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
-                    </button>
-                  </div>
+                  ) : (
+                    <div key={r.id} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 group">
+                      <button onClick={() => toggleCalendarReminder(r.id, !r.done)} className="shrink-0" aria-label="Toggle client calendar reminder">
+                        {r.done
+                          ? <CheckCircle2 className="w-4 h-4 text-emerald-400/80" strokeWidth={2} />
+                          : <span className="block w-4 h-4 rounded-full border border-amber-300/35" />}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className={cn("text-sm leading-snug", r.done ? "text-white/35 line-through" : "text-white/85")}>{r.title}</p>
+                        <p className="text-[10px] text-white/30 mt-0.5">
+                          {new Date(r.due_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <button onClick={() => startEditCalReminder(r)} className="text-white/25 hover:text-[#B48B40] opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Edit client calendar reminder">
+                        <Pencil className="w-3.5 h-3.5" strokeWidth={1.7} />
+                      </button>
+                      <button onClick={() => deleteCalendarReminder(r.id)} className="text-white/25 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Delete client calendar reminder">
+                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                      </button>
+                    </div>
+                  )
                 ))}
               </div>
             ) : (
@@ -900,24 +997,51 @@ export default function ClientDetailPage() {
             {reminders.length > 0 && (
               <div className="space-y-1.5 mb-6">
                 {reminders.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 group">
-                    <button onClick={() => toggleReminder(r.id, !r.done)} className="shrink-0" aria-label="Toggle done">
-                      {r.done
-                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400/80" strokeWidth={2} />
-                        : <span className="block w-4 h-4 rounded-full border border-white/25" />}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className={cn("text-sm leading-snug", r.done ? "text-white/35 line-through" : "text-white/85")}>{r.body}</p>
-                      {r.due_date && (
-                        <p className="text-[10px] text-white/30 mt-0.5">
-                          Due {new Date(r.due_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        </p>
-                      )}
+                  editRemId === r.id ? (
+                    <div key={r.id} className="rounded-xl border border-[#B48B40]/30 bg-white/[0.03] px-3 py-2.5">
+                      <input
+                        value={editRemBody}
+                        onChange={(e) => setEditRemBody(e.target.value)}
+                        autoFocus
+                        className="w-full bg-transparent text-sm text-white/90 placeholder:text-white/25 outline-none px-1"
+                      />
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <input type="date" value={editRemDue} onChange={(e) => setEditRemDue(e.target.value)}
+                          className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 outline-none [color-scheme:dark]" />
+                        <div className="flex items-center gap-2">
+                          <button onClick={cancelEditReminder} className="inline-flex items-center gap-1 text-[11px] text-white/45 hover:text-white/70 border border-white/10 rounded-lg px-2.5 py-1 transition-colors">
+                            <X className="w-3 h-3" strokeWidth={2} /> Cancel
+                          </button>
+                          <button onClick={() => saveEditReminder(r.id)} disabled={!editRemBody.trim() || editRemSaving}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-black bg-[#B48B40] hover:bg-[#c99840] disabled:opacity-50 rounded-lg px-2.5 py-1 transition-all">
+                            {editRemSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" strokeWidth={2.5} />} Save
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <button onClick={() => deleteReminder(r.id)} className="text-white/25 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Delete reminder">
-                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
-                    </button>
-                  </div>
+                  ) : (
+                    <div key={r.id} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 group">
+                      <button onClick={() => toggleReminder(r.id, !r.done)} className="shrink-0" aria-label="Toggle done">
+                        {r.done
+                          ? <CheckCircle2 className="w-4 h-4 text-emerald-400/80" strokeWidth={2} />
+                          : <span className="block w-4 h-4 rounded-full border border-white/25" />}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className={cn("text-sm leading-snug", r.done ? "text-white/35 line-through" : "text-white/85")}>{r.body}</p>
+                        {r.due_date && (
+                          <p className="text-[10px] text-white/30 mt-0.5">
+                            Due {new Date(r.due_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </p>
+                        )}
+                      </div>
+                      <button onClick={() => startEditReminder(r)} className="text-white/25 hover:text-[#B48B40] opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Edit reminder">
+                        <Pencil className="w-3.5 h-3.5" strokeWidth={1.7} />
+                      </button>
+                      <button onClick={() => deleteReminder(r.id)} className="text-white/25 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Delete reminder">
+                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                      </button>
+                    </div>
+                  )
                 ))}
               </div>
             )}

@@ -3,7 +3,7 @@
 // their own. Resilient if the table isn't migrated yet (GET returns []).
 //   GET    /api/clients/[id]/reminders            list (open first, by due date)
 //   POST   /api/clients/[id]/reminders            { body, due_date? } → create
-//   PATCH  /api/clients/[id]/reminders            { id, done } → toggle
+//   PATCH  /api/clients/[id]/reminders            { id, done?, body?, due_date? } → toggle/edit
 //   DELETE /api/clients/[id]/reminders?id=…        delete one
 
 import { NextResponse } from "next/server";
@@ -66,23 +66,42 @@ export async function PATCH(
   const auth = await requireClientAccess(id);
   if (!auth.ok) return auth.response;
 
-  let payload: { id?: unknown; done?: unknown };
+  let payload: { id?: unknown; done?: unknown; body?: unknown; due_date?: unknown };
   try { payload = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const reminderId = typeof payload.id === "string" ? payload.id : "";
   if (!reminderId) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  const done = payload.done === true;
 
-  const { error } = await auth.admin
+  // Build a partial update from whichever fields were supplied: toggle done,
+  // edit the text, and/or change the due date.
+  const patch: Record<string, unknown> = {};
+  if (typeof payload.done === "boolean") patch.done = payload.done;
+  if (payload.body !== undefined) {
+    const body = typeof payload.body === "string" ? payload.body.trim() : "";
+    if (!body) return NextResponse.json({ error: "Reminder text is required." }, { status: 400 });
+    if (body.length > 1000) return NextResponse.json({ error: "Reminder is too long." }, { status: 400 });
+    patch.body = body;
+  }
+  if (payload.due_date !== undefined) {
+    patch.due_date = typeof payload.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.due_date)
+      ? payload.due_date : null;
+  }
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
+  }
+
+  const { data, error } = await auth.admin
     .from("client_reminders")
-    .update({ done })
+    .update(patch)
     .eq("id", reminderId)
     .eq("client_id", id)
-    .eq("trainer_id", auth.actorId);
+    .eq("trainer_id", auth.actorId)
+    .select("id,body,due_date,done,created_at")
+    .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, reminder: data });
 }
 
 export async function DELETE(
