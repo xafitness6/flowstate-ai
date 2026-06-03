@@ -19,6 +19,7 @@ import type { RawIntake } from "@/lib/intake/format";
 import type { EnergyProfile } from "@/lib/nutrition";
 import {
   inferUnitSystemFromRawAnswers,
+  readStoredUnitSystem,
   kgToDisplayUnit,
   displayUnitToKg,
   weightUnitLabel,
@@ -152,11 +153,13 @@ export default function ClientDetailPage() {
 
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [intake,  setIntake]  = useState<RawIntake | null>(null);
-  // Weight is stored canonically as kg; display in the client's preferred unit
-  // (inferred from their onboarding answers).
+  // Weight is stored canonically as kg; display in the viewing trainer's
+  // preferred unit, falling back to the client's onboarding answers, then metric.
+  const [viewerUnit, setViewerUnit] = useState<UnitSystem | null>(null);
+  useEffect(() => { setViewerUnit(readStoredUnitSystem(viewer.id)); }, [viewer.id]);
   const unitSystem: UnitSystem = useMemo(
-    () => inferUnitSystemFromRawAnswers(intake) ?? "metric",
-    [intake],
+    () => viewerUnit ?? inferUnitSystemFromRawAnswers(intake) ?? "metric",
+    [viewerUnit, intake],
   );
   const [meta,    setMeta]    = useState<IntakeMeta>(null);
   const [notes,   setNotes]   = useState<Note[]>([]);
