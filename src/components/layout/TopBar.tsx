@@ -7,6 +7,7 @@ import { PLAN_LABELS } from "@/lib/plans";
 import { User, Settings, LogOut } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 const STATUS_RING: Record<string, string> = {
@@ -82,8 +83,9 @@ export function TopBar() {
       <div className="hidden md:block" />{/* spacer to keep avatar right-aligned */}
 
       <div className="flex items-center gap-1.5">
-      <NotificationBell />
-      <div ref={menuRef} className="relative">
+        <ThemeToggle />
+        <NotificationBell />
+        <div ref={menuRef} className="relative">
         {/* Avatar button */}
         <button
           onClick={() => setOpen((v) => !v)}

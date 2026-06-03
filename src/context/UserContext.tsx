@@ -343,25 +343,45 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Re-fetch the profile (plan / role) when the tab regains focus, so an admin
-  // change like a plan upgrade takes effect without a full re-login. Supabase
-  // non-owner accounts only; the owner is always master.
+  // Re-fetch the profile (plan / role) when the tab becomes active again, so an
+  // admin change like a manual plan upgrade takes effect without a full re-login.
+  // Supabase non-owner accounts only; the owner is always master.
   useEffect(() => {
     if (!isSupabase) return;
-    function onVisible() {
-      if (document.visibilityState !== "visible") return;
-      void (async () => {
-        try {
-          const supabase = createClient();
-          const { data: { user: sUser } } = await supabase.auth.getUser();
-          if (!sUser?.id || isOwnerEmail(sUser.email)) return;
-          const profile = await getMyProfile().catch(() => null);
-          if (profile) setUser(applyEarlyAccess(profileToMockUser(profile)));
-        } catch { /* ignore */ }
-      })();
+    let inFlight = false;
+
+    async function refreshProfile() {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const supabase = createClient();
+        const { data: { user: sUser } } = await supabase.auth.getUser();
+        if (!sUser?.id || isOwnerEmail(sUser.email)) return;
+        const profile = await getMyProfile().catch(() => null);
+        if (profile) setUser(applyEarlyAccess(profileToMockUser(profile)));
+      } catch {
+        /* ignore */
+      } finally {
+        inFlight = false;
+      }
     }
+
+    function onVisible() {
+      if (document.visibilityState === "visible") void refreshProfile();
+    }
+
+    function onFocus() {
+      void refreshProfile();
+    }
+
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onFocus);
+    };
   }, [isSupabase]);
 
   function setRole(role: Role) {

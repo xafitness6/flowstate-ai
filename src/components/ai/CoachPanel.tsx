@@ -19,13 +19,12 @@ function buildDemoData(userId: string): RawUserData {
     soreness:             3,
     stressLevel:          3,
     energyLevel:          3,
-    hrv:                  52,
-    sessionsThisWeek:     3,
+    sessionsThisWeek:     0,
     avgRpe:               7,
-    consecutiveDays:      3,
-    habitsCompletedToday: 4,
-    totalHabits:          5,
-    adherenceStreak:      5,
+    consecutiveDays:      0,
+    habitsCompletedToday: 0,
+    totalHabits:          0,
+    adherenceStreak:      0,
   };
 }
 
@@ -50,7 +49,13 @@ export function CoachPanel() {
   const [notesOpen, setNotesOpen] = useState(false);
 
   const isLoading = ["summarizing", "deciding", "formatting"].includes(pipeline.status);
-  const result    = pipeline.result ?? pipeline.lastResult;
+  const cachedResult =
+    pipeline.lastResult &&
+    "userId" in pipeline.lastResult &&
+    pipeline.lastResult.userId === user.id
+      ? pipeline.lastResult
+      : null;
+  const result = pipeline.result ?? cachedResult;
 
   function handleRun() {
     pipeline.run(buildDemoData(user.id));

@@ -1,19 +1,23 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, FEATURES }    from "@/components/ui/PlanGate";
 import {
   ChevronLeft, ChevronRight, Dumbbell, Utensils, CheckCircle2,
   X, TrendingUp, TrendingDown, Minus, Check, AlertTriangle,
   ArrowRight, MessageSquare, Pencil, Plus, Droplets, Moon,
-  Zap, Footprints, Flame,
+  Zap, Footprints, Flame, Wind,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/context/UserContext";
+import { loadActivityHistory } from "@/lib/activity";
+import { getMeals, localDateISO } from "@/lib/nutrition/store";
+import { getWorkoutLogsForUser } from "@/lib/workout";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type EventType = "workout" | "nutrition" | "rest";
+type EventType = "workout" | "nutrition" | "breathwork" | "rest";
 type CalEvent  = { type: EventType; label: string };
 type EventMap  = Record<string, CalEvent[]>;
 
@@ -82,22 +86,18 @@ function dateStr(offset: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// ─── Calendar events ──────────────────────────────────────────────────────────
-// Empty until we wire workout_logs + nutrition_logs queries. The render path
-// already handles missing data via `?? []`, so a blank calendar is honest.
-
-const EVENTS: EventMap = {};
-
 const EVENT_STYLE: Record<EventType, { dot: string; text: string; bg: string }> = {
-  workout:   { dot: "bg-[#B48B40]",   text: "text-[#B48B40]",   bg: "bg-[#B48B40]/10"  },
-  nutrition: { dot: "bg-emerald-400", text: "text-emerald-400", bg: "bg-emerald-400/8" },
-  rest:      { dot: "bg-white/25",    text: "text-white/35",    bg: "bg-white/5"        },
+  workout:    { dot: "bg-[#B48B40]",   text: "text-[#B48B40]",   bg: "bg-[#B48B40]/10"  },
+  nutrition:  { dot: "bg-emerald-400", text: "text-emerald-400", bg: "bg-emerald-400/8" },
+  breathwork: { dot: "bg-[#93C5FD]",   text: "text-[#93C5FD]",   bg: "bg-[#93C5FD]/10"  },
+  rest:       { dot: "bg-white/25",    text: "text-white/35",    bg: "bg-white/5"        },
 };
 
 const EVENT_ICON: Record<EventType, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
-  workout:   Dumbbell,
-  nutrition: Utensils,
-  rest:      CheckCircle2,
+  workout:    Dumbbell,
+  nutrition:  Utensils,
+  breathwork: Wind,
+  rest:       CheckCircle2,
 };
 
 // ─── Day synopsis data ────────────────────────────────────────────────────────
@@ -114,6 +114,10 @@ function buildMonth(year: number, month: number) {
   for (let d = 1; d <= days; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
+}
+
+function addEvent(events: EventMap, dateKey: string, event: CalEvent) {
+  events[dateKey] = [...(events[dateKey] ?? []), event];
 }
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -569,22 +573,24 @@ function DaySynopsisModal({ dateKey, onClose }: { dateKey: string; onClose: () =
         </div>
 
         {/* ── Quick actions footer ──────────────────────────────────── */}
-        <div className="px-6 py-4 border-t border-white/[0.06] shrink-0">
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all">
-              <Pencil className="w-3 h-3" strokeWidth={1.5} />
-              Edit day
-            </button>
-            <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all">
-              <Plus className="w-3 h-3" strokeWidth={2} />
-              Add data
-            </button>
-            <button className="flex items-center gap-1.5 rounded-xl border border-[#B48B40]/18 bg-[#B48B40]/5 px-3.5 py-2 text-xs text-[#B48B40]/60 hover:text-[#B48B40]/85 hover:border-[#B48B40]/30 transition-all ml-auto">
-              <MessageSquare className="w-3 h-3" strokeWidth={1.5} />
-              Message coach
-            </button>
+        {synopsis && (
+          <div className="px-6 py-4 border-t border-white/[0.06] shrink-0">
+            <div className="flex items-center gap-2">
+              <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all">
+                <Pencil className="w-3 h-3" strokeWidth={1.5} />
+                Edit day
+              </button>
+              <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all">
+                <Plus className="w-3 h-3" strokeWidth={2} />
+                Add data
+              </button>
+              <button className="flex items-center gap-1.5 rounded-xl border border-[#B48B40]/18 bg-[#B48B40]/5 px-3.5 py-2 text-xs text-[#B48B40]/60 hover:text-[#B48B40]/85 hover:border-[#B48B40]/30 transition-all ml-auto">
+                <MessageSquare className="w-3 h-3" strokeWidth={1.5} />
+                Message coach
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -604,13 +610,70 @@ export default function CalendarPage() {
 }
 
 function CalendarPageInner() {
+  const { user } = useUser();
   const [viewDate,   setViewDate  ] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected,   setSelected  ] = useState<string | null>(todayStr);
   const [synopsisKey, setSynopsisKey] = useState<string | null>(null);
+  const [events, setEvents] = useState<EventMap>({});
 
   // Double-click discriminator
   const clickTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingKeyRef  = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadEvents() {
+      const next: EventMap = {};
+
+      try {
+        const workouts = await getWorkoutLogsForUser(user.id);
+        workouts.forEach((log) => {
+          const key = localDateISO(new Date(log.completedAt));
+          addEvent(next, key, {
+            type: "workout",
+            label: log.workoutName || "Workout logged",
+          });
+        });
+      } catch { /* ignore */ }
+
+      try {
+        const meals = await getMeals(user.id);
+        meals.forEach((meal) => {
+          const key = localDateISO(new Date(meal.eatenAt));
+          const label = meal.mealType
+            ? `${meal.mealType[0].toUpperCase()}${meal.mealType.slice(1)} logged`
+            : "Meal logged";
+          addEvent(next, key, { type: "nutrition", label });
+        });
+      } catch { /* ignore */ }
+
+      try {
+        loadActivityHistory(user.id)
+          .filter((event) => event.type === "Breathwork session")
+          .forEach((event) => {
+            addEvent(next, localDateISO(new Date(event.loggedAt)), {
+              type: "breathwork",
+              label: "Breathwork completed",
+            });
+          });
+
+        const lastType = localStorage.getItem(`flowstate-last-action-type-${user.id}`);
+        const lastAt = localStorage.getItem(`flowstate-last-action-${user.id}`);
+        if (lastType === "Breathwork session" && lastAt) {
+          const key = localDateISO(new Date(lastAt));
+          if (!(next[key] ?? []).some((event) => event.type === "breathwork")) {
+            addEvent(next, key, { type: "breathwork", label: "Breathwork completed" });
+          }
+        }
+      } catch { /* ignore */ }
+
+      if (active) setEvents(next);
+    }
+
+    void loadEvents();
+    return () => { active = false; };
+  }, [user.id]);
 
   const year  = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -630,7 +693,7 @@ function CalendarPageInner() {
       clickTimerRef.current = null;
       pendingKeyRef.current = null;
       setSelected(key);
-      setSynopsisKey(key);
+      if (DAY_SYNOPSES[key]) setSynopsisKey(key);
     } else {
       // First click: wait to see if double-click follows
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
@@ -644,7 +707,7 @@ function CalendarPageInner() {
     }
   }
 
-  const selectedEvents = selected ? (EVENTS[selected] ?? []) : [];
+  const selectedEvents = selected ? (events[selected] ?? []) : [];
 
   return (
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto text-white space-y-6">
@@ -691,7 +754,7 @@ function CalendarPageInner() {
             if (!day) return <div key={`e-${i}`} className="aspect-square" />;
 
             const key       = cellKey(day);
-            const events    = EVENTS[key] ?? [];
+            const dayEvents = events[key] ?? [];
             const synopsis  = DAY_SYNOPSES[key];
             const isToday   = key === todayStr;
             const isSel     = key === selected;
@@ -720,7 +783,7 @@ function CalendarPageInner() {
 
                 {/* Event dots */}
                 <div className="flex gap-0.5 flex-wrap justify-center">
-                  {events.slice(0, 2).map((ev, ei) => (
+                  {dayEvents.slice(0, 2).map((ev, ei) => (
                     <span key={ei} className={cn("w-1 h-1 rounded-full", EVENT_STYLE[ev.type].dot)} />
                   ))}
                 </div>
@@ -742,9 +805,9 @@ function CalendarPageInner() {
         </div>
       </div>
 
-      {/* Double-click hint */}
+      {/* Data hint */}
       <p className="text-[10px] text-white/18 text-center -mt-3">
-        Double-click any day to view full breakdown
+        Logged workouts, meals, and breathwork appear here as you add them.
       </p>
 
       {/* Selected day panel */}
@@ -818,7 +881,7 @@ function CalendarPageInner() {
             </div>
           ) : (
             <div className="px-5 py-5 text-center">
-              <p className="text-sm text-white/22">No events scheduled.</p>
+              <p className="text-sm text-white/22">No events logged.</p>
             </div>
           )}
         </div>

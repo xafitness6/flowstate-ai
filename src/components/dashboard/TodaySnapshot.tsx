@@ -33,6 +33,7 @@ type SnapshotState = {
   caloriesTarget:  number;
   proteinActual:   number;
   proteinTarget:   number;
+  hasNutritionTargets: boolean;
   mealsLogged:     number;
   habitsTotal:     number;
   habitsCompleted: number;
@@ -127,9 +128,7 @@ export function TodaySnapshot({ userId }: { userId: string }) {
       try { intake = await loadIntakeAsync(userId); } catch { /* ignore */ }
       if (!intake) intake = loadIntake(userId);
 
-      const targets = intake
-        ? calculateNutritionTargets(intake)
-        : { calories: 2200, proteinG: 150, carbsG: 230, fatG: 70, waterMl: 3000 };
+      const targets = intake ? calculateNutritionTargets(intake) : null;
 
       try {
         const meals: LoggedMeal[] = await getMealsForDate(userId, localDateISO());
@@ -150,9 +149,10 @@ export function TodaySnapshot({ userId }: { userId: string }) {
         workoutId,
         workoutIsRest,
         caloriesActual: Math.round(caloriesActual),
-        caloriesTarget: targets.calories,
+        caloriesTarget: targets?.calories ?? 0,
         proteinActual:  Math.round(proteinActual),
-        proteinTarget:  targets.proteinG,
+        proteinTarget:  targets?.proteinG ?? 0,
+        hasNutritionTargets: !!targets,
         mealsLogged,
         habitsTotal:    habits.total,
         habitsCompleted: habits.completed,
@@ -170,7 +170,7 @@ export function TodaySnapshot({ userId }: { userId: string }) {
     );
   }
 
-  const calPct = state.caloriesTarget > 0
+  const calPct = state.hasNutritionTargets && state.caloriesTarget > 0
     ? Math.min(100, Math.round((state.caloriesActual / state.caloriesTarget) * 100))
     : 0;
 
@@ -223,13 +223,21 @@ export function TodaySnapshot({ userId }: { userId: string }) {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-0.5">Your meals</p>
-              <p className="text-base font-semibold text-white/90">
-                {state.caloriesActual.toLocaleString()} <span className="text-white/35 font-normal">of {state.caloriesTarget.toLocaleString()} cal</span>
-              </p>
+              {state.hasNutritionTargets ? (
+                <p className="text-base font-semibold text-white/90">
+                  {state.caloriesActual.toLocaleString()} <span className="text-white/35 font-normal">of {state.caloriesTarget.toLocaleString()} cal</span>
+                </p>
+              ) : (
+                <p className="text-base font-semibold text-white/90">
+                  {state.mealsLogged > 0 ? `${state.caloriesActual.toLocaleString()} cal logged` : "No meals logged"}
+                </p>
+              )}
               <p className="text-xs text-white/40">
-                {state.mealsLogged > 0
+                {state.hasNutritionTargets && state.mealsLogged > 0
                   ? `${state.mealsLogged} meal${state.mealsLogged !== 1 ? "s" : ""} logged · ${state.proteinActual}g / ${state.proteinTarget}g protein`
-                  : `Nothing logged yet — target ${state.proteinTarget}g protein`}
+                  : state.hasNutritionTargets
+                  ? `Nothing logged yet — target ${state.proteinTarget}g protein`
+                  : "Complete onboarding to calculate targets"}
               </p>
             </div>
           </div>
@@ -262,8 +270,14 @@ export function TodaySnapshot({ userId }: { userId: string }) {
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-0.5">Your habits</p>
             <p className="text-base font-semibold text-white/90">
-              {state.habitsCompleted} of {state.habitsTotal}
-              <span className="text-white/35 font-normal"> done today</span>
+              {state.habitsTotal === 0 ? (
+                "No habits set up"
+              ) : (
+                <>
+                  {state.habitsCompleted} of {state.habitsTotal}
+                  <span className="text-white/35 font-normal"> done today</span>
+                </>
+              )}
             </p>
             <p className="text-xs text-white/40">
               {state.habitsTotal === 0

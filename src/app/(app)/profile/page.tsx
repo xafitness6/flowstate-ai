@@ -80,7 +80,7 @@ const COACH_PREVIEW: Record<string, string> = {
 };
 
 const STATUS_CONFIG = {
-  active: { label: "Online",  ring: "ring-[#4ADE80]/60", dot: "bg-[#4ADE80]" },
+  active: { label: "Active",  ring: "ring-[#4ADE80]/60", dot: "bg-[#4ADE80]" },
   rest:   { label: "Resting", ring: "ring-[#FBBF24]/50", dot: "bg-[#FBBF24]" },
   off:    { label: "Offline", ring: "ring-[#525252]/40", dot: "bg-[#525252]"  },
 };
@@ -120,6 +120,16 @@ const USER_STATS: Record<string, {
   member:  { sessions: 12, streak: 2,  longestStreak: 7,  compliance: 61, lastActive: "Yesterday", joinedLabel: "Nov 2024" },
 };
 
+const REAL_EMPTY_STATS = {
+  sessions: 0,
+  streak: 0,
+  longestStreak: 0,
+  last30: 0,
+  joinedLabel: "Not available",
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Default last-action labels shown before any real action is recorded
 const DEFAULT_LAST_ACTION: Record<string, string> = {
   master:  "Platform review",
@@ -137,14 +147,14 @@ function SettingsRow({
 }) {
   return (
     <div className={cn(
-      "flex items-center justify-between gap-6 px-5 py-4",
+      "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-6 px-5 py-4",
       !last && "border-b border-white/[0.045]"
     )}>
       <div className="min-w-0">
         <p className="text-sm text-white/75">{label}</p>
         {description && <p className="text-xs text-white/30 mt-0.5 leading-relaxed">{description}</p>}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="w-full sm:w-auto sm:shrink-0">{children}</div>
     </div>
   );
 }
@@ -157,13 +167,13 @@ function PillToggle<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-white/8 bg-white/[0.02] p-1">
+    <div className="flex flex-wrap items-center gap-1 rounded-xl border border-white/8 bg-white/[0.02] p-1">
       {options.map((opt) => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
           className={cn(
-            "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+            "rounded-lg px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap",
             value === opt.value ? "bg-[#B48B40] text-black" : "text-white/38 hover:text-white/65"
           )}
         >
@@ -340,8 +350,7 @@ export default function ProfilePage() {
   >(null);
 
   useEffect(() => {
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuid.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    if (!UUID_RE.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
     let cancelled = false;
 
     // Real activity stats from workout_logs.
@@ -365,12 +374,30 @@ export default function ProfilePage() {
 
   // "Last activity" (last active / last login / last action) is staff-only.
   const isStaff = user.role === "master" || user.role === "trainer" || !!user.isAdmin;
+  const isRealSupabaseUser = UUID_RE.test(user.id) && !!process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const statusCfg     = STATUS_CONFIG[user.status];
   const initials      = (displayName || user.name).split(" ").map((n) => n[0]).join("").toUpperCase();
   const resolvedName  = displayName || user.name;
   const displayAvatar = localAvatar || user.avatarUrl;
-  const stats         = USER_STATS[user.role] ?? USER_STATS.member;
+  const demoStats     = USER_STATS[user.role] ?? USER_STATS.member;
+  const activityStats = realStats
+    ? {
+        sessions: realStats.sessions,
+        streak: realStats.currentStreak,
+        longestStreak: realStats.longestStreak,
+        last30: realStats.last30,
+        joinedLabel: realStats.joinedLabel || REAL_EMPTY_STATS.joinedLabel,
+      }
+    : isRealSupabaseUser
+      ? REAL_EMPTY_STATS
+      : {
+          sessions: demoStats.sessions,
+          streak: demoStats.streak,
+          longestStreak: demoStats.longestStreak,
+          last30: null,
+          joinedLabel: demoStats.joinedLabel,
+        };
 
   // Record this login and read previous
   useEffect(() => {
@@ -429,13 +456,14 @@ export default function ProfilePage() {
   // ── Derived display ────────────────────────────────────────────────────────
 
   const complianceColor =
-    stats.compliance >= 80 ? "bg-[#B48B40]" :
-    stats.compliance >= 60 ? "bg-amber-500/60" : "bg-red-500/50";
+    demoStats.compliance >= 80 ? "bg-[#B48B40]" :
+    demoStats.compliance >= 60 ? "bg-amber-500/60" : "bg-red-500/50";
 
   const lastLoginDisplay = prevLogin ? formatTimestamp(prevLogin) : "First session";
   const lastActionDisplay = lastActionTs
     ? `${lastActionType || DEFAULT_LAST_ACTION[user.role]} · ${formatTimestamp(lastActionTs)}`
     : DEFAULT_LAST_ACTION[user.role];
+  const hasPaidSubscription = user.subscriptionStatus === "active" && !!user.stripeSubscriptionId;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -453,7 +481,7 @@ export default function ProfilePage() {
             <div className="relative">
               <div className={cn(
                 "w-[72px] h-[72px] rounded-full ring-2 ring-offset-2 ring-offset-[#111111] flex items-center justify-center bg-[#1C1C1C] border border-white/8",
-                avatarPreview ? "ring-[#B48B40]/60" : statusCfg.ring
+                avatarPreview ? "ring-[#B48B40]/60" : isStaff ? statusCfg.ring : "ring-white/10"
               )}>
                 {(avatarPreview ?? displayAvatar)
                   ? <img src={avatarPreview ?? displayAvatar ?? ""} alt={resolvedName} className="w-full h-full rounded-full object-cover" />
@@ -470,7 +498,7 @@ export default function ProfilePage() {
                 </button>
               )}
               <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} />
-              {!avatarPreview && (
+              {!avatarPreview && isStaff && (
                 <span className={cn("absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#111111]", statusCfg.dot)} />
               )}
             </div>
@@ -527,10 +555,12 @@ export default function ProfilePage() {
                   {PLAN_LABELS[user.plan as Plan]}
                 </span>
               )}
-              <span className="flex items-center gap-1.5">
-                <span className={cn("w-1.5 h-1.5 rounded-full", statusCfg.dot)} />
-                <span className="text-[10px] text-white/30">{statusCfg.label}</span>
-              </span>
+              {isStaff && (
+                <span className="flex items-center gap-1.5">
+                  <span className={cn("w-1.5 h-1.5 rounded-full", statusCfg.dot)} />
+                  <span className="text-[10px] text-white/30">{statusCfg.label}</span>
+                </span>
+              )}
             </div>
 
             {/* Bio */}
@@ -572,7 +602,7 @@ export default function ProfilePage() {
         <div className="border-t border-white/[0.05] px-5 py-3 flex items-center gap-5 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-white/25">Joined</span>
-            <span className="text-[10px] font-medium text-white/45">{(realStats && realStats.joinedLabel) || stats.joinedLabel}</span>
+            <span className="text-[10px] font-medium text-white/45">{activityStats.joinedLabel}</span>
           </div>
           {trainerName && (
             <div className="flex items-center gap-1.5">
@@ -583,7 +613,7 @@ export default function ProfilePage() {
           {isStaff && (
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-white/25">Last active</span>
-              <span className="text-[10px] font-medium text-white/45">{stats.lastActive}</span>
+              <span className="text-[10px] font-medium text-white/45">{isRealSupabaseUser ? lastLoginDisplay : demoStats.lastActive}</span>
             </div>
           )}
           <div className="flex items-center gap-1.5 ml-auto">
@@ -597,15 +627,15 @@ export default function ProfilePage() {
         <SectionHeader>Activity</SectionHeader>
         <Card>
           <div className="px-5 py-5 grid grid-cols-2 gap-x-8 gap-y-5">
-            <StatTile value={realStats ? realStats.sessions : stats.sessions} label="Sessions" />
-            <StatTile value={realStats ? realStats.currentStreak : stats.streak} label="Current streak" unit="days" />
-            <StatTile value={realStats ? realStats.longestStreak : stats.longestStreak} label="Longest streak" unit="days" />
-            {realStats ? (
-              <StatTile value={realStats.last30} label="Last 30 days" unit="sessions" />
+            <StatTile value={activityStats.sessions} label="Sessions" />
+            <StatTile value={activityStats.streak} label="Current streak" unit="days" />
+            <StatTile value={activityStats.longestStreak} label="Longest streak" unit="days" />
+            {isRealSupabaseUser ? (
+              <StatTile value={activityStats.last30 ?? 0} label="Last 30 days" unit="sessions" />
             ) : (
               <StatTile
-                value={stats.compliance} label="Compliance · 30d" unit="%"
-                bar={stats.compliance} barColor={complianceColor}
+                value={demoStats.compliance} label="Compliance · 30d" unit="%"
+                bar={demoStats.compliance} barColor={complianceColor}
               />
             )}
           </div>
@@ -807,13 +837,16 @@ export default function ProfilePage() {
                     Upgrade <ArrowUpRight className="w-3 h-3" strokeWidth={2} />
                   </Link>
                 )}
-                {user.plan !== "foundation" && (
+                {user.plan !== "foundation" && hasPaidSubscription && (
                   <Link
                     href="/pricing"
                     className="text-[10px] text-white/30 hover:text-white/55 transition-colors underline underline-offset-2"
                   >
                     Manage subscription
                   </Link>
+                )}
+                {user.plan !== "foundation" && !hasPaidSubscription && (
+                  <span className="text-[10px] text-white/28">Manual access</span>
                 )}
               </div>
             </SettingsRow>

@@ -37,7 +37,7 @@ import { loadIntake, GOAL_LABELS } from "@/lib/data/intake";
 
 function buildRealData(roleKey: string, actualUserId: string): RawUserData {
   let habitsCompletedToday = 0;
-  let totalHabits          = 5;
+  let totalHabits          = 0;
   let adherenceStreak      = 0;
   let sessionsThisWeek     = 0;
   let sleepHours           = 7.2;
@@ -107,6 +107,24 @@ function buildRealData(roleKey: string, actualUserId: string): RawUserData {
     totalHabits,
     adherenceStreak,
   };
+}
+
+function hasCoachingInputs(userId: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const rawLogs = localStorage.getItem("accountability-logs");
+    if (rawLogs && Object.keys(JSON.parse(rawLogs) as Record<string, unknown>).length > 0) return true;
+
+    const rawWorkoutLogs = localStorage.getItem(`flowstate-workout-logs-${userId}`);
+    if (rawWorkoutLogs && (JSON.parse(rawWorkoutLogs) as unknown[]).length > 0) return true;
+
+    const rawMeals = localStorage.getItem(`flowstate-meals-${userId}`);
+    if (rawMeals && (JSON.parse(rawMeals) as unknown[]).length > 0) return true;
+
+    return !!loadIntake(userId);
+  } catch {
+    return false;
+  }
 }
 
 // ─── Pipeline status labels ───────────────────────────────────────────────────
@@ -420,6 +438,7 @@ function DashboardContent() {
   // Auto-run performance pipeline once auth is confirmed
   useEffect(() => {
     if (!ready || !roleKey || !actualUserId || hasRun.current) return;
+    if (!hasCoachingInputs(actualUserId)) return;
     hasRun.current = true;
     pipeline.run(buildRealData(roleKey, actualUserId));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -501,6 +520,13 @@ function DashboardContent() {
   const demoUser  = resolvedUser;
   const firstName = demoUser.name.split(" ")[0];
   const visibleCards = QUICK_CARDS.filter((c) => hasAccess(role, c.minRole));
+  const cachedCoachResult =
+    pipeline.lastResult &&
+    "userId" in pipeline.lastResult &&
+    pipeline.lastResult.userId === actualUserId
+      ? pipeline.lastResult
+      : null;
+  const activeCoachResult = pipeline.result ?? cachedCoachResult;
 
   const ACTIVE_STATUSES = ["detecting","summarizing","deciding","formatting","educating"];
 
@@ -670,9 +696,9 @@ function DashboardContent() {
                 </div>
               )}
 
-              {pipeline.activeMode !== "education" && (pipeline.result ?? pipeline.lastResult) &&
+              {pipeline.activeMode !== "education" && activeCoachResult &&
                 !["summarizing","deciding","formatting"].includes(pipeline.status) && (() => {
-                const r = pipeline.result ?? pipeline.lastResult!;
+                const r = activeCoachResult;
                 return (
                   <div className="space-y-4">
                     <div>
@@ -700,8 +726,8 @@ function DashboardContent() {
 
               {!ACTIVE_STATUSES.includes(pipeline.status)
                 && pipeline.status !== "error"
-                && !pipeline.result && !pipeline.lastResult && !pipeline.educationResult && (
-                <p className="text-xs text-white/30">No conversation yet — ask anything to get started.</p>
+                && !activeCoachResult && !pipeline.educationResult && (
+                <p className="text-xs text-white/30">No recommendation yet. Ask a question or log training, nutrition, or habits to build one.</p>
               )}
             </div>
           </Card>

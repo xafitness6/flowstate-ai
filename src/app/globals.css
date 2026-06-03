@@ -129,6 +129,41 @@ html, body {
   --sidebar-ring: #b48240;
 }
 
+html.theme-light {
+  --background: #f6f4ee;
+  --foreground: #111111;
+  --card: #fffdf8;
+  --card-foreground: #111111;
+  --popover: #fffdf8;
+  --popover-foreground: #111111;
+  --primary: #9a6b2f;
+  --primary-foreground: #ffffff;
+  --secondary: #ece8de;
+  --secondary-foreground: #3f3b34;
+  --muted: #ece8de;
+  --muted-foreground: #6f6a60;
+  --accent: #9a6b2f;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --border: #ded8cc;
+  --input: #fffaf0;
+  --ring: #9a6b2f;
+  --sidebar: #fffdf8;
+  --sidebar-foreground: #111111;
+  --sidebar-primary: #9a6b2f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(154, 107, 47, 0.11);
+  --sidebar-accent-foreground: #7a5221;
+  --sidebar-border: #ded8cc;
+  --sidebar-ring: #9a6b2f;
+
+  --fs-accent: #9a6b2f;
+  --fs-accent-muted: rgba(154, 107, 47, 0.12);
+  --fs-surface-1: #fffdf8;
+  --fs-surface-2: #f3efe6;
+  --fs-surface-3: #ece8de;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -141,4 +176,62 @@ html, body {
   html {
     @apply font-sans;
   }
+}
+
+/* App-wide light mode for the current hard-coded dark Tailwind surfaces. */
+html.theme-light body {
+  background: #f6f4ee !important;
+  color: #111111 !important;
+}
+
+html.theme-light .bg-\[\#0A0A0A\],
+html.theme-light .bg-\[\#0D0D0D\],
+html.theme-light .bg-\[\#0F0F0F\],
+html.theme-light .bg-\[\#111111\],
+html.theme-light .bg-\[\#121212\],
+html.theme-light .bg-\[\#141414\],
+html.theme-light .bg-\[\#161616\],
+html.theme-light .bg-\[\#1A1A1A\],
+html.theme-light .bg-\[\#1C1C1C\],
+html.theme-light .bg-\[\#222\] {
+  background-color: #fffdf8 !important;
+}
+
+html.theme-light [class*="from-[#121212]"],
+html.theme-light [class*="from-[#141414]"],
+html.theme-light [class*="via-[#0F0F0F]"],
+html.theme-light [class*="to-[#0A0A0A]"] {
+  --tw-gradient-from: #fffdf8 var(--tw-gradient-from-position) !important;
+  --tw-gradient-via: #f6f1e7 var(--tw-gradient-via-position) !important;
+  --tw-gradient-to: #ede6d8 var(--tw-gradient-to-position) !important;
+}
+
+html.theme-light [class*="bg-white/"],
+html.theme-light [class*="bg-white\\["] {
+  background-color: rgba(17, 17, 17, 0.035) !important;
+}
+
+html.theme-light .bg-black\/65 {
+  background-color: rgba(17, 17, 17, 0.28) !important;
+}
+
+html.theme-light [class*="border-white"] {
+  border-color: rgba(17, 17, 17, 0.12) !important;
+}
+
+html.theme-light [class*="ring-offset-[#0A0A0A]"],
+html.theme-light [class*="ring-offset-[#111111]"] {
+  --tw-ring-offset-color: #fffdf8 !important;
+}
+
+html.theme-light [class*="text-white"] {
+  color: rgba(17, 17, 17, 0.72) !important;
+}
+
+html.theme-light .text-black {
+  color: #111111 !important;
+}
+
+html.theme-light [class*="placeholder:text-white"]::placeholder {
+  color: rgba(17, 17, 17, 0.35) !important;
 }
