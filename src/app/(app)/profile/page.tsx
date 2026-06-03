@@ -174,21 +174,6 @@ function PillToggle<T extends string>({
   );
 }
 
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      onClick={() => onChange(!enabled)}
-      className={cn("relative rounded-full transition-all duration-200", enabled ? "bg-[#B48B40]" : "bg-white/10")}
-      style={{ height: "22px", width: "40px" }}
-    >
-      <span
-        className={cn("absolute top-0.5 rounded-full bg-white shadow transition-all duration-200", enabled ? "left-[18px]" : "left-0.5")}
-        style={{ width: "18px", height: "18px" }}
-      />
-    </button>
-  );
-}
-
 // ─── Push level slider ────────────────────────────────────────────────────────
 
 function PushLevelSlider({
@@ -327,10 +312,6 @@ export default function ProfilePage() {
   const [coachStyle,       setCoachStyle]       = useLocalStorage<string>("coach-style",       "pro");
   const [units,            setUnits]            = useState("metric");
   const [dashboardDefault, setDashboardDefault] = useLocalStorage<string>("dashboard-default", "overview");
-  const [notifWorkout,     setNotifWorkout]     = useState(true);
-  const [notifNutrition,   setNotifNutrition]   = useState(true);
-  const [notifAI,          setNotifAI]          = useState(true);
-  const [notifWeekly,      setNotifWeekly]      = useState(false);
   const [savedFlash,       setSavedFlash]       = useState(false);
 
   // ── Identity ──────────────────────────────────────────────────────────────
@@ -751,18 +732,14 @@ export default function ProfilePage() {
       <div>
         <SectionHeader>Notifications</SectionHeader>
         <Card>
-          <SettingsRow label="Workout reminders" description="Alerts before scheduled sessions.">
-            <Toggle enabled={notifWorkout} onChange={setNotifWorkout} />
-          </SettingsRow>
-          <SettingsRow label="Nutrition check-ins" description="Midday and evening meal prompts.">
-            <Toggle enabled={notifNutrition} onChange={setNotifNutrition} />
-          </SettingsRow>
-          <SettingsRow label="AI adjustments" description="Notify when your plan is recalibrated.">
-            <Toggle enabled={notifAI} onChange={setNotifAI} />
-          </SettingsRow>
-          <SettingsRow label="Weekly summary" description="Performance and progress recap every Monday." last>
-            <Toggle enabled={notifWeekly} onChange={setNotifWeekly} />
-          </SettingsRow>
+          <div className="px-5 py-4 space-y-2">
+            <p className="text-xs text-white/45 leading-relaxed">
+              You&rsquo;ll see an in-app notification (the bell, top right) when your coach assigns or updates your program, adds nutrition or a workout, or shares a note with you.
+            </p>
+            <p className="text-[11px] text-white/28 leading-relaxed">
+              Program assignments and changes are also emailed to your account address.
+            </p>
+          </div>
         </Card>
       </div>
 
