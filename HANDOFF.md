@@ -1,7 +1,7 @@
-# HANDOFF — Coaching build-out complete (client file, trainer assignment, notifications, progress, invites)
+# HANDOFF — Coaching build-out complete (client file, trainer assignment, notifications, progress, invites, reminders, plan access)
 
 **Date:** 2026-06-03
-**Status:** Feature build-out is complete in the repo. Five DB migrations are NOT yet applied — see §1. No feature work remains from the 2026-06-02 handoff; deploy still happens by pushing `main` to Vercel.
+**Status:** Feature build-out is complete in the repo. Six DB migrations are NOT yet applied — see §1. No feature work remains from the 2026-06-02 handoff; deploy still happens by pushing `main` to Vercel.
 
 > Supersedes the 2026-05-24 password-reset handoff — that issue is resolved
 > (Resend `from` fixed, custom domain `flowstateai.site` live, auth redirect
@@ -9,13 +9,14 @@
 
 ---
 
-## 1. ⚠️ ACTION REQUIRED — apply five migrations (Supabase → SQL Editor)
+## 1. ⚠️ ACTION REQUIRED — apply six migrations (Supabase → SQL Editor)
 
 Migrations do NOT auto-apply on this project (no `SUPABASE_ACCESS_TOKEN`); the
 live DB lags the repo. The notification bell stays empty, note-sharing won't
-persist, reminders won't persist, and Progress tab weight/photos won't persist
-until these run. Invite open/accept/login funnel tracking also requires 025.
-Code is resilient (no crashes) without them.
+persist, trainer reminders won't persist, client/member calendar reminders won't
+persist, and Progress tab weight/photos won't persist until these run. Invite
+open/accept/login funnel tracking also requires 025. Code is resilient (no
+crashes) without them.
 
 ```sql
 -- 021 notifications
@@ -207,10 +208,83 @@ drop policy if exists "invite_acceptances_select_admin" on public.invite_accepta
 create policy "invite_acceptances_select_admin" on public.invite_acceptances for select using (public.is_admin());
 drop policy if exists "invite_acceptances_select_own" on public.invite_acceptances;
 create policy "invite_acceptances_select_own" on public.invite_acceptances for select using (auth.uid() = user_id);
+
+-- 026 client/member calendar reminders (visible on the owner's calendar)
+create table if not exists public.calendar_reminders (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.profiles(id) on delete cascade,
+  created_by_user_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null check (length(trim(title)) > 0),
+  notes text,
+  due_at timestamptz not null,
+  done boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_calendar_reminders_owner_due
+  on public.calendar_reminders(owner_id, done, due_at);
+alter table public.calendar_reminders enable row level security;
+
+drop trigger if exists calendar_reminders_updated_at on public.calendar_reminders;
+create trigger calendar_reminders_updated_at
+  before update on public.calendar_reminders
+  for each row execute function public.set_updated_at();
+
+drop policy if exists "calendar_reminders_select_authorized" on public.calendar_reminders;
+create policy "calendar_reminders_select_authorized" on public.calendar_reminders for select
+  using (
+    auth.uid() = owner_id
+    or public.is_admin()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = owner_id and p.assigned_trainer_id = auth.uid()
+    )
+  );
+drop policy if exists "calendar_reminders_insert_authorized" on public.calendar_reminders;
+create policy "calendar_reminders_insert_authorized" on public.calendar_reminders for insert
+  with check (
+    created_by_user_id = auth.uid()
+    and (
+      auth.uid() = owner_id
+      or public.is_admin()
+      or exists (
+        select 1 from public.profiles p
+        where p.id = owner_id and p.assigned_trainer_id = auth.uid()
+      )
+    )
+  );
+drop policy if exists "calendar_reminders_update_authorized" on public.calendar_reminders;
+create policy "calendar_reminders_update_authorized" on public.calendar_reminders for update
+  using (
+    auth.uid() = owner_id
+    or public.is_admin()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = owner_id and p.assigned_trainer_id = auth.uid()
+    )
+  )
+  with check (
+    auth.uid() = owner_id
+    or public.is_admin()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = owner_id and p.assigned_trainer_id = auth.uid()
+    )
+  );
+drop policy if exists "calendar_reminders_delete_authorized" on public.calendar_reminders;
+create policy "calendar_reminders_delete_authorized" on public.calendar_reminders for delete
+  using (
+    auth.uid() = owner_id
+    or public.is_admin()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = owner_id and p.assigned_trainer_id = auth.uid()
+    )
+  );
 ```
 
-Repo copies: `supabase/migrations/021_notifications.sql`, `022_note_sharing.sql`, `023_client_reminders.sql`, `024_progress_tracking.sql`, `025_invite_tracking.sql`.
-**Verify:** assign a program to a test client → bell notification + email; open `/clients/[id]` → Progress → add a weight + upload a photo; open an invite link → `/admin/invites` shows opened, then accept/login → accepted + logged-in details appear.
+Repo copies: `supabase/migrations/021_notifications.sql`, `022_note_sharing.sql`, `023_client_reminders.sql`, `024_progress_tracking.sql`, `025_invite_tracking.sql`, `026_calendar_reminders.sql`.
+**Verify:** assign a program to a test client → bell notification + email; open `/clients/[id]` → Progress → add a weight + upload a photo; open `/calendar` → add/toggle/delete a reminder; from `/clients/[id]` Notes → add a client calendar reminder and confirm it appears on that user's `/calendar`; open an invite link → `/admin/invites` shows opened, then accept/login → accepted + logged-in details appear.
 
 ---
 
@@ -232,7 +306,7 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
 
 ---
 
-## 3. Shipped this session (all on `main`/prod)
+## 3. Shipped this session (repo on `main`; push deploys to prod)
 
 - **Client file hub** `/clients/[id]`: tabs + stat tiles. APIs:
   `/api/clients/[id]/{intake,notes,program,nutrition,onboarding/reset,trainer}`.
@@ -253,6 +327,12 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
   `GET/POST/PATCH/DELETE /api/clients/[id]/reminders` (scoped to the acting
   trainer). UI in the client hub **Notes tab** → "Reminders · private to you"
   (add with optional due date, check off, delete). Never shown to the client.
+- **Client/member calendar reminders**: `calendar_reminders` (migration 026).
+  Members/clients can add their own reminders from `/calendar` via
+  `GET/POST/PATCH/DELETE /api/calendar/reminders`; admins/trainers can add
+  client-visible reminders from `/clients/[id]` Notes via
+  `/api/clients/[id]/calendar-reminders`. These reminders appear on the app
+  calendar and in the subscribable iCal feed (`/api/calendar/feed/[token]`).
 - **Per-tab trainer snapshots**: `GET /api/clients/[id]/activity` mirrors
   `/api/me/activity` for a trainer-authorized client. The client hub now shows
   compact snapshots at the top of **Program**, **Nutrition**, and **Progress**
@@ -264,6 +344,10 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
   `progress-photos` bucket and returned with signed URLs only. UI includes a
   bodyweight chart with clickable points/drill-in, add/delete weight logs, and
   upload/delete progress photos.
+- **Client/member Progress page**: `/progress` lets the signed-in user add
+  bodyweight logs, filter a chart by 30d/90d/6m/1y/all/custom dates, upload
+  private progress photos, and view filtered photo history. Self-access was
+  added to the weight/photo APIs with `requireClientAccess(id, { allowSelf: true })`.
 - **Mobile nav**: `Sidebar.tsx` exports the canonical `NAV_ITEMS`; `BottomNav`
   uses that source for a client-customizable pinned bottom bar
   (`localStorage: flowstate-bottomnav-items`) plus a mobile burger sheet for the
@@ -275,9 +359,20 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
   notifies the inviter/assigned trainer in-app. `/admin/invites` now shows
   Opened and Accepted stats, per-invite funnel chips, accepted-by details, last
   login, and a follow-up cue when a link was opened but no account was created.
-- **Plan-access alignment**: dashboard nutrition card gated by entitlement
-  (`TodaySnapshot.tsx`); plan re-fetch on tab focus (`UserContext.tsx`) so admin
-  upgrades apply without re-login.
+- **Plan-access alignment**: Foundation is now the basic access tier for
+  Nutrition, Calendar, and Coach (`src/lib/entitlements.ts`); paid tiers unlock
+  depth such as full history, voice/photo food tools, analytics, unlimited coach,
+  deep analytics, and Hybrid Coaching. `PATCH /api/admin/users/[id]` now treats
+  manual admin plan edits as temporary comp/access grants: paid tiers set
+  `subscription_status='active'`, Foundation sets `inactive` unless explicitly
+  overridden. `sync-profile` and invite acceptance no longer silently bump
+  clients to Training based only on role. `UserContext` refreshes real profiles
+  on focus/pageshow/visibility and every 15s so client-side access catches admin
+  tier changes without re-login.
+- **Light theme app chrome**: top bar, notification/theme/avatar controls,
+  dropdowns, desktop sidebar, and mobile bottom nav/sheet now have explicit
+  light-mode styling. The broad light CSS override was tightened so hover-only
+  `bg-white/...` classes do not become permanent grey boxes.
 - **Real profile stats**: `GET /api/me/activity` (sessions / streak / last-30
   from `workout_logs`); profile shows real numbers (demo accounts keep samples).
 - **Fixes**: "client not found" (profiles has NO `assigned_trainer_name` column —
@@ -290,7 +385,7 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
 ## 4. Remaining build-out
 
 No remaining feature work from the 2026-06-02 handoff. The remaining operational
-step is applying migrations 021-025 in Supabase SQL Editor, then pushing `main`
+step is applying migrations 021-026 in Supabase SQL Editor, then pushing `main`
 if the current working tree has not already been committed/deployed.
 
 ---
@@ -298,16 +393,19 @@ if the current working tree has not already been committed/deployed.
 ## 5. Key gotchas / patterns (READ before editing)
 
 - **Migration drift is the #1 footgun.** The live DB still needs migrations
-  021-025 applied manually. The live `profiles` table does NOT have
+  021-026 applied manually. The live `profiles` table does NOT have
   `assigned_trainer_name` (only `assigned_trainer_id`); `daily_checkins`
-  (migration 008), `google_calendar_tokens` (014), calendar reminders (015) are
-  also missing live. **Never SELECT a column that may not exist** — a bad select
+  (migration 008), `google_calendar_tokens` (014), and the new
+  `calendar_reminders` table (026) may also be missing live. **Never SELECT a column that may not exist** — a bad select
   returns `data: null` which reads as "not found". Prefer: select only known
   columns, **derive** the rest (e.g. look up the trainer's profile for their
   name), and make new-column writes best-effort.
 - **Two plan sources**: `FEATURE_MIN_PLAN` in `src/lib/entitlements.ts` governs
   access (via `canAccessFeature` / `useEntitlement`); `PLAN_FEATURES` in
   `src/lib/plans.ts` is a separate flag map. Gate UI with `useEntitlement`.
+  Foundation should keep basic Nutrition/Calendar/Coach access; paid tiers
+  should gate deeper features. During manual billing, admin plan edits are the
+  source of truth and role should not imply a higher plan.
 - **Demo vs Supabase**: guard real-data paths with the UUID regex +
   `NEXT_PUBLIC_SUPABASE_URL`; demo users have non-UUID ids and keep localStorage
   data. Several pages branch on this (profile, my-clients).

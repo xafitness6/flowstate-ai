@@ -146,7 +146,7 @@ const INITIAL_MESSAGE: Message = { id: "init", role: "ai", text: "What do you ne
 export default function CoachPage() {
   const { can } = useEntitlement();
 
-  // Page-level gate — Core plan required
+  // Page-level gate — Foundation gets basic coach access; unlimited depth stays gated.
   if (!can(FEATURES.COACH)) {
     return <LockedPageState feature={FEATURES.COACH} />;
   }

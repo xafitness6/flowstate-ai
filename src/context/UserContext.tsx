@@ -374,10 +374,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       void refreshProfile();
     }
 
+    void refreshProfile();
+    const refreshInterval = window.setInterval(refreshProfile, 15_000);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onFocus);
     window.addEventListener("pageshow", onFocus);
     return () => {
+      window.clearInterval(refreshInterval);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("pageshow", onFocus);

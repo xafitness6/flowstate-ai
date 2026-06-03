@@ -93,7 +93,14 @@ export async function PATCH(
     profileFields.role = body.role;
     profileFields.is_admin = body.role === "master";
   }
-  if (body.plan               !== undefined) profileFields.plan               = body.plan;
+  if (body.plan               !== undefined) {
+    profileFields.plan = body.plan;
+    // Manual admin plan edits are temporary comp/access controls until the
+    // paywall is wired. Keep status in sync unless the request sets it directly.
+    if (body.subscription_status === undefined) {
+      profileFields.subscription_status = body.plan === "foundation" ? "inactive" : "active";
+    }
+  }
   if (body.subscription_status !== undefined) profileFields.subscription_status = body.subscription_status;
 
   // ── Trainer assignment (assign / change / remove) ─────────────────────────

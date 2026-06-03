@@ -25,8 +25,10 @@ function isPlan(value: unknown): value is InvitePlan {
   return typeof value === "string" && value in PLAN_RANK;
 }
 
-function minimumPlanForRole(role: InviteRole): InvitePlan {
-  return role === "client" ? "training" : "foundation";
+function minimumPlanForRole(_role: InviteRole): InvitePlan {
+  // Invite role decides member/client workflow; plan decides feature access.
+  // New invite accepts should not override an admin's manual tier decision.
+  return "foundation";
 }
 
 function resolveInvitePlan(existingPlan: unknown, role: InviteRole): InvitePlan {

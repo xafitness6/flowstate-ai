@@ -29,7 +29,9 @@ function isPlan(value: unknown): value is Plan {
 
 function minimumPlanForRole(role: string, isAdmin: boolean): Plan {
   if (isAdmin || role === "master") return "coaching";
-  if (role === "client" || role === "trainer") return "training";
+  // Role controls what kind of account this is; plan controls feature access.
+  // Do not silently bump clients to Training, because admins may intentionally
+  // comp/downgrade a client/member while billing is still manual.
   return "foundation";
 }
 

@@ -802,7 +802,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   const { can }  = useEntitlement();
   const voice    = useVoiceInput();
 
-  // Page-level gate — Core plan required
+  // Page-level gate — Foundation gets basic nutrition; advanced tools are gated inside.
   if (!can(FEATURES.NUTRITION)) {
     return <LockedPageState feature={FEATURES.NUTRITION} />;
   }
@@ -1440,7 +1440,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
         {/* ── Analytics & trends ─────────────────────────────────────────────
              Gated: Pro plan required for full analytics.
-             Core users see a locked section preview instead. */}
+             Basic/Core users see a locked section preview instead. */}
         {can(FEATURES.NUTRITION_ANALYTICS) ? (
           <NutritionAnalytics userId={user.id} targets={targets} today={todayISO()} />
         ) : (

@@ -611,7 +611,7 @@ function DaySynopsisModal({ dateKey, onClose }: { dateKey: string; onClose: () =
 export default function CalendarPage() {
   const { can } = useEntitlement();
 
-  // Page-level gate — Core plan required
+  // Page-level gate — Foundation gets calendar/reminder access.
   if (!can(FEATURES.CALENDAR)) {
     return <LockedPageState feature={FEATURES.CALENDAR} />;
   }

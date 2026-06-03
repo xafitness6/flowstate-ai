@@ -5,7 +5,7 @@
 //   - Every gated feature has exactly one entry here.
 //   - No feature checks are scattered in components — always go through
 //     canAccessFeature() or the useEntitlement() hook.
-//   - "foundation" = free tier, "training" = Core, "performance" = Pro, "coaching" = Elite
+//   - "foundation" = basic free tier, "training" = Core, "performance" = Pro, "coaching" = Elite
 //   - Admin overrides: pass entitlementOverride to canAccessFeature() — the
 //     system takes the higher of the two plans. Override UI is not yet built
 //     but the data path is ready (see MockUser.entitlementOverride in types).
@@ -16,19 +16,19 @@ import { PLAN_HIERARCHY, PLAN_LABELS } from "./plans";
 // ─── Feature constants ────────────────────────────────────────────────────────
 
 export const FEATURES = {
-  // ── Free (foundation) ─────────────────────────────────────────────────────
+  // ── Basic (foundation) ────────────────────────────────────────────────────
   DASHBOARD:             "dashboard",
   PROGRAM_VIEW:          "program_view",
   WORKOUT_LOG:           "workout_log",
+  NUTRITION:             "nutrition",
+  CALENDAR:              "calendar",
+  COACH:                 "coach",
+  AI_COACH_BASIC:        "ai_coach_basic",
   BREATHWORK:            "breathwork",
   ACCOUNTABILITY_BASIC:  "accountability_basic",
   LEADERBOARD:           "leaderboard",
 
   // ── Core / training ($29) ─────────────────────────────────────────────────
-  NUTRITION:             "nutrition",
-  CALENDAR:              "calendar",
-  COACH:                 "coach",
-  AI_COACH_BASIC:        "ai_coach_basic",
   FULL_HISTORY:          "full_history",
   ACCOUNTABILITY_FULL:   "accountability_full",
   STARTER_TEMPLATES:     "starter_templates",
@@ -61,11 +61,11 @@ const FEATURE_MIN_PLAN: Record<Feature, Plan> = {
   [FEATURES.BREATHWORK]:            "foundation",
   [FEATURES.ACCOUNTABILITY_BASIC]:  "foundation",
   [FEATURES.LEADERBOARD]:           "foundation",
+  [FEATURES.NUTRITION]:             "foundation",
   [FEATURES.CALENDAR]:              "foundation",
+  [FEATURES.COACH]:                 "foundation",
+  [FEATURES.AI_COACH_BASIC]:        "foundation",
   // Core
-  [FEATURES.NUTRITION]:             "training",
-  [FEATURES.COACH]:                 "training",
-  [FEATURES.AI_COACH_BASIC]:        "training",
   [FEATURES.FULL_HISTORY]:          "training",
   [FEATURES.ACCOUNTABILITY_FULL]:   "training",
   [FEATURES.STARTER_TEMPLATES]:     "training",

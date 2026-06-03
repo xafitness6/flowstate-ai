@@ -94,7 +94,7 @@ export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
     workoutTracking:         true,
     nutritionTracking:       true,
     fullHistory:             false,   // limited to last 30 days
-    aiCoachAccess:           false,
+    aiCoachAccess:           true,    // basic coach access; paid tiers add depth/unlimited usage
     aiCoachUnlimited:        false,
     weeklyAIAdjustments:     false,
     dailyAIAdjustments:      false,
