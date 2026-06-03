@@ -303,12 +303,20 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           <div className="flex items-center gap-2 shrink-0 mt-1">
-            <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs font-medium text-white/55 hover:bg-white/[0.05] hover:text-white/75 transition-all">
+            <button
+              type="button"
+              onClick={() => { window.location.href = `mailto:${trainer.email}`; }}
+              className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs font-medium text-white/55 hover:bg-white/[0.05] hover:text-white/75 transition-all"
+            >
               <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.5} />
               Message
             </button>
             {hasFlags && (
-              <button className="flex items-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/6 px-3.5 py-2 text-xs font-medium text-amber-400 hover:bg-amber-400/10 transition-all">
+              <button
+                type="button"
+                onClick={() => document.getElementById("trainer-flags")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="flex items-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/6 px-3.5 py-2 text-xs font-medium text-amber-400 hover:bg-amber-400/10 transition-all"
+              >
                 <AlertTriangle className="w-3.5 h-3.5" strokeWidth={1.5} />
                 View flagged
               </button>
@@ -441,7 +449,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
 
       {/* ── Flags / alerts ────────────────────────────────────────────── */}
       {hasFlags && (
-        <div className="rounded-2xl border border-amber-400/14 bg-amber-400/[0.03] px-5 py-4">
+        <div id="trainer-flags" className="rounded-2xl border border-amber-400/14 bg-amber-400/[0.03] px-5 py-4 scroll-mt-20">
           <p className="text-[10px] uppercase tracking-[0.18em] text-amber-400/60 mb-3">Flags</p>
           <div className="space-y-2">
             {metrics.atRiskClients > 0 && (

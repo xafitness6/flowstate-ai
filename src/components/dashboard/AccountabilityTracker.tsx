@@ -269,10 +269,11 @@ export function AccountabilityTracker({ compact = false }: { compact?: boolean }
                 const level = scoreToLevel(activity.score);
                 const title = `${date} • score ${activity.score}\nWorkouts: ${activity.workouts} · Steps: ${activity.steps} · Calories: ${activity.calories} · Check-ins: ${activity.checkins}`;
                 return (
-                  <button
+                  <span
                     key={date}
                     title={title}
-                    className={cn("w-4 h-4 rounded-sm border border-white/10", level)}
+                    aria-label={title}
+                    className={cn("block w-4 h-4 rounded-sm border border-white/10", level)}
                   />
                 );
               })}

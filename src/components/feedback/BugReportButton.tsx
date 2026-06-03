@@ -58,20 +58,21 @@ export function BugReportButton() {
   return (
     <>
       <button
+        type="button"
         onClick={() => setOpen(true)}
         aria-label="Report a bug"
-        className="fixed bottom-20 md:bottom-6 right-5 z-40 w-11 h-11 rounded-full bg-[#1A1A1A] border border-white/[0.08] shadow-lg shadow-black/40 flex items-center justify-center text-white/60 hover:text-[#B48B40] hover:border-[#B48B40]/40 transition-all backdrop-blur-md"
+        className="fs-bug-button fixed bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+1rem)] md:bottom-6 right-5 z-40 w-11 h-11 rounded-full bg-[#1A1A1A] border border-white/[0.08] shadow-lg shadow-black/40 flex items-center justify-center text-white/60 hover:text-[#B48B40] hover:border-[#B48B40]/40 transition-all backdrop-blur-md"
       >
         <Bug className="w-4 h-4" strokeWidth={1.8} />
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fs-bug-overlay fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
           onClick={() => state !== "submitting" && setOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111] overflow-hidden"
+            className="fs-bug-panel w-full max-w-md max-h-[88dvh] rounded-2xl border border-white/[0.08] bg-[#111] overflow-hidden shadow-2xl shadow-black/45"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
@@ -83,6 +84,7 @@ export function BugReportButton() {
                 </h2>
               </div>
               <button
+                type="button"
                 onClick={() => state !== "submitting" && setOpen(false)}
                 className="w-8 h-8 rounded-lg hover:bg-white/[0.05] flex items-center justify-center transition-colors"
                 disabled={state === "submitting"}
@@ -101,6 +103,7 @@ export function BugReportButton() {
                     { id: "feedback", label: "Other" },
                   ] as { id: Category; label: string }[]).map((opt) => (
                     <button
+                      type="button"
                       key={opt.id}
                       onClick={() => setCategory(opt.id)}
                       className={cn(
@@ -127,6 +130,7 @@ export function BugReportButton() {
                       { id: "critical", label: "Critical", cls: "text-red-300" },
                     ] as { id: Severity; label: string; cls: string }[]).map((opt) => (
                       <button
+                        type="button"
                         key={opt.id}
                         onClick={() => setSeverity(opt.id)}
                         className={cn(
@@ -166,7 +170,7 @@ export function BugReportButton() {
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06] bg-white/[0.015]">
+            <div className="fs-bug-footer flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06] bg-white/[0.015]">
               {state === "error" && error && (
                 <div className="flex items-center gap-1.5 text-[11px] text-red-300/80 mr-auto">
                   <AlertCircle className="w-3.5 h-3.5" strokeWidth={2} />
@@ -180,6 +184,7 @@ export function BugReportButton() {
                 </div>
               )}
               <button
+                type="button"
                 onClick={() => state !== "submitting" && setOpen(false)}
                 disabled={state === "submitting"}
                 className="rounded-xl px-3 py-2 text-sm text-white/55 hover:text-white/85 transition-colors disabled:opacity-50"
@@ -187,6 +192,7 @@ export function BugReportButton() {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={() => void handleSubmit()}
                 disabled={state === "submitting" || state === "success" || message.trim().length < 5}
                 className={cn(

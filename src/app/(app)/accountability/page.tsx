@@ -762,7 +762,11 @@ function SortableHabitRow({
       )}
     >
       {editMode && (
-        <button {...attributes} {...listeners}
+        <button
+          type="button"
+          aria-label={`Reorder ${habit.label}`}
+          {...attributes}
+          {...listeners}
           className="text-white/18 hover:text-white/40 transition-colors cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="w-3.5 h-3.5" strokeWidth={1.5} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, FEATURES }    from "@/components/ui/PlanGate";
 import {
@@ -167,7 +168,19 @@ const IDENTITY_META: Record<NonNullable<IdentityState>, { label: string; color: 
 
 // ─── Day synopsis modal ───────────────────────────────────────────────────────
 
-function DaySynopsisModal({ dateKey, onClose }: { dateKey: string; onClose: () => void }) {
+function DaySynopsisModal({
+  dateKey,
+  onClose,
+  onEditDay,
+  onAddData,
+  onMessageCoach,
+}: {
+  dateKey: string;
+  onClose: () => void;
+  onEditDay: (date: string) => void;
+  onAddData: () => void;
+  onMessageCoach: () => void;
+}) {
   const synopsis = DAY_SYNOPSES[dateKey] ?? null;
   const isFuture = dateKey > todayStr;
   const isToday  = dateKey === todayStr;
@@ -586,15 +599,27 @@ function DaySynopsisModal({ dateKey, onClose }: { dateKey: string; onClose: () =
         {synopsis && (
           <div className="px-6 py-4 border-t border-white/[0.06] shrink-0">
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all">
+              <button
+                type="button"
+                onClick={() => onEditDay(synopsis.date)}
+                className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all"
+              >
                 <Pencil className="w-3 h-3" strokeWidth={1.5} />
                 Edit day
               </button>
-              <button className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all">
+              <button
+                type="button"
+                onClick={onAddData}
+                className="flex items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-xs text-white/38 hover:text-white/65 hover:border-white/15 transition-all"
+              >
                 <Plus className="w-3 h-3" strokeWidth={2} />
                 Add data
               </button>
-              <button className="flex items-center gap-1.5 rounded-xl border border-[#B48B40]/18 bg-[#B48B40]/5 px-3.5 py-2 text-xs text-[#B48B40]/60 hover:text-[#B48B40]/85 hover:border-[#B48B40]/30 transition-all ml-auto">
+              <button
+                type="button"
+                onClick={onMessageCoach}
+                className="flex items-center gap-1.5 rounded-xl border border-[#B48B40]/18 bg-[#B48B40]/5 px-3.5 py-2 text-xs text-[#B48B40]/60 hover:text-[#B48B40]/85 hover:border-[#B48B40]/30 transition-all ml-auto"
+              >
                 <MessageSquare className="w-3 h-3" strokeWidth={1.5} />
                 Message coach
               </button>
@@ -620,6 +645,7 @@ export default function CalendarPage() {
 }
 
 function CalendarPageInner() {
+  const router = useRouter();
   const { user } = useUser();
   const [viewDate,   setViewDate  ] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected,   setSelected  ] = useState<string | null>(todayStr);
@@ -1026,6 +1052,16 @@ function CalendarPageInner() {
         <DaySynopsisModal
           dateKey={synopsisKey}
           onClose={() => setSynopsisKey(null)}
+          onEditDay={(date) => {
+            setSelected(date);
+            setReminderDate(date);
+            setSynopsisKey(null);
+          }}
+          onAddData={() => {
+            setSynopsisKey(null);
+            router.push("/nutrition");
+          }}
+          onMessageCoach={() => router.push("/coach")}
         />
       )}
 

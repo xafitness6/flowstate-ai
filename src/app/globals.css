@@ -357,3 +357,30 @@ html.theme-light .fs-bottom-nav-sheet {
   border-color: rgba(17, 17, 17, 0.10) !important;
   box-shadow: 0 -22px 70px rgba(55, 44, 27, 0.18) !important;
 }
+
+html.theme-light .fs-bug-button {
+  background: #fffdf8 !important;
+  border-color: rgba(17, 17, 17, 0.12) !important;
+  color: rgba(17, 17, 17, 0.58) !important;
+  box-shadow: 0 16px 38px rgba(55, 44, 27, 0.16) !important;
+}
+
+html.theme-light .fs-bug-button:hover {
+  background: rgba(154, 107, 47, 0.08) !important;
+  border-color: rgba(154, 107, 47, 0.24) !important;
+  color: #7a5221 !important;
+}
+
+html.theme-light .fs-bug-overlay {
+  background: rgba(17, 17, 17, 0.32) !important;
+}
+
+html.theme-light .fs-bug-panel {
+  background: #fffdf8 !important;
+  border-color: rgba(17, 17, 17, 0.12) !important;
+  box-shadow: 0 26px 80px rgba(55, 44, 27, 0.22) !important;
+}
+
+html.theme-light .fs-bug-footer {
+  background: rgba(17, 17, 17, 0.025) !important;
+}

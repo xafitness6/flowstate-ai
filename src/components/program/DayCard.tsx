@@ -99,6 +99,7 @@ function ExerciseRow({
     >
       <div className="flex items-center gap-2 mb-2">
         <button
+          type="button"
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing text-white/15 hover:text-white/40 touch-none shrink-0"

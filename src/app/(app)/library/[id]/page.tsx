@@ -632,15 +632,25 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
                   Open on YouTube
                 </a>
               ) : (
-                <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/8 text-sm text-white/35 hover:text-white/60 hover:border-white/15 transition-all">
+                <button
+                  type="button"
+                  disabled
+                  title="Video replacement is not connected yet."
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/8 text-sm text-white/25 cursor-not-allowed opacity-60"
+                >
                   <Upload className="w-4 h-4" />
-                  Replace Video
+                  Replace Video · Soon
                 </button>
               )}
 
-              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/15 text-sm text-red-400/50 hover:text-red-400/75 hover:border-red-500/25 transition-all">
+              <button
+                type="button"
+                disabled
+                title="Library deletion is not connected yet."
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/10 text-sm text-red-400/30 cursor-not-allowed opacity-60"
+              >
                 <Trash2 className="w-4 h-4" />
-                {isYouTube ? "Remove from Library" : "Delete Video"}
+                {isYouTube ? "Remove from Library · Soon" : "Delete Video · Soon"}
               </button>
             </div>
           )}
