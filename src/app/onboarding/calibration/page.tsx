@@ -12,9 +12,9 @@ import { DEMO_USERS } from "@/context/UserContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = "goal" | "experience" | "schedule" | "nutrition" | "recovery" | "equipment";
+type Step = "goal" | "experience" | "body" | "schedule" | "nutrition" | "recovery" | "equipment";
 
-const STEPS: Step[] = ["goal", "experience", "schedule", "nutrition", "recovery", "equipment"];
+const STEPS: Step[] = ["goal", "experience", "body", "schedule", "nutrition", "recovery", "equipment"];
 
 type OnboardingAnswers = {
   primaryGoal:   string;
@@ -26,6 +26,14 @@ type OnboardingAnswers = {
   sleepHours:    string;
   mainStruggle:  string[];
   equipment:     string[];
+  // Body stats — drive BMR / calorie & macro targets
+  weight:        string;
+  weightUnit:    "kg" | "lbs";
+  height:        string;
+  heightUnit:    "cm" | "ft";
+  bodyFat:       string;             // optional — enables body-composition BMR
+  age:           string;             // optional
+  sex:           "" | "male" | "female"; // optional
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -213,6 +221,13 @@ const DEFAULT: OnboardingAnswers = {
   sleepHours:    "7",
   mainStruggle:  [],
   equipment:     [],
+  weight:        "",
+  weightUnit:    "kg",
+  height:        "",
+  heightUnit:    "cm",
+  bodyFat:       "",
+  age:           "",
+  sex:           "",
 };
 
 export default function CalibrationPage() {
@@ -256,6 +271,13 @@ export default function CalibrationPage() {
           dietStyle:     asArr(raw.dietStyle) ?? a.dietStyle,
           mainStruggle:  asArr(raw.mainStruggle) ?? a.mainStruggle,
           equipment:     asArr(raw.equipment) ?? a.equipment,
+          weight:        typeof raw.weight === "string" ? raw.weight : a.weight,
+          weightUnit:    raw.weightUnit === "lbs" || raw.weightUnit === "kg" ? raw.weightUnit : a.weightUnit,
+          height:        typeof raw.height === "string" ? raw.height : a.height,
+          heightUnit:    raw.heightUnit === "ft" || raw.heightUnit === "cm" ? raw.heightUnit : a.heightUnit,
+          bodyFat:       typeof raw.bodyFat === "string" ? raw.bodyFat : a.bodyFat,
+          age:           typeof raw.age === "string" ? raw.age : a.age,
+          sex:           raw.sex === "male" || raw.sex === "female" ? raw.sex : a.sex,
         }));
         if (typeof raw.primaryGoal === "string" || typeof raw.experience === "string") setPrefilled(true);
       } catch { /* no pre-fill — start blank */ }
@@ -318,12 +340,14 @@ export default function CalibrationPage() {
       availableDays:   [],
       mainStruggle:    answers.mainStruggle.join(" · "),
       confidenceLevel: 0,
-      weight:          "",
-      weightUnit:      "kg",
-      height:          "",
-      heightUnit:      "cm",
-      bodyFat:         "",
+      weight:          answers.weight,
+      weightUnit:      answers.weightUnit,
+      height:          answers.height,
+      heightUnit:      answers.heightUnit,
+      bodyFat:         answers.bodyFat,
       waist:           "",
+      age:             answers.age || undefined,
+      sex:             answers.sex || undefined,
       sleepHours:      answers.sleepHours,
       sleepQuality:    0,
       stressLevel:     0,
@@ -403,6 +427,7 @@ export default function CalibrationPage() {
   const canAdvance = (): boolean => {
     if (step === "goal")       return !!answers.primaryGoal;
     if (step === "experience") return !!answers.experience;
+    if (step === "body")       return parseFloat(answers.weight) > 0 && parseFloat(answers.height) > 0;
     if (step === "schedule")   return answers.daysPerWeek > 0 && !!answers.sessionLength;
     if (step === "nutrition")  return answers.dietStyle.length > 0 && !!answers.mealsPerDay;
     if (step === "recovery")   return !!answers.sleepHours && answers.mainStruggle.length > 0;
@@ -492,6 +517,123 @@ export default function CalibrationPage() {
                 />
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ── Body stats ────────────────────────────────────────────── */}
+        {step === "body" && (
+          <div className="space-y-7">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Your body stats</h1>
+              <p className="text-sm text-white/38 mt-1.5">
+                These set your BMR, calorie, and macro targets. Body fat, age, and sex are optional but make it more accurate.
+              </p>
+            </div>
+
+            {/* Weight + Height */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">Weight</p>
+                <div className="flex gap-1.5">
+                  <input
+                    type="number" inputMode="decimal" min="0"
+                    value={answers.weight}
+                    onChange={(e) => setAnswers((a) => ({ ...a, weight: e.target.value }))}
+                    placeholder="e.g. 80"
+                    className="flex-1 w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-3 text-sm text-white/85 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 transition-colors"
+                  />
+                  <div className="flex rounded-xl border border-white/10 overflow-hidden shrink-0">
+                    {(["kg", "lbs"] as const).map((u) => (
+                      <button key={u}
+                        onClick={() => setAnswers((a) => ({ ...a, weightUnit: u }))}
+                        className={cn("px-2.5 text-xs font-semibold transition-colors",
+                          answers.weightUnit === u ? "bg-[#B48B40]/15 text-[#B48B40]" : "text-white/35 hover:text-white/60")}
+                      >{u}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">Height</p>
+                <div className="flex gap-1.5">
+                  <input
+                    type="number" inputMode="decimal" min="0"
+                    value={answers.height}
+                    onChange={(e) => setAnswers((a) => ({ ...a, height: e.target.value }))}
+                    placeholder={answers.heightUnit === "cm" ? "e.g. 180" : "e.g. 5.11"}
+                    className="flex-1 w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-3 text-sm text-white/85 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 transition-colors"
+                  />
+                  <div className="flex rounded-xl border border-white/10 overflow-hidden shrink-0">
+                    {(["cm", "ft"] as const).map((u) => (
+                      <button key={u}
+                        onClick={() => setAnswers((a) => ({ ...a, heightUnit: u }))}
+                        className={cn("px-2.5 text-xs font-semibold transition-colors",
+                          answers.heightUnit === u ? "bg-[#B48B40]/15 text-[#B48B40]" : "text-white/35 hover:text-white/60")}
+                      >{u}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Body fat + Age */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">
+                  Body fat % <span className="text-white/20 normal-case tracking-normal">· optional</span>
+                </p>
+                <input
+                  type="number" inputMode="decimal" min="0" max="70"
+                  value={answers.bodyFat}
+                  onChange={(e) => setAnswers((a) => ({ ...a, bodyFat: e.target.value }))}
+                  placeholder="e.g. 18"
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-3 text-sm text-white/85 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 transition-colors"
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">
+                  Age <span className="text-white/20 normal-case tracking-normal">· optional</span>
+                </p>
+                <input
+                  type="number" inputMode="numeric" min="0" max="120"
+                  value={answers.age}
+                  onChange={(e) => setAnswers((a) => ({ ...a, age: e.target.value }))}
+                  placeholder="e.g. 30"
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-3 text-sm text-white/85 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Sex */}
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">
+                Sex <span className="text-white/20 normal-case tracking-normal">· optional, improves BMR accuracy</span>
+              </p>
+              <div className="flex gap-2">
+                {([["male", "Male"], ["female", "Female"]] as const).map(([val, lbl]) => (
+                  <ChipButton
+                    key={val}
+                    label={lbl}
+                    active={answers.sex === val}
+                    onClick={() => setAnswers((a) => ({ ...a, sex: a.sex === val ? "" : val }))}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={advance}
+              disabled={!canAdvance()}
+              className={cn(
+                "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all mt-2",
+                canAdvance()
+                  ? "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
+                  : "bg-white/5 text-white/25 cursor-default",
+              )}
+            >
+              Continue
+              <ArrowRight className="w-4 h-4" strokeWidth={2} />
+            </button>
           </div>
         )}
 

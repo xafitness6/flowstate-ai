@@ -31,7 +31,9 @@ import {
   type ClientTrainingData,
 } from "@/lib/data/store";
 import type { AdminProfile } from "@/lib/admin/profileMapper";
-import { loadIntake, GOAL_LABELS } from "@/lib/data/intake";
+import { loadIntake, loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
+import { EnergyCard } from "@/components/nutrition/EnergyCard";
+import { calculateEnergy, type EnergyProfile } from "@/lib/nutrition";
 
 // ─── Build real pipeline data from localStorage ───────────────────────────────
 
@@ -432,8 +434,22 @@ function DashboardContent() {
   const [roleKey,      setRoleKey     ] = useState("");
   const [actualUserId, setActualUserId] = useState("");
   const [question,     setQuestion    ] = useState("");
+  const [energy,       setEnergy       ] = useState<EnergyProfile | null>(null);
+  const [energyGoal,   setEnergyGoal   ] = useState<string | undefined>(undefined);
   const pipeline = useAIPipeline();
   const hasRun   = useRef(false);
+
+  // Energy profile (BMR / TDEE) for the dashboard card — clients & members only
+  useEffect(() => {
+    if (!actualUserId || (role !== "client" && role !== "member")) { setEnergy(null); return; }
+    let active = true;
+    loadIntakeAsync(actualUserId).then((intake) => {
+      if (!active) return;
+      setEnergy(intake ? calculateEnergy(intake) : null);
+      setEnergyGoal(intake ? GOAL_LABELS[intake.primaryGoal] : undefined);
+    });
+    return () => { active = false; };
+  }, [actualUserId, role]);
 
   // Auto-run performance pipeline once auth is confirmed
   useEffect(() => {
@@ -619,6 +635,13 @@ function DashboardContent() {
         {/* Today's snapshot — first thing a client/member sees */}
         {(role === "member" || role === "client") && (
           <TodaySnapshot userId={actualUserId} />
+        )}
+
+        {/* Energy / BMR card — same view the trainer sees */}
+        {(role === "member" || role === "client") && energy && (
+          <div className="sm:max-w-sm">
+            <EnergyCard energy={energy} goalLabel={energyGoal} />
+          </div>
         )}
 
         {/* Deep calibration nudge */}
