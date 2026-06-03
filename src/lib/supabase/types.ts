@@ -127,6 +127,28 @@ export interface Invite {
   invited_at:           string;
   accepted_at:          string | null;
   expires_at:           string | null;
+  first_opened_at:      string | null;
+  last_opened_at:       string | null;
+  open_count:           number;
+  last_opened_user_agent: string | null;
+  accepted_count:       number;
+  last_accepted_at:     string | null;
+  last_accepted_by_user_id: string | null;
+  last_accepted_email:  string | null;
+  last_accepted_name:   string | null;
+  logged_in_at:         string | null;
+  last_login_at:        string | null;
+}
+
+export interface InviteAcceptance {
+  id:            string;
+  invite_id:     string;
+  user_id:       string;
+  email:         string;
+  full_name:     string | null;
+  accepted_at:   string;
+  last_login_at: string;
+  created_at:    string;
 }
 
 export interface NutritionLog {
@@ -205,6 +227,11 @@ export interface Database {
         Row:    Invite;
         Insert: Partial<Invite> & { invited_by_user_id: string; invite_token: string };
         Update: Partial<Invite>;
+      };
+      invite_acceptances: {
+        Row:    InviteAcceptance;
+        Insert: Partial<InviteAcceptance> & { invite_id: string; user_id: string; email: string };
+        Update: Partial<InviteAcceptance>;
       };
       nutrition_logs: {
         Row:    NutritionLog;

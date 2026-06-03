@@ -79,7 +79,7 @@ Minimal — just the project name.
 | `/program/builder` | Drag-and-drop workout builder, persists to Supabase |
 | `/program/library` | List of user's programs — set active, duplicate, delete (SSR) |
 | `/program/assign` | Trainer client assignment (mock UI — superseded by builder "Send to user" for admins) |
-| `/admin/invites` | Admin invite generator (member + client, optional trainer pre-assignment) |
+| `/admin/invites` | Admin invite generator + opened/accepted/login funnel tracking |
 | `/admin/feedback` | Inbox for bug reports / feature requests submitted via the floating bug button |
 | `/calendar` | Monthly schedule view (legacy mock data) |
 | `/calendar/connect` | Calendar sync setup — iCal feed URL + customization |
@@ -165,8 +165,10 @@ Each `WeekTemplate.days[]` has `dayOfWeek`, `name`, `focus`, `estimatedMinutes`,
 ## Invites system
 
 Admins generate signup links from `/admin/invites`. Each invite has `invite_role: "member" | "client"` and optional `assigned_trainer_id` — the new account gets that role + trainer assignment via `raw_user_meta_data` on `supabase.auth.signUp` in `/invite/[token]/page.tsx`.
-- Migration: `011_invite_role.sql`
-- API routes: `POST/GET /api/admin/invites`, `PATCH/DELETE /api/admin/invites/[id]`
+- Migrations: `011_invite_role.sql`, `025_invite_tracking.sql`
+- API routes: `POST/GET /api/admin/invites`, `PATCH/DELETE /api/admin/invites/[id]`, public `GET/POST /api/invites/[token]`, `POST /api/invites/accept-current`
+- Funnel tracking: public invite GET stamps `first_opened_at`, `last_opened_at`, `open_count`; `acceptInviteForUser()` records accepted/logged-in users in `invite_acceptances` and updates invite summary fields (`accepted_count`, `last_accepted_*`, `logged_in_at`, `last_login_at`). Open links remain reusable and count each distinct accepted user once.
+- `/admin/invites` shows Total/Pending/Opened/Accepted, per-link funnel chips, accepted-by details, last login, and an amber follow-up cue when a link was opened but no account was created.
 - Trainers can still create per-client invites via `/my-clients` (existing flow); admin invites are a superset.
 
 ## Feedback / bug reports
@@ -225,7 +227,7 @@ Auth on all `/api/clients/[id]/*` routes goes through `requireClientAccess(id)` 
 
 - **On `/profile/[id]`** (admin-only) — "Assigned coach" select; `GET/PATCH /api/clients/[id]/trainer` (GET lists trainers+admins; PATCH admin-only, null/"" clears, UUID verified → writes id + name). This is the primary place to assign since admin → /profile/[id] is the path the owner uses.
 - **Admin assign/change/remove** — `/admin/users` has a Trainer column (select). `PATCH /api/admin/users/[id]` accepts `assigned_trainer_id` (`null`/`""` clears; a UUID is verified to be a trainer/master, then id + `assigned_trainer_name` are written to the client's profile). Trainers + admins are assignable (owner-as-trainer supported).
-- **Invite reliability — KNOWN GAP (next slice):** invited clients lose their trainer. Causes: (1) `handle_new_user` trigger creates the profile but does NOT copy `assigned_trainer_id` from `raw_user_meta_data`; (2) `sync-profile` reads metadata's `assigned_trainer_id` but only runs when the profile row is MISSING (the trigger already made it) and never sets `assigned_trainer_name`. Fix plan: have sync-profile set the name + run on login when assignment missing (reconcile from metadata), or fix the trigger (migration).
+- Invite acceptance now reconciles trainer assignment server-side in `acceptInviteForUser()` and `sync-profile` preserves assigned trainer IDs when present.
 - **`/my-clients` reads DEMO data** (`getMyClients(role,id)` from `src/lib/data/store.ts`), NOT the real Supabase `getMyClients()` in `src/lib/db/profiles.ts` — so real assigned clients don't appear. Switch to real data for Supabase users (next slice).
 
 ## Plan labels (single source of truth)

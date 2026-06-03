@@ -4,8 +4,30 @@ import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supa
 import type { Invite } from "@/lib/supabase/types";
 import { acceptInviteForUser } from "@/lib/server/inviteAcceptance";
 
+type AdminClient = Awaited<ReturnType<typeof createAdminClient>>;
+
+async function markInviteOpened(admin: AdminClient, invite: Invite, req: NextRequest) {
+  try {
+    const now = new Date().toISOString();
+    const currentCount = Number((invite as { open_count?: unknown }).open_count ?? 0);
+    const userAgent = (req.headers.get("user-agent") ?? "").slice(0, 500) || null;
+
+    await admin
+      .from("invites")
+      .update({
+        first_opened_at: invite.first_opened_at ?? now,
+        last_opened_at: now,
+        open_count: Math.max(0, currentCount) + 1,
+        last_opened_user_agent: userAgent,
+      })
+      .eq("id", invite.id);
+  } catch {
+    // Tracking is non-critical and migration 025 may not be applied yet.
+  }
+}
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
@@ -31,6 +53,8 @@ export async function GET(
   if (!data) {
     return NextResponse.json({ error: "Invite not found." }, { status: 404 });
   }
+
+  await markInviteOpened(admin, data as Invite, req);
 
   return NextResponse.json({ invite: data });
 }

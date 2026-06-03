@@ -112,5 +112,33 @@ export async function GET() {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ invites: data ?? [] });
+
+  const invites = data ?? [];
+  const ids = invites.map((invite: { id: string }) => invite.id);
+  let acceptancesByInvite = new Map<string, unknown[]>();
+
+  if (ids.length > 0) {
+    try {
+      const { data: acceptances } = await admin
+        .from("invite_acceptances")
+        .select("id,invite_id,user_id,email,full_name,accepted_at,last_login_at,created_at")
+        .in("invite_id", ids)
+        .order("accepted_at", { ascending: false });
+
+      acceptancesByInvite = new Map<string, unknown[]>();
+      for (const row of acceptances ?? []) {
+        const inviteId = (row as { invite_id: string }).invite_id;
+        acceptancesByInvite.set(inviteId, [...(acceptancesByInvite.get(inviteId) ?? []), row]);
+      }
+    } catch {
+      acceptancesByInvite = new Map<string, unknown[]>();
+    }
+  }
+
+  return NextResponse.json({
+    invites: invites.map((invite: { id: string }) => ({
+      ...invite,
+      acceptances: acceptancesByInvite.get(invite.id) ?? [],
+    })),
+  });
 }

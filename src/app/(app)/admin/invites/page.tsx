@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ChevronLeft, Plus, Copy, Check, Link as LinkIcon,
   Users, User, Loader2, AlertCircle, X, Trash2, Ban, Mail, Calendar,
+  Eye, LogIn, UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
@@ -14,12 +15,55 @@ import type { Invite, Role } from "@/lib/supabase/types";
 
 type Trainer = { id: string; full_name: string | null; email: string };
 
-type CreatedInvite = { invite: Invite; url: string };
+type InviteAcceptance = {
+  id: string;
+  invite_id: string;
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  accepted_at: string;
+  last_login_at: string;
+  created_at: string;
+};
+
+type TrackedInvite = Invite & { acceptances?: InviteAcceptance[] };
+
+type CreatedInvite = { invite: TrackedInvite; url: string };
+
+function shortDate(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function shortDateTime(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function num(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function acceptanceCount(invite: TrackedInvite) {
+  return Math.max(
+    num(invite.accepted_count),
+    invite.acceptances?.length ?? 0,
+    invite.invite_status === "accepted" ? 1 : 0,
+  );
+}
+
+function openCount(invite: TrackedInvite) {
+  return Math.max(num(invite.open_count), invite.first_opened_at || invite.last_opened_at ? 1 : 0);
+}
 
 export default function AdminInvitesPage() {
   const adminReady = useAdminGuard();
 
-  const [invites,  setInvites]  = useState<Invite[]>([]);
+  const [invites,  setInvites]  = useState<TrackedInvite[]>([]);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
@@ -44,7 +88,7 @@ export default function AdminInvitesPage() {
         fetch("/api/admin/invites",  { cache: "no-store" }),
         fetch("/api/admin/users",     { cache: "no-store" }),
       ]);
-      const invJson  = await invRes.json()  as { invites?: Invite[]; error?: string };
+      const invJson  = await invRes.json()  as { invites?: TrackedInvite[]; error?: string };
       const userJson = await userRes.json() as { users?: Array<Trainer & { role: Role }>; error?: string };
 
       if (!invRes.ok  || invJson.error)  throw new Error(invJson.error  ?? "Failed to load invites");
@@ -90,7 +134,7 @@ export default function AdminInvitesPage() {
           message,
         }),
       });
-      const data = await res.json() as { invite?: Invite; url?: string; error?: string };
+      const data = await res.json() as { invite?: TrackedInvite; url?: string; error?: string };
       if (!res.ok || !data.invite || !data.url) throw new Error(data.error ?? "Create failed");
 
       setCreated({ invite: data.invite, url: data.url });
@@ -150,8 +194,9 @@ export default function AdminInvitesPage() {
     );
   }
 
-  const pending = invites.filter((i) => i.invite_status === "pending").length;
-  const accepted = invites.filter((i) => i.invite_status === "accepted").length;
+  const pending = invites.filter((i) => i.invite_status === "pending" || i.invite_status === "sent").length;
+  const opened = invites.filter((i) => openCount(i) > 0).length;
+  const accepted = invites.reduce((sum, i) => sum + acceptanceCount(i), 0);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white pb-24">
@@ -182,9 +227,10 @@ export default function AdminInvitesPage() {
         </div>
 
         {/* Stats strip */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <StatTile label="Total" value={invites.length} />
           <StatTile label="Pending" value={pending} accent="text-[#B48B40]" />
+          <StatTile label="Opened" value={opened} accent="text-[#93C5FD]/80" />
           <StatTile label="Accepted" value={accepted} accent="text-emerald-300" />
         </div>
 
@@ -369,8 +415,17 @@ export default function AdminInvitesPage() {
           <div className="space-y-2">
             {invites.map((inv) => {
               const url = `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${inv.invite_token}`;
-              const isActive = inv.invite_status === "pending";
-              const isAccepted = inv.invite_status === "accepted";
+              const isActive = inv.invite_status === "pending" || inv.invite_status === "sent";
+              const acceptedTotal = acceptanceCount(inv);
+              const opens = openCount(inv);
+              const recentAcceptance = inv.acceptances?.[0] ?? null;
+              const acceptedName = recentAcceptance?.full_name || inv.last_accepted_name || inv.invite_email || "New account";
+              const acceptedEmail = recentAcceptance?.email || inv.last_accepted_email || inv.invite_email;
+              const lastLogin = recentAcceptance?.last_login_at || inv.last_login_at;
+              const openedNoSignup = isActive && opens > 0 && acceptedTotal === 0;
+              const statusLabel = inv.invite_status === "pending" && inv.invite_type === "open"
+                ? "active link"
+                : inv.invite_status;
               return (
                 <Card key={inv.id}>
                   <div className="px-5 py-4">
@@ -386,12 +441,18 @@ export default function AdminInvitesPage() {
                         </span>
                         <span className={cn(
                           "text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border whitespace-nowrap",
-                          isActive ? "text-emerald-300 border-emerald-400/25 bg-emerald-400/[0.06]"
-                          : isAccepted ? "text-white/55 border-white/12 bg-white/[0.03]"
+                          openedNoSignup ? "text-amber-300 border-amber-400/25 bg-amber-400/[0.06]"
+                          : isActive ? "text-emerald-300 border-emerald-400/25 bg-emerald-400/[0.06]"
+                          : acceptedTotal > 0 ? "text-emerald-300/80 border-emerald-400/20 bg-emerald-400/[0.04]"
                           : "text-white/35 border-white/10 bg-white/[0.02]",
                         )}>
-                          {inv.invite_status}
+                          {openedNoSignup ? "opened · follow up" : statusLabel}
                         </span>
+                        {acceptedTotal > 0 && (
+                          <span className="text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.05] text-emerald-300/80 whitespace-nowrap">
+                            {acceptedTotal} accepted
+                          </span>
+                        )}
                         {inv.invite_email && (
                           <span className="flex items-center gap-1 text-[11px] text-white/60 truncate min-w-0">
                             <Mail className="w-3 h-3 text-white/30" strokeWidth={1.7} />
@@ -419,9 +480,52 @@ export default function AdminInvitesPage() {
                       )}
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" strokeWidth={1.7} />
-                        {new Date(inv.invited_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        Created {shortDate(inv.invited_at)}
                       </span>
+                      {opens > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-3 h-3" strokeWidth={1.7} />
+                          Opened {opens}x · last {shortDateTime(inv.last_opened_at ?? inv.first_opened_at)}
+                        </span>
+                      )}
                     </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 mb-3">
+                      <FunnelPill icon={Calendar} label="Created" value={shortDate(inv.invited_at)} done />
+                      <FunnelPill
+                        icon={Eye}
+                        label="Opened"
+                        value={opens > 0 ? `${opens}x` : "No"}
+                        done={opens > 0}
+                        warn={openedNoSignup}
+                      />
+                      <FunnelPill
+                        icon={UserCheck}
+                        label="Accepted"
+                        value={acceptedTotal > 0 ? `${acceptedTotal}` : "No"}
+                        done={acceptedTotal > 0}
+                      />
+                      <FunnelPill
+                        icon={LogIn}
+                        label="Logged in"
+                        value={lastLogin ? shortDate(lastLogin) : "No"}
+                        done={!!lastLogin}
+                      />
+                    </div>
+
+                    {acceptedTotal > 0 && (
+                      <div className="mb-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.035] px-3 py-2">
+                        <p className="text-xs font-medium text-emerald-200/85">
+                          {acceptedName}
+                          {acceptedEmail && acceptedEmail !== acceptedName ? <span className="text-emerald-200/45"> · {acceptedEmail}</span> : null}
+                        </p>
+                        <p className="text-[11px] text-emerald-200/45 mt-0.5">
+                          Accepted {shortDateTime(recentAcceptance?.accepted_at ?? inv.last_accepted_at ?? inv.accepted_at)}
+                          {lastLogin ? ` · last login ${shortDateTime(lastLogin)}` : ""}
+                          {(inv.acceptances?.length ?? 0) > 1 ? ` · ${inv.acceptances!.length - 1} more` : ""}
+                        </p>
+                      </div>
+                    )}
 
                     {isActive && (
                       <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 mb-2">
@@ -480,5 +584,43 @@ function StatTile({ label, value, accent }: { label: string; value: number; acce
         <p className="text-[10px] uppercase tracking-[0.18em] text-white/35 mt-1">{label}</p>
       </div>
     </Card>
+  );
+}
+
+function FunnelPill({
+  icon: Icon,
+  label,
+  value,
+  done,
+  warn,
+}: {
+  icon: typeof User;
+  label: string;
+  value: string;
+  done?: boolean;
+  warn?: boolean;
+}) {
+  return (
+    <div className={cn(
+      "rounded-xl border px-3 py-2 min-w-0",
+      warn
+        ? "border-amber-400/20 bg-amber-400/[0.045]"
+        : done
+          ? "border-emerald-400/15 bg-emerald-400/[0.035]"
+          : "border-white/[0.055] bg-white/[0.018]",
+    )}>
+      <p className={cn(
+        "text-[9px] uppercase tracking-[0.14em] flex items-center gap-1.5 mb-0.5",
+        warn ? "text-amber-200/55" : done ? "text-emerald-200/45" : "text-white/25",
+      )}>
+        <Icon className="w-3 h-3 shrink-0" strokeWidth={1.7} /> {label}
+      </p>
+      <p className={cn(
+        "text-xs font-semibold truncate",
+        warn ? "text-amber-200/85" : done ? "text-white/80" : "text-white/35",
+      )}>
+        {value}
+      </p>
+    </div>
   );
 }

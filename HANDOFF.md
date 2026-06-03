@@ -1,7 +1,7 @@
-# HANDOFF — Coaching build-out complete (client file, trainer assignment, notifications, progress)
+# HANDOFF — Coaching build-out complete (client file, trainer assignment, notifications, progress, invites)
 
 **Date:** 2026-06-03
-**Status:** Feature build-out is complete in the repo. Four DB migrations are NOT yet applied — see §1. No feature work remains from the 2026-06-02 handoff; deploy still happens by pushing `main` to Vercel.
+**Status:** Feature build-out is complete in the repo. Five DB migrations are NOT yet applied — see §1. No feature work remains from the 2026-06-02 handoff; deploy still happens by pushing `main` to Vercel.
 
 > Supersedes the 2026-05-24 password-reset handoff — that issue is resolved
 > (Resend `from` fixed, custom domain `flowstateai.site` live, auth redirect
@@ -9,12 +9,13 @@
 
 ---
 
-## 1. ⚠️ ACTION REQUIRED — apply four migrations (Supabase → SQL Editor)
+## 1. ⚠️ ACTION REQUIRED — apply five migrations (Supabase → SQL Editor)
 
 Migrations do NOT auto-apply on this project (no `SUPABASE_ACCESS_TOKEN`); the
 live DB lags the repo. The notification bell stays empty, note-sharing won't
 persist, reminders won't persist, and Progress tab weight/photos won't persist
-until these run. Code is resilient (no crashes) without them.
+until these run. Invite open/accept/login funnel tracking also requires 025.
+Code is resilient (no crashes) without them.
 
 ```sql
 -- 021 notifications
@@ -163,17 +164,60 @@ create policy "progress_photos_storage_delete_authorized" on storage.objects for
     )
   )
 );
+
+-- 025 invite funnel tracking (opened → accepted/logged in)
+alter table public.invites
+  add column if not exists first_opened_at timestamptz,
+  add column if not exists last_opened_at timestamptz,
+  add column if not exists open_count integer not null default 0,
+  add column if not exists last_opened_user_agent text,
+  add column if not exists accepted_count integer not null default 0,
+  add column if not exists last_accepted_at timestamptz,
+  add column if not exists last_accepted_by_user_id uuid references public.profiles(id) on delete set null,
+  add column if not exists last_accepted_email text,
+  add column if not exists last_accepted_name text,
+  add column if not exists logged_in_at timestamptz,
+  add column if not exists last_login_at timestamptz;
+create index if not exists idx_invites_last_opened on public.invites(last_opened_at desc);
+create index if not exists idx_invites_last_accepted on public.invites(last_accepted_at desc);
+
+create table if not exists public.invite_acceptances (
+  id uuid primary key default gen_random_uuid(),
+  invite_id uuid not null references public.invites(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  email text not null,
+  full_name text,
+  accepted_at timestamptz not null default now(),
+  last_login_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique(invite_id, user_id)
+);
+create index if not exists idx_invite_acceptances_invite on public.invite_acceptances(invite_id, accepted_at desc);
+create index if not exists idx_invite_acceptances_user on public.invite_acceptances(user_id, last_login_at desc);
+alter table public.invite_acceptances enable row level security;
+drop policy if exists "invite_acceptances_select_creator" on public.invite_acceptances;
+create policy "invite_acceptances_select_creator" on public.invite_acceptances for select using (
+  exists (
+    select 1 from public.invites i
+    where i.id = invite_id
+      and (i.invited_by_user_id = auth.uid() or i.assigned_trainer_id = auth.uid())
+  )
+);
+drop policy if exists "invite_acceptances_select_admin" on public.invite_acceptances;
+create policy "invite_acceptances_select_admin" on public.invite_acceptances for select using (public.is_admin());
+drop policy if exists "invite_acceptances_select_own" on public.invite_acceptances;
+create policy "invite_acceptances_select_own" on public.invite_acceptances for select using (auth.uid() = user_id);
 ```
 
-Repo copies: `supabase/migrations/021_notifications.sql`, `022_note_sharing.sql`, `023_client_reminders.sql`, `024_progress_tracking.sql`.
-**Verify:** assign a program to a test client → bell notification + email; open `/clients/[id]` → Progress → add a weight + upload a photo.
+Repo copies: `supabase/migrations/021_notifications.sql`, `022_note_sharing.sql`, `023_client_reminders.sql`, `024_progress_tracking.sql`, `025_invite_tracking.sql`.
+**Verify:** assign a program to a test client → bell notification + email; open `/clients/[id]` → Progress → add a weight + upload a photo; open an invite link → `/admin/invites` shows opened, then accept/login → accepted + logged-in details appear.
 
 ---
 
 ## 2. Two client-detail pages (important — don't confuse them)
 
 - **`/clients/[id]`** — the rich tabbed "trainer's-eyes" hub (Overview / Program
-  / Nutrition / Notes; Progress + Chat are placeholders). Reached from **My
+  / Nutrition / Progress / Notes; Chat is a placeholder). Reached from **My
   Clients** and from the **admin dashboard "View details"** for client/member
   roles. File: `src/app/(app)/clients/[id]/page.tsx`.
 - **`/profile/[id]`** — snapshot view (identity + assigned coach + active program
@@ -225,6 +269,12 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
   (`localStorage: flowstate-bottomnav-items`) plus a mobile burger sheet for the
   full navigation. Nutrition/Coach/Calendar pinning respects entitlements and
   locked items route to pricing but cannot be pinned.
+- **Invite funnel tracking**: migration 025 adds opened/accepted/login summary
+  fields + `invite_acceptances` for reusable open links. Public invite GET
+  stamps opens; `acceptInviteForUser()` records the accepted/logged-in user and
+  notifies the inviter/assigned trainer in-app. `/admin/invites` now shows
+  Opened and Accepted stats, per-invite funnel chips, accepted-by details, last
+  login, and a follow-up cue when a link was opened but no account was created.
 - **Plan-access alignment**: dashboard nutrition card gated by entitlement
   (`TodaySnapshot.tsx`); plan re-fetch on tab focus (`UserContext.tsx`) so admin
   upgrades apply without re-login.
@@ -240,7 +290,7 @@ All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
 ## 4. Remaining build-out
 
 No remaining feature work from the 2026-06-02 handoff. The remaining operational
-step is applying migrations 021-024 in Supabase SQL Editor, then pushing `main`
+step is applying migrations 021-025 in Supabase SQL Editor, then pushing `main`
 if the current working tree has not already been committed/deployed.
 
 ---
@@ -248,7 +298,7 @@ if the current working tree has not already been committed/deployed.
 ## 5. Key gotchas / patterns (READ before editing)
 
 - **Migration drift is the #1 footgun.** The live DB still needs migrations
-  021-024 applied manually. The live `profiles` table does NOT have
+  021-025 applied manually. The live `profiles` table does NOT have
   `assigned_trainer_name` (only `assigned_trainer_id`); `daily_checkins`
   (migration 008), `google_calendar_tokens` (014), calendar reminders (015) are
   also missing live. **Never SELECT a column that may not exist** — a bad select

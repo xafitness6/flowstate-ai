@@ -1,4 +1,5 @@
 import type { Invite } from "@/lib/supabase/types";
+import { notifyClient } from "@/lib/server/notifications";
 
 type InviteRole = "member" | "client";
 type InvitePlan = "foundation" | "training" | "performance" | "coaching";
@@ -42,6 +43,119 @@ function splitName(fullName: string) {
     firstName: parts[0] ?? "",
     lastName:  parts.slice(1).join(" "),
   };
+}
+
+async function upsertInviteAcceptance(args: {
+  admin: AdminClient;
+  inviteId: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  now: string;
+}): Promise<{ ok: boolean; isNew: boolean }> {
+  try {
+    const { data: existing, error: selectError } = await args.admin
+      .from("invite_acceptances")
+      .select("id")
+      .eq("invite_id", args.inviteId)
+      .eq("user_id", args.userId)
+      .maybeSingle();
+
+    if (selectError) return { ok: false, isNew: false };
+
+    if (existing?.id) {
+      const { error: updateError } = await args.admin
+        .from("invite_acceptances")
+        .update({
+          email: args.email,
+          full_name: args.fullName || null,
+          last_login_at: args.now,
+        })
+        .eq("id", existing.id);
+
+      return { ok: !updateError, isNew: false };
+    }
+
+    const { error: insertError } = await args.admin
+      .from("invite_acceptances")
+      .insert({
+        invite_id: args.inviteId,
+        user_id: args.userId,
+        email: args.email,
+        full_name: args.fullName || null,
+        accepted_at: args.now,
+        last_login_at: args.now,
+      });
+
+    return { ok: !insertError, isNew: !insertError };
+  } catch {
+    return { ok: false, isNew: false };
+  }
+}
+
+async function updateInviteTracking(args: {
+  admin: AdminClient;
+  invite: Invite;
+  userId: string;
+  email: string;
+  fullName: string;
+  now: string;
+  isNewAcceptance: boolean;
+}) {
+  try {
+    const currentCount = Number(args.invite.accepted_count ?? 0);
+    const alreadyDirectAccepted =
+      args.invite.invite_type !== "open" &&
+      args.invite.invite_status === "accepted" &&
+      args.invite.accepted_by_user_id === args.userId;
+    const accepted_count = args.isNewAcceptance && !alreadyDirectAccepted
+      ? Math.max(0, currentCount) + 1
+      : Math.max(currentCount, alreadyDirectAccepted || args.invite.invite_status === "accepted" ? 1 : 0);
+
+    const update: Record<string, unknown> = {
+      accepted_count,
+      logged_in_at: args.invite.logged_in_at ?? args.now,
+      last_login_at: args.now,
+    };
+
+    if (args.isNewAcceptance) {
+      update.last_accepted_at = args.now;
+      update.last_accepted_by_user_id = args.userId;
+      update.last_accepted_email = args.email;
+      update.last_accepted_name = args.fullName || null;
+    }
+
+    await args.admin
+      .from("invites")
+      .update(update)
+      .eq("id", args.invite.id);
+  } catch {
+    // Tracking columns are migration 025; acceptance must keep working without them.
+  }
+}
+
+async function notifyInviteAccepted(args: {
+  invite: Invite;
+  acceptedName: string;
+  acceptedEmail: string;
+}) {
+  const recipients = [
+    args.invite.invited_by_user_id,
+    args.invite.assigned_trainer_id,
+  ].filter((id, index, all): id is string =>
+    Boolean(id) && all.indexOf(id) === index,
+  );
+
+  await Promise.all(recipients.map((userId) =>
+    notifyClient({
+      userId,
+      type: "general",
+      title: "Invite accepted",
+      body: `${args.acceptedName || args.acceptedEmail} accepted an invite and logged in.`,
+      link: "/admin/invites",
+      actorName: args.acceptedName || args.acceptedEmail,
+    }),
+  ));
 }
 
 export function isInviteExpired(invite: Invite): boolean {
@@ -131,12 +245,24 @@ export async function acceptInviteForUser(
     return { ok: false, status: 500, error: profileError.message };
   }
 
+  const acceptance = await upsertInviteAcceptance({
+    admin,
+    inviteId: invite.id,
+    userId: user.id,
+    email: userEmail,
+    fullName,
+    now,
+  });
+
   if (invite.invite_type !== "open") {
+    const alreadyAcceptedByThisUser =
+      invite.invite_status === "accepted" &&
+      invite.accepted_by_user_id === user.id;
     const { error: updateError } = await admin
       .from("invites")
       .update({
         invite_status: "accepted",
-        accepted_at: now,
+        accepted_at: alreadyAcceptedByThisUser ? invite.accepted_at ?? now : now,
         accepted_by_user_id: user.id,
       })
       .eq("id", invite.id);
@@ -144,6 +270,23 @@ export async function acceptInviteForUser(
     if (updateError) {
       return { ok: false, status: 500, error: updateError.message };
     }
+  }
+
+  await updateInviteTracking({
+    admin,
+    invite,
+    userId: user.id,
+    email: userEmail,
+    fullName,
+    now,
+    isNewAcceptance: acceptance.isNew || (
+      invite.invite_type !== "open" &&
+      invite.invite_status !== "accepted"
+    ),
+  });
+
+  if (acceptance.isNew || (invite.invite_type !== "open" && invite.invite_status !== "accepted")) {
+    await notifyInviteAccepted({ invite, acceptedName: fullName, acceptedEmail: userEmail });
   }
 
   return { ok: true, role, inviteType: invite.invite_type };
