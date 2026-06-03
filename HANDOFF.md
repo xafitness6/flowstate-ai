@@ -1,217 +1,150 @@
-# HANDOFF — Password Reset Code Not Delivering
+# HANDOFF — Coaching build-out (client file, trainer assignment, notifications)
 
-**Date:** 2026-05-24
-**Status:** Bug isolated to ONE Vercel env value. Fix is below.
+**Date:** 2026-06-02
+**Status:** Large feature build-out shipped to production (`main` auto-deploys via Vercel). Two DB migrations are NOT yet applied — see §1. Four features remain — see §4.
 
-> Supersedes the prior 2026-05-15 handoff (tutorial bounce-loop) — that issue
-> is resolved.
-
----
-
-## 1. The verdict (one line)
-
-The reset code never lands in inboxes because Vercel's
-`PASSWORD_RESET_FROM_EMAIL` is set to the **placeholder value with literal
-quote marks around it**. Resend rejects the malformed `from` field (HTTP 422)
-and the app route swallows the error silently. Nothing else is wrong.
+> Supersedes the 2026-05-24 password-reset handoff — that issue is resolved
+> (Resend `from` fixed, custom domain `flowstateai.site` live, auth redirect
+> fixed). The app deploys from `main`; every push triggers a Vercel build.
 
 ---
 
-## 2. The definitive evidence
+## 1. ⚠️ ACTION REQUIRED — apply two migrations (Supabase → SQL Editor)
 
-Authenticated as admin and hit the live diagnostic
-(`GET /api/admin/email-diagnostics?send=1` on
-`https://flowstate-ai-pi.vercel.app`). Live server returned:
+Migrations do NOT auto-apply on this project (no `SUPABASE_ACCESS_TOKEN`); the
+live DB lags the repo. The notification bell stays empty and note-sharing won't
+persist until these run. Code is resilient (no crashes) without them.
 
-```json
-{
-  "diagnostics": {
-    "hasResendApiKey": true,
-    "hasFromEmail": true,
-    "from": "\"Flowstate AI <no-reply@your-verified-domain.com>\"",
-    "appUrl": "https://flowstate-ai-pi.vercel.app",
-    "hasResetCodeSecret": true,
-    "usingResendSandboxSender": false,
-    "productionDebugResetCodes": true
-  },
-  "passwordResetPreflight": {
-    "authPasswordTokensTable": { "ok": true, "error": null },
-    "profile": { "checked": true, "found": true, "archived": false, "error": null }
-  },
-  "liveSend": {
-    "attempted": true,
-    "sent": false,
-    "error": "{\"statusCode\":422,\"name\":\"validation_error\",\"message\":\"Invalid `from` field. The email address needs to follow the `email@example.com` or `Name <email@example.com>` format.\"}"
-  }
-}
-```
-
-Two problems with the live `from` value:
-
-1. **Placeholder text:** `no-reply@your-verified-domain.com` instead of the
-   real verified sender on `flowstateai.site`.
-2. **Literal quotes around it:** the JSON shows `"\"...\""` — the stored
-   value includes `"` characters. Vercel takes raw text; surrounding quotes
-   are kept verbatim and break the `Name <addr>` format.
-
-Everything else is green: API key present, reset secret present, token
-table works, profile found, app URL correct, sender not the Resend sandbox.
-
----
-
-## 3. The fix (Vercel — one env var, then redeploy)
-
-1. Vercel → project `flowstate-ai` → **Settings → Environment Variables**.
-2. Edit **`PASSWORD_RESET_FROM_EMAIL`**.
-3. Set the value to **exactly** (NO surrounding quotes):
-
-```
-Flowstate AI <noreply@flowstateai.site>
-```
-
-4. Save → **Redeploy** (env changes only apply to new builds).
-
-That's it. After redeploy, the reset code email will arrive.
-
----
-
-## 4. How to verify the fix in 10 seconds
-
-While logged into the live site as admin, open:
-
-```
-https://flowstate-ai-pi.vercel.app/api/admin/email-diagnostics?send=1
-```
-
-Expected JSON:
-
-```json
-"diagnostics": { "from": "Flowstate AI <noreply@flowstateai.site>", ... },
-"liveSend": { "attempted": true, "sent": true, "id": "<resend-uuid>" }
-```
-
-If `liveSend.sent` is `true`, real users' reset emails will deliver.
-If `liveSend` shows another error, the JSON tells you exactly what to fix.
-
----
-
-## 5. Headless verification (no browser needed)
-
-`?send=1` is admin-gated. To call it from a script:
-
-```bash
-# 1. sign in as admin to get a session
-ANON=<NEXT_PUBLIC_SUPABASE_ANON_KEY from .env.local>
-URL=https://czofyrwvzbdnmngrhgqj.supabase.co
-curl -s -X POST "$URL/auth/v1/token?grant_type=password" \
-  -H "apikey: $ANON" -H "Content-Type: application/json" \
-  -d '{"email":"xavellis4@gmail.com","password":"<your password>"}' > /tmp/sess.json
-
-# 2. build the @supabase/ssr cookie + call the diagnostic
-node --input-type=module -e '
-import fs from "node:fs";
-const sess = JSON.parse(fs.readFileSync("/tmp/sess.json","utf8"));
-const ref  = "czofyrwvzbdnmngrhgqj";
-const name = `sb-${ref}-auth-token`;
-const payload = "base64-" + Buffer.from(JSON.stringify(sess)).toString("base64");
-const CHUNK = 3180;
-const cookies = [];
-if (payload.length <= CHUNK) cookies.push(`${name}=${payload}`);
-else for (let i=0,n=0; i<payload.length; i+=CHUNK,n++) cookies.push(`${name}.${n}=${payload.slice(i,i+CHUNK)}`);
-const res = await fetch(
-  "https://flowstate-ai-pi.vercel.app/api/admin/email-diagnostics?send=1&email=xavellis4@gmail.com",
-  { headers: { Cookie: cookies.join("; ") } },
+```sql
+-- 021 notifications
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  type text not null default 'general'
+    check (type in ('general','onboarding','program_assigned','program_changed','nutrition_added','workout_added','note')),
+  title text not null,
+  body text,
+  link text,
+  actor_name text,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
 );
-console.log("HTTP", res.status);
-console.log(await res.text());
-'
+create index if not exists idx_notifications_user_created on public.notifications(user_id, created_at desc);
+alter table public.notifications enable row level security;
+create policy "notifications_select_own" on public.notifications for select using (auth.uid() = user_id);
+create policy "notifications_update_own" on public.notifications for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 022 note sharing
+alter table public.client_notes add column if not exists shared_with_client boolean not null default false;
 ```
 
-This is exactly how the bug above was confirmed.
+Repo copies: `supabase/migrations/021_notifications.sql`, `022_note_sharing.sql`.
+**Verify:** assign a program to a test client → they get a bell notification + email.
 
 ---
 
-## 6. Emergency: log in without the reset email
+## 2. Two client-detail pages (important — don't confuse them)
 
-If the email path is broken you can always reset the admin password directly
-via the setup script (service-role admin API, bypasses email entirely):
+- **`/clients/[id]`** — the rich tabbed "trainer's-eyes" hub (Overview / Program
+  / Nutrition / Notes; Progress + Chat are placeholders). Reached from **My
+  Clients** and from the **admin dashboard "View details"** for client/member
+  roles. File: `src/app/(app)/clients/[id]/page.tsx`.
+- **`/profile/[id]`** — snapshot view (identity + assigned coach + active program
+  + onboarding). Reached from admin for non-client roles, leaderboard, hover
+  cards. File: `src/app/(app)/profile/[id]/page.tsx`.
+- **`/profile`** — the signed-in user's OWN profile + settings.
+  File: `src/app/(app)/profile/page.tsx`.
 
-```bash
-ADMIN_PASSWORD='your-new-pass' node scripts/setup-admin.mjs
-```
-
-Requires `SUPABASE_SERVICE_ROLE_KEY` + `NEXT_PUBLIC_SUPABASE_URL` in
-`.env.local`. Sets `xavellis4@gmail.com`'s password and ensures
-master/is_admin.
-
----
-
-## 7. If it's STILL not working after the fix
-
-Run the verification in §4. The JSON will narrow it to one of:
-
-| `liveSend.error` includes | Cause | Fix |
-|---|---|---|
-| `Invalid \`from\` field` | Env value still has placeholder/quotes | Re-edit; remove quotes; redeploy |
-| `401` / `Invalid API Key` | Vercel `RESEND_API_KEY` doesn't match a current Resend key | Generate a fresh Resend key, paste into Vercel, redeploy |
-| `domain ... not verified` | `flowstateai.site` lost verified status in Resend | Resend → Domains → re-verify |
-| `rate limit` / `too many` | Hit free-tier rate cap | Wait or upgrade Resend |
-| `liveSend.sent: true` | Email IS sending | **Check Gmail Spam / All Mail** — repeated reset emails get filtered |
-
-If `diagnostics.hasResendApiKey: false` — the key isn't reaching the runtime
-(env not saved, or saved to wrong scope/branch, or no redeploy after save).
+All `/api/clients/[id]/*` routes auth via `requireClientAccess(id)`
+(`src/lib/admin/requireClientAccess.ts`) — admin = any client, trainer = only
+`assigned_trainer_id` matches; returns a service-role `admin` client.
 
 ---
 
-## 8. Code paths involved (for future debugging)
+## 3. Shipped this session (all on `main`/prod)
 
-- **Request route** (creates code + calls send):
-  `src/app/api/auth/password-reset/request/route.ts`
-  Note: catches errors and returns `{ok:true}` to prevent email enumeration —
-  THIS is why send failures are invisible without the diagnostic.
-- **Complete route** (consumes code + sets password):
-  `src/app/api/auth/password-reset/complete/route.ts`
-- **Send + template** (the HTML, the Resend call):
-  `src/lib/server/email.ts` → `sendPasswordResetEmail`, `passwordResetHtml`,
-  `sendViaResend`, `emailConfig`.
-- **Token store** (HMAC + insert/lookup):
-  `src/lib/server/passwordResetTokens.ts`. Table: `auth_password_tokens`.
-- **Diagnostic endpoint** (the tool that found the bug):
-  `src/app/api/admin/email-diagnostics/route.ts`. GET = config + preflight;
-  GET `?send=1` = real send; POST = real send.
-- **Forgot-password page**:
-  `src/app/forgot-password/page.tsx` → POSTs to the request route above.
-- **Reset-password page** (enters code, sets new password):
-  `src/app/reset-password/page.tsx`.
-
----
-
-## 9. Required env vars (for the full reset flow)
-
-| Var | Where | Value |
-|---|---|---|
-| `RESEND_API_KEY` | Vercel + `.env.local` | Live Resend key, starts with `re_` |
-| `PASSWORD_RESET_FROM_EMAIL` | Vercel + `.env.local` | `Flowstate AI <noreply@flowstateai.site>` (no quotes!) |
-| `PASSWORD_RESET_CODE_SECRET` | Vercel + `.env.local` | 32-byte hex from `openssl rand -hex 32` |
-| `NEXT_PUBLIC_APP_URL` | Vercel | `https://flowstate-ai-pi.vercel.app` (or custom domain) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel + `.env.local` | Supabase service role |
-| `NEXT_PUBLIC_SUPABASE_URL` | Vercel + `.env.local` | `https://czofyrwvzbdnmngrhgqj.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel + `.env.local` | Supabase anon key |
-| `ENABLE_DEV_ROUTE` | `.env.local` ONLY | `true` (do NOT set in production — diagnostic flagged this is currently on in prod) |
+- **Client file hub** `/clients/[id]`: tabs + stat tiles. APIs:
+  `/api/clients/[id]/{intake,notes,program,nutrition,onboarding/reset,trainer}`.
+- **Trainer assignment**: assign/change/remove on `/profile/[id]`, the client
+  hub Overview, and `/admin/users`. `GET/PATCH /api/clients/[id]/trainer`
+  (PATCH admin-only) + `assigned_trainer_id` in `PATCH /api/admin/users/[id]`.
+- **My Clients** shows REAL assigned clients: `GET /api/my-clients`
+  (service-role; profiles where `assigned_trainer_id`=caller + active program).
+- **Notifications**: bell in `TopBar` (`src/components/layout/NotificationBell.tsx`),
+  `GET/PATCH /api/notifications`, `notifyClient()` in
+  `src/lib/server/notifications.ts`, `sendNotificationEmail()` in
+  `src/lib/server/email.ts`. Triggers: program assigned (in-app + email),
+  onboarding sent (in-app), note shared (in-app). Email only for
+  program/nutrition/workout types.
+- **Note sharing**: `client_notes.shared_with_client`; notes internal by default,
+  trainer toggles "Share with client" → notifies them.
+- **Plan-access alignment**: dashboard nutrition card gated by entitlement
+  (`TodaySnapshot.tsx`); plan re-fetch on tab focus (`UserContext.tsx`) so admin
+  upgrades apply without re-login.
+- **Real profile stats**: `GET /api/me/activity` (sessions / streak / last-30
+  from `workout_logs`); profile shows real numbers (demo accounts keep samples).
+- **Fixes**: "client not found" (profiles has NO `assigned_trainer_name` column —
+  derive it), canonical `PLAN_LABELS` (Foundation/Training/AI Performance/Hybrid
+  Coaching), logout no longer flashes "Luca Ferretti", staff-only "last activity",
+  settings cleanup (removed fake notification toggles).
 
 ---
 
-## 10. Wider context (set by this session)
+## 4. Remaining build-out (in priority order)
 
-- **Migration drift** is the recurring root cause across this whole app —
-  live Supabase DB lags repo migrations because they don't auto-apply.
-  Apply via Supabase SQL editor. Still missing on live: 008
-  (`daily_checkins`, `nutrition_notes`), 014 (`google_calendar_tokens`),
-  015 (calendar reminder columns). See `docs/app-audit.md` for the full
-  service-by-service breakdown.
-- **Owner-always-admin** fix is in: `xavellis4@gmail.com` is master by both
-  email + DB role; never falls back to a member persona.
-- **Silent-failure pattern** is the second root cause — auth/email routes
-  catch errors and return `{ok:true}` to avoid leaking info. The
-  `email-diagnostics` `?send=1` is the antidote for the reset path; consider
-  similar visibility for other auth routes.
+1. **Trainer reminders** — internal trainer-only notes/reminders per client
+   ("so the trainer stays on track"; NOT visible to client; optional due date).
+   Needs a new table `client_reminders (id, trainer_id, client_id, body,
+   due_date, done, created_at)` + migration + an API + UI on the client hub
+   (a "Reminders" affordance, trainer-only). Keep distinct from `client_notes`.
+
+2. **Per-tab progress snapshots (trainer view only)** — on `/clients/[id]` add a
+   short "what's been happening" summary to the **Program**, **Nutrition**, and
+   **Progress** tabs (e.g. sessions logged this week, adherence, last activity,
+   recent meals trend). Reuse `/api/me/activity`-style aggregation but keyed by
+   the client id via a new `/api/clients/[id]/activity` (service-role,
+   `requireClientAccess`).
+
+3. **Mobile nav** — (a) client-customizable bottom nav: let the client choose
+   which items show in `src/components/layout/BottomNav.tsx` (persist choice;
+   localStorage is fine, or a profile column); (b) a burger menu for full nav on
+   mobile. Pure front-end. Note Nutrition is gated (`canAccessFeature`), Coach is
+   plan-gated — respect entitlements in the chooser.
+
+4. **Progress tab content** — bodyweight chart (new `weight_logs` table:
+   `user_id, logged_at, weight_kg, note`) + progress photos (Supabase Storage
+   bucket + **signed URLs only** per the security rule). Both need migrations +
+   APIs. Clickable chart → drill-in. This fills the Progress placeholder on the
+   hub.
+
+---
+
+## 5. Key gotchas / patterns (READ before editing)
+
+- **Migration drift is the #1 footgun.** The live `profiles` table does NOT have
+  `assigned_trainer_name` (only `assigned_trainer_id`); `daily_checkins`
+  (migration 008), `google_calendar_tokens` (014), calendar reminders (015) are
+  also missing live. **Never SELECT a column that may not exist** — a bad select
+  returns `data: null` which reads as "not found". Prefer: select only known
+  columns, **derive** the rest (e.g. look up the trainer's profile for their
+  name), and make new-column writes best-effort.
+- **Two plan sources**: `FEATURE_MIN_PLAN` in `src/lib/entitlements.ts` governs
+  access (via `canAccessFeature` / `useEntitlement`); `PLAN_FEATURES` in
+  `src/lib/plans.ts` is a separate flag map. Gate UI with `useEntitlement`.
+- **Demo vs Supabase**: guard real-data paths with the UUID regex +
+  `NEXT_PUBLIC_SUPABASE_URL`; demo users have non-UUID ids and keep localStorage
+  data. Several pages branch on this (profile, my-clients).
+- **Deploy = push to `main`** (Vercel auto-builds; ~50s). Verify with
+  `npx tsc --noEmit` (cheap) and only run `npm run build` before a deploy.
+- **Owner** = `xavellis4@gmail.com`, always master/admin (`src/lib/auth/owner.ts`).
+- Vercel project: `flowstate-ai` (team `xavellis4-1493s-projects`); domains
+  `flowstateai.site` / `www.flowstateai.site`.
+
+---
+
+## 6. Memory / map
+
+- `brain-graph.md` (repo root) — the compact map; updated with all of the above.
+- `~/.claude/projects/-Users-xavierellis-Projects-flowstate-ai/memory/` —
+  `project_client_file_hub.md`, `project_trainer_assignment.md`,
+  `ops_migration_drift.md` are the most relevant.
