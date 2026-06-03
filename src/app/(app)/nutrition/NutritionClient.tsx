@@ -20,6 +20,7 @@ import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
 import { loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
 import { EnergyCard }        from "@/components/nutrition/EnergyCard";
+import { MacroSourcesCard }  from "@/components/nutrition/MacroSourcesCard";
 import {
   calculateNutritionTargets,
   calculateEnergy,
@@ -1387,6 +1388,11 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         {/* ── Undo toast ────────────────────────────────────────────────────── */}
         {undoMeal && (
           <UndoToast meal={undoMeal} onUndo={handleUndo} onDismiss={dismissUndo} />
+        )}
+
+        {/* ── Top food sources (macro bar chart) ────────────────────────────── */}
+        {!viewWeek && meals.length > 0 && (
+          <MacroSourcesCard meals={meals} />
         )}
 
         {/* ── Day: Meal timeline ────────────────────────────────────────────── */}
