@@ -71,11 +71,14 @@ export function VoiceReviewModal({
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-[#111111] border border-white/10 rounded-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* Backdrop — tap to dismiss */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
+
+      <div className="relative w-full sm:max-w-md bg-[#111111] border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[88dvh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
           <div className="flex items-center gap-3">
             {isListening ? (
               <div className="flex items-end gap-0.5 h-4">
@@ -97,7 +100,10 @@ export function VoiceReviewModal({
           </button>
         </div>
 
-        <div className="px-5 py-5 space-y-4">
+        <div
+          className="px-5 py-5 space-y-4 overflow-y-auto"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.25rem)" }}
+        >
 
           {/* Transcript edit area */}
           <div className="space-y-1.5">

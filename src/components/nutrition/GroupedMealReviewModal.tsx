@@ -448,7 +448,10 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
         )}
 
         {/* Footer */}
-        <div className="px-5 pb-6 pt-4 border-t border-white/[0.05] shrink-0 flex gap-3">
+        <div
+          className="px-5 pt-4 border-t border-white/[0.05] shrink-0 flex gap-3"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
+        >
           <button
             onClick={onCancel}
             className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-medium text-white/40 hover:text-white/60 hover:border-white/18 transition-all"
