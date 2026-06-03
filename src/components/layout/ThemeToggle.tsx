@@ -47,7 +47,7 @@ export function ThemeToggle() {
       aria-label={isLight ? "Switch to dark theme" : "Switch to light theme"}
       title={isLight ? "Dark theme" : "Light theme"}
       className={cn(
-        "w-8 h-8 rounded-full border border-white/8 bg-[#1C1C1C] flex items-center justify-center transition-all",
+        "fs-topbar-icon-button w-8 h-8 rounded-full border border-white/8 bg-[#1C1C1C] flex items-center justify-center transition-all",
         "text-white/45 hover:text-white/80 hover:border-white/16 hover:bg-white/[0.05]",
         !ready && "opacity-0",
       )}

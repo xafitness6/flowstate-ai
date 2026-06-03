@@ -72,11 +72,11 @@ export function TopBar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-14 border-b border-white/5 bg-[#0A0A0A]/90 backdrop-blur-md">
+    <header className="fs-topbar sticky top-0 z-40 flex items-center justify-between px-4 h-14 border-b border-white/5 bg-[#0A0A0A]/90 backdrop-blur-md">
       {/* Brand is hidden on md+ — the sidebar already displays it there. Mobile keeps it. */}
       <Link
         href="/dashboard?tab=overview"
-        className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90 hover:text-white transition-colors md:hidden"
+        className="fs-topbar-brand text-sm font-semibold tracking-[0.25em] uppercase text-white/90 hover:text-white transition-colors md:hidden"
       >
         Flowstate
       </Link>
@@ -90,7 +90,7 @@ export function TopBar() {
         <button
           onClick={() => setOpen((v) => !v)}
           className={cn(
-            "relative flex items-center justify-center w-8 h-8 rounded-full bg-[#1C1C1C] text-[11px] font-semibold text-white/80 ring-2 ring-offset-2 ring-offset-[#0A0A0A] transition-all hover:ring-offset-[#1C1C1C]",
+            "fs-avatar-button relative flex items-center justify-center w-8 h-8 rounded-full bg-[#1C1C1C] text-[11px] font-semibold text-white/80 ring-2 ring-offset-2 ring-offset-[#0A0A0A] transition-all hover:ring-offset-[#1C1C1C]",
             STATUS_RING[user.status]
           )}
         >
@@ -108,7 +108,7 @@ export function TopBar() {
 
         {/* Dropdown */}
         {open && (
-          <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-white/8 bg-[#111111] shadow-2xl shadow-black/40 overflow-hidden">
+          <div className="fs-shell-menu absolute right-0 top-full mt-2 w-48 rounded-2xl border border-white/8 bg-[#111111] shadow-2xl shadow-black/40 overflow-hidden">
             {/* User info */}
             <div className="px-4 py-3 border-b border-white/[0.05]">
               <p className="text-xs font-semibold text-white/75 truncate">{user.name}</p>

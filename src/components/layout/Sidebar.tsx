@@ -43,9 +43,9 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-56 h-screen border-r border-white/5 bg-[#0D0D0D] px-3 py-6 gap-1 fixed top-0 left-0 z-30 overflow-y-auto">
+    <aside className="fs-sidebar hidden md:flex flex-col w-56 h-screen border-r border-white/5 bg-[#0D0D0D] px-3 py-6 gap-1 fixed top-0 left-0 z-30 overflow-y-auto">
       <div className="px-3 mb-6">
-        <span className="text-sm font-semibold tracking-[0.25em] uppercase text-white/90">
+        <span className="fs-sidebar-brand text-sm font-semibold tracking-[0.25em] uppercase text-white/90">
           Flowstate
         </span>
       </div>
@@ -65,9 +65,9 @@ export function Sidebar() {
               key={item.href}
               href={locked ? "/pricing" : item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
-                active  ? "bg-[#B48240]/10 text-[#B48240]"
-                : locked ? "text-[#383838] hover:text-[#505050] hover:bg-white/[0.02]"
+                "fs-sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                active  ? "fs-sidebar-link-active bg-[#B48240]/10 text-[#B48240]"
+                : locked ? "fs-sidebar-link-locked text-[#383838] hover:text-[#505050] hover:bg-white/[0.02]"
                 :          "text-[#525252] hover:text-[#F5F5F5] hover:bg-white/5"
               )}
             >
@@ -87,13 +87,13 @@ export function Sidebar() {
 
       {isAdmin(user.role) && (
         <div className="mt-auto">
-          <div className="h-px bg-white/5 mb-3" />
+          <div className="fs-sidebar-divider h-px bg-white/5 mb-3" />
 
           {/* View mode toggle — operator ↔ personal */}
           <button
             onClick={handleViewToggle}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-all mb-1",
+              "fs-sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-all mb-1",
               "text-[#525252] hover:text-[#F5F5F5] hover:bg-white/5"
             )}
           >
@@ -106,9 +106,9 @@ export function Sidebar() {
           <Link
             href="/trainers"
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+              "fs-sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
               pathname === "/trainers" || pathname.startsWith("/trainers/")
-                ? "bg-[#B48240]/10 text-[#B48240]"
+                ? "fs-sidebar-link-active bg-[#B48240]/10 text-[#B48240]"
                 : "text-[#525252] hover:text-[#A3A3A3] hover:bg-white/5"
             )}
           >
@@ -118,9 +118,9 @@ export function Sidebar() {
           <Link
             href="/admin"
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+              "fs-sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
               pathname === "/admin"
-                ? "bg-[#B48240]/10 text-[#B48240]"
+                ? "fs-sidebar-link-active bg-[#B48240]/10 text-[#B48240]"
                 : "text-[#525252] hover:text-[#A3A3A3] hover:bg-white/5"
             )}
           >

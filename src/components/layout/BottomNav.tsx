@@ -131,7 +131,7 @@ export function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 h-16 border-t border-white/5 bg-[#0A0A0A]/95 backdrop-blur-md md:hidden">
+      <nav className="fs-bottom-nav fixed bottom-0 left-0 right-0 z-50 h-16 border-t border-white/5 bg-[#0A0A0A]/95 backdrop-blur-md md:hidden">
         <div className="grid h-full w-full" style={{ gridTemplateColumns: `repeat(${gridCount}, minmax(0, 1fr))` }}>
           {pinnedItems.map((item) => (
             <BottomNavLink
@@ -145,8 +145,8 @@ export function BottomNav() {
           <button
             onClick={() => setOpen(true)}
             className={cn(
-              "relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors",
-              open ? "text-[#B48240]" : "text-[#525252] hover:text-[#A3A3A3] active:text-[#F5F5F5]",
+              "fs-bottom-nav-item relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors",
+              open ? "fs-bottom-nav-item-active text-[#B48240]" : "text-[#525252] hover:text-[#A3A3A3] active:text-[#F5F5F5]",
             )}
             aria-label="Open navigation menu"
           >
@@ -165,7 +165,7 @@ export function BottomNav() {
           />
           <div
             ref={menuRef}
-            className="absolute bottom-0 left-0 right-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border-t border-white/[0.08] bg-[#0D0D0D] px-4 pb-6 pt-4 shadow-2xl shadow-black/50"
+            className="fs-bottom-nav-sheet absolute bottom-0 left-0 right-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border-t border-white/[0.08] bg-[#0D0D0D] px-4 pb-6 pt-4 shadow-2xl shadow-black/50"
           >
             <div className="flex items-center justify-between gap-3 mb-4">
               <p className="text-sm font-semibold text-white/85">Navigation</p>
@@ -272,8 +272,8 @@ function BottomNavLink({
       href={locked ? "/pricing" : item.href}
       onClick={onClick}
       className={cn(
-        "relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors",
-        active ? "text-[#B48240]"
+        "fs-bottom-nav-item relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors",
+        active ? "fs-bottom-nav-item-active text-[#B48240]"
         : locked ? "text-[#363636]"
         : "text-[#525252] hover:text-[#A3A3A3] active:text-[#F5F5F5]",
       )}

@@ -60,7 +60,7 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => { setOpen((v) => !v); if (!open) load(); }}
-        className="relative flex items-center justify-center w-8 h-8 rounded-full text-white/55 hover:text-white/85 hover:bg-white/[0.05] transition-all"
+        className="fs-topbar-icon-button relative flex items-center justify-center w-8 h-8 rounded-full border border-transparent text-white/55 hover:text-white/85 hover:bg-white/[0.05] transition-all"
         aria-label="Notifications"
       >
         <Bell className="w-4 h-4" strokeWidth={1.7} />
@@ -72,7 +72,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 max-w-[88vw] rounded-2xl border border-white/8 bg-[#111111] shadow-2xl shadow-black/40 overflow-hidden">
+        <div className="fs-shell-menu absolute right-0 top-full mt-2 w-80 max-w-[88vw] rounded-2xl border border-white/8 bg-[#111111] shadow-2xl shadow-black/40 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
             <p className="text-xs font-semibold text-white/75">Notifications</p>
             {unread > 0 && (

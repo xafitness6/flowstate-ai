@@ -206,8 +206,29 @@ html.theme-light [class*="to-[#0A0A0A]"] {
   --tw-gradient-to: #ede6d8 var(--tw-gradient-to-position) !important;
 }
 
-html.theme-light [class*="bg-white/"],
-html.theme-light [class*="bg-white\\["] {
+html.theme-light :is(
+  .bg-white\/5,
+  .bg-white\/6,
+  .bg-white\/7,
+  .bg-white\/8,
+  .bg-white\/10,
+  .bg-white\/12,
+  .bg-white\/14,
+  .bg-white\/15,
+  .bg-white\/20,
+  .bg-white\/\[0\.01\],
+  .bg-white\/\[0\.015\],
+  .bg-white\/\[0\.02\],
+  .bg-white\/\[0\.025\],
+  .bg-white\/\[0\.03\],
+  .bg-white\/\[0\.035\],
+  .bg-white\/\[0\.04\],
+  .bg-white\/\[0\.05\],
+  .bg-white\/\[0\.06\],
+  .bg-white\/\[0\.07\],
+  .bg-white\/\[0\.08\],
+  .bg-white\/\[0\.09\]
+) {
   background-color: rgba(17, 17, 17, 0.035) !important;
 }
 
@@ -234,4 +255,98 @@ html.theme-light .text-black {
 
 html.theme-light [class*="placeholder:text-white"]::placeholder {
   color: rgba(17, 17, 17, 0.35) !important;
+}
+
+/* Theme-aware app chrome. These keep the shell polished while the feature
+   pages still use Tailwind-heavy dark classes during the transition. */
+html.theme-light .fs-topbar {
+  background: rgba(255, 253, 248, 0.92) !important;
+  border-color: rgba(17, 17, 17, 0.08) !important;
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.03);
+}
+
+html.theme-light .fs-topbar-brand,
+html.theme-light .fs-sidebar-brand {
+  color: rgba(17, 17, 17, 0.78) !important;
+}
+
+html.theme-light .fs-topbar-icon-button {
+  background: rgba(17, 17, 17, 0.035) !important;
+  border-color: rgba(17, 17, 17, 0.08) !important;
+  color: rgba(17, 17, 17, 0.52) !important;
+}
+
+html.theme-light .fs-topbar-icon-button:hover {
+  background: rgba(154, 107, 47, 0.08) !important;
+  border-color: rgba(154, 107, 47, 0.18) !important;
+  color: rgba(17, 17, 17, 0.8) !important;
+}
+
+html.theme-light .fs-avatar-button {
+  background: #fffdf8 !important;
+  color: rgba(17, 17, 17, 0.72) !important;
+  --tw-ring-offset-color: #fffdf8 !important;
+}
+
+html.theme-light .fs-shell-menu {
+  background: #fffdf8 !important;
+  border-color: rgba(17, 17, 17, 0.10) !important;
+  box-shadow: 0 22px 60px rgba(55, 44, 27, 0.16) !important;
+}
+
+html.theme-light .fs-sidebar {
+  background: #fbfaf6 !important;
+  border-color: rgba(17, 17, 17, 0.08) !important;
+}
+
+html.theme-light .fs-sidebar-link {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  color: rgba(17, 17, 17, 0.56) !important;
+}
+
+html.theme-light .fs-sidebar-link:hover {
+  background: rgba(154, 107, 47, 0.055) !important;
+  border-color: rgba(154, 107, 47, 0.10) !important;
+  color: rgba(17, 17, 17, 0.78) !important;
+}
+
+html.theme-light .fs-sidebar-link-active {
+  background: rgba(154, 107, 47, 0.10) !important;
+  border-color: rgba(154, 107, 47, 0.15) !important;
+  color: #7a5221 !important;
+}
+
+html.theme-light .fs-sidebar-link-locked {
+  color: rgba(17, 17, 17, 0.30) !important;
+}
+
+html.theme-light .fs-sidebar-divider {
+  background: rgba(17, 17, 17, 0.08) !important;
+}
+
+html.theme-light .fs-bottom-nav {
+  background: rgba(255, 253, 248, 0.96) !important;
+  border-color: rgba(17, 17, 17, 0.10) !important;
+  box-shadow: 0 -12px 34px rgba(55, 44, 27, 0.10);
+}
+
+html.theme-light .fs-bottom-nav-item {
+  color: rgba(17, 17, 17, 0.52) !important;
+}
+
+html.theme-light .fs-bottom-nav-item:hover,
+html.theme-light .fs-bottom-nav-item:active {
+  color: rgba(17, 17, 17, 0.78) !important;
+}
+
+html.theme-light .fs-bottom-nav-item-active {
+  color: #7a5221 !important;
+}
+
+html.theme-light .fs-bottom-nav-sheet {
+  background: #fffdf8 !important;
+  border-color: rgba(17, 17, 17, 0.10) !important;
+  box-shadow: 0 -22px 70px rgba(55, 44, 27, 0.18) !important;
 }
