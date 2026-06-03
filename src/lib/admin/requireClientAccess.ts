@@ -6,12 +6,16 @@ import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supa
  * Authorize the caller to view/manage a specific client (`clientId`):
  *   - admins (role "master" or is_admin) → any client
  *   - trainers → only clients whose profiles.assigned_trainer_id === caller id
+ *   - optionally, the client themselves → only when allowSelf is true
  *   - everyone else → 403
  *
  * Returns the service-role `admin` client so the route can read/write the
  * client's data after the relationship is verified — RLS stays strict.
  */
-export async function requireClientAccess(clientId: string) {
+export async function requireClientAccess(
+  clientId: string,
+  options: { allowSelf?: boolean } = {},
+) {
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -38,8 +42,9 @@ export async function requireClientAccess(clientId: string) {
   }
 
   const isAdmin = actor.role === "master" || actor.is_admin === true;
+  const isSelf = actor.id === clientId;
 
-  if (!isAdmin) {
+  if (!isAdmin && !(options.allowSelf && isSelf)) {
     if (actor.role !== "trainer") {
       return { ok: false as const, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
     }
@@ -57,5 +62,5 @@ export async function requireClientAccess(clientId: string) {
   const authorName =
     (typeof actor.full_name === "string" && actor.full_name.trim()) || actor.email || "Coach";
 
-  return { ok: true as const, admin, actorId: actor.id, authorName, isAdmin };
+  return { ok: true as const, admin, actorId: actor.id, authorName, isAdmin, isSelf };
 }

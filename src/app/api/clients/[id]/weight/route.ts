@@ -1,5 +1,5 @@
-// Client bodyweight logs for the trainer hub Progress tab.
-// Admin: any client. Trainer: only assigned clients.
+// Client bodyweight logs for Progress.
+// Client/member: own logs. Admin: any client. Trainer: only assigned clients.
 
 import { NextResponse } from "next/server";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
@@ -29,7 +29,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = await requireClientAccess(id);
+  const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
 
   const { data, error } = await auth.admin
@@ -51,7 +51,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = await requireClientAccess(id);
+  const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
 
   let payload: WeightPayload;
@@ -91,7 +91,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = await requireClientAccess(id);
+  const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
 
   const logId = new URL(req.url).searchParams.get("id");

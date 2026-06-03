@@ -7,7 +7,7 @@ import {
   ChevronLeft, Download, Loader2, Trash2, StickyNote, Send,
   User, Dumbbell, Apple, LineChart, MessageSquare,
   ExternalLink, CalendarDays, Clock, PlayCircle, CheckCircle2,
-  Activity, Camera, Image as ImageIcon, Scale, TrendingUp, Upload,
+  Activity, Camera, Image as ImageIcon, Scale, TrendingUp, Upload, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
@@ -23,6 +23,7 @@ type ClientProfile = {
 };
 type Note = { id: string; body: string; author_name: string | null; created_at: string; shared_with_client?: boolean };
 type Reminder = { id: string; body: string; due_date: string | null; done: boolean; created_at: string };
+type CalendarReminder = { id: string; title: string; notes: string | null; due_at: string; done: boolean; created_at: string };
 type IntakeMeta = {
   onboarding_complete: boolean | null;
   program_generated: boolean | null;
@@ -123,6 +124,13 @@ function sortWeightLogs(logs: WeightLog[]) {
   return [...logs].sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime());
 }
 
+function sortCalendarReminders(items: CalendarReminder[]) {
+  return [...items].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
+  });
+}
+
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -159,6 +167,13 @@ export default function ClientDetailPage() {
   const [reminderDue, setReminderDue] = useState("");
   const [remindersLoaded, setRemindersLoaded] = useState(false);
   const [reminderSaving, setReminderSaving] = useState(false);
+
+  const [calendarReminders, setCalendarReminders] = useState<CalendarReminder[]>([]);
+  const [calendarReminderDraft, setCalendarReminderDraft] = useState("");
+  const [calendarReminderDate, setCalendarReminderDate] = useState(todayInputValue);
+  const [calendarReminderTime, setCalendarReminderTime] = useState("09:00");
+  const [calendarRemindersLoaded, setCalendarRemindersLoaded] = useState(false);
+  const [calendarReminderSaving, setCalendarReminderSaving] = useState(false);
 
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
@@ -285,6 +300,16 @@ export default function ClientDetailPage() {
       .catch(() => {});
   }, [tab, id, remindersLoaded]);
 
+  // Lazy-load client-visible calendar reminders separately from private follow-ups.
+  useEffect(() => {
+    if (tab !== "notes" || !id || calendarRemindersLoaded) return;
+    setCalendarRemindersLoaded(true);
+    fetch(`/api/clients/${id}/calendar-reminders`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setCalendarReminders(sortCalendarReminders((j.reminders ?? []) as CalendarReminder[])))
+      .catch(() => {});
+  }, [tab, id, calendarRemindersLoaded]);
+
   async function addReminder() {
     const body = reminderDraft.trim();
     if (!body || reminderSaving) return;
@@ -318,6 +343,48 @@ export default function ClientDetailPage() {
     setReminders((p) => p.filter((r) => r.id !== rid));
     const res = await fetch(`/api/clients/${id}/reminders?id=${encodeURIComponent(rid)}`, { method: "DELETE" });
     if (!res.ok) setReminders(prev);
+  }
+
+  async function addCalendarReminder() {
+    const title = calendarReminderDraft.trim();
+    if (!title || calendarReminderSaving) return;
+    setCalendarReminderSaving(true);
+    try {
+      const dueAt = `${calendarReminderDate || todayInputValue()}T${calendarReminderTime || "09:00"}`;
+      const res = await fetch(`/api/clients/${id}/calendar-reminders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, due_at: dueAt }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't add calendar reminder.");
+      setCalendarReminders((prev) => sortCalendarReminders([json.reminder as CalendarReminder, ...prev]));
+      setCalendarReminderDraft("");
+      setCalendarReminderDate(todayInputValue());
+      setCalendarReminderTime("09:00");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't add calendar reminder.");
+    } finally {
+      setCalendarReminderSaving(false);
+    }
+  }
+
+  async function toggleCalendarReminder(rid: string, done: boolean) {
+    const prev = calendarReminders;
+    setCalendarReminders((items) => sortCalendarReminders(items.map((r) => (r.id === rid ? { ...r, done } : r))));
+    const res = await fetch(`/api/clients/${id}/calendar-reminders`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: rid, done }),
+    });
+    if (!res.ok) setCalendarReminders(prev);
+  }
+
+  async function deleteCalendarReminder(rid: string) {
+    const prev = calendarReminders;
+    setCalendarReminders((items) => items.filter((r) => r.id !== rid));
+    const res = await fetch(`/api/clients/${id}/calendar-reminders?id=${encodeURIComponent(rid)}`, { method: "DELETE" });
+    if (!res.ok) setCalendarReminders(prev);
   }
 
   async function addWeightLog() {
@@ -686,9 +753,72 @@ export default function ClientDetailPage() {
         {/* ── Notes tab ── */}
         {tab === "notes" && (
           <div className="no-print">
-            {/* Reminders — private to you (the trainer), never shown to the client */}
+            {/* Calendar reminders — visible to the client/member. */}
             <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Reminders
+              <Bell className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Client calendar reminders
+              <span className="text-[10px] font-normal text-white/30">· visible on their calendar</span>
+            </h2>
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 mb-3">
+              <input
+                value={calendarReminderDraft}
+                onChange={(e) => setCalendarReminderDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void addCalendarReminder(); }}
+                placeholder="Add to their calendar - e.g. weigh in Friday, upload progress photos..."
+                className="w-full bg-transparent text-sm text-white/90 placeholder:text-white/25 outline-none px-1"
+              />
+              <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={calendarReminderDate}
+                    onChange={(e) => setCalendarReminderDate(e.target.value)}
+                    className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 outline-none [color-scheme:dark]"
+                  />
+                  <input
+                    type="time"
+                    value={calendarReminderTime}
+                    onChange={(e) => setCalendarReminderTime(e.target.value)}
+                    className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 outline-none [color-scheme:dark]"
+                  />
+                </div>
+                <button
+                  onClick={addCalendarReminder}
+                  disabled={!calendarReminderDraft.trim() || calendarReminderSaving}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-3.5 py-2 text-xs font-semibold hover:bg-[#c99840] disabled:opacity-50 transition-all"
+                >
+                  {calendarReminderSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" strokeWidth={2} />}
+                  Add
+                </button>
+              </div>
+            </div>
+            {calendarReminders.length > 0 ? (
+              <div className="space-y-1.5 mb-6">
+                {calendarReminders.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 group">
+                    <button onClick={() => toggleCalendarReminder(r.id, !r.done)} className="shrink-0" aria-label="Toggle client calendar reminder">
+                      {r.done
+                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400/80" strokeWidth={2} />
+                        : <span className="block w-4 h-4 rounded-full border border-amber-300/35" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("text-sm leading-snug", r.done ? "text-white/35 line-through" : "text-white/85")}>{r.title}</p>
+                      <p className="text-[10px] text-white/30 mt-0.5">
+                        {new Date(r.due_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <button onClick={() => deleteCalendarReminder(r.id)} className="text-white/25 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Delete client calendar reminder">
+                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-white/30 px-1 mb-6">No client-visible calendar reminders yet.</p>
+            )}
+
+            {/* Private follow-ups — private to you (the trainer), never shown to the client */}
+            <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Private follow-ups
               <span className="text-[10px] font-normal text-white/30">· private to you</span>
             </h2>
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 mb-3">

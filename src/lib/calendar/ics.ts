@@ -29,6 +29,14 @@ export type Habit = {
   label:  string;
 };
 
+export type CalendarReminder = {
+  id:     string;
+  title:  string;
+  notes:  string | null;
+  due_at: string;
+  done:   boolean;
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function pad(n: number): string { return n.toString().padStart(2, "0"); }
@@ -74,9 +82,10 @@ export function buildIcs(opts: {
   prefs:    CalendarPrefs;
   programs: Program[];            // active + any archived used for context
   habits:   Habit[];
+  reminders?: CalendarReminder[];
   now?:     Date;
 }): string {
-  const { prefs, programs, habits } = opts;
+  const { prefs, programs, habits, reminders = [] } = opts;
   const now = opts.now ?? new Date();
 
   const lines: string[] = [];
@@ -141,8 +150,38 @@ export function buildIcs(opts: {
     }
   }
 
+  // ── Client/member reminders ──
+  for (const reminder of reminders) {
+    if (reminder.done) continue;
+    emitReminderEvent({ lines, reminder, prefs, dtstamp });
+  }
+
   lines.push("END:VCALENDAR");
   return lines.join("\r\n");
+}
+
+function emitReminderEvent(args: {
+  lines:    string[];
+  reminder: CalendarReminder;
+  prefs:    CalendarPrefs;
+  dtstamp:  string;
+}) {
+  const { lines, reminder, prefs, dtstamp } = args;
+  const start = new Date(reminder.due_at);
+  if (Number.isNaN(start.getTime())) return;
+  const end = new Date(start.getTime() + 15 * 60 * 1000);
+
+  lines.push("BEGIN:VEVENT");
+  lines.push(`UID:${makeUid("reminder", reminder.id, prefs.feed_token)}`);
+  lines.push(`DTSTAMP:${dtstamp}`);
+  lines.push(`DTSTART:${fmtUtc(start)}`);
+  lines.push(`DTEND:${fmtUtc(end)}`);
+  lines.push(foldLine(`SUMMARY:${escapeText(reminder.title)}`));
+  if (reminder.notes) lines.push(foldLine(`DESCRIPTION:${escapeText(reminder.notes)}`));
+  lines.push(`COLOR:${prefs.color_habit}`);
+  lines.push("CATEGORIES:Flowstate,Reminder");
+  emitAlarms(lines, prefs.reminders_habit, reminder.title);
+  lines.push("END:VEVENT");
 }
 
 function emitAlarms(lines: string[], minutesArr: number[] | undefined, summary: string) {

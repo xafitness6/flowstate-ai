@@ -1,5 +1,5 @@
-// Progress photos for the trainer hub. Files live in a private Supabase Storage
-// bucket; this API returns short-lived signed URLs only.
+// Progress photos. Files live in a private Supabase Storage bucket; this API
+// returns short-lived signed URLs only.
 
 import { NextResponse } from "next/server";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
@@ -56,7 +56,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = await requireClientAccess(id);
+  const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
 
   const { data, error } = await auth.admin
@@ -77,7 +77,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = await requireClientAccess(id);
+  const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
 
   let form: FormData;
@@ -136,7 +136,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = await requireClientAccess(id);
+  const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
 
   const photoId = new URL(req.url).searchParams.get("id");

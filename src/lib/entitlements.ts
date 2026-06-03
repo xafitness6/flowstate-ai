@@ -61,9 +61,9 @@ const FEATURE_MIN_PLAN: Record<Feature, Plan> = {
   [FEATURES.BREATHWORK]:            "foundation",
   [FEATURES.ACCOUNTABILITY_BASIC]:  "foundation",
   [FEATURES.LEADERBOARD]:           "foundation",
+  [FEATURES.CALENDAR]:              "foundation",
   // Core
   [FEATURES.NUTRITION]:             "training",
-  [FEATURES.CALENDAR]:              "training",
   [FEATURES.COACH]:                 "training",
   [FEATURES.AI_COACH_BASIC]:        "training",
   [FEATURES.FULL_HISTORY]:          "training",

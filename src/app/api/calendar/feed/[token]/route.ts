@@ -8,7 +8,7 @@
 
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { buildIcs, type CalendarPrefs, type Habit } from "@/lib/calendar/ics";
+import { buildIcs, type CalendarPrefs, type CalendarReminder, type Habit } from "@/lib/calendar/ics";
 import type { Program } from "@/lib/supabase/types";
 
 type PrefsRow = {
@@ -75,6 +75,20 @@ export async function GET(
   const remindersWorkout = prefs.reminders_workout?.length ? prefs.reminders_workout : legacyArr;
   const remindersHabit   = prefs.reminders_habit?.length   ? prefs.reminders_habit   : legacyArr;
   const remindersRest    = prefs.reminders_rest ?? [];
+  const horizonWeeks = Math.max(1, Math.min(12, prefs.horizon_weeks || 4));
+
+  const reminderWindowEnd = new Date();
+  reminderWindowEnd.setDate(reminderWindowEnd.getDate() + horizonWeeks * 7);
+  const reminderWindowStart = new Date();
+  reminderWindowStart.setDate(reminderWindowStart.getDate() - 1);
+  const { data: calendarReminders } = await (admin as any)
+    .from("calendar_reminders")
+    .select("id,title,notes,due_at,done")
+    .eq("owner_id", prefs.user_id)
+    .eq("done", false)
+    .gte("due_at", reminderWindowStart.toISOString())
+    .lte("due_at", reminderWindowEnd.toISOString())
+    .order("due_at", { ascending: true });
 
   const ics = buildIcs({
     prefs: {
@@ -91,10 +105,11 @@ export async function GET(
       reminders_rest:       remindersRest,
       color_workout:        prefs.color_workout,
       color_habit:          prefs.color_habit,
-      horizon_weeks:        Math.max(1, Math.min(12, prefs.horizon_weeks || 4)),
+      horizon_weeks:        horizonWeeks,
     } satisfies CalendarPrefs,
     programs: (programs ?? []) as Program[],
     habits,
+    reminders: (calendarReminders ?? []) as CalendarReminder[],
   });
 
   return new Response(ics, {

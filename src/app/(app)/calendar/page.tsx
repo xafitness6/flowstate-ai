@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, FEATURES }    from "@/components/ui/PlanGate";
 import {
   ChevronLeft, ChevronRight, Dumbbell, Utensils, CheckCircle2,
   X, TrendingUp, TrendingDown, Minus, Check, AlertTriangle,
   ArrowRight, MessageSquare, Pencil, Plus, Droplets, Moon,
-  Zap, Footprints, Flame, Wind,
+  Zap, Footprints, Flame, Wind, Bell, Trash2, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -17,9 +17,17 @@ import { getWorkoutLogsForUser } from "@/lib/workout";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type EventType = "workout" | "nutrition" | "breathwork" | "rest";
-type CalEvent  = { type: EventType; label: string };
+type EventType = "workout" | "nutrition" | "breathwork" | "reminder" | "rest";
+type CalEvent  = { type: EventType; label: string; id?: string; done?: boolean; dueAt?: string };
 type EventMap  = Record<string, CalEvent[]>;
+
+type CalendarReminder = {
+  id: string;
+  title: string;
+  notes: string | null;
+  due_at: string;
+  done: boolean;
+};
 
 type IdentityState = "locked" | "focused" | "tired" | "off" | null;
 type Trend         = "improving" | "stable" | "declining";
@@ -90,6 +98,7 @@ const EVENT_STYLE: Record<EventType, { dot: string; text: string; bg: string }> 
   workout:    { dot: "bg-[#B48B40]",   text: "text-[#B48B40]",   bg: "bg-[#B48B40]/10"  },
   nutrition:  { dot: "bg-emerald-400", text: "text-emerald-400", bg: "bg-emerald-400/8" },
   breathwork: { dot: "bg-[#93C5FD]",   text: "text-[#93C5FD]",   bg: "bg-[#93C5FD]/10"  },
+  reminder:   { dot: "bg-amber-300",   text: "text-amber-300",   bg: "bg-amber-300/10"  },
   rest:       { dot: "bg-white/25",    text: "text-white/35",    bg: "bg-white/5"        },
 };
 
@@ -97,6 +106,7 @@ const EVENT_ICON: Record<EventType, React.ComponentType<{ className?: string; st
   workout:    Dumbbell,
   nutrition:  Utensils,
   breathwork: Wind,
+  reminder:   Bell,
   rest:       CheckCircle2,
 };
 
@@ -615,65 +625,83 @@ function CalendarPageInner() {
   const [selected,   setSelected  ] = useState<string | null>(todayStr);
   const [synopsisKey, setSynopsisKey] = useState<string | null>(null);
   const [events, setEvents] = useState<EventMap>({});
+  const [reminderDraft, setReminderDraft] = useState("");
+  const [reminderDate, setReminderDate] = useState(todayStr);
+  const [reminderTime, setReminderTime] = useState("09:00");
+  const [reminderSaving, setReminderSaving] = useState(false);
 
   // Double-click discriminator
   const clickTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingKeyRef  = useRef<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const loadEvents = useCallback(async () => {
+    const next: EventMap = {};
 
-    async function loadEvents() {
-      const next: EventMap = {};
+    try {
+      const workouts = await getWorkoutLogsForUser(user.id);
+      workouts.forEach((log) => {
+        const key = localDateISO(new Date(log.completedAt));
+        addEvent(next, key, {
+          type: "workout",
+          label: log.workoutName || "Workout logged",
+        });
+      });
+    } catch { /* ignore */ }
 
-      try {
-        const workouts = await getWorkoutLogsForUser(user.id);
-        workouts.forEach((log) => {
-          const key = localDateISO(new Date(log.completedAt));
-          addEvent(next, key, {
-            type: "workout",
-            label: log.workoutName || "Workout logged",
+    try {
+      const meals = await getMeals(user.id);
+      meals.forEach((meal) => {
+        const key = localDateISO(new Date(meal.eatenAt));
+        const label = meal.mealType
+          ? `${meal.mealType[0].toUpperCase()}${meal.mealType.slice(1)} logged`
+          : "Meal logged";
+        addEvent(next, key, { type: "nutrition", label });
+      });
+    } catch { /* ignore */ }
+
+    try {
+      loadActivityHistory(user.id)
+        .filter((event) => event.type === "Breathwork session")
+        .forEach((event) => {
+          addEvent(next, localDateISO(new Date(event.loggedAt)), {
+            type: "breathwork",
+            label: "Breathwork completed",
           });
         });
-      } catch { /* ignore */ }
 
-      try {
-        const meals = await getMeals(user.id);
-        meals.forEach((meal) => {
-          const key = localDateISO(new Date(meal.eatenAt));
-          const label = meal.mealType
-            ? `${meal.mealType[0].toUpperCase()}${meal.mealType.slice(1)} logged`
-            : "Meal logged";
-          addEvent(next, key, { type: "nutrition", label });
-        });
-      } catch { /* ignore */ }
-
-      try {
-        loadActivityHistory(user.id)
-          .filter((event) => event.type === "Breathwork session")
-          .forEach((event) => {
-            addEvent(next, localDateISO(new Date(event.loggedAt)), {
-              type: "breathwork",
-              label: "Breathwork completed",
-            });
-          });
-
-        const lastType = localStorage.getItem(`flowstate-last-action-type-${user.id}`);
-        const lastAt = localStorage.getItem(`flowstate-last-action-${user.id}`);
-        if (lastType === "Breathwork session" && lastAt) {
-          const key = localDateISO(new Date(lastAt));
-          if (!(next[key] ?? []).some((event) => event.type === "breathwork")) {
-            addEvent(next, key, { type: "breathwork", label: "Breathwork completed" });
-          }
+      const lastType = localStorage.getItem(`flowstate-last-action-type-${user.id}`);
+      const lastAt = localStorage.getItem(`flowstate-last-action-${user.id}`);
+      if (lastType === "Breathwork session" && lastAt) {
+        const key = localDateISO(new Date(lastAt));
+        if (!(next[key] ?? []).some((event) => event.type === "breathwork")) {
+          addEvent(next, key, { type: "breathwork", label: "Breathwork completed" });
         }
-      } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
 
-      if (active) setEvents(next);
-    }
+    try {
+      const res = await fetch("/api/calendar/reminders", { cache: "no-store" });
+      const json = await res.json();
+      const reminders = (json.reminders ?? []) as CalendarReminder[];
+      reminders.forEach((reminder) => {
+        addEvent(next, localDateISO(new Date(reminder.due_at)), {
+          type: "reminder",
+          id: reminder.id,
+          label: reminder.title,
+          done: reminder.done,
+          dueAt: reminder.due_at,
+        });
+      });
+    } catch { /* ignore */ }
 
-    void loadEvents();
-    return () => { active = false; };
+    setEvents(next);
   }, [user.id]);
+
+  useEffect(() => { void loadEvents(); }, [loadEvents]);
+
+  useEffect(() => {
+    if (selected) setReminderDate(selected);
+  }, [selected]);
 
   const year  = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -708,6 +736,58 @@ function CalendarPageInner() {
   }
 
   const selectedEvents = selected ? (events[selected] ?? []) : [];
+
+  async function addReminder() {
+    const title = reminderDraft.trim();
+    if (!title || reminderSaving) return;
+    setReminderSaving(true);
+    try {
+      const dueAt = `${reminderDate || selected || todayStr}T${reminderTime || "09:00"}`;
+      const res = await fetch("/api/calendar/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, due_at: dueAt }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error((json as { error?: string }).error ?? "Could not add reminder.");
+      }
+      setReminderDraft("");
+      await loadEvents();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not add reminder.");
+    } finally {
+      setReminderSaving(false);
+    }
+  }
+
+  async function toggleReminder(id: string, done: boolean) {
+    setEvents((prev) => {
+      const next: EventMap = {};
+      for (const [key, value] of Object.entries(prev)) {
+        next[key] = value.map((event) => event.id === id ? { ...event, done } : event);
+      }
+      return next;
+    });
+    await fetch("/api/calendar/reminders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, done }),
+    }).catch(() => {});
+  }
+
+  async function deleteReminder(id: string) {
+    const prev = events;
+    setEvents((current) => {
+      const next: EventMap = {};
+      for (const [key, value] of Object.entries(current)) {
+        next[key] = value.filter((event) => event.id !== id);
+      }
+      return next;
+    });
+    const res = await fetch(`/api/calendar/reminders?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok) setEvents(prev);
+  }
 
   return (
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto text-white space-y-6">
@@ -807,7 +887,7 @@ function CalendarPageInner() {
 
       {/* Data hint */}
       <p className="text-[10px] text-white/18 text-center -mt-3">
-        Logged workouts, meals, and breathwork appear here as you add them.
+        Logged workouts, meals, breathwork, and reminders appear here as you add them.
       </p>
 
       {/* Selected day panel */}
@@ -868,13 +948,34 @@ function CalendarPageInner() {
                 const Icon  = EVENT_ICON[ev.type];
                 return (
                   <div key={i} className="flex items-center gap-3 px-5 py-3.5">
-                    <div className={cn("w-7 h-7 rounded-xl flex items-center justify-center shrink-0", style.bg)}>
-                      <Icon className={cn("w-3.5 h-3.5", style.text)} strokeWidth={1.5} />
-                    </div>
+                    {ev.type === "reminder" && ev.id ? (
+                      <button
+                        onClick={() => toggleReminder(ev.id!, !ev.done)}
+                        className={cn("w-7 h-7 rounded-xl flex items-center justify-center shrink-0", style.bg)}
+                        aria-label={ev.done ? "Mark reminder incomplete" : "Mark reminder done"}
+                      >
+                        {ev.done
+                          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
+                          : <Icon className={cn("w-3.5 h-3.5", style.text)} strokeWidth={1.5} />}
+                      </button>
+                    ) : (
+                      <div className={cn("w-7 h-7 rounded-xl flex items-center justify-center shrink-0", style.bg)}>
+                        <Icon className={cn("w-3.5 h-3.5", style.text)} strokeWidth={1.5} />
+                      </div>
+                    )}
                     <div>
-                      <p className="text-sm text-white/75">{ev.label}</p>
+                      <p className={cn("text-sm text-white/75", ev.done && "line-through text-white/35")}>{ev.label}</p>
                       <p className={cn("text-[10px] capitalize mt-0.5", style.text)}>{ev.type}</p>
                     </div>
+                    {ev.type === "reminder" && ev.id && (
+                      <button
+                        onClick={() => deleteReminder(ev.id!)}
+                        className="ml-auto text-white/22 hover:text-red-300/80 transition-colors"
+                        aria-label="Delete reminder"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -884,6 +985,39 @@ function CalendarPageInner() {
               <p className="text-sm text-white/22">No events logged.</p>
             </div>
           )}
+
+          <div className="border-t border-white/[0.05] px-5 py-4">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Add reminder</p>
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_auto] gap-2">
+              <input
+                value={reminderDraft}
+                onChange={(e) => setReminderDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void addReminder(); }}
+                placeholder="Thing to remember"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50"
+              />
+              <input
+                value={reminderDate}
+                onChange={(e) => setReminderDate(e.target.value)}
+                type="date"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/75 outline-none focus:border-[#B48B40]/50 [color-scheme:dark]"
+              />
+              <input
+                value={reminderTime}
+                onChange={(e) => setReminderTime(e.target.value)}
+                type="time"
+                className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/75 outline-none focus:border-[#B48B40]/50 [color-scheme:dark]"
+              />
+              <button
+                onClick={addReminder}
+                disabled={!reminderDraft.trim() || reminderSaving}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-3.5 py-2 text-xs font-semibold hover:bg-[#c99840] disabled:opacity-50 transition-all"
+              >
+                {reminderSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" strokeWidth={2} />}
+                Add
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

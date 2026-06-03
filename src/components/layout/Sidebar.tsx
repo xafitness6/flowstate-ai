@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Dumbbell, Utensils, Bot, User, LayoutDashboard, CheckSquare, CalendarDays, Users, Trophy, Film, Clapperboard, Wind, Lock, UserCheck } from "lucide-react";
+import { Home, Dumbbell, Utensils, Bot, User, LayoutDashboard, CheckSquare, CalendarDays, Users, Trophy, Film, Clapperboard, Wind, Lock, UserCheck, LineChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import type { ViewMode } from "@/context/UserContext";
@@ -18,7 +18,8 @@ export const NAV_ITEMS: AppNavItem[] = [
   { label: "Home",           href: "/dashboard",      icon: Home,         feature: FEATURES.DASHBOARD },
   { label: "Program",        href: "/program",        icon: Dumbbell,     feature: FEATURES.PROGRAM_VIEW },
   { label: "Nutrition",      href: "/nutrition",      icon: Utensils,     roles: ["client"], plan: "training", feature: FEATURES.NUTRITION },
-  { label: "Calendar",       href: "/calendar",       icon: CalendarDays, roles: ["client"], plan: "training", feature: FEATURES.CALENDAR },
+  { label: "Calendar",       href: "/calendar",       icon: CalendarDays, feature: FEATURES.CALENDAR },
+  { label: "Progress",       href: "/progress",       icon: LineChart },
   { label: "Coach",          href: "/coach",          icon: Bot,          roles: ["client"], plan: "training", feature: FEATURES.COACH },
   { label: "Accountability", href: "/accountability", icon: CheckSquare,  feature: FEATURES.ACCOUNTABILITY_BASIC },
   { label: "Breathwork",     href: "/breathwork",     icon: Wind,         feature: FEATURES.BREATHWORK },
