@@ -6,7 +6,7 @@ export type Role = "master" | "trainer" | "client" | "member";
 export type Plan = "foundation" | "training" | "performance" | "coaching";
 export type InviteStatus = "pending" | "sent" | "accepted" | "expired" | "revoked";
 export type LogType = "prescribed" | "modified" | "freestyle" | "coach_note";
-export type NutritionSource = "manual" | "voice" | "coach";
+export type NutritionSource = "manual" | "voice" | "coach" | "photo" | "barcode";
 
 // ─── Row types ───────────────────────────────────────────────────────────────
 

@@ -105,6 +105,8 @@ function ParsedResultPanel({
     parseResult.mealType === "unknown" ? "snack" : parseResult.mealType,
   );
   const [typeOpen, setTypeOpen]   = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [items,    setItems]      = useState<EditableItem[]>(
     parseResult.items.map((item, i) => ({
       id:         `ai_${i}`,
@@ -132,6 +134,10 @@ function ParsedResultPanel({
   }
 
   async function handleLog() {
+    if (saving || activeItems.length === 0) return;
+    setSaving(true);
+    setSaveError(null);
+
     const now = new Date().toISOString();
     const loggedItems: LoggedFoodItem[] = activeItems.map((i) => ({
       id:         i.id,
@@ -148,20 +154,26 @@ function ParsedResultPanel({
       deletedAt:  null,
     }));
 
-    const meal = await saveMeal(userId, {
-      userId,
-      source,
-      mealType,
-      eatenAt:         now,
-      rawTranscript,
-      cleanTranscript: parseResult.cleanTranscript,
-      notes:           null,
-      items:           loggedItems,
-      totals,
-      needsReview:     false,
-    });
+    try {
+      const meal = await saveMeal(userId, {
+        userId,
+        source,
+        mealType,
+        eatenAt:         now,
+        rawTranscript,
+        cleanTranscript: parseResult.cleanTranscript,
+        notes:           null,
+        items:           loggedItems,
+        totals,
+        needsReview:     false,
+      });
 
-    onSaved(meal);
+      onSaved(meal);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Meal could not be saved. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -275,6 +287,12 @@ function ParsedResultPanel({
         </p>
       )}
 
+      {saveError && (
+        <div className="rounded-xl border border-red-400/20 bg-red-400/[0.05] px-3 py-2 text-xs text-red-300/80">
+          {saveError}
+        </div>
+      )}
+
       {/* Actions — StickyFooter keeps Log meal visible without scrolling on small phones */}
       <StickyFooter>
         <div className="flex gap-3">
@@ -286,10 +304,11 @@ function ParsedResultPanel({
           </button>
           <button
             onClick={handleLog}
-            disabled={activeItems.length === 0}
-            className="flex-1 py-2.5 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 hover:border-[#B48B40]/35 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            disabled={activeItems.length === 0 || saving}
+            className="flex-1 py-2.5 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 hover:border-[#B48B40]/35 disabled:opacity-30 disabled:cursor-not-allowed transition-all inline-flex items-center justify-center gap-2"
           >
-            Log meal
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.6} />}
+            {saving ? "Logging..." : "Log meal"}
           </button>
         </div>
       </StickyFooter>

@@ -11,8 +11,9 @@ export type NavItem = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: Role[];  // minimum role to see this item (hidden if below)
-  plan?:  Plan;   // minimum plan to use this item (locked if below)
+  roles?: Role[];        // minimum role to see this item (hidden if below)
+  plan?:  Plan;          // minimum plan to use this item (locked if below)
+  staffUnlocked?: boolean; // trainers/admins can use even when client plan-gated
 };
 
 export type UserStatus = "active" | "rest" | "off";

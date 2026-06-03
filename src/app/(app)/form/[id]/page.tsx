@@ -3,13 +3,16 @@
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
+import { useEntitlement } from "@/hooks/useEntitlement";
 import {
   ArrowLeft, Star, CheckCircle2, ChevronDown, ChevronUp,
   TrendingUp, AlertCircle, Zap, Play, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LockedPageState, FEATURES } from "@/components/ui/PlanGate";
 import {
   FORM_SUBMISSIONS,
+  visibleSubmissions,
   scoreColor,
   scoreLabel,
   statusLabel,
@@ -18,6 +21,7 @@ import {
 } from "@/lib/formAnalysis";
 import { youTubeEmbedUrl } from "@/lib/videoLibrary";
 import { YTIcon } from "@/components/library/YTIcon";
+import { TRAINER_ASSIGNMENTS } from "@/lib/userProfiles";
 
 // ─── Score ring ───────────────────────────────────────────────────────────────
 
@@ -323,6 +327,7 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const router = useRouter();
   const { user } = useUser();
+  const { can } = useEntitlement();
 
   const [submissions, setSubmissions] = useState<FormSubmission[]>(FORM_SUBMISSIONS);
   const [showAllCues, setShowAllCues] = useState(false);
@@ -349,7 +354,35 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
   const ai = sub.aiAnalysis;
   const st = statusLabel(sub.status);
   const canReview = user.role === "master" || user.role === "trainer";
+  const hasFormAccess = canReview || !!user.isAdmin || can(FEATURES.FORM_ANALYSIS);
+  const canViewSubmission = visibleSubmissions(
+    [sub],
+    user.id,
+    user.role,
+    user.name,
+    TRAINER_ASSIGNMENTS,
+  ).length > 0;
   const visibleCues = showAllCues ? (ai?.cues ?? []) : (ai?.cues ?? []).slice(0, 3);
+
+  if (!hasFormAccess) {
+    return <LockedPageState feature={FEATURES.FORM_ANALYSIS} />;
+  }
+
+  if (!canViewSubmission) {
+    return (
+      <div className="flex-1 min-h-screen bg-[#0A0A0A] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-sm text-white/30">Submission not found</p>
+          <button
+            onClick={() => router.push("/form")}
+            className="mt-3 text-xs text-[#B48B40] hover:text-[#C9932A] transition-colors"
+          >
+            Back to Form Analysis
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   function handleSaveReview(review: CoachReview) {
     setSubmissions((prev) =>

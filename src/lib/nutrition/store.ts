@@ -69,11 +69,12 @@ export function rowToMeal(row: Record<string, any>): LoggedMeal {
 function mealToInsert(
   meal: Omit<LoggedMeal, "id" | "createdAt" | "updatedAt" | "deletedAt">,
   id: string,
+  source: NutritionLogSource = meal.source,
 ) {
   return {
     id,
     user_id:          meal.userId,
-    source:           meal.source,
+    source,
     meal_type:        meal.mealType,
     logged_at:        meal.eatenAt,
     raw_transcript:   meal.rawTranscript,
@@ -132,11 +133,29 @@ export async function saveMeal(
   if (isRealUser(userId)) {
     const id = crypto.randomUUID();
     const supabase = createClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("nutrition_logs")
       .insert(mealToInsert(meal, id))
       .select()
       .single();
+
+    const errText = [error?.message, error?.details, error?.hint, error?.code]
+      .filter(Boolean)
+      .join(" ");
+    if (
+      error &&
+      meal.source !== "manual" &&
+      /nutrition_logs_source_check|source|check constraint/i.test(errText)
+    ) {
+      console.warn("[store] saveMeal retrying with manual source for legacy nutrition_logs constraint:", error.message);
+      const retry = await supabase
+        .from("nutrition_logs")
+        .insert(mealToInsert(meal, id, "manual"))
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       console.error("[store] saveMeal Supabase error:", error);

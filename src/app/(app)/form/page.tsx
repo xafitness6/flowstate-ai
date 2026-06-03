@@ -3,10 +3,12 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
+import { useEntitlement } from "@/hooks/useEntitlement";
 import {
   Upload, Link2, X, Play, Clapperboard, Plus, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LockedPageState, FEATURES } from "@/components/ui/PlanGate";
 import {
   FORM_SUBMISSIONS,
   visibleSubmissions,
@@ -309,6 +311,7 @@ function SubmitModal({
 
 export default function FormPage() {
   const { user } = useUser();
+  const { can } = useEntitlement();
   const [submissions, setSubmissions] = useState<FormSubmission[]>(FORM_SUBMISSIONS);
   const [showModal, setShowModal] = useState(false);
 
@@ -318,6 +321,8 @@ export default function FormPage() {
   );
 
   const canSubmit = ["client", "member", "trainer", "master"].includes(user.role);
+  const staffViewer = user.role === "master" || user.role === "trainer" || !!user.isAdmin;
+  const hasFormAccess = staffViewer || can(FEATURES.FORM_ANALYSIS);
 
   function handleSubmit(sub: FormSubmission) {
     setSubmissions((prev) => [sub, ...prev]);
@@ -326,6 +331,10 @@ export default function FormPage() {
   const coachReviewed = visible.filter((s) => s.status === "coach_reviewed");
   const aiReviewed    = visible.filter((s) => s.status === "ai_reviewed");
   const pending       = visible.filter((s) => s.status === "pending" || s.status === "analyzing");
+
+  if (!hasFormAccess) {
+    return <LockedPageState feature={FEATURES.FORM_ANALYSIS} />;
+  }
 
   return (
     <div className="flex-1 min-h-screen bg-[#0A0A0A]">

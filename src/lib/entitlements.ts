@@ -44,6 +44,7 @@ export const FEATURES = {
   SOCIAL_CHALLENGES:     "social_challenges",
 
   // ── Elite / coaching ($199) ───────────────────────────────────────────────
+  FORM_ANALYSIS:          "form_analysis",
   PRIORITY_SUPPORT:      "priority_support",
   ADVANCED_ANALYSIS:     "advanced_analysis",
   LIVE_AI:               "live_ai",
@@ -79,6 +80,7 @@ const FEATURE_MIN_PLAN: Record<Feature, Plan> = {
   [FEATURES.SMART_RECOVERY]:        "performance",
   [FEATURES.SOCIAL_CHALLENGES]:     "performance",
   // Elite
+  [FEATURES.FORM_ANALYSIS]:          "coaching",
   [FEATURES.PRIORITY_SUPPORT]:      "coaching",
   [FEATURES.ADVANCED_ANALYSIS]:     "coaching",
   [FEATURES.LIVE_AI]:               "coaching",
@@ -217,6 +219,16 @@ export const FEATURE_COPY: Partial<Record<Feature, FeatureCopy>> = {
       "Daily plan adaptation",
       "Deeper context retention",
       "Smart recovery signal integration",
+    ],
+  },
+  [FEATURES.FORM_ANALYSIS]: {
+    title:       "Form Analysis",
+    description: "Submit training videos and get technique feedback from your coach.",
+    benefits: [
+      "Upload videos or share YouTube links",
+      "Coach feedback with ratings, notes, and cues",
+      "Submission history for each exercise",
+      "Hybrid Coaching access for client review workflows",
     ],
   },
 };

@@ -54,6 +54,14 @@ type MealSlotKey = "breakfast" | "pre_workout" | "lunch" | "post_workout" | "din
 type SuggType    = "warning" | "info" | "positive";
 
 type Suggestion = { id: string; type: SuggType; label: string; body: string };
+type MealLogEntry = { text: string; slot: MealSlotKey | null; mealType: MealType | null };
+type PendingMealReview = {
+  id: string;
+  parseResult: NutritionParseResult;
+  rawTranscript: string;
+  slot: MealSlotKey | null;
+  mealType: MealType | null;
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -84,6 +92,53 @@ const SLOT_TO_MEAL_TYPE: Record<MealSlotKey, MealType> = {
   dinner:       "dinner",
   snack:        "snack",
 };
+
+function labelToSlot(label: string): MealSlotKey | null {
+  const key = label.toLowerCase().replace(/[\s_-]+/g, "");
+  if (key === "breakfast") return "breakfast";
+  if (key === "lunch") return "lunch";
+  if (key === "dinner") return "dinner";
+  if (key === "snack") return "snack";
+  if (key === "preworkout") return "pre_workout";
+  if (key === "postworkout") return "post_workout";
+  return null;
+}
+
+function entryFrom(label: string | null, text: string): MealLogEntry | null {
+  const clean = text.trim().replace(/^[\s:;,.–—-]+|[\s;,.]+$/g, "");
+  if (!clean) return null;
+  const slot = label ? labelToSlot(label) : null;
+  return { text: clean, slot, mealType: slot ? SLOT_TO_MEAL_TYPE[slot] : null };
+}
+
+function splitMealEntries(text: string): MealLogEntry[] {
+  const clean = text.trim();
+  if (!clean) return [];
+
+  const inlineRe = /\b(breakfast|lunch|dinner|snack|pre[-_\s]?workout|post[-_\s]?workout)\s*[:\-–—]/gi;
+  const matches = [...clean.matchAll(inlineRe)];
+  if (matches.length >= 2) {
+    const entries = matches
+      .map((match, idx) => {
+        const start = (match.index ?? 0) + match[0].length;
+        const end = idx + 1 < matches.length ? (matches[idx + 1].index ?? clean.length) : clean.length;
+        return entryFrom(match[1], clean.slice(start, end));
+      })
+      .filter((entry): entry is MealLogEntry => Boolean(entry));
+    if (entries.length >= 2) return entries;
+  }
+
+  const lines = clean.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const lineEntries = lines
+    .map((line) => {
+      const m = line.match(/^(breakfast|lunch|dinner|snack|pre[-_\s]?workout|post[-_\s]?workout)\s*[:\-–—]\s*(.+)$/i);
+      return m ? entryFrom(m[1], m[2]) : null;
+    })
+    .filter((entry): entry is MealLogEntry => Boolean(entry));
+  if (lineEntries.length >= 2) return lineEntries;
+
+  return [{ text: clean, slot: null, mealType: null }];
+}
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -845,8 +900,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
   // Voice → parse → review flow
   const [parsing,           setParsing]           = useState(false);
-  const [pendingParse,      setPendingParse]       = useState<NutritionParseResult | null>(null);
-  const [pendingTranscript, setPendingTranscript]  = useState<string>("");
+  const [pendingReviews,    setPendingReviews]     = useState<PendingMealReview[]>([]);
   // Raw transcript captured the moment recording stops — before filler cleaning
   const rawTranscriptRef = useRef<string>("");
   // Auto-save feedback toast
@@ -922,6 +976,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   }, [meals]);
 
   const isToday = selectedDate === todayISO();
+  const pendingReview = pendingReviews[0] ?? null;
 
   // ── Hydration helpers ───────────────────────────────────────────────────────
 
@@ -961,6 +1016,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
     setShowVoice(false);
     setParsing(true);
+    setPendingReviews([]);
 
     // Time-of-day context helps the AI pick the right meal type
     const hour        = new Date().getHours();
@@ -971,37 +1027,67 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
       hour < 17 ? "afternoon"                :
       hour < 21 ? "evening / dinner time"    : "night";
     const timeContext = `Current time: ${hour}:00 (${timeOfDay})`;
+    const entries = voiceSlot
+      ? [{ text: processedTranscript, slot: voiceSlot, mealType: SLOT_TO_MEAL_TYPE[voiceSlot] }]
+      : splitMealEntries(processedTranscript);
 
     try {
-      const res = await fetch("/api/ai/nutrition", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ mode: "parse", transcript: processedTranscript, timeContext }),
-      });
+      const needsReview: PendingMealReview[] = [];
+      let savedCount = 0;
+      let savedCalories = 0;
 
-      if (!res.ok) throw new Error("parse failed");
-      const data: NutritionParseResult = await res.json();
+      for (const [idx, entry] of entries.entries()) {
+        const entryContext = [
+          timeContext,
+          entry.slot ? `User labelled this entry as ${SLOT_META[entry.slot].label}.` : null,
+        ].filter(Boolean).join("\n");
 
-      // Handle water separately before deciding on meal handling
-      if (data.hydrationMl && data.hydrationMl > 0) {
-        applyHydration(data.hydrationMl);
+        const res = await fetch("/api/ai/nutrition", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ mode: "parse", transcript: entry.text, timeContext: entryContext }),
+        });
+
+        if (!res.ok) throw new Error("parse failed");
+        const parsed: NutritionParseResult = await res.json();
+        const data: NutritionParseResult = {
+          ...parsed,
+          mealType: entry.mealType ?? parsed.mealType,
+        };
+
+        if (data.items.length === 0) {
+          if (data.hydrationMl && data.hydrationMl > 0) applyHydration(data.hydrationMl);
+          continue;
+        }
+
+        if (data.confidence >= 0.85) {
+          const meal = await doSaveMeal(data, entry.text, { slot: entry.slot, mealType: entry.mealType });
+          if (data.hydrationMl && data.hydrationMl > 0) applyHydration(data.hydrationMl, meal.id);
+          savedCount += 1;
+          savedCalories += meal.totals.calories;
+          continue;
+        }
+
+        needsReview.push({
+          id: `review_${Date.now()}_${idx}`,
+          parseResult: data,
+          rawTranscript: entry.text,
+          slot: entry.slot,
+          mealType: entry.mealType,
+        });
       }
 
-      // ── Confidence thresholds ─────────────────────────────────────────────
-      // ≥ 0.85  → auto-save: AI is confident, no review needed
-      // 0.60–0.84 → review modal: user confirms, can edit
-      // < 0.60  → review modal with low-confidence warning
-      if (data.confidence >= 0.85) {
-        await doSaveMeal(data, rawTranscript);
-        // Brief save confirmation toast
-        setSaveFeedback({ label: data.cleanTranscript ?? "Meal", calories: Math.round(data.totals.calories) });
+      if (needsReview.length > 0) {
+        setPendingReviews(needsReview);
+      }
+
+      if (savedCount > 0) {
+        setSaveFeedback({
+          label: savedCount === 1 ? "Meal saved" : `${savedCount} meals saved`,
+          calories: Math.round(savedCalories),
+        });
         setTimeout(() => setSaveFeedback(null), 3500);
-        return;
       }
-
-      // Below threshold → open review modal
-      setPendingTranscript(rawTranscript);
-      setPendingParse(data);
 
     } catch {
       // API unavailable — regex fallback → always goes to review
@@ -1047,11 +1133,22 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     }
   }
 
-  async function doSaveMeal(data: NutritionParseResult, rawTranscript: string): Promise<LoggedMeal> {
+  async function doSaveMeal(
+    data: NutritionParseResult,
+    rawTranscript: string,
+    opts: { slot: MealSlotKey | null; mealType: MealType | null } = { slot: voiceSlot, mealType: null },
+  ): Promise<LoggedMeal> {
+    return saveParsedMeal(data, rawTranscript, opts);
+  }
+
+  async function saveParsedMeal(
+    data: NutritionParseResult,
+    rawTranscript: string,
+    opts: { slot: MealSlotKey | null; mealType: MealType | null },
+  ): Promise<LoggedMeal> {
     const now      = new Date().toISOString();
-    const mealType: MealType = voiceSlot
-      ? SLOT_TO_MEAL_TYPE[voiceSlot]
-      : data.mealType === "unknown" ? "snack" : data.mealType;
+    const mealType: MealType = opts.mealType
+      ?? (opts.slot ? SLOT_TO_MEAL_TYPE[opts.slot] : data.mealType === "unknown" ? "snack" : data.mealType);
 
     const meal = await saveMeal(user.id, {
       userId:          user.id,
@@ -1090,10 +1187,10 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   }
 
   function handleReviewSave(meal: LoggedMeal) {
-    setPendingParse(null);
-    setPendingTranscript("");
-    // Apply hydration if pending parse had water
-    if (pendingParse?.hydrationMl) applyHydration(pendingParse.hydrationMl, meal.id);
+    const reviewed = pendingReview;
+    setPendingReviews((prev) => prev.slice(1));
+    // Apply hydration only after review save so water is not double-counted.
+    if (reviewed?.parseResult.hydrationMl) applyHydration(reviewed.parseResult.hydrationMl, meal.id);
     addMealToState(meal);
   }
 
@@ -1266,8 +1363,8 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <QuickActionTile
               icon={Mic}
-              label="Voice log meal"
-              description={can(FEATURES.VOICE_NUTRITION) ? "Say what you ate" : "Pro · upgrade to unlock"}
+              label="Text or voice log"
+              description={can(FEATURES.VOICE_NUTRITION) ? "One meal or full day" : "Pro · upgrade to unlock"}
               onClick={can(FEATURES.VOICE_NUTRITION) ? () => openVoiceForSlot(null) : () => router.push("/pricing")}
               primary
               locked={!can(FEATURES.VOICE_NUTRITION)}
@@ -1305,7 +1402,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         {parsing && (
           <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex items-center gap-3">
             <Loader2 className="w-4 h-4 text-[#B48B40]/60 animate-spin shrink-0" strokeWidth={1.5} />
-            <p className="text-sm text-white/45">Analysing meal…</p>
+            <p className="text-sm text-white/45">Analysing meal log…</p>
           </div>
         )}
 
@@ -1517,7 +1614,12 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           placeholder={
             voiceSlot
               ? `Describe your ${SLOT_META[voiceSlot].label.toLowerCase()}…`
-              : "e.g. '3 eggs, 100g oats, black coffee for breakfast'"
+              : "e.g. Breakfast: 3 eggs, 100g oats\nLunch: chicken rice bowl\nDinner: salmon and potatoes"
+          }
+          helperText={
+            voiceSlot
+              ? "Type or speak the foods, portions, and drinks for this meal."
+              : "To track multiple meals at once, put each meal on its own line with a label like Breakfast:, Lunch:, Dinner:, or Snack:."
           }
           autoClean
           onRawTranscript={(raw) => { rawTranscriptRef.current = raw; }}
@@ -1530,16 +1632,17 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         />
       )}
 
-      {pendingParse && (
+      {pendingReview && (
         <MealReviewModal
-          parseResult={pendingParse}
-          rawTranscript={pendingTranscript}
+          key={pendingReview.id}
+          parseResult={pendingReview.parseResult}
+          rawTranscript={pendingReview.rawTranscript}
           source="voice"
           userId={user.id}
-          initialSlot={voiceSlot}
-          lowConfidence={pendingParse.confidence < 0.6}
+          initialSlot={pendingReview.slot}
+          lowConfidence={pendingReview.parseResult.confidence < 0.6}
           onSave={handleReviewSave}
-          onCancel={() => { setPendingParse(null); setPendingTranscript(""); }}
+          onCancel={() => setPendingReviews((prev) => prev.slice(1))}
         />
       )}
 

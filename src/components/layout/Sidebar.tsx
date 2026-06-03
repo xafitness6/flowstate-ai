@@ -25,7 +25,7 @@ export const NAV_ITEMS: AppNavItem[] = [
   { label: "Breathwork",     href: "/breathwork",     icon: Wind,         feature: FEATURES.BREATHWORK },
   { label: "My Clients",     href: "/my-clients",     icon: UserCheck,    roles: ["trainer"] },
   { label: "Library",        href: "/library",        icon: Film,         roles: ["trainer"], plan: "training" },
-  { label: "Form Analysis",  href: "/form",           icon: Clapperboard, roles: ["trainer"], plan: "performance" },
+  { label: "Form Analysis",  href: "/form",           icon: Clapperboard, roles: ["member"],  plan: "coaching", feature: FEATURES.FORM_ANALYSIS, staffUnlocked: true },
   { label: "Leaderboard",    href: "/leaderboard",    icon: Trophy,       feature: FEATURES.LEADERBOARD },
   { label: "Profile",        href: "/profile",        icon: User },
 ];
@@ -35,6 +35,7 @@ export function Sidebar() {
   const router      = useRouter();
   const { user, viewMode, setViewMode } = useUser();
   const { can } = useEntitlement();
+  const staffViewer = user.role === "trainer" || user.role === "master" || !!user.isAdmin;
 
   function handleViewToggle() {
     const next: ViewMode = viewMode === "operator" ? "personal" : "operator";
@@ -57,7 +58,9 @@ export function Sidebar() {
           const active  = item.href === "/dashboard"
             ? pathname === "/dashboard" || pathname.startsWith("/dashboard/")
             : pathname === item.href;
-          const locked  = item.feature ? !can(item.feature) : !!item.plan && !planHasAccess(user.plan, item.plan);
+          const locked  = item.staffUnlocked && staffViewer
+            ? false
+            : item.feature ? !can(item.feature) : !!item.plan && !planHasAccess(user.plan, item.plan);
           const Icon    = item.icon;
 
           return (

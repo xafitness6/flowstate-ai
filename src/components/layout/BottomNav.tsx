@@ -57,8 +57,10 @@ export function BottomNav() {
   const [open, setOpen] = useState(false);
   const [loadedPins, setLoadedPins] = useState(false);
   const [pinnedHrefs, setPinnedHrefs] = useState<string[]>([]);
+  const staffViewer = user.role === "trainer" || user.role === "master" || !!user.isAdmin;
 
   function locked(item: AppNavItem) {
+    if (item.staffUnlocked && staffViewer) return false;
     return item.feature ? !can(item.feature) : !!item.plan && !planHasAccess(user.plan, item.plan);
   }
 

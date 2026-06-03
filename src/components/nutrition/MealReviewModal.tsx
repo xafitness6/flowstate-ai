@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Check, Trash2, ChevronDown, ChevronUp, Pencil, AlertTriangle } from "lucide-react";
+import { X, Check, Trash2, ChevronDown, ChevronUp, Pencil, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveMeal } from "@/lib/nutrition/store";
 import type {
@@ -109,6 +109,8 @@ export function MealReviewModal({
 
   const [mealType, setMealType] = useState<MealType>(resolvedMealType);
   const [typeOpen, setTypeOpen] = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [items, setItems]       = useState<EditableItem[]>(
     parseResult.items.map((item, i) => ({
       id:         `rev_${i}`,
@@ -144,6 +146,10 @@ export function MealReviewModal({
   }
 
   async function handleSave() {
+    if (saving || activeItems.length === 0) return;
+    setSaving(true);
+    setSaveError(null);
+
     const now = new Date().toISOString();
     const loggedItems: LoggedFoodItem[] = activeItems.map((i) => ({
       id:         i.id,
@@ -160,20 +166,26 @@ export function MealReviewModal({
       deletedAt:  null,
     }));
 
-    const meal = await saveMeal(userId, {
-      userId,
-      source,
-      mealType,
-      eatenAt:         now,
-      rawTranscript,
-      cleanTranscript: parseResult.cleanTranscript,
-      notes:           null,
-      items:           loggedItems,
-      totals,
-      needsReview:     false,
-    });
+    try {
+      const meal = await saveMeal(userId, {
+        userId,
+        source,
+        mealType,
+        eatenAt:         now,
+        rawTranscript,
+        cleanTranscript: parseResult.cleanTranscript,
+        notes:           null,
+        items:           loggedItems,
+        totals,
+        needsReview:     false,
+      });
 
-    onSave(meal);
+      onSave(meal);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Meal could not be saved. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -436,6 +448,12 @@ export function MealReviewModal({
           )}
         </div>
 
+        {saveError && (
+          <div className="mx-5 mb-3 rounded-xl border border-red-400/20 bg-red-400/[0.05] px-3 py-2 text-xs text-red-300/80">
+            {saveError}
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-5 pb-6 pt-4 border-t border-white/[0.05] shrink-0 flex gap-3">
           <button
@@ -446,10 +464,11 @@ export function MealReviewModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={activeItems.length === 0}
-            className="flex-1 py-2.5 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 hover:border-[#B48B40]/35 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            disabled={activeItems.length === 0 || saving}
+            className="flex-1 py-2.5 rounded-xl bg-[#B48B40]/15 border border-[#B48B40]/25 text-sm font-semibold text-[#B48B40] hover:bg-[#B48B40]/22 hover:border-[#B48B40]/35 disabled:opacity-30 disabled:cursor-not-allowed transition-all inline-flex items-center justify-center gap-2"
           >
-            Save meal
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.6} />}
+            {saving ? "Saving..." : "Save meal"}
           </button>
         </div>
       </div>
