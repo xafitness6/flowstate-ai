@@ -14,6 +14,16 @@ import {
 } from "@/lib/userProfiles";
 import { useUser } from "@/context/UserContext";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function profileRouteFor(user: SnapshotUser, viewerRole?: string) {
+  const staffViewer = viewerRole === "master" || viewerRole === "trainer";
+  if (staffViewer && UUID_RE.test(user.id) && (user.role === "client" || user.role === "member")) {
+    return `/clients/${user.id}`;
+  }
+  return `/profile/${user.id}`;
+}
+
 // ─── Hover card content ───────────────────────────────────────────────────────
 
 function HoverCardContent({
@@ -28,8 +38,10 @@ function HoverCardContent({
   onMouseLeave: () => void;
 }) {
   const router = useRouter();
+  const { user: viewer } = useUser();
   const snap = USER_SNAPSHOTS[user.id];
   const initials = user.name.split(" ").map((n) => n[0]).join("").toUpperCase();
+  const profileRoute = profileRouteFor(user, viewer.role);
 
   const ROLE_COLOR: Record<string, string> = {
     master:  "text-emerald-400/80",
@@ -136,11 +148,11 @@ function HoverCardContent({
           {/* Actions */}
           <div className="px-3 py-3 flex items-center gap-2">
             <button
-              onClick={() => router.push(`/profile/${user.id}`)}
+              onClick={() => router.push(profileRoute)}
               className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all py-2 text-[11px] font-medium text-white/50 hover:text-white/75"
             >
               <ExternalLink className="w-3 h-3" strokeWidth={1.5} />
-              Open profile
+              {profileRoute.startsWith("/clients/") ? "Open dashboard" : "Open profile"}
             </button>
             <button
               onClick={() => router.push("/coach")}
@@ -210,7 +222,7 @@ export function UserNameLink({
   function handleClick(e: React.MouseEvent) {
     if (!clickable) return;
     e.stopPropagation(); // don't bubble to parent row clicks
-    router.push(`/profile/${user.id}`);
+    router.push(profileRouteFor(user, viewer.role));
   }
 
   return (

@@ -85,7 +85,7 @@ type ProgressPhoto = {
 type TabKey = "overview" | "program" | "nutrition" | "progress" | "notes" | "chat";
 
 const TABS: { key: TabKey; label: string; icon: typeof User; ready: boolean }[] = [
-  { key: "overview",  label: "Overview",  icon: User,          ready: true  },
+  { key: "overview",  label: "Dashboard", icon: User,          ready: true  },
   { key: "program",   label: "Program",   icon: Dumbbell,      ready: true  },
   { key: "nutrition", label: "Nutrition", icon: Apple,         ready: true  },
   { key: "progress",  label: "Progress",  icon: LineChart,     ready: true  },
@@ -559,7 +559,7 @@ export default function ClientDetailPage() {
         {/* ── Header ── */}
         <div className="flex items-start justify-between gap-3 mb-5">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-1.5">Client file</p>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-1.5">Client dashboard</p>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight truncate">{name}</h1>
             <p className="text-xs text-white/45 mt-1.5">
               {profile?.email} · <span className="capitalize">{profile?.role}</span> · {profile?.plan}
