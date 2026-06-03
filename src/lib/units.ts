@@ -76,3 +76,43 @@ export function displayUnitToKg(weight: number, unitSystem: UnitSystem): number 
 export function weightUnitLabel(unitSystem: UnitSystem): "kg" | "lbs" {
   return unitSystem === "imperial" ? "lbs" : "kg";
 }
+
+export function heightUnitLabel(unitSystem: UnitSystem): "cm" | "ft/in" {
+  return unitSystem === "imperial" ? "ft/in" : "cm";
+}
+
+const CM_PER_INCH = 2.54;
+const INCHES_PER_FOOT = 12;
+
+/** Format a canonical cm value for display in the chosen system ("173" or `5'8"`). */
+export function formatHeightDisplay(cm: number, unitSystem: UnitSystem): string {
+  if (!Number.isFinite(cm) || cm <= 0) return "";
+  if (unitSystem !== "imperial") return String(Math.round(cm));
+  const totalInches = cm / CM_PER_INCH;
+  let feet = Math.floor(totalInches / INCHES_PER_FOOT);
+  let inches = Math.round(totalInches - feet * INCHES_PER_FOOT);
+  if (inches === INCHES_PER_FOOT) { feet += 1; inches = 0; }
+  return `${feet}'${inches}"`;
+}
+
+/** Parse a height input back to canonical cm. Imperial accepts 5'8", 5'8, 5 8, 5.8ft. */
+export function parseHeightToCm(input: string, unitSystem: UnitSystem): number | null {
+  const raw = input.trim();
+  if (!raw) return null;
+  if (unitSystem !== "imperial") {
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  }
+  // Imperial: feet'inches"  (e.g. 5'8", 5'8, 5 8)
+  const m = raw.match(/^(\d+(?:\.\d+)?)\s*(?:'|ft|feet|\s)\s*(\d+(?:\.\d+)?)?\s*(?:"|in|inches)?$/i);
+  if (m) {
+    const feet = parseFloat(m[1]);
+    const inches = m[2] ? parseFloat(m[2]) : 0;
+    const cm = (feet * INCHES_PER_FOOT + inches) * CM_PER_INCH;
+    return cm > 0 ? Math.round(cm) : null;
+  }
+  // Bare number → treat as decimal feet (e.g. "5.75")
+  const n = parseFloat(raw);
+  if (Number.isFinite(n) && n > 0) return Math.round(n * INCHES_PER_FOOT * CM_PER_INCH);
+  return null;
+}

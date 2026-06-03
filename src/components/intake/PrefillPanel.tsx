@@ -1,11 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Check, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FIELDS, type FieldDef } from "@/lib/intake/prefillSchema";
+import { useUser } from "@/context/UserContext";
+import {
+  readStoredUnitSystem, weightUnitLabel, heightUnitLabel,
+  kgToDisplayUnit, displayUnitToKg, formatHeightDisplay, parseHeightToCm,
+  type UnitSystem,
+} from "@/lib/units";
 
 const FIELD_BY_KEY = new Map(FIELDS.map((f) => [f.key, f]));
+
+// Fields stored canonically (cm/kg) but shown in the trainer's preferred units.
+const WEIGHT_KEYS = new Set(["weightKg", "goalWeightKg"]);
+const HEIGHT_KEYS = new Set(["heightCm"]);
+const isUnitAware = (key: string) => WEIGHT_KEYS.has(key) || HEIGHT_KEYS.has(key);
+
+/** Canonical (cm/kg) → display string in the chosen system. */
+function canonicalToDisplay(key: string, canonical: string, sys: UnitSystem): string {
+  const n = parseFloat(canonical);
+  if (!Number.isFinite(n)) return canonical;
+  if (HEIGHT_KEYS.has(key)) return formatHeightDisplay(n, sys);
+  return String(Math.round(kgToDisplayUnit(n, sys) * 10) / 10);
+}
+
+/** Display string → canonical (cm/kg) number for saving. */
+function displayToCanonical(key: string, display: string, sys: UnitSystem): number | null {
+  if (HEIGHT_KEYS.has(key)) return parseHeightToCm(display, sys);
+  const n = parseFloat(display);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(displayUnitToKg(n, sys) * 10) / 10;
+}
+
+/** Dynamic label so "(cm)/(kg)" follows the chosen unit system. */
+function rowLabel(def: FieldDef, sys: UnitSystem): string {
+  if (HEIGHT_KEYS.has(def.key)) return def.label.replace(/\(cm\)/i, `(${heightUnitLabel(sys)})`);
+  if (WEIGHT_KEYS.has(def.key)) return def.label.replace(/\(kg\)/i, `(${weightUnitLabel(sys)})`);
+  return def.label;
+}
 
 type ExtractResponse = {
   extracted: { basic: Record<string, unknown>; deep: Record<string, unknown> };
@@ -21,11 +55,29 @@ type ReviewRow = {
 };
 
 export function PrefillPanel({ clientId, onSaved }: { clientId: string; onSaved: () => void }) {
+  const { user } = useUser();
   const [notes, setNotes] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
+  const [system, setSystem] = useState<UnitSystem>("metric");
+
+  // Honor the trainer's units preference (kg vs lbs / cm vs ft·in)
+  useEffect(() => {
+    const s = readStoredUnitSystem(user.id);
+    if (s) setSystem(s);
+  }, [user.id]);
+
+  // Toggle units — re-convert any unit-aware rows already on screen.
+  function changeSystem(next: UnitSystem) {
+    setRows((rs) => rs?.map((r) => {
+      if (!isUnitAware(r.def.key)) return r;
+      const canon = displayToCanonical(r.def.key, r.value, system);
+      return { ...r, value: canon != null ? canonicalToDisplay(r.def.key, String(canon), next) : r.value };
+    }) ?? rs);
+    setSystem(next);
+  }
 
   async function extract() {
     if (!notes.trim() || extracting) return;
@@ -44,9 +96,11 @@ export function PrefillPanel({ clientId, onSaved }: { clientId: string; onSaved:
         for (const [key, val] of Object.entries(map)) {
           const def = FIELD_BY_KEY.get(key);
           if (!def || def.loc !== loc) continue;
+          const rawValue = Array.isArray(val) ? val.join(", ") : String(val);
           built.push({
             def,
-            value: Array.isArray(val) ? val.join(", ") : String(val),
+            // Show height/weight in the trainer's preferred units (stored as cm/kg).
+            value: isUnitAware(key) ? canonicalToDisplay(key, rawValue, system) : rawValue,
             include: !uncertain.has(key),
             uncertain: uncertain.has(key),
           });
@@ -70,6 +124,12 @@ export function PrefillPanel({ clientId, onSaved }: { clientId: string; onSaved:
       for (const r of rows) {
         if (!r.include || !r.value.trim()) continue;
         const target = r.def.loc === "deep" ? deep : basic;
+        // Unit-aware fields convert display (lbs/ft·in) back to canonical cm/kg.
+        if (isUnitAware(r.def.key)) {
+          const canon = displayToCanonical(r.def.key, r.value, system);
+          if (canon != null) target[r.def.key] = canon;
+          continue;
+        }
         target[r.def.key] = reconstruct(r.def, r.value);
       }
       const res = await fetch(`/api/clients/${clientId}/intake`, {
@@ -122,7 +182,23 @@ export function PrefillPanel({ clientId, onSaved }: { clientId: string; onSaved:
 
       {rows && (
         <div className="space-y-2">
-          <p className="text-[11px] text-white/45">Review what the AI pulled out. Edit anything, untick to skip. Amber = it wasn&apos;t sure.</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-white/45">Review what the AI pulled out. Edit anything, untick to skip. Amber = it wasn&apos;t sure.</p>
+            <div className="flex rounded-lg border border-white/10 overflow-hidden shrink-0">
+              {(["metric", "imperial"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => changeSystem(s)}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                    system === s ? "bg-[#B48B40]/15 text-[#B48B40]" : "text-white/35 hover:text-white/60",
+                  )}
+                >
+                  {s === "metric" ? "kg / cm" : "lbs / ft"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
             {rows.map((r, i) => (
               <div key={r.def.key} className={cn(
@@ -137,7 +213,7 @@ export function PrefillPanel({ clientId, onSaved }: { clientId: string; onSaved:
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-white/35">{r.def.label}</span>
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-white/35">{rowLabel(r.def, system)}</span>
                     {r.uncertain && <AlertTriangle className="w-3 h-3 text-amber-400/70" strokeWidth={2} />}
                   </div>
                   <input
