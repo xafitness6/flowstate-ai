@@ -163,10 +163,29 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     return () => { active = false; };
   }, [id, isUUID]);
 
+  const shouldOpenClientDashboard =
+    !!detail &&
+    isUUID &&
+    viewer.id !== id &&
+    (viewerIsAdmin || viewer.role === "trainer") &&
+    (detail.profile.role === "client" || detail.profile.role === "member");
+
+  useEffect(() => {
+    if (shouldOpenClientDashboard) router.replace(`/clients/${id}`);
+  }, [id, router, shouldOpenClientDashboard]);
+
   // Demo / static lookup
   const demoTarget = !isUUID ? USER_DIRECTORY[id] : null;
   const demoSnap   = !isUUID ? USER_SNAPSHOTS[id] : null;
   const allowed    = canViewProfile(viewer.role, viewer.name, id, viewer.id);
+
+  if (shouldOpenClientDashboard) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="w-5 h-5 rounded-full border-2 border-[#B48B40]/30 border-t-[#B48B40] animate-spin" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
