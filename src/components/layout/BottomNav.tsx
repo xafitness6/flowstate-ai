@@ -12,8 +12,8 @@ import { useEntitlement } from "@/hooks/useEntitlement";
 import { NAV_ITEMS, type AppNavItem } from "./Sidebar";
 
 const STORAGE_KEY = "flowstate-bottomnav-items";
-const MAX_PINNED = 4;
-const DEFAULT_PINNED = ["/dashboard", "/program", "/nutrition", "/coach", "/accountability", "/profile"];
+const MAX_PINNED = 5;
+const DEFAULT_PINNED = ["/dashboard", "/program", "/nutrition", "/coach", "/progress"];
 
 function unique(values: string[]) {
   return [...new Set(values)];
@@ -145,13 +145,13 @@ export function BottomNav() {
           <button
             onClick={() => setOpen(true)}
             className={cn(
-              "fs-bottom-nav-item relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors",
+              "fs-bottom-nav-item relative flex flex-col items-center justify-center gap-0.5 px-1.5 py-1 transition-colors",
               open ? "fs-bottom-nav-item-active text-[#B48240]" : "text-[#525252] hover:text-[#A3A3A3] active:text-[#F5F5F5]",
             )}
             aria-label="Open navigation menu"
           >
             <Menu className={cn("w-5 h-5", open && "drop-shadow-[0_0_6px_rgba(180,130,64,0.5)]")} strokeWidth={1.8} />
-            <span className="text-[10px] font-medium">Menu</span>
+            <span className="text-[9px] font-medium">Menu</span>
           </button>
         </div>
       </nav>
@@ -272,7 +272,7 @@ function BottomNavLink({
       href={locked ? "/pricing" : item.href}
       onClick={onClick}
       className={cn(
-        "fs-bottom-nav-item relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors",
+        "fs-bottom-nav-item relative flex flex-col items-center justify-center gap-0.5 px-1.5 py-1 transition-colors",
         active ? "fs-bottom-nav-item-active text-[#B48240]"
         : locked ? "text-[#363636]"
         : "text-[#525252] hover:text-[#A3A3A3] active:text-[#F5F5F5]",
@@ -287,7 +287,7 @@ function BottomNavLink({
         />
         {locked && <Lock className="absolute -right-1 -top-1 h-2.5 w-2.5 text-white/20" strokeWidth={2} />}
       </div>
-      <span className="max-w-full truncate text-[10px] font-medium">{item.label}</span>
+      <span className="max-w-full truncate text-[9px] font-medium">{item.label}</span>
     </Link>
   );
 }

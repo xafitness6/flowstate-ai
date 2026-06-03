@@ -63,7 +63,7 @@ export async function POST(
 
   const weight_kg = parseWeight(payload.weight_kg);
   if (weight_kg == null) {
-    return NextResponse.json({ error: "Enter a valid weight in kg." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid weight." }, { status: 400 });
   }
 
   const note = typeof payload.note === "string" ? payload.note.trim().slice(0, 1000) : null;

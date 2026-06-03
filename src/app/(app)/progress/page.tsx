@@ -2,12 +2,27 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
+  ArrowLeftRight,
   Camera, Image as ImageIcon, Loader2, Scale, Trash2,
   TrendingDown, TrendingUp, Upload,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
+import { getOnboardingState } from "@/lib/db/onboarding";
+import { getMeals } from "@/lib/nutrition/store";
+import type { LoggedMeal } from "@/lib/nutrition/types";
+import { getWorkoutLogsForUser, type WorkoutLog } from "@/lib/workout";
+import {
+  displayUnitToKg,
+  inferUnitSystemFromRawAnswers,
+  kgToDisplayUnit,
+  readStoredUnitSystem,
+  UNIT_STORAGE_KEY,
+  weightUnitLabel,
+  type UnitSystem,
+} from "@/lib/units";
 
 type WeightLog = {
   id: string;
@@ -70,12 +85,215 @@ function rangeEnd(preset: RangePreset, customEnd: string): number | null {
   return Number.isNaN(d.getTime()) ? null : d.getTime();
 }
 
+type ComparisonTrend = "up" | "down" | "same" | "missing";
+
+type ComparisonInsight = {
+  label: string;
+  before: string;
+  after: string;
+  summary: string;
+  trend: ComparisonTrend;
+};
+
+function formatMonth(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Selected month";
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function monthWindow(iso: string) {
+  const d = new Date(iso);
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  return { startMs: start.getTime(), endMs: end.getTime(), label: formatMonth(iso) };
+}
+
+function inWindow(ms: number, startMs: number, endMs: number) {
+  return Number.isFinite(ms) && ms >= startMs && ms < endMs;
+}
+
+function plural(count: number, singular: string, pluralLabel = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : pluralLabel}`;
+}
+
+function average(values: number[]) {
+  const finite = values.filter((v) => Number.isFinite(v));
+  if (finite.length === 0) return null;
+  return finite.reduce((sum, value) => sum + value, 0) / finite.length;
+}
+
+function localDayKey(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function countUniqueDays(values: string[]) {
+  return new Set(values.map(localDayKey).filter(Boolean)).size;
+}
+
+function compareTrend(before: number, after: number): ComparisonTrend {
+  if (before === 0 && after === 0) return "missing";
+  if (after > before) return "up";
+  if (after < before) return "down";
+  return "same";
+}
+
+function countSummary(before: number, after: number, singular: string, pluralLabel: string, beforeLabel: string, afterLabel: string) {
+  if (before === 0 && after === 0) return `No ${pluralLabel} logged in either month.`;
+  const delta = after - before;
+  if (delta > 0) return `${afterLabel} had ${plural(delta, `more ${singular}`, `more ${pluralLabel}`)} than ${beforeLabel}.`;
+  if (delta < 0) return `${afterLabel} had ${plural(Math.abs(delta), `fewer ${singular}`, `fewer ${pluralLabel}`)} than ${beforeLabel}.`;
+  return `Same ${pluralLabel} count in both months.`;
+}
+
+function formatWeight(weightKg: number, unitSystem: UnitSystem) {
+  return `${kgToDisplayUnit(weightKg, unitSystem).toFixed(1)} ${weightUnitLabel(unitSystem)}`;
+}
+
+function formatWeightDelta(deltaKg: number, unitSystem: UnitSystem) {
+  const value = kgToDisplayUnit(deltaKg, unitSystem);
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)} ${weightUnitLabel(unitSystem)}`;
+}
+
+function nearestWeightLog(logs: WeightLog[], targetMs: number) {
+  const maxDistance = 45 * 24 * 60 * 60 * 1000;
+  let best: { log: WeightLog; distance: number } | null = null;
+  for (const log of logs) {
+    const ms = new Date(log.logged_at).getTime();
+    if (!Number.isFinite(ms)) continue;
+    const distance = Math.abs(ms - targetMs);
+    if (distance > maxDistance) continue;
+    if (!best || distance < best.distance) best = { log, distance };
+  }
+  return best?.log ?? null;
+}
+
+function buildComparisonInsights({
+  beforePhoto,
+  afterPhoto,
+  weightLogs,
+  workoutLogs,
+  meals,
+  photos,
+  unitSystem,
+}: {
+  beforePhoto: ProgressPhoto | null;
+  afterPhoto: ProgressPhoto | null;
+  weightLogs: WeightLog[];
+  workoutLogs: WorkoutLog[];
+  meals: LoggedMeal[];
+  photos: ProgressPhoto[];
+  unitSystem: UnitSystem;
+}) {
+  if (!beforePhoto || !afterPhoto) return null;
+
+  const beforeWindow = monthWindow(beforePhoto.taken_at);
+  const afterWindow = monthWindow(afterPhoto.taken_at);
+  const beforeWorkoutLogs = workoutLogs.filter((log) => inWindow(log.completedAt, beforeWindow.startMs, beforeWindow.endMs));
+  const afterWorkoutLogs = workoutLogs.filter((log) => inWindow(log.completedAt, afterWindow.startMs, afterWindow.endMs));
+  const beforeMeals = meals.filter((meal) => !meal.deletedAt && inWindow(new Date(meal.eatenAt).getTime(), beforeWindow.startMs, beforeWindow.endMs));
+  const afterMeals = meals.filter((meal) => !meal.deletedAt && inWindow(new Date(meal.eatenAt).getTime(), afterWindow.startMs, afterWindow.endMs));
+  const beforeWeights = weightLogs.filter((log) => inWindow(new Date(log.logged_at).getTime(), beforeWindow.startMs, beforeWindow.endMs));
+  const afterWeights = weightLogs.filter((log) => inWindow(new Date(log.logged_at).getTime(), afterWindow.startMs, afterWindow.endMs));
+  const beforePhotos = photos.filter((photo) => inWindow(new Date(photo.taken_at).getTime(), beforeWindow.startMs, beforeWindow.endMs));
+  const afterPhotos = photos.filter((photo) => inWindow(new Date(photo.taken_at).getTime(), afterWindow.startMs, afterWindow.endMs));
+
+  const beforeVolume = beforeWorkoutLogs.reduce((sum, log) => sum + (log.setsCompleted || 0), 0);
+  const afterVolume = afterWorkoutLogs.reduce((sum, log) => sum + (log.setsCompleted || 0), 0);
+  const beforeDifficulty = average(beforeWorkoutLogs.map((log) => Number(log.difficulty)).filter(Number.isFinite));
+  const afterDifficulty = average(afterWorkoutLogs.map((log) => Number(log.difficulty)).filter(Number.isFinite));
+  const beforeNutritionDays = countUniqueDays(beforeMeals.map((meal) => meal.eatenAt));
+  const afterNutritionDays = countUniqueDays(afterMeals.map((meal) => meal.eatenAt));
+  const beforeTracking = beforeWeights.length + beforePhotos.length + beforeMeals.length + beforeWorkoutLogs.length;
+  const afterTracking = afterWeights.length + afterPhotos.length + afterMeals.length + afterWorkoutLogs.length;
+
+  const beforeWeight = nearestWeightLog(weightLogs, new Date(beforePhoto.taken_at).getTime());
+  const afterWeight = nearestWeightLog(weightLogs, new Date(afterPhoto.taken_at).getTime());
+
+  const insights: ComparisonInsight[] = [
+    {
+      label: "Workouts",
+      before: plural(beforeWorkoutLogs.length, "session"),
+      after: plural(afterWorkoutLogs.length, "session"),
+      summary: countSummary(beforeWorkoutLogs.length, afterWorkoutLogs.length, "session", "sessions", beforeWindow.label, afterWindow.label),
+      trend: compareTrend(beforeWorkoutLogs.length, afterWorkoutLogs.length),
+    },
+    {
+      label: "Training volume",
+      before: plural(beforeVolume, "set"),
+      after: plural(afterVolume, "set"),
+      summary: beforeVolume || afterVolume
+        ? countSummary(beforeVolume, afterVolume, "set", "sets", beforeWindow.label, afterWindow.label)
+        : "No completed-set volume logged in either month.",
+      trend: compareTrend(beforeVolume, afterVolume),
+    },
+    {
+      label: "Intensity",
+      before: beforeDifficulty == null ? "No rating" : `${beforeDifficulty.toFixed(1)} avg`,
+      after: afterDifficulty == null ? "No rating" : `${afterDifficulty.toFixed(1)} avg`,
+      summary: beforeDifficulty == null || afterDifficulty == null
+        ? "Workout difficulty ratings are not complete enough to compare."
+        : afterDifficulty > beforeDifficulty
+          ? `${afterWindow.label} averaged harder logged workouts.`
+          : afterDifficulty < beforeDifficulty
+            ? `${afterWindow.label} averaged easier logged workouts.`
+            : "Average logged workout difficulty was the same.",
+      trend: beforeDifficulty == null || afterDifficulty == null ? "missing" : compareTrend(beforeDifficulty, afterDifficulty),
+    },
+    {
+      label: "Nutrition",
+      before: plural(beforeNutritionDays, "day"),
+      after: plural(afterNutritionDays, "day"),
+      summary: countSummary(beforeNutritionDays, afterNutritionDays, "nutrition day", "nutrition days", beforeWindow.label, afterWindow.label),
+      trend: compareTrend(beforeNutritionDays, afterNutritionDays),
+    },
+    {
+      label: "Tracking",
+      before: plural(beforeTracking, "entry", "entries"),
+      after: plural(afterTracking, "entry", "entries"),
+      summary: countSummary(beforeTracking, afterTracking, "entry", "entries", beforeWindow.label, afterWindow.label),
+      trend: compareTrend(beforeTracking, afterTracking),
+    },
+    {
+      label: "Body weight",
+      before: beforeWeight ? formatWeight(beforeWeight.weight_kg, unitSystem) : "No nearby log",
+      after: afterWeight ? formatWeight(afterWeight.weight_kg, unitSystem) : "No nearby log",
+      summary: beforeWeight && afterWeight
+        ? `Nearest logged weight changed ${formatWeightDelta(afterWeight.weight_kg - beforeWeight.weight_kg, unitSystem)}.`
+        : "Add weight logs near both photos to compare scale change.",
+      trend: beforeWeight && afterWeight ? compareTrend(beforeWeight.weight_kg, afterWeight.weight_kg) : "missing",
+    },
+    {
+      label: "Steps",
+      before: "Not connected",
+      after: "Not connected",
+      summary: "Steps are not connected to progress analytics yet.",
+      trend: "missing",
+    },
+  ];
+
+  return {
+    beforeLabel: beforeWindow.label,
+    afterLabel: afterWindow.label,
+    sameMonth: beforeWindow.startMs === afterWindow.startMs,
+    insights,
+  };
+}
+
 export default function ProgressPage() {
   const { user } = useUser();
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
+  const [meals, setMeals] = useState<LoggedMeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>("metric");
 
   const [range, setRange] = useState<RangePreset>("90d");
   const [customStart, setCustomStart] = useState("");
@@ -92,8 +310,29 @@ export default function ProgressPage() {
   const [photoDate, setPhotoDate] = useState(todayInputValue);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoInputKey, setPhotoInputKey] = useState(0);
+  const [compareFromId, setCompareFromId] = useState("");
+  const [compareToId, setCompareToId] = useState("");
 
   const isRealUser = UUID_RE.test(user.id);
+
+  useEffect(() => {
+    const local = readStoredUnitSystem(user.id);
+    if (local) setUnitSystem(local);
+
+    if (!isRealUser) return;
+    let active = true;
+    getOnboardingState(user.id)
+      .then((state) => {
+        if (!active) return;
+        try {
+          if (localStorage.getItem(UNIT_STORAGE_KEY(user.id))) return;
+        } catch { /* ignore */ }
+        const inferred = inferUnitSystemFromRawAnswers(state?.raw_answers);
+        if (inferred) setUnitSystem(inferred);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [user.id, isRealUser]);
 
   async function loadProgress() {
     if (!isRealUser) {
@@ -103,15 +342,19 @@ export default function ProgressPage() {
     setLoading(true);
     setError(null);
     try {
-      const [weightRes, photoRes] = await Promise.all([
+      const [weightRes, photoRes, workouts, loggedMeals] = await Promise.all([
         fetch(`/api/clients/${user.id}/weight`, { cache: "no-store" }),
         fetch(`/api/clients/${user.id}/photos`, { cache: "no-store" }),
+        getWorkoutLogsForUser(user.id).catch(() => [] as WorkoutLog[]),
+        getMeals(user.id).catch(() => [] as LoggedMeal[]),
       ]);
       const [weightJson, photoJson] = await Promise.all([weightRes.json(), photoRes.json()]);
       if (!weightRes.ok) throw new Error(weightJson.error ?? "Could not load weight logs.");
       if (!photoRes.ok) throw new Error(photoJson.error ?? "Could not load progress photos.");
       setWeightLogs(sortWeightLogs((weightJson.logs ?? []) as WeightLog[]));
       setPhotos((photoJson.photos ?? []) as ProgressPhoto[]);
+      setWorkoutLogs(workouts);
+      setMeals(loggedMeals.filter((meal) => !meal.deletedAt));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load progress.");
     } finally {
@@ -147,6 +390,35 @@ export default function ProgressPage() {
   const latest = filtered[filtered.length - 1] ?? null;
   const delta = first && latest ? Number(latest.weight_kg) - Number(first.weight_kg) : null;
   const selectedWeight = filtered.find((log) => log.id === selectedWeightId) ?? latest;
+  const unitLabel = weightUnitLabel(unitSystem);
+  const chronologicalPhotos = useMemo(
+    () => [...photos].sort((a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime()),
+    [photos],
+  );
+  const compareFromPhoto = chronologicalPhotos.find((photo) => photo.id === compareFromId) ?? chronologicalPhotos[0] ?? null;
+  const compareToPhoto = chronologicalPhotos.find((photo) => photo.id === compareToId) ?? chronologicalPhotos[chronologicalPhotos.length - 1] ?? null;
+  const comparison = useMemo(
+    () => buildComparisonInsights({
+      beforePhoto: compareFromPhoto,
+      afterPhoto: compareToPhoto,
+      weightLogs,
+      workoutLogs,
+      meals,
+      photos,
+      unitSystem,
+    }),
+    [compareFromPhoto, compareToPhoto, weightLogs, workoutLogs, meals, photos, unitSystem],
+  );
+
+  useEffect(() => {
+    if (chronologicalPhotos.length === 0) {
+      setCompareFromId("");
+      setCompareToId("");
+      return;
+    }
+    setCompareFromId((current) => chronologicalPhotos.some((photo) => photo.id === current) ? current : chronologicalPhotos[0].id);
+    setCompareToId((current) => chronologicalPhotos.some((photo) => photo.id === current) ? current : chronologicalPhotos[chronologicalPhotos.length - 1].id);
+  }, [chronologicalPhotos]);
 
   async function addWeightLog() {
     if (weightSaving) return;
@@ -158,7 +430,7 @@ export default function ProgressPage() {
       const res = await fetch(`/api/clients/${user.id}/weight`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weight_kg: weight, logged_at: weightDate, note: weightNote }),
+        body: JSON.stringify({ weight_kg: displayUnitToKg(weight, unitSystem), logged_at: weightDate, note: weightNote }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not save weight.");
@@ -254,13 +526,13 @@ export default function ProgressPage() {
             <SummaryCard
               icon={Scale}
               label="Current"
-              value={latest ? `${Number(latest.weight_kg).toFixed(1)} kg` : "None"}
+              value={latest ? formatWeight(latest.weight_kg, unitSystem) : "None"}
               detail={latest ? formatFullDate(latest.logged_at) : "no weight logs"}
             />
             <SummaryCard
               icon={delta != null && delta < 0 ? TrendingDown : TrendingUp}
               label="Change"
-              value={delta == null ? "-" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} kg`}
+              value={delta == null ? "-" : formatWeightDelta(delta, unitSystem)}
               detail={filtered.length > 1 ? `${filtered.length} logs in range` : "need two logs"}
             />
             <SummaryCard
@@ -289,7 +561,7 @@ export default function ProgressPage() {
                 min="1"
                 step="0.1"
                 inputMode="decimal"
-                placeholder="Weight kg"
+                placeholder={`Weight ${unitLabel}`}
                 className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50"
               />
               <input
@@ -316,13 +588,18 @@ export default function ProgressPage() {
               </button>
             </div>
 
-            <WeightChart logs={filtered} selectedId={selectedWeight?.id ?? null} onSelect={setSelectedWeightId} />
+            <WeightChart
+              logs={filtered}
+              selectedId={selectedWeight?.id ?? null}
+              onSelect={setSelectedWeightId}
+              unitSystem={unitSystem}
+            />
 
             {selectedWeight && (
               <div className="mt-3 rounded-xl border border-white/[0.06] bg-black/15 px-3 py-3 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-white/85">
-                    {Number(selectedWeight.weight_kg).toFixed(1)} kg
+                    {formatWeight(selectedWeight.weight_kg, unitSystem)}
                     <span className="text-xs font-normal text-white/35"> - {formatFullDate(selectedWeight.logged_at)}</span>
                   </p>
                   {selectedWeight.note && <p className="text-xs text-white/50 mt-1 leading-relaxed">{selectedWeight.note}</p>}
@@ -384,6 +661,24 @@ export default function ProgressPage() {
               </button>
             </div>
 
+            {chronologicalPhotos.length >= 2 ? (
+              <PhotoComparison
+                photos={chronologicalPhotos}
+                fromId={compareFromPhoto?.id ?? ""}
+                toId={compareToPhoto?.id ?? ""}
+                onFrom={setCompareFromId}
+                onTo={setCompareToId}
+                fromPhoto={compareFromPhoto}
+                toPhoto={compareToPhoto}
+                comparison={comparison}
+              />
+            ) : chronologicalPhotos.length === 1 ? (
+              <div className="mb-5 rounded-2xl border border-dashed border-white/[0.08] bg-black/10 px-4 py-5 text-center">
+                <ArrowLeftRight className="mx-auto mb-2 h-5 w-5 text-white/18" strokeWidth={1.6} />
+                <p className="text-sm text-white/55">Upload one more photo to compare months side by side.</p>
+              </div>
+            ) : null}
+
             {filteredPhotos.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/[0.08] bg-black/10 px-5 py-8 text-center">
                 <ImageIcon className="w-7 h-7 text-white/15 mx-auto mb-3" strokeWidth={1.5} />
@@ -424,6 +719,145 @@ export default function ProgressPage() {
         </>
       )}
     </div>
+  );
+}
+
+function PhotoComparison({
+  photos,
+  fromId,
+  toId,
+  onFrom,
+  onTo,
+  fromPhoto,
+  toPhoto,
+  comparison,
+}: {
+  photos: ProgressPhoto[];
+  fromId: string;
+  toId: string;
+  onFrom: (id: string) => void;
+  onTo: (id: string) => void;
+  fromPhoto: ProgressPhoto | null;
+  toPhoto: ProgressPhoto | null;
+  comparison: ReturnType<typeof buildComparisonInsights>;
+}) {
+  return (
+    <div className="mb-5 rounded-2xl border border-white/[0.06] bg-black/12 p-3.5">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold text-white/85">
+            <ArrowLeftRight className="h-4 w-4 text-[#B48B40]" strokeWidth={1.8} />
+            Compare photos
+          </p>
+          <p className="mt-0.5 text-[11px] text-white/35">Pick two photos. Metrics compare the calendar month around each one.</p>
+        </div>
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <PhotoSelect label="From" value={fromId} photos={photos} onChange={onFrom} />
+        <PhotoSelect label="To" value={toId} photos={photos} onChange={onTo} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <PhotoCompareCard label="From" photo={fromPhoto} />
+        <PhotoCompareCard label="To" photo={toPhoto} />
+      </div>
+
+      {comparison && (
+        <div className="mt-3 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-xs font-semibold text-white/75">
+              <Activity className="h-3.5 w-3.5 text-[#B48B40]" strokeWidth={1.8} />
+              What changed
+            </p>
+            <p className="text-[10px] text-white/28">{comparison.beforeLabel} to {comparison.afterLabel}</p>
+          </div>
+          {comparison.sameMonth && (
+            <p className="mb-2 rounded-lg border border-[#B48B40]/15 bg-[#B48B40]/8 px-2.5 py-2 text-[11px] text-[#E7C57A]/75">
+              Both photos are in the same month, so the behavior comparison will match.
+            </p>
+          )}
+          <div className="space-y-2">
+            {comparison.insights.map((insight) => (
+              <div key={insight.label} className="rounded-lg border border-white/[0.04] bg-black/12 px-3 py-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <TrendDot trend={insight.trend} />
+                    <p className="truncate text-xs font-medium text-white/70">{insight.label}</p>
+                  </div>
+                  <p className="shrink-0 text-[10px] text-white/32">{insight.before} to {insight.after}</p>
+                </div>
+                <p className="text-[11px] leading-relaxed text-white/42">{insight.summary}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhotoSelect({
+  label,
+  value,
+  photos,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  photos: ProgressPhoto[];
+  onChange: (id: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-white/28">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-xs text-white/72 outline-none focus:border-[#B48B40]/50"
+      >
+        {photos.map((photo) => (
+          <option key={photo.id} value={photo.id}>
+            {formatFullDate(photo.taken_at)}{photo.caption ? ` - ${photo.caption}` : ""}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PhotoCompareCard({ label, photo }: { label: string; photo: ProgressPhoto | null }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-black/20">
+      <div className="aspect-[4/5] bg-white/[0.03]">
+        {photo?.signed_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo.signed_url} alt={photo.caption ?? `${label} progress photo`} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-white/25">
+            <ImageIcon className="h-6 w-6" strokeWidth={1.5} />
+          </div>
+        )}
+      </div>
+      <div className="px-3 py-2">
+        <p className="text-[10px] uppercase tracking-[0.14em] text-white/25">{label}</p>
+        <p className="mt-0.5 truncate text-[11px] text-white/58">{photo ? formatFullDate(photo.taken_at) : "No photo"}</p>
+      </div>
+    </div>
+  );
+}
+
+function TrendDot({ trend }: { trend: ComparisonTrend }) {
+  return (
+    <span
+      className={cn(
+        "h-1.5 w-1.5 shrink-0 rounded-full",
+        trend === "up" && "bg-emerald-400/70",
+        trend === "down" && "bg-amber-400/70",
+        trend === "same" && "bg-white/25",
+        trend === "missing" && "bg-white/12",
+      )}
+    />
   );
 }
 
@@ -494,10 +928,12 @@ function WeightChart({
   logs,
   selectedId,
   onSelect,
+  unitSystem,
 }: {
   logs: WeightLog[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  unitSystem: UnitSystem;
 }) {
   if (logs.length === 0) {
     return (
@@ -508,7 +944,7 @@ function WeightChart({
     );
   }
 
-  const values = logs.map((log) => Number(log.weight_kg));
+  const values = logs.map((log) => kgToDisplayUnit(Number(log.weight_kg), unitSystem));
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = Math.max(1, max - min);
@@ -519,7 +955,7 @@ function WeightChart({
   const chartH = height - pad.top - pad.bottom;
   const points = logs.map((log, index) => {
     const x = pad.left + (logs.length === 1 ? chartW / 2 : (index / (logs.length - 1)) * chartW);
-    const y = pad.top + ((max - Number(log.weight_kg)) / span) * chartH;
+    const y = pad.top + ((max - kgToDisplayUnit(Number(log.weight_kg), unitSystem)) / span) * chartH;
     return { log, x, y };
   });
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -553,7 +989,7 @@ function WeightChart({
               )}
               strokeWidth={2}
             >
-              <title>{`${formatFullDate(log.logged_at)} - ${Number(log.weight_kg).toFixed(1)} kg`}</title>
+              <title>{`${formatFullDate(log.logged_at)} - ${formatWeight(log.weight_kg, unitSystem)}`}</title>
             </circle>
           );
         })}

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
+import { readStoredUnitSystem, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/units";
 import { Card } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -69,7 +70,7 @@ const PUSH_BAND_LABELS = [
 const COACHING_TONES     = [{ value: "direct", label: "Direct" }, { value: "supportive", label: "Supportive" }, { value: "analytical", label: "Analytical" }];
 const PROFANITY_OPTIONS  = [{ value: "off", label: "Off" }, { value: "mild", label: "Mild" }];
 const STYLE_OPTIONS      = [{ value: "lite", label: "Lite" }, { value: "pro", label: "Pro" }];
-const UNIT_SYSTEMS       = [{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }];
+const UNIT_SYSTEMS: { value: UnitSystem; label: string }[] = [{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }];
 const DASHBOARD_DEFAULTS = [{ value: "overview", label: "Overview" }, { value: "program", label: "Program" }, { value: "nutrition", label: "Nutrition" }, { value: "accountability", label: "Accountability" }];
 
 const COACH_PREVIEW: Record<string, string> = {
@@ -320,7 +321,7 @@ export default function ProfilePage() {
   const [coachingTone,     setCoachingTone]     = useLocalStorage<string>("coach-tone",        "direct");
   const [profanity,        setProfanity]        = useLocalStorage<string>("coach-profanity",   "off");
   const [coachStyle,       setCoachStyle]       = useLocalStorage<string>("coach-style",       "pro");
-  const [units,            setUnits]            = useState("metric");
+  const [units,            setUnits]            = useLocalStorage<UnitSystem>(UNIT_STORAGE_KEY(user.id), "metric");
   const [dashboardDefault, setDashboardDefault] = useLocalStorage<string>("dashboard-default", "overview");
   const [savedFlash,       setSavedFlash]       = useState(false);
 
@@ -370,6 +371,12 @@ export default function ProfilePage() {
     })();
 
     return () => { cancelled = true; };
+  }, [user.id]);
+
+  useEffect(() => {
+    const inferred = readStoredUnitSystem(user.id);
+    if (inferred && inferred !== units) setUnits(inferred);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
 
   // "Last activity" (last active / last login / last action) is staff-only.

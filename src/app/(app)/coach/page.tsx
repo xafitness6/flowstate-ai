@@ -268,54 +268,62 @@ function CoachPageInner() {
   const activeProfanity = profanity ?? "off";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] text-white">
+    <div className="flex h-[calc(100dvh-56px-6rem)] min-h-0 flex-col overflow-hidden text-white md:h-[calc(100dvh-56px-1.5rem)]">
 
       {/* ── Context bar ──────────────────────────────────────────────── */}
       <div className="border-b border-white/6 bg-[#0A0A0A] shrink-0">
         <button
           onClick={() => setContextOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-6 py-3"
+          className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 text-left md:px-6 md:py-3"
         >
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Goal</span>
-              <span className="text-xs font-medium text-[#B48B40]">{context.goal}</span>
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-[9px] uppercase tracking-[0.16em] text-white/25 md:text-[10px]">Goal</span>
+              <span className="min-w-0 truncate text-xs font-medium text-[#B48B40]">{context.goal}</span>
             </div>
-            <span className="text-white/10">·</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Phase</span>
-              <span className="text-xs font-medium text-white/55">{context.week}</span>
+            <div className="mt-1 flex min-w-0 items-center gap-2 sm:hidden">
+              <span className="shrink-0 text-[9px] uppercase tracking-[0.16em] text-white/20">Phase</span>
+              <span className="min-w-0 truncate text-[11px] font-medium text-white/50">{context.phase}</span>
             </div>
-            <span className="hidden sm:block text-white/10">·</span>
-            <div className="hidden sm:flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Status</span>
-              <span className="text-xs font-medium text-emerald-400">{context.status}</span>
+            <div className="mt-1 hidden min-w-0 items-center gap-3 sm:flex">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Phase</span>
+                <span className="min-w-0 truncate text-xs font-medium text-white/55">{context.phase}</span>
+              </div>
+              <span className="text-white/10">·</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Week</span>
+                <span className="text-xs font-medium text-white/55">{context.week}</span>
+              </div>
+              <span className="text-white/10">·</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Status</span>
+                <span className="text-xs font-medium text-emerald-400">{context.status}</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] uppercase tracking-[0.13em] text-white/22">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white/35">
               {TONE_LABELS[activeTone]}
             </span>
-            <span className="text-white/10">·</span>
-            <span className="text-[10px] uppercase tracking-[0.13em] text-white/22">
+            <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white/35">
               {STYLE_LABELS[activeStyle]}
             </span>
             {activeProfanity === "mild" && (
-              <>
-                <span className="text-white/10">·</span>
-                <span className="text-[10px] uppercase tracking-[0.13em] text-[#B48B40]/40">Mild</span>
-              </>
+              <span className="hidden rounded-full border border-[#B48B40]/15 bg-[#B48B40]/8 px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-[#B48B40]/60 min-[390px]:inline">
+                Mild
+              </span>
             )}
             <ChevronDown
-              className={cn("w-3.5 h-3.5 text-white/20 transition-transform ml-1", contextOpen && "rotate-180")}
+              className={cn("ml-0.5 h-3.5 w-3.5 text-white/20 transition-transform", contextOpen && "rotate-180")}
               strokeWidth={1.5}
             />
           </div>
         </button>
 
         {contextOpen && (
-          <div className="px-6 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/5 pt-3">
+          <div className="grid grid-cols-2 gap-2 border-t border-white/5 px-4 pb-3 pt-3 sm:grid-cols-4 md:px-6">
             {[
               { label: "Goal",   value: context.goal,   color: "text-[#B48B40]"  },
               { label: "Phase",  value: context.phase,  color: "text-white/65"   },
@@ -332,7 +340,7 @@ function CoachPageInner() {
       </div>
 
       {/* ── Messages ─────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 space-y-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 space-y-4 md:px-6 md:py-6">
         {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
         <div ref={bottomRef} />
       </div>
@@ -362,7 +370,7 @@ function CoachPageInner() {
       )}
 
       {/* ── Input bar ────────────────────────────────────────────────── */}
-      <div className="px-4 md:px-6 pb-4 md:pb-6 shrink-0">
+      <div className="px-4 pb-3 shrink-0 md:px-6 md:pb-5">
         <div className={cn(
           "flex items-end gap-3 rounded-2xl border bg-[#111111] px-4 py-3 transition-colors",
           input ? "border-[#B48B40]/30" : "border-white/8"
