@@ -14,9 +14,15 @@ import { NAV_ITEMS, type AppNavItem } from "./Sidebar";
 const STORAGE_KEY = "flowstate-bottomnav-items-v2";
 const MAX_PINNED = 5;
 const DEFAULT_PINNED = ["/dashboard", "/program", "/nutrition", "/calendar", "/coach"];
+const HOME_HREF = "/dashboard";
 
 function unique(values: string[]) {
   return [...new Set(values)];
+}
+
+function homeFirst(values: string[]) {
+  if (!values.includes(HOME_HREF)) return values;
+  return [HOME_HREF, ...values.filter((href) => href !== HOME_HREF)];
 }
 
 function routeActive(pathname: string, href: string) {
@@ -28,9 +34,9 @@ function routeActive(pathname: string, href: string) {
 function normalizePins(saved: string[] | null, eligible: AppNavItem[]) {
   const allowed = new Set(eligible.map((item) => item.href));
   const source = saved ?? DEFAULT_PINNED;
-  const pins = unique(source).filter((href) => allowed.has(href)).slice(0, MAX_PINNED);
+  const pins = homeFirst(unique(source).filter((href) => allowed.has(href))).slice(0, MAX_PINNED);
 
-  if (saved && pins.length > 0) return pins;
+  if (saved && pins.length > 0) return homeFirst(pins);
 
   for (const href of DEFAULT_PINNED) {
     if (pins.length >= MAX_PINNED) break;
@@ -40,7 +46,7 @@ function normalizePins(saved: string[] | null, eligible: AppNavItem[]) {
     if (pins.length >= MAX_PINNED) break;
     if (!pins.includes(item.href)) pins.push(item.href);
   }
-  return pins;
+  return homeFirst(pins);
 }
 
 export function BottomNav() {
@@ -121,9 +127,9 @@ export function BottomNav() {
   function togglePin(item: AppNavItem) {
     if (locked(item)) return;
     setPinnedHrefs((prev) => {
-      if (prev.includes(item.href)) return prev.filter((href) => href !== item.href);
+      if (prev.includes(item.href)) return homeFirst(prev.filter((href) => href !== item.href));
       if (prev.length >= MAX_PINNED) return prev;
-      return [...prev, item.href];
+      return homeFirst([...prev, item.href]);
     });
   }
 
