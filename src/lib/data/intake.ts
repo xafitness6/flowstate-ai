@@ -12,6 +12,8 @@ export type IntakeData = {
   experience:      string;   // "beginner" | "intermediate" | "advanced"
   trainingStyle:   string[];
   daysPerWeek:     number;
+  // Daily activity level (outside training) — drives TDEE accuracy
+  activityLevel?:  "sedentary" | "light" | "moderate" | "very_active" | "athlete";
 
   // Schedule
   sessionLength:   string;   // "30" | "45" | "60" | "75" | "90+"

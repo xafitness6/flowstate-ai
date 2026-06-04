@@ -67,17 +67,11 @@ const PUSH_BAND_LABELS = [
   { label: "Extra hard", pos: "left-[84%]" },
 ];
 
-const COACHING_TONES     = [{ value: "direct", label: "Direct" }, { value: "supportive", label: "Supportive" }, { value: "analytical", label: "Analytical" }];
-const PROFANITY_OPTIONS  = [{ value: "off", label: "Off" }, { value: "mild", label: "Mild" }];
-const STYLE_OPTIONS      = [{ value: "lite", label: "Lite" }, { value: "pro", label: "Pro" }];
 const UNIT_SYSTEMS: { value: UnitSystem; label: string }[] = [{ value: "metric", label: "kg" }, { value: "imperial", label: "lbs" }];
 const DASHBOARD_DEFAULTS = [{ value: "overview", label: "Overview" }, { value: "program", label: "Program" }, { value: "nutrition", label: "Nutrition" }, { value: "accountability", label: "Accountability" }];
 
-const COACH_PREVIEW: Record<string, string> = {
-  "off_pro":   "Here's today stripped down. Keep the two main lifts — Lat Pulldown and Seated Row. Those are your highest-value movements. Drop Face Pull and Bicep Curl entirely. Total time: 25–30 minutes.",
-  "off_lite":  "Two lifts: Lat Pulldown and Seated Row. Drop the rest. 25–30 minutes.",
-  "mild_pro":  "Here's what actually matters today. Two lifts — Lat Pulldown and Seated Row. Drop the Face Pull and Bicep Curl; they're accessories. You're not losing a damn thing by cutting them. Get the two lifts done.",
-  "mild_lite": "Two lifts: Lat Pulldown and Seated Row. Everything else is filler — drop it. Get it done.",
+const INTENSITY_LABELS: Record<number, string> = {
+  1: "Gentle", 2: "Supportive", 3: "Balanced", 4: "Firm", 5: "Militant",
 };
 
 const STATUS_CONFIG = {
@@ -318,9 +312,8 @@ export default function ProfilePage() {
   // ── Settings state ────────────────────────────────────────────────────────
   const [pushLevel,        setPushLevel]        = useState(user.pushLevel ?? 6);
   const [pushChangesUsed,  setPushChangesUsed]  = useState(0);
-  const [coachingTone,     setCoachingTone]     = useLocalStorage<string>("coach-tone",        "direct");
-  const [profanity,        setProfanity]        = useLocalStorage<string>("coach-profanity",   "off");
-  const [coachStyle,       setCoachStyle]       = useLocalStorage<string>("coach-style",       "pro");
+  const [coachIntensity,   setCoachIntensity]   = useLocalStorage<number> ("coach-intensity",       3);
+  const [strongLanguage,   setStrongLanguage]   = useLocalStorage<boolean>("coach-strong-language", false);
   const [units,            setUnits]            = useLocalStorage<UnitSystem>(UNIT_STORAGE_KEY(user.id), "metric");
   const [dashboardDefault, setDashboardDefault] = useLocalStorage<string>("dashboard-default", "overview");
   const [savedFlash,       setSavedFlash]       = useState(false);
@@ -703,51 +696,33 @@ export default function ProfilePage() {
       <div>
         <SectionHeader>Coaching</SectionHeader>
         <Card>
-          <SettingsRow label="Coaching tone" description="How your AI coach communicates with you.">
-            <PillToggle options={COACHING_TONES} value={coachingTone} onChange={setCoachingTone} />
-          </SettingsRow>
-          <SettingsRow label="Profanity" description="Mild uses natural, light language. Never rude or excessive.">
-            <PillToggle options={PROFANITY_OPTIONS} value={profanity ?? "off"} onChange={setProfanity} />
-          </SettingsRow>
-          <PushLevelSlider value={pushLevel} onChange={handlePushChange} changesUsed={pushChangesUsed} coachOverride={user.coachOverridePushLevel} />
-          <SettingsRow label="Explanation style" description="Lite is shorter and direct. Pro is detailed and analytical.">
-            <PillToggle options={STYLE_OPTIONS} value={coachStyle ?? "pro"} onChange={setCoachStyle} />
-          </SettingsRow>
-
-          {/* Live preview */}
-          <div className="px-5 py-4 border-t border-white/[0.045]">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/22">Sample output</span>
-              <span className="text-[10px] text-white/15">·</span>
-              <span className="text-[10px] text-white/18 italic">
-                {coachingTone === "direct" ? "Direct" : coachingTone === "supportive" ? "Supportive" : "Analytical"}
-                {" · "}{(profanity ?? "off") === "mild" ? "Mild" : "No profanity"}
-                {" · "}{(coachStyle ?? "pro") === "lite" ? "Lite" : "Pro"}
-              </span>
+          {/* Coaching voice — one persona, dialed from gentle to militant */}
+          <div className="px-5 py-4 border-b border-white/[0.045]">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-medium text-white/80">Coaching voice</p>
+              <span className="text-xs font-semibold text-[#B48B40]">{INTENSITY_LABELS[coachIntensity ?? 3]}</span>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-end">
-                <div className="rounded-2xl rounded-tr-sm bg-[#B48B40]/10 border border-[#B48B40]/15 px-3.5 py-2 max-w-[70%]">
-                  <p className="text-xs text-white/55">&ldquo;Simplify today&rsquo;s session.&rdquo;</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <div className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#B48B40]/20 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-[#B48B40] text-[8px] leading-none">◈</span>
-                </div>
-                <div className="rounded-2xl rounded-tl-sm bg-[#111111] border border-white/6 px-3.5 py-2.5 flex-1">
-                  <p className="text-xs text-white/65 leading-relaxed">
-                    {COACH_PREVIEW[`${profanity ?? "off"}_${coachStyle ?? "pro"}`]}
-                  </p>
-                </div>
-              </div>
+            <p className="text-[11px] text-white/35 mb-3">One coach, your call on the energy — from gentle to militant.</p>
+            <input
+              type="range" min={1} max={5} step={1}
+              value={coachIntensity ?? 3}
+              onChange={(e) => setCoachIntensity(Number(e.target.value))}
+              className="w-full accent-[#B48B40] cursor-pointer"
+            />
+            <div className="flex justify-between text-[9px] uppercase tracking-[0.1em] text-white/25 mt-1">
+              <span>Gentle</span><span>Balanced</span><span>Militant</span>
             </div>
-            {coachingTone !== "direct" && (
-              <p className="text-[10px] text-white/18 mt-2.5 pl-7">
-                Profanity and style apply across all tones. The sample above uses the Direct tone for the clearest contrast.
-              </p>
-            )}
           </div>
+
+          <PushLevelSlider value={pushLevel} onChange={handlePushChange} changesUsed={pushChangesUsed} coachOverride={user.coachOverridePushLevel} />
+
+          <SettingsRow label="Strong language" description="Let the coach swear for emphasis. Off by default — your call.">
+            <PillToggle
+              options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+              value={strongLanguage ? "on" : "off"}
+              onChange={(v) => setStrongLanguage(v === "on")}
+            />
+          </SettingsRow>
 
           <SettingsRow label="Units" description="Weight, distance, and measurement display." last>
             <PillToggle options={UNIT_SYSTEMS} value={units} onChange={setUnits} />

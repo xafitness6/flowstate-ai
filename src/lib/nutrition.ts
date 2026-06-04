@@ -33,13 +33,30 @@ export const BMR_METHOD_LABEL: Record<BmrMethod, string> = {
   estimate: "Estimated from bodyweight — add body-fat % for accuracy",
 };
 
-// Activity multiplier based on training days per week
+// Explicit activity level (preferred when the athlete states it in onboarding)
+const ACTIVITY_MULTIPLIER: Record<string, number> = {
+  sedentary:   1.2,    // desk job, little exercise
+  light:       1.375,  // light exercise 1-3 days
+  moderate:    1.55,   // moderate exercise 3-5 days
+  very_active: 1.725,  // hard exercise 6-7 days
+  athlete:     1.9,    // athlete / physical job + training
+};
+
+// Fallback multiplier estimated from training days per week
 function activityMultiplier(daysPerWeek: number): number {
   if (daysPerWeek <= 2) return 1.375;
   if (daysPerWeek <= 3) return 1.375;
   if (daysPerWeek <= 4) return 1.55;
   if (daysPerWeek <= 5) return 1.725;
   return 1.9;
+}
+
+/** Activity multiplier — prefer the stated level, else estimate from training days. */
+function resolveActivityMultiplier(intake: IntakeData): number {
+  if (intake.activityLevel && ACTIVITY_MULTIPLIER[intake.activityLevel]) {
+    return ACTIVITY_MULTIPLIER[intake.activityLevel];
+  }
+  return activityMultiplier(intake.daysPerWeek || 4);
 }
 
 // Protein multiplier (g per kg of bodyweight) based on goal
@@ -54,16 +71,26 @@ function proteinMultiplier(goal: string): number {
   }
 }
 
-// Calorie adjustment from TDEE based on goal
-function calorieAdjustment(goal: string): number {
-  switch (goal) {
-    case "muscle_gain": return  300;
-    case "strength":    return  150;
-    case "fat_loss":    return -400;
-    case "recomp":      return    0;
-    case "endurance":   return  100;
-    default:            return    0;
-  }
+// Calorie adjustment from TDEE based on goal AND how fast they want results.
+// Shorter timeframe → more aggressive, clamped to safe bounds (-750 / +500).
+function calorieAdjustment(goal: string, timeframe?: string): number {
+  const base = (() => {
+    switch (goal) {
+      case "muscle_gain": return  300;
+      case "strength":    return  150;
+      case "fat_loss":    return -500;
+      case "recomp":      return    0;
+      case "endurance":   return  100;
+      default:            return    0;
+    }
+  })();
+  // Urgency factor from the goal timeframe
+  const urgency =
+    timeframe === "4w"  ? 1.5  :
+    timeframe === "8w"  ? 1.25 :
+    timeframe === "12w" ? 1.0  :
+    timeframe === "6m" || timeframe === "long_term" ? 0.8 : 1.0;
+  return Math.max(-750, Math.min(500, Math.round(base * urgency)));
 }
 
 /** Hydration target in ml — scales with bodyweight and training days */
@@ -134,9 +161,9 @@ export function calculateEnergy(intake: IntakeData): EnergyProfile | null {
   }
 
   bmr = Math.round(bmr);
-  const mult           = activityMultiplier(intake.daysPerWeek || 4);
+  const mult           = resolveActivityMultiplier(intake);
   const tdee           = Math.round(bmr * mult);
-  const goalAdjustment = calorieAdjustment(intake.primaryGoal);
+  const goalAdjustment = calorieAdjustment(intake.primaryGoal, intake.timeframe);
   const targetCalories = Math.max(1200, tdee + goalAdjustment);
 
   return {

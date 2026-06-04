@@ -34,6 +34,7 @@ type OnboardingAnswers = {
   bodyFat:       string;             // optional — enables body-composition BMR
   age:           string;             // optional
   sex:           "" | "male" | "female"; // optional
+  activityLevel: "" | "sedentary" | "light" | "moderate" | "very_active" | "athlete";
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -54,6 +55,14 @@ const EXPERIENCE_OPTIONS: { value: string; label: string; sub: string }[] = [
 ];
 
 const DAYS_OPTIONS = [2, 3, 4, 5, 6];
+
+const ACTIVITY_OPTIONS: { value: OnboardingAnswers["activityLevel"]; label: string; sub: string }[] = [
+  { value: "sedentary",   label: "Sedentary",        sub: "Desk job, mostly sitting"            },
+  { value: "light",       label: "Lightly active",   sub: "On your feet some, light movement"   },
+  { value: "moderate",    label: "Moderately active",sub: "Active job or regular daily movement" },
+  { value: "very_active", label: "Very active",      sub: "Physical job or always on the move"  },
+  { value: "athlete",     label: "Athlete",          sub: "Physical job + hard daily training"  },
+];
 
 const SESSION_OPTIONS: { value: string; label: string }[] = [
   { value: "30",  label: "30 min" },
@@ -228,6 +237,7 @@ const DEFAULT: OnboardingAnswers = {
   bodyFat:       "",
   age:           "",
   sex:           "",
+  activityLevel: "",
 };
 
 export default function CalibrationPage() {
@@ -278,6 +288,7 @@ export default function CalibrationPage() {
           bodyFat:       typeof raw.bodyFat === "string" ? raw.bodyFat : a.bodyFat,
           age:           typeof raw.age === "string" ? raw.age : a.age,
           sex:           raw.sex === "male" || raw.sex === "female" ? raw.sex : a.sex,
+          activityLevel: typeof raw.activityLevel === "string" ? raw.activityLevel as OnboardingAnswers["activityLevel"] : a.activityLevel,
         }));
         if (typeof raw.primaryGoal === "string" || typeof raw.experience === "string") setPrefilled(true);
       } catch { /* no pre-fill — start blank */ }
@@ -348,6 +359,7 @@ export default function CalibrationPage() {
       waist:           "",
       age:             answers.age || undefined,
       sex:             answers.sex || undefined,
+      activityLevel:   answers.activityLevel || undefined,
       sleepHours:      answers.sleepHours,
       sleepQuality:    0,
       stressLevel:     0,
@@ -427,7 +439,7 @@ export default function CalibrationPage() {
   const canAdvance = (): boolean => {
     if (step === "goal")       return !!answers.primaryGoal;
     if (step === "experience") return !!answers.experience;
-    if (step === "body")       return parseFloat(answers.weight) > 0 && parseFloat(answers.height) > 0;
+    if (step === "body")       return parseFloat(answers.weight) > 0 && parseFloat(answers.height) > 0 && !!answers.activityLevel;
     if (step === "schedule")   return answers.daysPerWeek > 0 && !!answers.sessionLength;
     if (step === "nutrition")  return answers.dietStyle.length > 0 && !!answers.mealsPerDay;
     if (step === "recovery")   return !!answers.sleepHours && answers.mainStruggle.length > 0;
@@ -616,6 +628,24 @@ export default function CalibrationPage() {
                     label={lbl}
                     active={answers.sex === val}
                     onClick={() => setAnswers((a) => ({ ...a, sex: a.sex === val ? "" : val }))}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Daily activity level — drives calorie accuracy */}
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">
+                Daily activity level <span className="text-white/40 normal-case tracking-normal">· outside training</span>
+              </p>
+              <div className="space-y-2">
+                {ACTIVITY_OPTIONS.map((opt) => (
+                  <OptionCard
+                    key={opt.value}
+                    label={opt.label}
+                    sub={opt.sub}
+                    active={answers.activityLevel === opt.value}
+                    onClick={() => setAnswers((a) => ({ ...a, activityLevel: opt.value }))}
                   />
                 ))}
               </div>
