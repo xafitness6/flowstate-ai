@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Check, CheckCircle2,
-  Timer, Zap, X, Flame,
+  Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -482,10 +482,14 @@ export default function WorkoutPage() {
   const [restTotal, setRestTotal] = useState(0);
   const restRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Session timer
+  // Session timer + flow
   const startRef    = useRef(Date.now());
   const [elapsed,   setElapsed]   = useState(0);
   const [finished,  setFinished]  = useState(false);
+  // Flow: preview (see details, nothing running) → countdown (5..1) → active
+  const [phase,     setPhase]     = useState<"preview" | "countdown" | "active">("preview");
+  const [paused,    setPaused]    = useState(false);
+  const [countdown, setCountdown] = useState(5);
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -527,11 +531,28 @@ export default function WorkoutPage() {
     return () => { active = false; };
   }, [user?.id, wid, router, userLoading]);
 
-  // Session timer
+  // Session timer — only ticks while active and not paused (so it never
+  // auto-starts on open, and the pause button actually pauses).
   useEffect(() => {
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    if (phase !== "active" || paused) return;
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [phase, paused]);
+
+  // 5-4-3-2-1 countdown, then start the session clock.
+  useEffect(() => {
+    if (phase !== "countdown") return;
+    if (countdown <= 0) {
+      startRef.current = Date.now();
+      setElapsed(0);
+      setPhase("active");
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => c - 1), 850);
+    return () => clearTimeout(t);
+  }, [phase, countdown]);
+
+  function startWorkout() { setCountdown(5); setPhase("countdown"); }
 
   // ── Warm-up handlers ─────────────────────────────────────────────────────
 
@@ -662,6 +683,123 @@ export default function WorkoutPage() {
     );
   }
 
+  // ── Pre-start: see the whole workout before the clock starts ──────────────
+  if (phase === "preview") {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] text-white pb-32">
+        {/* Header */}
+        <div className="sticky top-0 z-30 bg-gradient-to-b from-[#0E0E0E] to-[#0A0A0A]/90 backdrop-blur-sm border-b border-white/[0.06] px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => router.back()}
+            className="w-8 h-8 rounded-xl border border-white/[0.08] flex items-center justify-center hover:border-white/15 transition-all"
+          >
+            <ArrowLeft className="w-4 h-4 text-white/50" strokeWidth={2} />
+          </button>
+          <p className="text-sm font-semibold text-white/70">Workout preview</p>
+        </div>
+
+        <div className="px-4 pt-5 space-y-5 max-w-lg mx-auto">
+          {/* Title block */}
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#B48B40]/70 mb-1">{workout.dayLabel}</p>
+            <h1 className="text-2xl font-bold tracking-tight text-white/90">{workout.focus}</h1>
+            <div className="flex items-center gap-4 mt-2 text-xs text-white/40">
+              <span className="flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5" strokeWidth={1.5} /> {workout.exercises.length} exercises</span>
+              <span className="flex items-center gap-1.5"><Flame className="w-3.5 h-3.5" strokeWidth={1.5} /> {totalSetCount} sets</span>
+              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" strokeWidth={1.5} /> ~{workout.estimatedDuration} min</span>
+            </div>
+          </div>
+
+          {/* Warm-up summary */}
+          {totalWarmupItems > 0 && (
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-[#B48B40]/15 border border-[#B48B40]/25 flex items-center justify-center shrink-0">
+                <Zap className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={2.5} />
+              </div>
+              <p className="text-sm text-white/55">Warm-up first — {totalWarmupItems} quick movements to prime you.</p>
+            </div>
+          )}
+
+          {/* Exercise list with sets/reps */}
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/25 mb-2 px-1">The work</p>
+            <div className="space-y-2">
+              {workout.exercises.map((ex, i) => (
+                <div key={ex.exerciseId} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-[11px] font-bold text-white/25 tabular-nums mt-0.5 w-5 shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white/80">{ex.name}</p>
+                      <p className="text-xs text-white/40 mt-0.5">
+                        {ex.sets.length} sets × {ex.sets[0]?.targetReps ?? "—"} reps
+                        {ex.sets[0]?.restSeconds ? ` · ${ex.sets[0].restSeconds}s rest` : ""}
+                      </p>
+                      {ex.notes && <p className="text-[11px] text-white/28 mt-1 leading-relaxed">{ex.notes}</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI coach in your ear — coming soon */}
+          <button
+            disabled
+            className="w-full flex items-center gap-3 rounded-2xl border border-[#B48B40]/15 bg-[#B48B40]/[0.04] px-4 py-3 text-left cursor-default"
+          >
+            <div className="w-8 h-8 rounded-xl bg-[#B48B40]/10 border border-[#B48B40]/20 flex items-center justify-center shrink-0">
+              <Headphones className="w-4 h-4 text-[#B48B40]/70" strokeWidth={1.5} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white/70">AI coach in your ear</p>
+              <p className="text-[11px] text-white/35">Live, set-by-set voice coaching through your session.</p>
+            </div>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] px-2 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-white/35 shrink-0">
+              Coming soon
+            </span>
+          </button>
+        </div>
+
+        {/* Start button — fixed bottom */}
+        <div
+          className="fixed bottom-0 inset-x-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/95 to-transparent px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+        >
+          <div className="max-w-lg mx-auto">
+            <button
+              onClick={startWorkout}
+              className="w-full rounded-2xl bg-[#B48B40] text-black py-4 text-sm font-bold tracking-wide flex items-center justify-center gap-2 hover:bg-[#c99840] active:scale-[0.98] transition-all"
+            >
+              <Play className="w-4 h-4" strokeWidth={2.5} fill="currentColor" /> Start Workout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Countdown: 5-4-3-2-1 ──────────────────────────────────────────────────
+  if (phase === "countdown") {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] text-white flex flex-col items-center justify-center px-5">
+        <p className="text-[11px] uppercase tracking-[0.3em] text-white/30 mb-6">{workout.focus}</p>
+        <div
+          key={countdown}
+          className="text-[7rem] font-bold leading-none text-[#B48B40] tabular-nums"
+          style={{ animation: "cd-pop 0.85s ease-out" }}
+        >
+          {countdown > 0 ? countdown : "GO"}
+        </div>
+        <style>{`@keyframes cd-pop { 0% { transform: scale(0.5); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 0.85; } }`}</style>
+        <button
+          onClick={() => setPhase("preview")}
+          className="mt-10 text-xs text-white/30 hover:text-white/55 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
   const allSections = [
     { title: "General warm-up",   items: workout.warmup.general    },
     { title: "Activation",        items: workout.warmup.activation  },
@@ -671,23 +809,63 @@ export default function WorkoutPage() {
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white pb-36">
 
-      {/* ── Sticky header ── */}
-      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur-sm border-b border-white/[0.05] px-4 py-3 flex items-center gap-3">
+      {/* ── Sticky control bar ── */}
+      <div className="sticky top-0 z-30 bg-gradient-to-b from-[#121212] to-[#0C0C0C] backdrop-blur-sm border-b border-white/[0.07] px-3 py-2.5 flex items-center gap-2.5">
         <button
           onClick={() => router.back()}
-          className="w-8 h-8 rounded-xl border border-white/[0.08] flex items-center justify-center hover:border-white/15 transition-all"
+          className="w-9 h-9 rounded-xl border border-white/[0.08] flex items-center justify-center hover:border-white/15 transition-all shrink-0"
         >
           <ArrowLeft className="w-4 h-4 text-white/50" strokeWidth={2} />
         </button>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white/80 truncate">{workout.focus}</p>
-          <p className="text-[11px] text-white/30">{completedSetCount}/{totalSetCount} sets</p>
+          <p className="text-[11px] text-white/35">{completedSetCount}/{totalSetCount} sets</p>
         </div>
-        <div className="flex items-center gap-1.5 text-sm font-bold text-[#B48B40]">
+
+        {/* Timer */}
+        <div className={cn(
+          "flex items-center gap-1.5 text-sm font-bold tabular-nums px-2.5 py-1.5 rounded-xl border",
+          paused ? "text-white/40 border-white/10 bg-white/[0.02]" : "text-[#B48B40] border-[#B48B40]/20 bg-[#B48B40]/[0.06]",
+        )}>
           <Timer className="w-3.5 h-3.5" strokeWidth={1.5} />
           {formatDuration(elapsed)}
         </div>
+
+        {/* Pause / Resume */}
+        <button
+          onClick={() => setPaused((p) => !p)}
+          className="w-9 h-9 rounded-xl border border-white/[0.1] bg-white/[0.03] flex items-center justify-center text-white/60 hover:text-white hover:border-white/20 transition-all shrink-0"
+          title={paused ? "Resume" : "Pause"}
+        >
+          {paused
+            ? <Play  className="w-4 h-4 text-[#B48B40]" strokeWidth={2} fill="currentColor" />
+            : <Pause className="w-4 h-4" strokeWidth={2} />}
+        </button>
+
+        {/* Finish / stop */}
+        <button
+          onClick={handleFinish}
+          className="w-9 h-9 rounded-xl border border-[#EF4444]/25 bg-[#EF4444]/8 flex items-center justify-center text-[#EF4444]/80 hover:bg-[#EF4444]/15 transition-all shrink-0"
+          title="Finish & log workout"
+        >
+          <Square className="w-3.5 h-3.5" strokeWidth={2.5} fill="currentColor" />
+        </button>
       </div>
+
+      {/* Paused overlay hint */}
+      {paused && (
+        <div className="px-4 pt-3">
+          <div className="max-w-lg mx-auto rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 flex items-center justify-between gap-3">
+            <p className="text-xs text-white/50">Paused — timer stopped.</p>
+            <button
+              onClick={() => setPaused(false)}
+              className="text-xs font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors flex items-center gap-1.5"
+            >
+              <Play className="w-3 h-3" strokeWidth={2} fill="currentColor" /> Resume
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 pt-5 space-y-4">
 
