@@ -66,6 +66,34 @@ export type DetectOutput = {
   reason: string;  // 1-line explanation for logging
 };
 
+// ── Coach intent router (talk-to-your-coach action routing) ───────────────────
+
+export type CoachIntent =
+  | "log_meal"
+  | "log_workout_complete"
+  | "log_reflection"
+  | "recovery_check"
+  | "chat";
+
+export type CoachIntentOutput = {
+  intent:             CoachIntent;
+  confidence:         number;        // 0–1 on the intent
+  needsClarification: boolean;       // true → ask, don't act
+  clarifyingQuestion: string | null;
+  reason:             string;
+  payload: {
+    mealTranscript?:  string;          // log_meal — food phrase, NOT macros
+    workoutHint?:     string | null;   // log_workout_complete
+    feel?:            string | null;   // "easy"|"good"|"hard"
+    note?:            string | null;
+    reflectionText?:  string;          // log_reflection
+    // recovery_check — any the model could extract
+    sleepHours?:      number | null;
+    soreness?:        number | null;   // 1–5
+    energy?:          number | null;   // 1–5
+  };
+};
+
 // ── Education Mode ────────────────────────────────────────────────────────────
 
 export type EducationOutput = {

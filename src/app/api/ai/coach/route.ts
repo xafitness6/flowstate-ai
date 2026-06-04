@@ -1,8 +1,10 @@
 // ─── Unified Coach ────────────────────────────────────────────────────────────
-// Single endpoint. Handles all intents: educational questions, performance
-// queries, follow-ups. Intent routing is invisible to the user.
+// Single endpoint. ONE charismatic personal-trainer persona whose delivery
+// scales with an intensity dial (1 gentle → 5 militant). Handles education,
+// performance, follow-ups, and recovery coaching dialogue.
 //
-// Input:  { message, history, context, tone, style, profanity }
+// Input:  { message, history, context, intensity?, allowStrongLanguage?, recoveryContext? }
+//         (legacy tone/style/profanity still accepted and mapped)
 // Output: { content }  — plain text, paragraphs separated by \n\n
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,33 +12,41 @@ import OpenAI from "openai";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ── Tone fragments ────────────────────────────────────────────────────────────
+// ── Intensity dial (1 gentle → 5 militant) ────────────────────────────────────
 
-const TONE_INSTRUCTIONS: Record<string, string> = {
-  direct: `TONE: Direct, confident, no filler. Lead with the answer. Use short sentences. Never say "great question" or "absolutely" or "sure." Cut every word that doesn't carry information.`,
-
-  supportive: `TONE: Warm but substantive. Acknowledge the situation briefly, then give the real answer. Encourage without being sycophantic. Don't pad with empty positivity.`,
-
-  analytical: `TONE: Precise and data-driven. Lead with the mechanism or principle. Use specific numbers and reasoning. Avoid emotional framing. Think like a sports scientist, not a cheerleader.`,
+const INTENSITY_INSTRUCTIONS: Record<number, string> = {
+  1: `INTENSITY 1/5 — GENTLE. Warm, patient, encouraging. Meet them exactly where they are. Celebrate small wins. Never harsh. You're the coach who makes someone believe they can do it.`,
+  2: `INTENSITY 2/5 — SUPPORTIVE. Friendly and motivating, but honest. Encourage, then give the real answer. A little push, never a shove.`,
+  3: `INTENSITY 3/5 — BALANCED (default). The charismatic personal trainer: personable, charismatic, makes them feel good — AND tells it straight. "This is what we fix, this is the plan, let's get after it." Motivating but no fluff.`,
+  4: `INTENSITY 4/5 — FIRM. Demanding, high standards, low tolerance for excuses. You believe in them so you push hard. Direct, a little fire, accountability first.`,
+  5: `INTENSITY 5/5 — MILITANT. Cold, blunt, drill-sergeant. No fluff, no comfort, no hand-holding. Standards are standards. Short, hard, declarative. Zero excuses.`,
 };
 
-const STYLE_INSTRUCTIONS: Record<string, string> = {
-  lite: `LENGTH: Be concise. Maximum 2 short paragraphs. One clear idea per paragraph. If it can be said in one line, use one line.`,
-  pro:  `LENGTH: Full detail when needed — up to 3 paragraphs. Don't pad, but don't shortchange complex topics. Give the athlete everything they need to act.`,
-};
+function intensityFrom(params: { intensity?: number; tone?: string }): number {
+  if (typeof params.intensity === "number" && params.intensity >= 1 && params.intensity <= 5) {
+    return Math.round(params.intensity);
+  }
+  // Legacy tone → intensity fallback
+  switch (params.tone) {
+    case "supportive": return 2;
+    case "analytical": return 3;
+    case "direct":     return 4;
+    default:           return 3;
+  }
+}
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
 function buildSystem(params: {
-  tone:      string;
-  style:     string;
-  profanity: string;
-  context:   { goal: string; phase: string; week: string; status: string };
-  athleteProfile?: string;
+  intensity:           number;
+  allowStrongLanguage: boolean;
+  context:             { goal: string; phase: string; week: string; status: string };
+  athleteProfile?:     string;
+  recoveryContext?:    string;
 }): string {
-  const { tone, style, profanity, context, athleteProfile } = params;
+  const { intensity, allowStrongLanguage, context, athleteProfile, recoveryContext } = params;
 
-  return `You are the AI coach inside Flowstate, an elite training system.
+  return `You are the AI coach inside Flowstate, an elite training system. You are ONE consistent personable, charismatic personal-trainer persona — like a great real-life coach who can make someone feel good but also tell them straight what needs to happen. Your warmth-vs-hardness is set by the INTENSITY dial below; your identity never changes, only the delivery.
 
 ATHLETE CONTEXT:
 - Goal: ${context.goal}
@@ -46,6 +56,9 @@ ATHLETE CONTEXT:
 ${athleteProfile ? `
 ATHLETE INTAKE (from their onboarding — coach to THIS person specifically; respect injuries, equipment, diet, and their stated reasons):
 ${athleteProfile}
+` : ""}${recoveryContext ? `
+TODAY'S STATED RECOVERY (use this to coach today's session — adapt, don't change their saved program):
+${recoveryContext}
 ` : ""}
 
 YOUR COACHING PHILOSOPHY:
@@ -66,11 +79,21 @@ HOW YOU RESPOND:
 - If they ask about their plan, readiness, or performance → be directive and specific to their current context
 - If it's a follow-up → adapt naturally, reference what was just said, don't restart the conversation
 
-${TONE_INSTRUCTIONS[tone] ?? TONE_INSTRUCTIONS.direct}
+RECOVERY COACHING (when they mention sleep, soreness, fatigue, energy, or whether they should train):
+- Do NOT just fold or rubber-stamp. COACH them. If you're missing detail, ask ONE or TWO sharp follow-ups before deciding: WHY the poor sleep, soreness on a 1-5 scale, energy on a 1-5 scale.
+- Once you have a read, give a REASONED recommendation, never a bare verdict:
+  - Mild (e.g. soreness ≤2, energy ≥3): push them — "this is normal, we train. Main lifts at RPE 6-7, drop the burnout sets if you need."
+  - Moderate: reduce, don't cancel — trim volume/intensity, name what to keep (main lifts) vs cut (accessories), give an RPE target.
+  - Severe (e.g. 5/5 sore, can't-keep-eyes-open energy, real warning signs): rest is the play — say so plainly, with the reasoning that recovery IS the training stimulus, but remind them every missed day is a day we don't get better, so this is a real rest, not a habit.
+- Always end recovery advice with a clear, single next action.
 
-${STYLE_INSTRUCTIONS[style] ?? STYLE_INSTRUCTIONS.pro}
+${INTENSITY_INSTRUCTIONS[intensity] ?? INTENSITY_INSTRUCTIONS[3]}
 
-${profanity === "mild" ? `LANGUAGE: Natural, unfiltered. Mild language is fine if it fits the context. Don't force it — only where it reads naturally.` : `LANGUAGE: Keep it clean.`}
+LENGTH: Be tight. Usually 1-2 short paragraphs; up to 3 only for genuinely complex topics. One idea per paragraph. If one line does it, use one line.
+
+${allowStrongLanguage
+  ? `LANGUAGE: This athlete has opted into strong language. You can swear for emphasis where it lands naturally ("lock the fuck in", "let's go"). Don't force it every line — use it like a real coach who means it. Never demeaning or abusive.`
+  : `LANGUAGE: Keep it clean. Punchy is fine, profanity is not.`}
 
 EXERCISE RECOMMENDATIONS:
 If the athlete asks about exercises for a specific muscle group, you MUST only recommend exercises that directly target that muscle as a PRIMARY mover. Never recommend exercises for unrelated muscle groups.
@@ -100,7 +123,7 @@ FORMAT:
 - Never use headers, bullet points, or markdown — prose only
 - Never mention "education mode", "performance mode", or any system internals
 - Never start a response with "I", "Sure", "Great", "Of course", "Absolutely", or filler
-- Maximum ${style === "lite" ? "2 paragraphs" : "3 paragraphs"}`;
+- Maximum 3 paragraphs`;
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -113,19 +136,28 @@ type HistoryMessage = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
-      message:   string;
-      history:   HistoryMessage[];
-      context:   { goal: string; phase: string; week: string; status: string };
-      tone:      string;
-      style:     string;
-      profanity: string;
+      message:              string;
+      history:              HistoryMessage[];
+      context:              { goal: string; phase: string; week: string; status: string };
+      intensity?:           number;
+      allowStrongLanguage?: boolean;
+      recoveryContext?:     string;
+      // legacy (mapped to intensity / strong-language)
+      tone?:                string;
+      profanity?:           string;
     };
 
-    const { message, history = [], context, tone = "direct", style = "pro", profanity = "off" } = body;
+    const { message, history = [], context, recoveryContext } = body;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Empty message" }, { status: 400 });
     }
+
+    const intensity = intensityFrom({ intensity: body.intensity, tone: body.tone });
+    const allowStrongLanguage =
+      typeof body.allowStrongLanguage === "boolean"
+        ? body.allowStrongLanguage
+        : body.profanity === "mild";
 
     // Pull the signed-in athlete's onboarding intake so the coach speaks to
     // THEIR specifics (injuries, equipment, diet, goals). Best-effort — never
@@ -156,9 +188,9 @@ export async function POST(req: NextRequest) {
 
     const completion = await client.chat.completions.create({
       model:      "gpt-4o",
-      max_tokens: style === "lite" ? 400 : 700,
+      max_tokens: 700,
       messages:   [
-        { role: "system", content: buildSystem({ tone, style, profanity, context, athleteProfile }) },
+        { role: "system", content: buildSystem({ intensity, allowStrongLanguage, context, athleteProfile, recoveryContext }) },
         ...historyMessages,
         { role: "user",   content: message.trim() },
       ],

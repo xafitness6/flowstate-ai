@@ -579,6 +579,21 @@ export function saveWorkoutLog(userId: string, log: WorkoutLog): void {
 
 }
 
+/** Delete a workout log (used by the coach chat "undo"). */
+export function deleteWorkoutLog(userId: string, logId: string): void {
+  if (isRealUser(userId)) {
+    import("@/lib/db/workoutLogs").then(({ deleteWorkoutLogFromDB }) => {
+      deleteWorkoutLogFromDB(userId, logId).catch((e) =>
+        console.error("[workout] deleteWorkoutLog Supabase error:", e));
+    }).catch(() => { /* ignore */ });
+    return;
+  }
+  try {
+    const logs = getWorkoutLogs(userId).filter((l) => l.logId !== logId);
+    localStorage.setItem(LOGS_KEY(userId), JSON.stringify(logs));
+  } catch { /* ignore */ }
+}
+
 export function getLogsThisWeek(userId: string): WorkoutLog[] {
   const logs  = getWorkoutLogs(userId);
   const now   = new Date();

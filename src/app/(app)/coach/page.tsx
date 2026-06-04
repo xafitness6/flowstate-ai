@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, ChevronDown } from "lucide-react";
+import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen } from "lucide-react";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, UpgradeCard, FEATURES } from "@/components/ui/PlanGate";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
@@ -10,19 +10,31 @@ import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useUser } from "@/context/UserContext";
 import { loadActiveProgramForUser, type ActiveProgram } from "@/lib/workout";
+import { GroupedMealReviewModal, type ReviewMealInput } from "@/components/nutrition/GroupedMealReviewModal";
+import { saveHydrationLog } from "@/lib/nutrition/hydration";
+import type { LoggedMeal, NutritionParseResult, MealType } from "@/lib/nutrition/types";
+import { logWorkoutComplete, logReflection, undoCoachLog } from "@/lib/coach/actions";
+import { saveReadiness, getTodayReadiness, formatReadinessContext } from "@/lib/coach/readiness";
+import type { CoachIntentOutput } from "@/lib/ai/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Role      = "ai" | "user";
-type Tone      = "direct" | "supportive" | "analytical";
-type Profanity = "off" | "mild";
-type Style     = "lite" | "pro";
+type Role = "ai" | "user";
+
+type ActionCard = {
+  kind:    "meal" | "workout" | "reflection";
+  summary: string;
+  undo?:   () => void;
+  undone?: boolean;
+  href?:   string;
+};
 
 type Message = {
   id:      string;
   role:    Role;
   text:    string;
   typing?: boolean;
+  action?: ActionCard;
 };
 
 type Prompt = {
@@ -83,15 +95,12 @@ function uid() {
 
 // ─── Display labels ───────────────────────────────────────────────────────────
 
-const TONE_LABELS: Record<Tone, string> = {
-  direct:     "Direct",
-  supportive: "Supportive",
-  analytical: "Analytical",
-};
-
-const STYLE_LABELS: Record<Style, string> = {
-  lite: "Lite",
-  pro:  "Pro",
+const INTENSITY_LABELS: Record<number, string> = {
+  1: "Gentle",
+  2: "Supportive",
+  3: "Balanced",
+  4: "Firm",
+  5: "Militant",
 };
 
 // ─── Typing dots ──────────────────────────────────────────────────────────────
@@ -129,12 +138,49 @@ function MessageBubble({ message }: { message: Message }) {
       )}>
         {message.typing ? (
           <TypingDots />
+        ) : message.action ? (
+          <ActionCardView action={message.action} />
         ) : (
           <p className={cn("text-sm leading-relaxed", isAI ? "text-white/80" : "text-white/70")}>
             {message.text}
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Action result card ───────────────────────────────────────────────────────
+
+const ACTION_ICON = { meal: Utensils, workout: Dumbbell, reflection: NotebookPen } as const;
+const ACTION_LABEL = { meal: "Meal logged", workout: "Workout logged", reflection: "Saved & shared with your coach" } as const;
+
+function ActionCardView({ action }: { action: ActionCard }) {
+  const Icon = ACTION_ICON[action.kind];
+  return (
+    <div className="flex items-center gap-2.5 min-w-[200px]">
+      <div className="w-6 h-6 rounded-lg bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center shrink-0">
+        {action.undone
+          ? <RotateCcw className="w-3 h-3 text-white/40" strokeWidth={2} />
+          : <Check className="w-3 h-3 text-emerald-400/80" strokeWidth={2.5} />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-semibold text-white/70">
+          {action.undone ? "Removed" : ACTION_LABEL[action.kind]}
+        </p>
+        <p className="text-xs text-white/45 truncate flex items-center gap-1.5">
+          {action.summary}
+          {!action.undone && <Icon className="w-3 h-3 text-white/25 shrink-0" strokeWidth={1.5} />}
+        </p>
+      </div>
+      {action.undo && !action.undone && (
+        <button
+          onClick={action.undo}
+          className="shrink-0 text-[11px] font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors flex items-center gap-1"
+        >
+          <RotateCcw className="w-3 h-3" strokeWidth={2} /> Undo
+        </button>
+      )}
     </div>
   );
 }
@@ -182,9 +228,11 @@ function CoachPageInner() {
     if (voice.transcript) setInput(voice.transcript);
   }, [voice.transcript]);
 
-  const [tone     ] = useLocalStorage<Tone>     ("coach-tone",      "direct");
-  const [profanity] = useLocalStorage<Profanity>("coach-profanity", "off");
-  const [style    ] = useLocalStorage<Style>    ("coach-style",     "pro");
+  const [intensity,      setIntensity]      = useLocalStorage<number> ("coach-intensity",       3);
+  const [strongLanguage, setStrongLanguage] = useLocalStorage<boolean>("coach-strong-language", false);
+
+  // Review-first meal logging from chat (reuses the nutrition review modal)
+  const [reviewMeals, setReviewMeals] = useState<ReviewMealInput[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -199,10 +247,107 @@ function CoachPageInner() {
       .map((m) => ({ role: m.role === "ai" ? "coach" as const : "user" as const, content: m.text })),
   []);
 
+  // ── Message helpers ─────────────────────────────────────────────────────────
+  const removeTyping = (id: string) => setMessages((prev) => prev.filter((m) => m.id !== id));
+  const pushAi       = (text: string) => setMessages((prev) => [...prev, { id: uid(), role: "ai", text }]);
+  function pushActionCard(kind: ActionCard["kind"], summary: string, opts: { logId?: string; href?: string }) {
+    const msgId = uid();
+    const action: ActionCard = { kind, summary, href: opts.href };
+    if (opts.logId) {
+      const logId = opts.logId;
+      action.undo = () => {
+        undoCoachLog(user.id, logId);
+        setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, action: { ...m.action!, undone: true } } : m));
+      };
+    }
+    setMessages((prev) => [...prev, { id: msgId, role: "ai", text: "", action }]);
+  }
+
+  // ── Conversational coach call (streams paragraphs in) ─────────────────────────
+  async function callCoach(text: string, typingId: string, recoveryContext?: string) {
+    const history = buildHistory(messages);
+    const res = await fetch("/api/ai/coach", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        message: text,
+        history,
+        context,
+        intensity:           intensity ?? 3,
+        allowStrongLanguage: !!strongLanguage,
+        recoveryContext,
+      }),
+    });
+    const data = await res.json() as { content?: string; error?: string };
+    if (!res.ok || !data.content) throw new Error(data.error ?? "No response");
+
+    const paragraphs = data.content.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    removeTyping(typingId);
+    paragraphs.forEach((t, i) => {
+      setTimeout(() => {
+        setMessages((prev) => [...prev, { id: uid(), role: "ai", text: t }]);
+        if (i === paragraphs.length - 1) setLoading(false);
+      }, i * 500);
+    });
+  }
+
+  // ── Meal intent → parse → review-first modal ──────────────────────────────────
+  async function handleMealIntent(transcript: string, typingId: string) {
+    const hour = new Date().getHours();
+    const tod  = hour < 5 ? "night (after midnight)" : hour < 11 ? "morning"
+      : hour < 14 ? "midday / lunch time" : hour < 17 ? "afternoon"
+      : hour < 21 ? "evening / dinner time" : "night";
+    const res = await fetch("/api/ai/nutrition", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ mode: "parse", transcript, timeContext: `Current time: ${hour}:00 (${tod})` }),
+    });
+    if (!res.ok) throw new Error("Couldn't read that meal.");
+    const parsed = await res.json() as NutritionParseResult;
+    removeTyping(typingId);
+
+    if (parsed.items.length === 0) {
+      if (parsed.hydrationMl && parsed.hydrationMl > 0) {
+        saveHydrationLog(user.id, { amountMl: parsed.hydrationMl, source: "voice" });
+        pushActionCard("meal", `Water · ${parsed.hydrationMl} ml`, { href: "/nutrition" });
+      } else {
+        pushAi("Didn't catch any food in that — tell me what you ate and I'll log it.");
+      }
+      return;
+    }
+    setReviewMeals([{
+      id:              `coach_${Date.now()}`,
+      mealType:        (parsed.mealType === "unknown" ? "snack" : parsed.mealType) as MealType,
+      source:          "voice",
+      rawTranscript:   transcript,
+      cleanTranscript: parsed.cleanTranscript,
+      confidence:      parsed.confidence,
+      hydrationMl:     parsed.hydrationMl ?? null,
+      items:           parsed.items,
+    }]);
+    pushAi("Here's what I caught — check it and hit confirm.");
+  }
+
+  function handleMealReviewed(saved: { meal: LoggedMeal; hydrationMl: number | null }[]) {
+    setReviewMeals([]);
+    for (const { meal, hydrationMl } of saved) {
+      if (hydrationMl && hydrationMl > 0) {
+        saveHydrationLog(user.id, { amountMl: hydrationMl, source: "voice", linkedMealId: meal.id });
+      }
+    }
+    if (saved.length > 0) {
+      const m = saved[0].meal;
+      const more = saved.length > 1 ? ` +${saved.length - 1} more` : "";
+      pushActionCard("meal", `${m.cleanTranscript ?? "Meal"} · ${Math.round(m.totals.calories)} kcal${more}`, { href: "/nutrition" });
+    }
+  }
+
+  // ── Send ──────────────────────────────────────────────────────────────────────
   async function sendMessage(text: string) {
     if (!text.trim() || loading) return;
+    const clean = text.trim();
 
-    const userMsg:   Message = { id: uid(), role: "user", text: text.trim() };
+    const userMsg:   Message = { id: uid(), role: "user", text: clean };
     const typingId   = uid();
     const typingMsg: Message = { id: typingId, role: "ai", text: "", typing: true };
 
@@ -212,49 +357,68 @@ function CoachPageInner() {
     setPromptsUsed(true);
 
     try {
-      const history = buildHistory(messages);
+      // 1. Classify intent (fall back to chat if the router is unavailable)
+      let route: CoachIntentOutput | null = null;
+      try {
+        const r = await fetch("/api/ai/coach-intent", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: clean }),
+        });
+        if (r.ok) route = await r.json() as CoachIntentOutput;
+      } catch { /* fall through to chat */ }
 
-      const res = await fetch("/api/ai/coach", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          message:   text.trim(),
-          history,
-          context:   context,
-          tone:      tone      ?? "direct",
-          style:     style     ?? "pro",
-          profanity: profanity ?? "off",
-        }),
-      });
+      const intent = route?.intent ?? "chat";
+      const act    = route && !route.needsClarification;
 
-      const data = await res.json() as { content?: string; error?: string };
-
-      if (!res.ok || !data.content) {
-        throw new Error(data.error ?? "No response");
+      // 2. Actionable intents
+      if (act && intent === "log_meal" && route!.payload.mealTranscript) {
+        await handleMealIntent(route!.payload.mealTranscript, typingId);
+        setLoading(false);
+        return;
+      }
+      if (act && intent === "log_workout_complete") {
+        const r = await logWorkoutComplete(user.id, route!.payload);
+        removeTyping(typingId);
+        pushActionCard("workout", r.summary, { logId: r.logId });
+        setLoading(false);
+        return;
+      }
+      if (act && intent === "log_reflection" && route!.payload.reflectionText) {
+        const r = logReflection(user.id, route!.payload.reflectionText);
+        removeTyping(typingId);
+        pushActionCard("reflection", r.summary, { logId: r.logId });
+        setLoading(false);
+        return;
       }
 
-      // Split on double newline → separate bubbles, animated in sequence
-      const paragraphs = data.content
-        .split(/\n\n+/)
-        .map((p) => p.trim())
-        .filter(Boolean);
+      // 3. Recovery → capture any numbers, then coach with the context
+      if (intent === "recovery_check" && route) {
+        const p = route.payload;
+        if (p.sleepHours != null || p.soreness != null || p.energy != null) {
+          saveReadiness(user.id, {
+            sleepHours: p.sleepHours ?? undefined,
+            soreness:   p.soreness ?? undefined,
+            energy:     p.energy ?? undefined,
+          });
+        }
+      }
 
-      // Remove typing indicator then stream paragraphs in
-      setMessages((prev) => prev.filter((m) => m.id !== typingId));
+      // 4. Ambiguous → ask, don't act
+      if (route?.needsClarification && route.clarifyingQuestion) {
+        removeTyping(typingId);
+        pushAi(route.clarifyingQuestion);
+        setLoading(false);
+        return;
+      }
 
-      paragraphs.forEach((text, i) => {
-        setTimeout(() => {
-          setMessages((prev) => [...prev, { id: uid(), role: "ai", text }]);
-          if (i === paragraphs.length - 1) setLoading(false);
-        }, i * 500);
-      });
+      // 5. Chat / recovery dialogue
+      const recoveryContext = formatReadinessContext(getTodayReadiness(user.id));
+      await callCoach(clean, typingId, recoveryContext);
 
     } catch (err) {
       const errText = err instanceof Error ? err.message : "Something went wrong.";
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== typingId),
-        { id: uid(), role: "ai", text: errText },
-      ]);
+      removeTyping(typingId);
+      pushAi(errText);
       setLoading(false);
     }
   }
@@ -263,9 +427,7 @@ function CoachPageInner() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   }
 
-  const activeTone      = tone      ?? "direct";
-  const activeStyle     = style     ?? "pro";
-  const activeProfanity = profanity ?? "off";
+  const activeIntensity = intensity ?? 3;
 
   return (
     <div className="flex h-[calc(100dvh-56px-6rem)] min-h-0 flex-col overflow-hidden text-white md:h-[calc(100dvh-56px-1.5rem)]">
@@ -304,15 +466,12 @@ function CoachPageInner() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white/35">
-              {TONE_LABELS[activeTone]}
+            <span className="rounded-full border border-[#B48B40]/20 bg-[#B48B40]/8 px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-[#B48B40]/70">
+              {INTENSITY_LABELS[activeIntensity]}
             </span>
-            <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white/35">
-              {STYLE_LABELS[activeStyle]}
-            </span>
-            {activeProfanity === "mild" && (
-              <span className="hidden rounded-full border border-[#B48B40]/15 bg-[#B48B40]/8 px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-[#B48B40]/60 min-[390px]:inline">
-                Mild
+            {strongLanguage && (
+              <span className="hidden rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white/35 min-[390px]:inline">
+                Unfiltered
               </span>
             )}
             <ChevronDown
@@ -335,6 +494,38 @@ function CoachPageInner() {
                 <p className={cn("text-xs font-semibold", color)}>{value}</p>
               </div>
             ))}
+
+            {/* Coaching voice controls */}
+            <div className="col-span-2 sm:col-span-4 rounded-xl border border-white/6 bg-white/[0.02] px-3.5 py-3 mt-0.5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Coaching voice</p>
+                <span className="text-xs font-semibold text-[#B48B40]">{INTENSITY_LABELS[activeIntensity]}</span>
+              </div>
+              <input
+                type="range" min={1} max={5} step={1}
+                value={activeIntensity}
+                onChange={(e) => setIntensity(Number(e.target.value))}
+                className="w-full accent-[#B48B40] cursor-pointer"
+              />
+              <div className="flex justify-between text-[9px] uppercase tracking-[0.1em] text-white/25 mt-1">
+                <span>Gentle</span><span>Militant</span>
+              </div>
+              <button
+                onClick={() => setStrongLanguage((v) => !v)}
+                className="mt-3 flex items-center justify-between w-full text-left"
+              >
+                <span className="text-[11px] text-white/45">Allow strong language</span>
+                <span className={cn(
+                  "relative w-9 h-5 rounded-full transition-colors shrink-0",
+                  strongLanguage ? "bg-[#B48B40]/80" : "bg-white/10",
+                )}>
+                  <span className={cn(
+                    "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all",
+                    strongLanguage ? "left-[1.125rem]" : "left-0.5",
+                  )} />
+                </span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -408,10 +599,19 @@ function CoachPageInner() {
           </div>
         </div>
         <p className="text-[10px] text-white/18 text-center mt-2">
-          Shift + Enter for new line · {TONE_LABELS[activeTone]} · {STYLE_LABELS[activeStyle]}
-          {activeProfanity === "mild" ? " · Mild" : ""} · Change in Profile
+          Talk to log a meal, finish a workout, or check in — {INTENSITY_LABELS[activeIntensity]} voice
         </p>
       </div>
+
+      {/* ── Review-first meal logging (from chat) ─────────────────────── */}
+      {reviewMeals.length > 0 && (
+        <GroupedMealReviewModal
+          meals={reviewMeals}
+          userId={user.id}
+          onSaved={handleMealReviewed}
+          onCancel={() => { setReviewMeals([]); pushAi("No worries — nothing logged. What else?"); }}
+        />
+      )}
     </div>
   );
 }

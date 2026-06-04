@@ -4,7 +4,7 @@
 
 import type {
   StateSummary, DecisionOutput, FormattedResponse, ReflectionOutput,
-  DetectOutput, EducationOutput,
+  DetectOutput, EducationOutput, CoachIntentOutput, CoachIntent,
 } from "./types";
 
 function isString(v: unknown): v is string {
@@ -96,6 +96,36 @@ export function validateDetectOutput(raw: unknown): DetectOutput {
   if (!isString(d.reason))
     throw new Error("Missing reason");
   return d as unknown as DetectOutput;
+}
+
+const COACH_INTENTS: CoachIntent[] = [
+  "log_meal", "log_workout_complete", "log_reflection", "recovery_check", "chat",
+];
+
+export function validateCoachIntent(raw: unknown): CoachIntentOutput {
+  const d = raw as Record<string, unknown>;
+  if (!isIn(d.intent, COACH_INTENTS))
+    throw new Error(`Invalid intent: ${d.intent}`);
+
+  const confidence = isNumber(d.confidence) ? Math.max(0, Math.min(1, d.confidence as number)) : 0;
+  const payload = (d.payload && typeof d.payload === "object" ? d.payload : {}) as CoachIntentOutput["payload"];
+
+  const intent = d.intent as CoachIntent;
+  let needsClarification = d.needsClarification === true;
+
+  // Safety: never act on a low-confidence actionable intent.
+  if (intent !== "chat" && confidence < 0.6) needsClarification = true;
+
+  const clarifyingQuestion = isString(d.clarifyingQuestion) ? (d.clarifyingQuestion as string) : null;
+
+  return {
+    intent,
+    confidence,
+    needsClarification,
+    clarifyingQuestion,
+    reason: isString(d.reason) ? (d.reason as string) : "",
+    payload,
+  };
 }
 
 export function validateEducationOutput(raw: unknown): EducationOutput {

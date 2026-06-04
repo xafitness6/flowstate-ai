@@ -4,11 +4,16 @@ import { createClient } from "@/lib/supabase/client";
 import type { WorkoutLog } from "@/lib/supabase/types";
 import type { WorkoutLog as LocalLog } from "@/lib/workout";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Save a local WorkoutLog to Supabase. */
 export async function syncWorkoutLog(log: LocalLog): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("workout_logs").upsert(
     {
+      // When the caller minted a UUID logId, reuse it as the row id so it can be
+      // referenced later (e.g. undo). Non-UUID logIds let the DB default generate one.
+      ...(UUID_RE.test(log.logId) ? { id: log.logId } : {}),
       user_id:          log.userId,
       workout_name:     log.workoutName,
       log_type:         (log.logType ?? "prescribed") as WorkoutLog["log_type"],
@@ -26,6 +31,17 @@ export async function syncWorkoutLog(log: LocalLog): Promise<void> {
     { onConflict: "id" },
   );
   if (error) console.error("[workoutLogs] sync:", error.message);
+}
+
+/** Delete a workout log by id (used for chat "undo"). */
+export async function deleteWorkoutLogFromDB(userId: string, id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("workout_logs")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
+  if (error) console.error("[workoutLogs] delete:", error.message);
 }
 
 /** Get all workout logs for a user from Supabase. */
