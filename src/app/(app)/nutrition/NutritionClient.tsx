@@ -21,6 +21,11 @@ import { useUser }            from "@/context/UserContext";
 import { loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
 import { EnergyCard }        from "@/components/nutrition/EnergyCard";
 import { MacroSourcesCard }  from "@/components/nutrition/MacroSourcesCard";
+import { TargetsEditModal }  from "@/components/nutrition/TargetsEditModal";
+import {
+  getTargetsOverride, saveTargetsOverride, clearTargetsOverride, applyOverride,
+  type TargetsOverride,
+} from "@/lib/nutrition/targetsOverride";
 import {
   calculateNutritionTargets,
   calculateEnergy,
@@ -859,9 +864,13 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     return <LockedPageState feature={FEATURES.NUTRITION} />;
   }
 
-  // Targets — seed from SSR when available
-  const [targets,   setTargets]   = useState<NutritionTargets>(initial?.targets ?? FALLBACK);
-  const [hasIntake, setHasIntake] = useState(initial?.targets != null);
+  // Targets — `computedTargets` from stats, `override` is the athlete's manual
+  // adjustment, `targets` is the effective merge shown everywhere.
+  const [computedTargets, setComputedTargets] = useState<NutritionTargets>(initial?.targets ?? FALLBACK);
+  const [override,        setOverride]        = useState<TargetsOverride | null>(null);
+  const [hasIntake,       setHasIntake]       = useState(initial?.targets != null);
+  const [targetsEditOpen, setTargetsEditOpen] = useState(false);
+  const targets = useMemo(() => applyOverride(computedTargets, override), [computedTargets, override]);
 
   // Energy profile (BMR / TDEE / target) for the Energy card
   const [energy,    setEnergy]    = useState<EnergyProfile | null>(null);
@@ -921,13 +930,18 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     if (hasSSR && initial?.targets) return; // skip — SSR already gave us targets
     loadIntakeAsync(user.id).then((intake) => {
       if (intake) {
-        setTargets(calculateNutritionTargets(intake));
+        setComputedTargets(calculateNutritionTargets(intake));
         setHasIntake(true);
       } else {
         setHasIntake(false);
       }
     });
   }, [user.id, hasSSR, initial?.targets]);
+
+  // Load the athlete's manual target override (if any)
+  useEffect(() => {
+    setOverride(getTargetsOverride(user.id));
+  }, [user.id]);
 
   // ── Load energy profile (BMR / TDEE) — always, independent of SSR targets ─────
 
@@ -1307,6 +1321,24 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           </button>
         </div>
 
+        {/* ── Targets header + adjust ───────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-1 -mb-1">
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25">Today&apos;s targets</p>
+            {override && (
+              <span className="text-[9px] font-semibold uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-md bg-[#B48B40]/10 text-[#B48B40]/70 border border-[#B48B40]/20">
+                Custom
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setTargetsEditOpen(true)}
+            className="flex items-center gap-1.5 text-[11px] font-medium text-white/40 hover:text-[#B48B40] transition-colors"
+          >
+            <Pencil className="w-3 h-3" strokeWidth={1.5} /> Adjust
+          </button>
+        </div>
+
         {/* ── Summary cards ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <CalorieCard consumed={totals.calories} target={targets.calories} />
@@ -1632,6 +1664,17 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           userId={user.id}
           onMealLogged={addMealToState}
           onClose={() => setFoodSearchOpen(false)}
+        />
+      )}
+
+      {targetsEditOpen && (
+        <TargetsEditModal
+          computed={computedTargets}
+          current={targets}
+          isCustom={override != null}
+          onSave={(o) => { saveTargetsOverride(user.id, o); setOverride(o); setTargetsEditOpen(false); }}
+          onReset={() => { clearTargetsOverride(user.id); setOverride(null); setTargetsEditOpen(false); }}
+          onClose={() => setTargetsEditOpen(false)}
         />
       )}
 
