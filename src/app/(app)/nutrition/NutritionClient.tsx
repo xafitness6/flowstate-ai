@@ -22,6 +22,8 @@ import { loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
 import { EnergyCard }        from "@/components/nutrition/EnergyCard";
 import { MacroSourcesCard }  from "@/components/nutrition/MacroSourcesCard";
 import { TargetsEditModal }  from "@/components/nutrition/TargetsEditModal";
+import { BmiCard }           from "@/components/nutrition/BmiCard";
+import { readStoredUnitSystem, type UnitSystem } from "@/lib/units";
 import {
   getTargetsOverride, saveTargetsOverride, clearTargetsOverride, applyOverride,
   type TargetsOverride,
@@ -875,6 +877,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // Energy profile (BMR / TDEE / target) for the Energy card
   const [energy,    setEnergy]    = useState<EnergyProfile | null>(null);
   const [goalLabel, setGoalLabel] = useState<string | undefined>(undefined);
+  // Body metrics for the BMI card
+  const [bodyHeightCm, setBodyHeightCm] = useState<number | null>(null);
+  const [unitSystem,   setUnitSystem]   = useState<UnitSystem>("metric");
 
   // Date navigation
   const [selectedDate, setSelectedDate] = useState(todayISO);
@@ -946,9 +951,17 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // ── Load energy profile (BMR / TDEE) — always, independent of SSR targets ─────
 
   useEffect(() => {
+    setUnitSystem(readStoredUnitSystem(user.id) ?? "metric");
     loadIntakeAsync(user.id).then((intake) => {
       setEnergy(intake ? calculateEnergy(intake) : null);
       setGoalLabel(intake ? GOAL_LABELS[intake.primaryGoal] : undefined);
+      // Height in cm for the BMI card
+      if (intake?.height) {
+        const raw = parseFloat(intake.height);
+        setBodyHeightCm(!raw || isNaN(raw) ? null : intake.heightUnit === "ft" ? Math.round(raw * 30.48) : raw);
+      } else {
+        setBodyHeightCm(null);
+      }
     });
   }, [user.id]);
 
@@ -1346,9 +1359,16 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           <HydrationCard current={hydration}      target={targets.waterMl} onAdd={addWaterMl} />
         </div>
 
-        {/* ── Energy (BMR / maintenance / target) ───────────────────────────── */}
-        {energy && !viewWeek && (
-          <EnergyCard energy={energy} goalLabel={goalLabel} />
+        {/* ── Energy (BMR / maintenance / target) + BMI ─────────────────────── */}
+        {!viewWeek && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {energy && <EnergyCard energy={energy} goalLabel={goalLabel} />}
+            <BmiCard
+              initialWeightKg={energy?.weightKg ?? null}
+              initialHeightCm={bodyHeightCm}
+              unitSystem={unitSystem}
+            />
+          </div>
         )}
 
         {/* ── Quick actions ─────────────────────────────────────────────────── */}
