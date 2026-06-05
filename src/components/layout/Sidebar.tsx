@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Dumbbell, Utensils, Bot, User, LayoutDashboard, CheckSquare, CalendarDays, Users, Trophy, Film, Clapperboard, Wind, Lock, UserCheck, LineChart } from "lucide-react";
+import { Home, Dumbbell, Utensils, Bot, User, LayoutDashboard, CheckSquare, CalendarDays, Users, Trophy, Film, Clapperboard, Wind, Lock, UserCheck, LineChart, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import type { ViewMode } from "@/context/UserContext";
@@ -22,6 +22,7 @@ export const NAV_ITEMS: AppNavItem[] = [
   { label: "Progress",       href: "/progress",       icon: LineChart },
   { label: "Coach",          href: "/coach",          icon: Bot,          roles: ["client"], plan: "training", feature: FEATURES.COACH },
   { label: "Accountability", href: "/accountability", icon: CheckSquare,  feature: FEATURES.ACCOUNTABILITY_BASIC },
+  { label: "Learn",          href: "/learn",          icon: GraduationCap },
   { label: "Breathwork",     href: "/breathwork",     icon: Wind,         feature: FEATURES.BREATHWORK },
   { label: "My Clients",     href: "/my-clients",     icon: UserCheck,    roles: ["trainer"] },
   { label: "Library",        href: "/library",        icon: Film,         roles: ["trainer"], plan: "training" },
