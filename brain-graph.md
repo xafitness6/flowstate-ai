@@ -247,4 +247,55 @@ Onboarding completion is server-side (`onboarding_state` flags), so a returning 
 
 ---
 
-*Last updated: 2026-04-15*
+## Conversational coach + talk-to-log (2026-06)
+
+The AI coach is ONE persona with an **intensity dial** (1 gentle → 5 militant) +
+per-client **strong-language** opt-in (`coach-intensity` / `coach-strong-language`
+in localStorage; set on `/coach` and in Profile → Coaching). Old tone/style/
+profanity selectors are gone.
+
+`/coach` now routes what you say via `POST /api/ai/coach-intent`
+(`validateCoachIntent` in `src/lib/ai/validate.ts`, `CoachIntentOutput` in
+`src/lib/ai/types.ts`): `log_meal` (→ parse + review-first `GroupedMealReviewModal`
+→ `saveMeal`), `log_workout_complete` / `log_reflection` (→ `saveWorkoutLog` via
+`src/lib/coach/actions.ts`, with Undo; reflection saved as `coach_note`), and
+`recovery_check` (captures sleep/soreness/energy to `src/lib/coach/readiness.ts`,
+fed to `/api/ai/coach` as `recoveryContext`). Low confidence (<0.6) never acts.
+`/api/ai/coach` takes `intensity` + `allowStrongLanguage` + `recoveryContext` and
+has a recovery-coaching section (probing 1-5 questions → reasoned push-vs-rest).
+**Roadmap (not built):** Phase 2 live set-by-set session companion, Phase 3
+ElevenLabs voice. Plan: `~/.claude/plans/i-know-we-do-snoopy-bee.md`.
+
+## Nutrition: BMR/energy, editable targets, BMI, activity level (2026-06)
+
+- `calculateEnergy(intake)` in `src/lib/nutrition.ts` — hybrid BMR (Katch-McArdle
+  from body-fat %, else Mifflin from age+sex, else bodyweight estimate) → TDEE
+  (explicit **activity level**, else training-days) → goal- AND **timeframe**-aware
+  target. `EnergyCard` shows BMR→maintenance→target on `/nutrition` + the trainer
+  client file.
+- Onboarding (7-step `calibration`) now has a **Body stats** step: weight, height,
+  body-fat, age, sex, **activity level** → saved to top-level `IntakeData`.
+- **Editable targets**: `src/lib/nutrition/targetsOverride.ts` (localStorage) +
+  `TargetsEditModal` — "Adjust" above the nutrition cards lets the athlete set
+  their own calories/macros (Custom badge + reset).
+- `BmiCard` — interactive BMI calculator + teaching note. Units honor the
+  per-user pref (`src/lib/units.ts`, now with height ft/in helpers).
+
+## Workout flow overhaul (2026-06)
+
+`/program/workout/[workoutId]` no longer auto-starts. Phase machine:
+**preview** (focus, exercises, sets×reps, warm-up, "AI coach in your ear — Coming
+Soon") → **countdown** (5-4-3-2-1) → **active** (control bar: timer + Pause/Resume
++ Finish; timer only ticks while active & unpaused). Freestyle "Paste workout"
+(`WorkoutParserModal` → `/api/ai/workout-parser`) already deciphers written notes.
+
+## Learn tab (2026-06)
+
+`/learn` — searchable, category-filtered articles (`src/lib/learn/content.ts`):
+Using FlowState + Training + Nutrition, deep-linking into the app + coach. Ebook
+"Conquer Your Carbs" served from `public/resources/conquer-your-carbs.pdf` (~40MB,
+candidate to move to a CDN). Nav item in `Sidebar` `NAV_ITEMS`.
+
+---
+
+*Last updated: 2026-06-05*
