@@ -8,7 +8,13 @@ import { useEffect } from "react";
 
 export function ActivityPing() {
   useEffect(() => {
-    fetch("/api/me/ping", { method: "POST", keepalive: true }).catch(() => {});
+    let tz: string | undefined;
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* ignore */ }
+    fetch("/api/me/ping", {
+      method: "POST", keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tz }),
+    }).catch(() => {});
   }, []);
   return null;
 }

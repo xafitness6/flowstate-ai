@@ -15,6 +15,7 @@ import { readStoredUnitSystem, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/u
 import { Card } from "@/components/ui/Card";
 import { IntakeQuestionPrompt } from "@/components/profile/IntakeQuestionPrompt";
 import { CoachTaskList } from "@/components/tasks/CoachTaskList";
+import { TimezoneSetting } from "@/components/profile/TimezoneSetting";
 import { StatTile } from "@/components/ui/StatTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -732,8 +733,11 @@ export default function ProfilePage() {
             />
           </SettingsRow>
 
-          <SettingsRow label="Units" description="Weight, distance, and measurement display." last>
+          <SettingsRow label="Units" description="Weight, distance, and measurement display.">
             <PillToggle options={UNIT_SYSTEMS} value={units} onChange={setUnits} />
+          </SettingsRow>
+          <SettingsRow label="Timezone" description="Scheduled reminders show in your local time." last>
+            <TimezoneSetting />
           </SettingsRow>
         </Card>
       </div>

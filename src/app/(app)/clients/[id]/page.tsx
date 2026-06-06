@@ -454,7 +454,9 @@ export default function ClientDetailPage() {
     if (!title || calendarReminderSaving) return;
     setCalendarReminderSaving(true);
     try {
-      const dueAt = `${calendarReminderDate || todayInputValue()}T${calendarReminderTime || "09:00"}`;
+      // Interpret the entered wall-clock time in the coach's local zone and
+      // store the absolute instant, so the client sees it in THEIR zone.
+      const dueAt = new Date(`${calendarReminderDate || todayInputValue()}T${calendarReminderTime || "09:00"}`).toISOString();
       const res = await fetch(`/api/clients/${id}/calendar-reminders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -505,7 +507,7 @@ export default function ClientDetailPage() {
     if (!title || editCalSaving) return;
     setEditCalSaving(true);
     try {
-      const dueAt = `${editCalDate || todayInputValue()}T${editCalTime || "09:00"}`;
+      const dueAt = new Date(`${editCalDate || todayInputValue()}T${editCalTime || "09:00"}`).toISOString();
       const res = await fetch(`/api/clients/${id}/calendar-reminders`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: rid, title, due_at: dueAt }),
