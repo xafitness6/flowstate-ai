@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Apple, Loader2, Sparkles, Pencil, Check, X, Trash2, ImagePlus, Utensils } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { dishKey } from "@/lib/nutrition/dishKey";
 
 type ComputedTargets = { calories: number; proteinG: number; carbsG: number; fatG: number; waterMl: number } | null;
 type Override = { calories?: number; proteinG?: number; carbsG?: number; fatG?: number; waterMl?: number } | null;
@@ -51,6 +52,8 @@ export function ClientNutritionManager({
   const [override, setOverride] = useState<Override>(null);
   const [plan, setPlan] = useState<MealPlan | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [mealImages, setMealImages] = useState<Record<string, string>>({});
+  const [imagesLoading, setImagesLoading] = useState(false);
 
   // Effective values shown in the editor: override wins over the calculated value.
   const eff = (k: keyof NonNullable<ComputedTargets>) =>
@@ -81,6 +84,24 @@ export function ClientNutritionManager({
   }, [clientId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Per-dish images are generated once and cached server-side; one is produced
+  // per call, so poll until none remain (capped). Re-runs when the plan changes.
+  const loadImages = useCallback(async () => {
+    setImagesLoading(true);
+    try {
+      for (let i = 0; i < 12; i++) {
+        const r = await fetch(`/api/clients/${clientId}/meal-plan/images`, { method: "POST" });
+        const j = await r.json();
+        if (j?.images) setMealImages((prev) => ({ ...prev, ...j.images }));
+        if (!j?.remaining || j.remaining <= 0) break;
+      }
+    } catch { /* images are best-effort */ } finally {
+      setImagesLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => { if (plan?.id) void loadImages(); }, [plan?.id, loadImages]);
 
   function startEdit() {
     const d: Record<string, string> = {};
@@ -288,23 +309,37 @@ export function ClientNutritionManager({
           </div>
 
           <div className="space-y-2">
-            {plan.plan.meals?.map((m, i) => (
-              <div key={i} className="rounded-xl border border-white/[0.06] bg-black/15 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-white/85">{m.name} <span className="text-[11px] font-normal text-white/35">{m.time}</span></p>
-                  <p className="text-[11px] text-white/55">{m.calories} kcal · {m.protein}p / {m.carbs}c / {m.fat}f</p>
+            {plan.plan.meals?.map((m, i) => {
+              const imgUrl = mealImages[dishKey(m)];
+              return (
+              <div key={i} className="rounded-xl border border-white/[0.06] bg-black/15 px-3 py-2.5 flex gap-3">
+                <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-white/[0.06] bg-white/[0.03] flex items-center justify-center">
+                  {imgUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imgUrl} alt={m.name} className="w-full h-full object-cover" />
+                  ) : imagesLoading ? (
+                    <Loader2 className="w-4 h-4 text-white/25 animate-spin" />
+                  ) : (
+                    <Utensils className="w-4 h-4 text-white/20" strokeWidth={1.6} />
+                  )}
                 </div>
-                <ul className="mt-1.5 space-y-0.5">
-                  {m.items?.map((it, j) => (
-                    <li key={j} className="text-[12px] text-white/60 flex items-center justify-between gap-2">
-                      <span className="truncate">{it.qty} {it.food}</span>
-                      <span className="text-white/35 shrink-0">{it.calories} kcal</span>
-                    </li>
-                  ))}
-                </ul>
-                {m.note && <p className="text-[11px] text-[#B48B40]/70 mt-1">{m.note}</p>}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-white/85">{m.name} <span className="text-[11px] font-normal text-white/35">{m.time}</span></p>
+                    <p className="text-[11px] text-white/55 shrink-0">{m.calories} kcal · {m.protein}p / {m.carbs}c / {m.fat}f</p>
+                  </div>
+                  <ul className="mt-1.5 space-y-0.5">
+                    {m.items?.map((it, j) => (
+                      <li key={j} className="text-[12px] text-white/60 flex items-center justify-between gap-2">
+                        <span className="truncate">{it.qty} {it.food}</span>
+                        <span className="text-white/35 shrink-0">{it.calories} kcal</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {m.note && <p className="text-[11px] text-[#B48B40]/70 mt-1">{m.note}</p>}
+                </div>
               </div>
-            ))}
+            );})}
           </div>
 
           {plan.created_by_name && (
