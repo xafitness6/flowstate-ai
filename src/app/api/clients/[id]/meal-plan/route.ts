@@ -75,7 +75,7 @@ export async function POST(
   const auth = await requireClientAccess(id);
   if (!auth.ok) return auth.response;
 
-  let payload: { prompt?: unknown; images?: unknown; targets?: unknown };
+  let payload: { prompt?: unknown; images?: unknown; targets?: unknown; basePlan?: unknown };
   try { payload = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -89,6 +89,12 @@ export async function POST(
   const t = (payload.targets && typeof payload.targets === "object") ? payload.targets as Record<string, unknown> : null;
   const targetHint = t
     ? `Build the plan to hit approximately these daily targets: ${numOr(t.calories)} kcal, ${numOr(t.protein)}g protein, ${numOr(t.carbs)}g carbs, ${numOr(t.fat)}g fat.`
+    : "";
+  // When tweaking, the current plan is sent so the model adjusts it in place
+  // rather than starting from scratch.
+  const basePlan = (payload.basePlan && typeof payload.basePlan === "object") ? payload.basePlan : null;
+  const tweakHint = basePlan
+    ? `The client already has this plan (JSON): ${JSON.stringify(basePlan).slice(0, 4000)}\nApply the coach's requested changes to THIS plan and return the full updated plan, keeping everything they didn't ask to change.`
     : "";
   if (!prompt && images.length === 0) return NextResponse.json({ error: "Add a prompt or at least one meal photo." }, { status: 400 });
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "AI is not configured." }, { status: 500 });
@@ -116,6 +122,7 @@ export async function POST(
     { type: "text", text: [
       `Client context: ${context}`,
       targetHint,
+      tweakHint,
       images.length > 0 ? `${images.length} photo(s) of the client's recent meals are attached — analyze what they're eating and the portion sizes to inform the plan.` : "",
       `Coach's request: ${prompt || "(no text — base the plan on the attached meal photos and the client context)"}`,
     ].filter(Boolean).join("\n\n") },
