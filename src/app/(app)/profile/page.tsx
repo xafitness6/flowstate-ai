@@ -302,7 +302,8 @@ function formatTimestamp(iso: string): string {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { user } = useUser();
+  const { user, updateName } = useUser();
+  const UUID_RE_NAME = /^[0-9a-f-]{36}$/i;
   const router   = useRouter();
 
   // Admin-only: wipe local onboarding flags and replay the calibration flow.
@@ -380,7 +381,7 @@ export default function ProfilePage() {
   const isRealSupabaseUser = UUID_RE.test(user.id) && !!process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const statusCfg     = STATUS_CONFIG[user.status];
-  const initials      = (displayName || user.name).split(" ").map((n) => n[0]).join("").toUpperCase();
+  const initials      = ((displayName || user.name) || "").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
   const resolvedName  = displayName || user.name;
   const displayAvatar = localAvatar || user.avatarUrl;
   const demoStats     = USER_STATS[user.role] ?? USER_STATS.member;
@@ -452,7 +453,17 @@ export default function ProfilePage() {
   function startEditName() { setNameInput(resolvedName); setEditingName(true); }
   function saveName() {
     const trimmed = nameInput.trim();
-    if (trimmed) setDisplayName(trimmed);
+    if (trimmed) {
+      setDisplayName(trimmed);          // local cache
+      updateName(trimmed);              // update everywhere now (TopBar initials, etc.)
+      // Persist to the profile for real (Supabase) users so it follows them.
+      if (UUID_RE_NAME.test(user.id) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        fetch("/api/me/profile", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ full_name: trimmed }),
+        }).catch(() => {});
+      }
+    }
     setEditingName(false);
   }
 

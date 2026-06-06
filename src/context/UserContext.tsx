@@ -159,6 +159,7 @@ type UserContextValue = {
   viewMode:    ViewMode;
   setViewMode: (m: ViewMode) => void;
   updatePlan:  (plan: Plan) => void;
+  updateName:  (name: string) => void;
 };
 
 const UserContext = createContext<UserContextValue | null>(null);
@@ -427,8 +428,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Reflect a name change immediately everywhere (TopBar avatar initials, etc.).
+  function updateName(name: string) {
+    const trimmed = name.trim();
+    if (trimmed) setUser((prev) => ({ ...prev, name: trimmed }));
+  }
+
   return (
-    <UserContext.Provider value={{ user, isLoading, isSupabase, setRole, switchUser, logout, viewMode, setViewMode, updatePlan }}>
+    <UserContext.Provider value={{ user, isLoading, isSupabase, setRole, switchUser, logout, viewMode, setViewMode, updatePlan, updateName }}>
       {children}
     </UserContext.Provider>
   );

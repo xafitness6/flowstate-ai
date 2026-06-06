@@ -257,7 +257,6 @@ export default function CalibrationPage() {
   const [saving,   setSaving]   = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
-  const [interacted, setInteracted] = useState(false);
 
   const stepIndex   = STEPS.indexOf(step);
   const progressPct = ((stepIndex + 1) / STEPS.length) * 100;
@@ -306,18 +305,13 @@ export default function CalibrationPage() {
     return () => { active = false; };
   }, []);
 
-  // Auto-advance on single-select steps — only when the USER picks (not on
-  // hydration), so pre-filled answers aren't skipped past unseen.
-  useEffect(() => {
-    if (!interacted) return;
-    if (step === "goal" && answers.primaryGoal) {
-      setTimeout(() => advance(), 200);
-    }
-    if (step === "experience" && answers.experience) {
-      setTimeout(() => advance(), 200);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answers.primaryGoal, answers.experience]);
+  // Auto-advance is triggered directly from the option onClick (see pickAndAdvance)
+  // so a single tap always moves on — even re-tapping the already-highlighted
+  // option. (A value-change effect would ignore re-selecting the same answer.)
+  function pickAndAdvance(patch: Partial<OnboardingAnswers>) {
+    setAnswers((a) => ({ ...a, ...patch }));
+    setTimeout(() => advance(), 200);
+  }
 
   // Start every step at the top of the page, not where the last one scrolled.
   useEffect(() => {
@@ -513,7 +507,7 @@ export default function CalibrationPage() {
                   label={opt.label}
                   sub={opt.sub}
                   active={answers.primaryGoal === opt.value}
-                  onClick={() => { setInteracted(true); setAnswers((a) => ({ ...a, primaryGoal: opt.value })); }}
+                  onClick={() => pickAndAdvance({ primaryGoal: opt.value })}
                 />
               ))}
             </div>
@@ -536,7 +530,7 @@ export default function CalibrationPage() {
                   label={opt.label}
                   sub={opt.sub}
                   active={answers.experience === opt.value}
-                  onClick={() => { setInteracted(true); setAnswers((a) => ({ ...a, experience: opt.value })); }}
+                  onClick={() => pickAndAdvance({ experience: opt.value })}
                 />
               ))}
             </div>

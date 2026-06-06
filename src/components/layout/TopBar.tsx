@@ -29,10 +29,12 @@ export function TopBar() {
   const [signingOut, setSigningOut] = useState(false);
   const menuRef  = useRef<HTMLDivElement>(null);
 
-  const initials = user.name
+  const initials = (user.name || "")
     .split(" ")
+    .filter(Boolean)
     .map((n) => n[0])
     .join("")
+    .slice(0, 2)
     .toUpperCase();
 
   // Close on outside click
