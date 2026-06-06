@@ -1,27 +1,40 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { GraduationCap, Search, ChevronDown, ArrowRight, BookOpen, Download } from "lucide-react";
+import { GraduationCap, Search, ChevronDown, ArrowRight, BookOpen, Download, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/context/UserContext";
 import { LEARN_ARTICLES, LEARN_CATEGORIES, type LearnCategory, type LearnArticle } from "@/lib/learn/content";
+import { loadLearnProgress, saveLearnProgress } from "@/lib/learn/progress";
 
 // ─── Article card ─────────────────────────────────────────────────────────────
 
-function ArticleCard({ article }: { article: LearnArticle }) {
+function ArticleCard({ article, done, onToggle }: { article: LearnArticle; done: boolean; onToggle: () => void }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] overflow-hidden">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left"
-      >
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white/85">{article.title}</p>
-          <p className="text-xs text-white/40 mt-0.5">{article.summary}</p>
-        </div>
-        <ChevronDown className={cn("w-4 h-4 text-white/25 shrink-0 transition-transform", open && "rotate-180")} strokeWidth={1.5} />
-      </button>
+    <div className={cn("rounded-2xl border overflow-hidden transition-colors", done ? "border-[#B48B40]/25 bg-[#B48B40]/[0.04]" : "border-white/[0.07] bg-[#111111]")}>
+      <div className="w-full flex items-center gap-3 px-5 py-4">
+        {/* Checklist toggle */}
+        <button
+          onClick={onToggle}
+          aria-label={done ? "Mark as not done" : "Mark as done"}
+          aria-pressed={done}
+          className={cn(
+            "shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-all",
+            done ? "bg-[#B48B40] border-[#B48B40] text-black" : "border-white/25 hover:border-[#B48B40]/60",
+          )}
+        >
+          {done && <Check className="w-3 h-3" strokeWidth={3} />}
+        </button>
+        <button onClick={() => setOpen((v) => !v)} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+          <div className="flex-1 min-w-0">
+            <p className={cn("text-sm font-semibold", done ? "text-white/55" : "text-white/85")}>{article.title}</p>
+            <p className="text-xs text-white/40 mt-0.5">{article.summary}</p>
+          </div>
+          <ChevronDown className={cn("w-4 h-4 text-white/25 shrink-0 transition-transform", open && "rotate-180")} strokeWidth={1.5} />
+        </button>
+      </div>
       {open && (
         <div className="px-5 pb-5 pt-1 space-y-3 border-t border-white/[0.05]">
           {article.body.map((p, i) => (
@@ -29,14 +42,25 @@ function ArticleCard({ article }: { article: LearnArticle }) {
               {p}
             </p>
           ))}
-          {article.cta && (
-            <Link
-              href={article.cta.href}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors mt-1"
+          <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
+            {article.cta ? (
+              <Link
+                href={article.cta.href}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#B48B40] hover:text-[#c99840] transition-colors"
+              >
+                {article.cta.label} <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
+              </Link>
+            ) : <span />}
+            <button
+              onClick={onToggle}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all",
+                done ? "border border-white/12 text-white/55 hover:text-white/80" : "bg-[#B48B40] text-black hover:bg-[#c99840]",
+              )}
             >
-              {article.cta.label} <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
-            </Link>
-          )}
+              <Check className="w-3.5 h-3.5" strokeWidth={2.5} /> {done ? "Completed" : "Mark complete"}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -46,8 +70,28 @@ function ArticleCard({ article }: { article: LearnArticle }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LearnPage() {
+  const { user } = useUser();
   const [cat,   setCat]   = useState<LearnCategory | "all">("all");
   const [query, setQuery] = useState("");
+  const [done,  setDone]  = useState<Set<string>>(new Set());
+
+  useEffect(() => { if (user?.id) setDone(loadLearnProgress(user.id)); }, [user?.id]);
+
+  function toggleDone(id: string) {
+    setDone((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      if (user?.id) saveLearnProgress(user.id, next);
+      return next;
+    });
+  }
+
+  const completedCount = useMemo(
+    () => LEARN_ARTICLES.filter((a) => done.has(a.id)).length,
+    [done],
+  );
+  const total = LEARN_ARTICLES.length;
+  const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -76,6 +120,19 @@ export default function LearnPage() {
             <h1 className="text-[2rem] font-semibold tracking-tight leading-none">Learn</h1>
           </div>
           <p className="text-white/40 text-sm">How to get the most out of FlowState — plus training & nutrition that actually moves the needle.</p>
+        </div>
+
+        {/* Progress */}
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <p className="text-sm font-semibold text-white/80">
+              {completedCount === total ? "All caught up — nice work." : "Your progress"}
+            </p>
+            <p className="text-xs text-white/45 tabular-nums">{completedCount}/{total} complete · {pct}%</p>
+          </div>
+          <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="h-full bg-[#B48B40] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+          </div>
         </div>
 
         {/* Search */}
@@ -112,7 +169,7 @@ export default function LearnPage() {
           {filtered.length === 0 ? (
             <p className="text-sm text-white/30 text-center py-10">No topics match &ldquo;{query}&rdquo;.</p>
           ) : (
-            filtered.map((a) => <ArticleCard key={a.id} article={a} />)
+            filtered.map((a) => <ArticleCard key={a.id} article={a} done={done.has(a.id)} onToggle={() => toggleDone(a.id)} />)
           )}
         </div>
 
