@@ -17,6 +17,7 @@ import { ClientAccountActions } from "@/components/clients/ClientAccountActions"
 import { ClientTasksManager } from "@/components/clients/ClientTasksManager";
 import { ClientAIBreakdown } from "@/components/clients/ClientAIBreakdown";
 import { ClientWorkoutHistory } from "@/components/clients/ClientWorkoutHistory";
+import { ChatThread } from "@/components/chat/ChatThread";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
@@ -112,7 +113,7 @@ const TABS: { key: TabKey; label: string; icon: typeof User; ready: boolean }[] 
   { key: "nutrition", label: "Nutrition", icon: Apple,         ready: true  },
   { key: "progress",  label: "Progress",  icon: LineChart,     ready: true  },
   { key: "notes",     label: "Notes",     icon: StickyNote,    ready: true  },
-  { key: "chat",      label: "Chat",      icon: MessageSquare, ready: false },
+  { key: "chat",      label: "Chat",      icon: MessageSquare, ready: true  },
 ];
 
 /** Which training week the client is on, derived from the program's start date. */
@@ -1340,7 +1341,14 @@ export default function ClientDetailPage() {
             onDeletePhoto={deletePhoto}
           />
         )}
-        {tab === "chat" && <ComingSoon icon={MessageSquare} title="Chat" blurb={`The shared coaching conversation with ${name} will appear here, mirrored from their side.`} />}
+        {tab === "chat" && (
+          <div className="no-print flex flex-col h-[60vh] min-h-[24rem]">
+            <h2 className="text-sm font-semibold text-white/80 mb-2 flex items-center gap-2 shrink-0">
+              <MessageSquare className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Chat with {name}
+            </h2>
+            <ChatThread endpoint={`/api/clients/${id}/messages`} mineFromCoach emptyHint={`Start the conversation with ${name}.`} />
+          </div>
+        )}
       </div>
     </div>
   );
