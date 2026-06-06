@@ -1315,6 +1315,7 @@ function StatTile({ label, value, capitalize }: { label: string; value: string; 
 
 type EngagementData = {
   learn: { done: number; total: number; byCategory: { id: string; label: string; done: number; total: number }[] };
+  tasks?: { done: number; open: number; overdue: number };
   activeDays30: number;
   lastSeenAt: string | null;
   lastSignInAt: string | null;
@@ -1344,8 +1345,11 @@ function EngagementCard({ data }: { data: EngagementData | null }) {
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatTile label="Last seen" value={ago(data.lastSeenAt ?? data.lastSignInAt)} />
         <StatTile label="Active days / 30" value={String(data.activeDays30)} />
-        <StatTile label="Joined" value={data.joinedAt ? new Date(data.joinedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"} />
+        <StatTile label="Tasks" value={data.tasks ? `${data.tasks.done} done · ${data.tasks.open} open` : "—"} />
       </div>
+      {data.tasks && data.tasks.overdue > 0 && (
+        <p className="text-[11px] text-amber-300/80 mb-3 -mt-1">{data.tasks.overdue} task{data.tasks.overdue === 1 ? "" : "s"} overdue</p>
+      )}
       <div className="flex items-center justify-between gap-3 mb-1.5">
         <p className="text-xs font-medium text-white/60">Learning progress</p>
         <p className="text-[11px] text-white/45 tabular-nums">{learn.done}/{learn.total} · {pct}%</p>

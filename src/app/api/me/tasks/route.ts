@@ -6,6 +6,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyClient } from "@/lib/server/notifications";
 
 const SELECT = "id,title,detail,due_date,done,done_at,seen_at,assigned_by_name,created_at";
 
@@ -39,13 +40,32 @@ export async function PATCH(req: Request) {
   const id = typeof body.id === "string" ? body.id : "";
   if (!id || typeof body.done !== "boolean") return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("client_tasks")
     .update({ done: body.done, done_at: body.done ? new Date().toISOString() : null })
     .eq("id", id)
-    .eq("client_id", user.id);
+    .eq("client_id", user.id)
+    .select("title,assigned_by")
+    .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Ping the assigning coach when the client completes a task (in-app only).
+  if (body.done && updated?.assigned_by) {
+    try {
+      const { data: me } = await supabase.from("profiles").select("full_name,first_name,email").eq("id", user.id).maybeSingle();
+      const who = (me?.full_name as string) || (me?.first_name as string) || (me?.email as string) || "Your client";
+      await notifyClient({
+        userId: updated.assigned_by as string,
+        type: "task",
+        title: `${who} completed a task`,
+        body: updated.title as string,
+        link: `/clients/${user.id}`,
+        actorName: who,
+      });
+    } catch { /* non-fatal */ }
+  }
+
   return NextResponse.json({ ok: true });
 }
 

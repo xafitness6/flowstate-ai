@@ -48,6 +48,19 @@ export async function GET(
     lastSeenAt = (prof?.last_seen_at as string | null) ?? null;
   } catch { /* columns missing */ }
 
+  // ── Accountability tasks roll-up ──
+  let tasks = { done: 0, open: 0, overdue: 0 };
+  try {
+    const { data } = await auth.admin.from("client_tasks").select("done,due_date").eq("client_id", id);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = (data ?? []) as { done: boolean; due_date: string | null }[];
+    tasks = {
+      done: rows.filter((t) => t.done).length,
+      open: rows.filter((t) => !t.done).length,
+      overdue: rows.filter((t) => !t.done && t.due_date && t.due_date < today).length,
+    };
+  } catch { /* table missing */ }
+
   // ── Auth timestamps (last sign-in / joined) ──
   let lastSignInAt: string | null = null;
   let joinedAt: string | null = null;
@@ -57,5 +70,5 @@ export async function GET(
     joinedAt = data.user?.created_at ?? null;
   } catch { /* ignore */ }
 
-  return NextResponse.json({ learn, activeDays30, lastSeenAt, lastSignInAt, joinedAt });
+  return NextResponse.json({ learn, tasks, activeDays30, lastSeenAt, lastSignInAt, joinedAt });
 }

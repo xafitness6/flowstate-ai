@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Users, Trash2, ExternalLink, TrendingUp, AlertTriangle, CheckCircle2, UserPlus, X, Copy, Check, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
+import { DailyBriefing } from "@/components/clients/DailyBriefing";
 import {
   initStore,
   getMyClients,
@@ -280,6 +281,9 @@ export default function MyClientsPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Daily briefing (yesterday across all clients) ───────────────────── */}
+      <DailyBriefing />
 
       {/* ── Invite modal ────────────────────────────────────────────────────── */}
       {showInvite && (
