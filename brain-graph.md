@@ -204,18 +204,19 @@ Optional upgrade on top of the iCal feed: connect Google directly via OAuth so w
 ## Client file (trainer view)
 
 `/clients/[id]` is the trainer/admin "trainer's-eyes" view of one client. Tabbed hub:
-- **Overview** (built) — onboarding status + "Send through onboarding" action (resets `onboarding_state` flags so the client is routed into setup on next app open; keeps their answers as prefill) + intake readout + AI prefill panel; printable to PDF
-- **Program** (built) — trainer snapshot + active program card: name, goal, week X/Y progress bar, training days, session length, focus tags, coaching notes. "Assign / change program" links to `/program/builder` (which has the admin "Send to user" → `/api/admin/assign-workout` flow)
-- **Notes** (built) — trainer free-text notes (`client_notes` table)
-- **Nutrition** (built) — trainer snapshot + lazy-loaded nutrition summary; `GET /api/clients/[id]/nutrition` returns 14-day daily buckets + 7-day macro averages + recent meals. UI: macro tiles, today, 14-day calories mini-chart, recent meals list
+- **Overview** (built) — **Client info vitals strip** (age/sex/weight/height/body fat/goal weight, `ClientVitals`, reads top-level intake + `deep`) + onboarding status + "Send through onboarding" (resets `onboarding_state`, also EMAILS the client) + intake readout + AI prefill panel; printable to PDF
+- **Program** (built) — trainer snapshot + active program card. **Build / Edit / New** buttons open `/program/builder?clientId=…&client=…[&edit=1]` (builder targets that client, hydrates from their active program when editing, saves via `POST /api/clients/[id]/program`). The admin-only `/api/admin/assign-workout` still exists for cross-user from the generic builder.
+- **Notes** (built) — trainer free-text notes (`client_notes` table); inline editable + share-with-client toggle
+- **Nutrition** (built) — trainer snapshot + `ClientNutritionManager`: editable **daily targets** (DB-backed, syncs to client app) + **AI meal-plan generator** (prompt and/or meal photos → GPT-4o plan; per-dish cached images; tweak in place; per-client "let client edit foods" toggle). `GET /api/clients/[id]/nutrition` still returns the 14-day summary.
 - **Progress** (built) — trainer snapshot + bodyweight chart with clickable points/drill-in (`weight_logs`) + progress photos in private Supabase Storage (`progress-photos`) returned via signed URLs only. APIs: `/api/clients/[id]/weight`, `/api/clients/[id]/photos`.
 - **Chat** — placeholder "Coming next" tab
 - Header shows stat tiles: Plan · Onboarding status · Program · Notes count
 
 Auth on all `/api/clients/[id]/*` routes goes through `requireClientAccess(id)` in [src/lib/admin/requireClientAccess.ts](src/lib/admin/requireClientAccess.ts) — admin = any client, trainer = only `assigned_trainer_id` matches. Returns a service-role `admin` client.
-- API routes: `/api/clients/[id]/intake` (GET/PATCH), `/activity` (GET workout-log summary), `/notes` (GET/POST/PATCH/DELETE), `/reminders` (GET/POST/PATCH/DELETE), `/program` (GET — active program + count), `/nutrition` (GET), `/weight` (GET/POST/DELETE), `/photos` (GET/POST/DELETE signed URLs only), `/trainer` (GET/PATCH), `/onboarding/reset` (POST), `/prefill-intake` (POST).
+- API routes: `/api/clients/[id]/intake` (GET/PATCH), `/activity` (GET), `/notes` (GET/POST/PATCH/DELETE), `/reminders` (GET/POST/PATCH/DELETE), `/calendar-reminders` (GET/POST/PATCH/DELETE), `/program` (GET + **POST** build/assign), `/nutrition` (GET), `/nutrition-targets` (GET/PUT), `/nutrition-approach` (GET/PATCH), `/meal-plan` (GET/POST generate/DELETE/**PATCH** food-edit toggle), `/meal-plan/images` (POST generate-one+cache), `/weight` (GET/POST/DELETE), `/photos` (GET/POST/DELETE), `/trainer` (GET/PATCH), `/onboarding/reset` (POST), `/prefill-intake` (POST).
+- Client-side self routes (the athlete's own page): `/api/me/nutrition-targets` (GET/PUT), `/api/me/meal-plan` (GET + **PATCH** foods-only edit), `/api/me/meal-plan/images` (GET cached only), `/api/me/nutrition-request` (POST → notifies coach).
 
-**Planned next slices (client file):** shared trainer↔client chat (new conversations table). Later automation layer: text sequences + calendar assignments (weigh-ins/workouts/messages). DONE: hub shell, program view, send-through-onboarding, nutrition summary, per-tab snapshots, mobile nav, Progress tab weight/photos.
+**Planned next slices (client file):** shared trainer↔client chat (new conversations table). Later: push coach calendar-reminders to the client's connected Google Calendar (infra exists — see Google Calendar push). DONE: hub shell, program build/edit-from-file, send-through-onboarding (+email), nutrition targets + AI meal plans + per-dish images, client vitals strip, per-tab snapshots, mobile nav, Progress weight/photos.
 
 ## Two client-detail pages (important)
 
@@ -343,6 +344,53 @@ Soon") → **countdown** (5-4-3-2-1) → **active** (control bar: timer + Pause/
 Using FlowState + Training + Nutrition, deep-linking into the app + coach. Ebook
 "Conquer Your Carbs" served from `public/resources/conquer-your-carbs.pdf` (~40MB,
 candidate to move to a CDN). Nav item in `Sidebar` `NAV_ITEMS`.
+
+## Coach-driven nutrition: DB targets + AI meal plans + images (2026-06)
+
+The coach owns nutrition; the client tracks + requests changes. Migrations
+**031** (`nutrition_targets`, `meal_plans`), **032** (`meal_images` + private
+`meal-images` bucket), **033** (`meal_plans.allow_client_food_edits`) — all
+applied to live via the Management API (see [[ops_migration_drift]]; the token
+is now set, so migrations can be pushed directly — but DDL that loosens access,
+e.g. a public bucket, is blocked by the classifier).
+
+- **Targets moved off localStorage → DB.** `nutrition_targets` (per-user macro/
+  calorie/water override). Coach edits via `PUT /api/clients/[id]/nutrition-targets`
+  (notifies+emails); client's own page hydrates from `GET /api/me/nutrition-targets`
+  (coach edits win) and write-throughs its own edits. Row↔camelCase mapping in
+  `src/lib/server/nutritionTargets.ts`.
+- **AI meal-plan generator** — `POST /api/clients/[id]/meal-plan` (GPT-4o, prompt
+  AND/OR meal photos via vision, optional macro anchor, `basePlan` for tweak-in-
+  place). Saves to `meal_plans` (one `active`), pushes daily totals into the
+  client's targets, notifies+emails. UI: `ClientNutritionManager` (modal composer,
+  set-once/tweak).
+- **Per-dish images** — `POST /api/clients/[id]/meal-plan/images` generates ONE
+  missing image per call (`gpt-image-1`), uploads to the private bucket, caches in
+  `meal_images` keyed by `dishKey()` (order/portion-independent) so a dish is
+  generated once and reused across all clients. Served via signed URLs.
+- **Client side** — `ClientMealPlanCard` on `/nutrition` (coached clients only):
+  view the coach's plan + cached photos, **"Request a change"** (`POST
+  /api/me/nutrition-request` → notification on the coach), and — when the coach
+  flips the per-plan toggle — edit plan **foods only** (`PATCH /api/me/meal-plan`
+  preserves all calorie/macro numbers + targets server-side). Coached clients no
+  longer edit targets directly; self-directed members still do.
+- **Client `/nutrition` page de-bulked** — the eating-approach / energy / meal-
+  schedule / weekly-check-in / carb-cycling cards + `PhilosophyTips` were REMOVED
+  from the athlete view (now coach/engine-side). Page = calories/macros/hydration
+  + quick log + meal timeline + meal-plan card + dynamic `buildSuggestions` tips.
+  (Those card components still exist; just not mounted on the client page.)
+
+## Theming — app is dark-only via globals overrides (READ before adding UI)
+
+There's a `ThemeToggle` (dark / `theme-light`) but **almost nothing uses semantic
+tokens** (`bg-card`/`text-foreground` — only ~4 files). Light mode works through
+**global attribute-selector overrides in `globals.css`** under `html.theme-light`
+that remap a FIXED LIST of dark hexes (`#0A0A0A,#0D0D0D,#0F0F0F,#111111,#121212,
+#141414,#161616,#1A1A1A,#1C1C1C,#222`) + `[class*="text-white"]` → light surfaces /
+dark text. **Gotcha:** a hex NOT in that list (e.g. `#0E0E0E`) stays dark while its
+`text-white*` flips to dark → invisible in light mode. **Rule for new components:
+only use hexes from that list** (use `#111111` for cards/modals, `#161616` for
+inputs) so they adapt. This bit the new meal-plan modals (fixed 2026-06).
 
 ---
 
