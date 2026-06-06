@@ -1011,9 +1011,33 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     });
   }, [user.id, hasSSR, initial?.targets]);
 
-  // Load the athlete's manual target override (if any)
+  // Write-through the user's own target edits to the DB so they sync across
+  // devices and so a coach sees the same numbers. Best-effort, never blocks UI.
+  function persistTargetsToDb(o: TargetsOverride) {
+    if (!/^[0-9a-f-]{36}$/i.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    fetch("/api/me/nutrition-targets", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(o ?? {}),
+    }).catch(() => {});
+  }
+
+  // Load the athlete's manual target override (if any). Paint from localStorage
+  // first, then hydrate from the DB — a coach can set targets server-side, so
+  // the DB row wins. Mirror the DB row into localStorage for offline use.
   useEffect(() => {
     setOverride(getTargetsOverride(user.id));
+    if (!/^[0-9a-f-]{36}$/i.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    fetch("/api/me/nutrition-targets", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        const dbOverride = j?.targets as TargetsOverride | null;
+        if (dbOverride && Object.keys(dbOverride).length > 0) {
+          setOverride(dbOverride);
+          saveTargetsOverride(user.id, dbOverride);
+        }
+      })
+      .catch(() => {});
   }, [user.id]);
 
   // ── Load energy profile (BMR / TDEE) — always, independent of SSR targets ─────
@@ -1888,8 +1912,8 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           computed={computedTargets}
           current={targets}
           isCustom={override != null}
-          onSave={(o) => { saveTargetsOverride(user.id, o); setOverride(o); setTargetsEditOpen(false); }}
-          onReset={() => { clearTargetsOverride(user.id); setOverride(null); setTargetsEditOpen(false); }}
+          onSave={(o) => { saveTargetsOverride(user.id, o); setOverride(o); setTargetsEditOpen(false); void persistTargetsToDb(o); }}
+          onReset={() => { clearTargetsOverride(user.id); setOverride(null); setTargetsEditOpen(false); void persistTargetsToDb({}); }}
           onClose={() => setTargetsEditOpen(false)}
         />
       )}
