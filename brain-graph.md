@@ -278,8 +278,42 @@ ElevenLabs voice. Plan: `~/.claude/plans/i-know-we-do-snoopy-bee.md`.
 - **Editable targets**: `src/lib/nutrition/targetsOverride.ts` (localStorage) +
   `TargetsEditModal` — "Adjust" above the nutrition cards lets the athlete set
   their own calories/macros (Custom badge + reset).
-- `BmiCard` — interactive BMI calculator + teaching note. Units honor the
-  per-user pref (`src/lib/units.ts`, now with height ft/in helpers).
+
+## Nutrition philosophy rebuild (2026-06)
+
+**BMI card is gone** — out of place on a nutrition surface. The page is reframed
+around **balanced eating as the foundation**: hit your calorie + macro targets
+for your real numbers, coach adjusts when you stall. On top of that, the user
+shapes WHEN and HOW from Xavier's ebook *Conquer Your Carbs*.
+
+- `src/lib/nutrition/approach.ts` — `ApproachState` (goal mode, meal pattern,
+  training timing, carb-cycling on/off, first-meal hour); persisted to
+  `flowstate-nutrition-approach-<userId>`; `loadApproach` /
+  `hasStoredApproach` / `goalModeFromIntake` / `saveApproach`. Math:
+  `goalAdjustedMacros(tdee, goalMode, kg)` for cut/maintain/build,
+  `buildMealSchedule(pattern, hour)` for clock times,
+  `buildCarbAllocation(pattern, trainingTiming)` for the post-workout pyramid
+  (35% post-workout, 23% next meal, 11% each remaining meal),
+  `buildCarbCycleBreakdown(tdee, kg, goalMode)` for high/low day macros and
+  3:1 / 3:2 rotation.
+- `src/lib/nutrition/weightLogs.ts` — fetches `weight_logs` (migration 024) via
+  `/api/clients/[id]/weight`; `computeWeightTrend(logs, days)` returns deltaKg.
+- `src/components/nutrition/EatingApproachCard.tsx` — "Balanced eating" header +
+  Cut/Maintain/Build pill + meal-pattern picker (3+snacks / 3 / 2 / IF 16:8 /
+  OMAD) + first-meal hour + carb-cycling toggle.
+- `MealScheduleCard` — meal times + per-meal carb-percent based on training
+  timing (Fasted AM / After 1/2/3 meals).
+- `CarbCyclingCard` — only mounted when carb-cycling is on; high & low day
+  macros + 5-day rotation label.
+- `WeeklyCheckInCard` — combines 7-day calorie avg + 7-day weight delta into
+  goal-aware coaching ("Cut stalled — only moved -0.1 kg this week"); inline
+  weigh-in form posts to `/api/clients/[id]/weight`.
+- `PhilosophyTips` — rotating tips from the ebook (starting out, around
+  training, daily habits, cravings).
+- `EnergyCard` rewired — flexes target line live based on goal mode (passed
+  through from nutrition page, dashboard, and trainer client-file).
+- Top action row consolidated: date stepper left, Calendar / 7 days / Adjust
+  pills right with matching sizing.
 
 ## Workout flow overhaul (2026-06)
 
