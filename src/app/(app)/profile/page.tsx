@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import { readStoredUnitSystem, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/units";
 import { Card } from "@/components/ui/Card";
 import { IntakeQuestionPrompt } from "@/components/profile/IntakeQuestionPrompt";
+import { CoachTaskList } from "@/components/tasks/CoachTaskList";
 import { StatTile } from "@/components/ui/StatTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -473,6 +474,9 @@ export default function ProfilePage() {
 
       {/* Backfill prompt for intake fields added after the user onboarded */}
       <IntakeQuestionPrompt />
+
+      {/* Coach-assigned tasks (also shown on the Accountability tab) */}
+      <CoachTaskList />
 
       {/* ── Profile card ─────────────────────────────────────────────── */}
       <Card>

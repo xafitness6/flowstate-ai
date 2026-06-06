@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { ClientNutritionManager } from "@/components/clients/ClientNutritionManager";
 import { ClientAccountActions } from "@/components/clients/ClientAccountActions";
+import { ClientTasksManager } from "@/components/clients/ClientTasksManager";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
@@ -929,6 +930,7 @@ export default function ClientDetailPage() {
         {/* ── Notes tab ── */}
         {tab === "notes" && (
           <div className="no-print">
+            <ClientTasksManager clientId={id} clientName={name} />
             {/* Calendar reminders — visible to the client/member. */}
             <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
               <Bell className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Client calendar reminders

@@ -18,6 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useUser } from "@/context/UserContext";
+import { useTasksBadge } from "@/context/TasksBadgeContext";
+import { CoachTaskList } from "@/components/tasks/CoachTaskList";
 import { computeActivityScore, scoreToIntensity } from "@/lib/data/activity";
 
 const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -939,6 +941,9 @@ function CategoryGroup({
 
 export default function AccountabilityPage() {
   const { user } = useUser();
+  const { markSeen } = useTasksBadge();
+  // Opening the tab clears the "new tasks" highlight in the nav.
+  useEffect(() => { markSeen(); }, [markSeen]);
 
   const [habits,      setHabits     ] = useLocalStorage<Habit[]             >("accountability-habits-v2",       DEFAULT_HABITS);
   const [logs,        setLogs       ] = useLocalStorage<Logs                >("accountability-logs",             {});
@@ -1089,6 +1094,9 @@ export default function AccountabilityPage() {
           style={{ width: `${score}%` }}
         />
       </div>
+
+      {/* ── Coach-assigned tasks (check-in checklist) ───────────────────────── */}
+      <CoachTaskList />
 
       {/* ── Quote ────────────────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-5 py-4">

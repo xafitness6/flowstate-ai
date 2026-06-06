@@ -10,6 +10,7 @@ import { hasAccess, isAdmin } from "@/lib/roles";
 import { planHasAccess, PLAN_LABELS } from "@/lib/plans";
 import { FEATURES, type Feature } from "@/lib/entitlements";
 import { useEntitlement } from "@/hooks/useEntitlement";
+import { useTasksBadge } from "@/context/TasksBadgeContext";
 import type { NavItem } from "@/types";
 
 export type AppNavItem = NavItem & { feature?: Feature };
@@ -36,6 +37,7 @@ export function Sidebar() {
   const router      = useRouter();
   const { user, viewMode, setViewMode } = useUser();
   const { can } = useEntitlement();
+  const { unseen } = useTasksBadge();
   const staffViewer = user.role === "trainer" || user.role === "master" || !!user.isAdmin;
 
   function handleViewToggle() {
@@ -77,6 +79,11 @@ export function Sidebar() {
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span className="flex-1">{item.label}</span>
+              {item.href === "/accountability" && unseen > 0 && !active && (
+                <span className="ml-auto flex items-center gap-1 rounded-full bg-[#B48B40] text-black text-[9px] font-bold px-1.5 py-0.5 leading-none">
+                  {unseen} new
+                </span>
+              )}
               {locked && (
                 <span className="flex items-center gap-1 ml-auto">
                   <span className="text-[8px] uppercase tracking-[0.12em] text-[#B48B40]/40 font-medium">

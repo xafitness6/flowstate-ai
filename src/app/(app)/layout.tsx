@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ActivityPing } from "@/components/layout/ActivityPing";
+import { TasksBadgeProvider } from "@/context/TasksBadgeContext";
 
 // Authenticated app layout.
 // Every route inside (app)/ gets the full sidebar + topbar + bottom nav.
@@ -10,9 +11,11 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AppShell>
-      <ActivityPing />
-      {children}
-    </AppShell>
+    <TasksBadgeProvider>
+      <AppShell>
+        <ActivityPing />
+        {children}
+      </AppShell>
+    </TasksBadgeProvider>
   );
 }

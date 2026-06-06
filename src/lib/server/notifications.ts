@@ -8,7 +8,7 @@ import { sendNotificationEmail } from "@/lib/server/email";
 
 export type NotificationType =
   | "general" | "onboarding" | "program_assigned" | "program_changed"
-  | "nutrition_added" | "workout_added" | "note";
+  | "nutrition_added" | "workout_added" | "note" | "task";
 
 // Only these events email the client (per product decision). "onboarding" is
 // included so a coach sending a client through setup also reaches them by email.

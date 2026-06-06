@@ -9,6 +9,7 @@ import { useUser } from "@/context/UserContext";
 import { hasAccess } from "@/lib/roles";
 import { planHasAccess, PLAN_LABELS } from "@/lib/plans";
 import { useEntitlement } from "@/hooks/useEntitlement";
+import { useTasksBadge } from "@/context/TasksBadgeContext";
 import { NAV_ITEMS, type AppNavItem } from "./Sidebar";
 
 const STORAGE_KEY = "flowstate-bottomnav-items-v2";
@@ -57,6 +58,7 @@ export function BottomNav() {
   const [open, setOpen] = useState(false);
   const [loadedPins, setLoadedPins] = useState(false);
   const [pinnedHrefs, setPinnedHrefs] = useState<string[]>([]);
+  const { unseen } = useTasksBadge();
   const staffViewer = user.role === "trainer" || user.role === "master" || !!user.isAdmin;
 
   function locked(item: AppNavItem) {
@@ -160,6 +162,9 @@ export function BottomNav() {
           >
             <Menu className={cn("w-5 h-5", open && "drop-shadow-[0_0_6px_rgba(180,130,64,0.5)]")} strokeWidth={1.8} />
             <span className="text-[9px] font-medium">Menu</span>
+            {unseen > 0 && !open && (
+              <span className="absolute top-1.5 right-[22%] w-2 h-2 rounded-full bg-[#B48B40] ring-2 ring-[#0A0A0A]" />
+            )}
           </button>
         </div>
       </nav>
@@ -207,6 +212,9 @@ export function BottomNav() {
                   >
                     <Icon className="w-4 h-4 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.href === "/accountability" && unseen > 0 && !active && (
+                      <span className="shrink-0 rounded-full bg-[#B48B40] text-black text-[9px] font-bold px-1.5 py-0.5 leading-none">{unseen} new</span>
+                    )}
                     {isLocked && <Lock className="w-3 h-3 shrink-0 text-white/20" strokeWidth={1.6} />}
                   </Link>
                 );
