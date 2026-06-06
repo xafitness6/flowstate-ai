@@ -232,10 +232,11 @@ export default function ClientDetailPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [intakeRes, notesRes, programRes] = await Promise.all([
+      const [intakeRes, notesRes, programRes, weightRes] = await Promise.all([
         fetch(`/api/clients/${id}/intake`,  { cache: "no-store" }),
         fetch(`/api/clients/${id}/notes`,   { cache: "no-store" }),
         fetch(`/api/clients/${id}/program`, { cache: "no-store" }),
+        fetch(`/api/clients/${id}/weight`,  { cache: "no-store" }),
       ]);
       const intakeJson = await intakeRes.json();
       if (!intakeRes.ok) throw new Error(intakeJson.error ?? "Couldn't load this client.");
@@ -246,6 +247,10 @@ export default function ClientDetailPage() {
       if (notesRes.ok) setNotes(notesJson.notes ?? []);
       const programJson = await programRes.json();
       if (programRes.ok) setProgram(programJson.program ?? null);
+      // Weight is loaded eagerly so it shows in BOTH the Nutrition and Progress
+      // tabs (not just Progress).
+      const weightJson = await weightRes.json();
+      if (weightRes.ok) setWeightLogs(sortWeightLogs((weightJson.logs ?? []) as WeightLog[]));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
@@ -1206,7 +1211,7 @@ export default function ClientDetailPage() {
             <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
               <Apple className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Nutrition
             </h2>
-            <NutritionSnapshot n={nutrition} activity={activitySummary} loading={nutritionLoading} />
+            <NutritionSnapshot n={nutrition} activity={activitySummary} loading={nutritionLoading} weightLogs={weightLogs} unitSystem={unitSystem} />
             {nutrition?.energy && (
               <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <EnergyCard
@@ -1393,10 +1398,14 @@ function NutritionSnapshot({
   n,
   activity,
   loading,
+  weightLogs,
+  unitSystem,
 }: {
   n: NutritionSummary | null;
   activity: ActivitySummary | null;
   loading: boolean;
+  weightLogs: WeightLog[];
+  unitSystem: UnitSystem;
 }) {
   const previousLogged = n?.days.slice(0, 7).filter((d) => d.meals > 0) ?? [];
   const previousAvg = previousLogged.length
@@ -1405,10 +1414,21 @@ function NutritionSnapshot({
   const calorieDelta = n && previousAvg > 0 ? n.avg.calories - previousAvg : null;
   const latestMeal = n?.recentMeals[0]?.logged_at ?? null;
 
+  const unit = weightUnitLabel(unitSystem);
+  const latestW = weightLogs[weightLogs.length - 1] ?? null;
+  const prevW = weightLogs.length > 1 ? weightLogs[weightLogs.length - 2] : null;
+  const wDelta = latestW && prevW ? Number(latestW.weight_kg) - Number(prevW.weight_kg) : null;
+
   return (
     <SnapshotGrid
-      className="mb-5"
+      className="mb-5 sm:grid-cols-2 lg:grid-cols-4"
       items={[
+        {
+          icon: Scale,
+          label: "Bodyweight",
+          value: latestW ? `${kgToDisplayUnit(Number(latestW.weight_kg), unitSystem).toFixed(1)} ${unit}` : "None",
+          detail: wDelta == null ? "latest log" : `${wDelta >= 0 ? "+" : ""}${kgToDisplayUnit(wDelta, unitSystem).toFixed(1)} ${unit} vs prior`,
+        },
         {
           icon: Apple,
           label: "Logged days",
