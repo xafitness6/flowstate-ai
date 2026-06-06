@@ -1,11 +1,32 @@
+// GET  /api/clients/[id]/account — email + confirmation status for the client.
 // POST /api/clients/[id]/account — coach/admin account actions for a client:
 //   { action: "resend_confirmation" } → re-send the email-confirmation mail
+//   { action: "confirm_email" }       → mark the email confirmed directly
 //   { action: "reset_password" }      → set a fresh temp password, return it
 // Gated by requireClientAccess (admin = any client, trainer = assigned only).
 
 import { NextResponse } from "next/server";
 import { randomInt } from "crypto";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const auth = await requireClientAccess(id);
+  if (!auth.ok) return auth.response;
+
+  let email: string | null = null;
+  let emailConfirmedAt: string | null = null;
+  try {
+    const { data } = await auth.admin.auth.admin.getUserById(id);
+    email = data.user?.email ?? null;
+    emailConfirmedAt = data.user?.email_confirmed_at ?? data.user?.confirmed_at ?? null;
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ email, emailConfirmedAt });
+}
 
 // Readable temp password (no ambiguous chars).
 function tempPassword(): string {
@@ -46,6 +67,12 @@ export async function POST(
       return NextResponse.json({ error: `Couldn't resend (${res.status}). ${t.slice(0, 140)}` }, { status: 502 });
     }
     return NextResponse.json({ ok: true, email });
+  }
+
+  if (action === "confirm_email") {
+    const { error } = await auth.admin.auth.admin.updateUserById(id, { email_confirm: true });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, email, emailConfirmedAt: new Date().toISOString() });
   }
 
   if (action === "reset_password") {
