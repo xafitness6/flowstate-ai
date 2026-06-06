@@ -5,6 +5,9 @@ import {
   weightLabel, heightLabel, scaleLabel, hasDeep,
 } from "@/lib/intake/format";
 
+const ENERGY_LABEL: Record<string, string> = { low: "Low", steady: "Steady", high: "High", variable: "Up and down" };
+const energyValue = (v: unknown) => (typeof v === "string" && ENERGY_LABEL[v]) || "—";
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 border-b border-white/[0.04] last:border-0">
@@ -48,6 +51,7 @@ export function IntakeReadout({ intake }: { intake: RawIntake | null }) {
         <Row label="Diet style"     value={list(intake.dietStyle)} />
         <Row label="Meals / day"    value={dash(intake.mealsPerDay)} />
         <Row label="Sleep"          value={intake.sleepHours ? `${dash(intake.sleepHours)} hrs` : "—"} />
+        <Row label="Energy"         value={energyValue(intake.energyLevel)} />
       </Section>
 
       {!deepDone && (

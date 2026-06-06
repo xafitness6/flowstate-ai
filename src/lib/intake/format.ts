@@ -101,6 +101,7 @@ export function summarizeIntakeForCoach(intake: RawIntake | null): string {
   add("Main friction", list(intake.mainStruggle));
   add("Diet style", list(intake.dietStyle));
   add("Sleep", intake.sleepHours ? `${asString(intake.sleepHours)} hrs` : "");
+  add("Daily energy", { low: "Low / often drained", steady: "Steady", high: "High", variable: "Up and down" }[asString(intake.energyLevel)] ?? "");
 
   // Deep-cal specifics that materially change coaching:
   add("Height/weight", [heightLabel(deep.heightCm), weightLabel(deep.weightKg)].filter((s) => s !== "—").join(", "));

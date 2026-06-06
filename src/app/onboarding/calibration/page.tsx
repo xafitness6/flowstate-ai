@@ -24,6 +24,7 @@ type OnboardingAnswers = {
   dietStyle:     string[];
   mealsPerDay:   string;
   sleepHours:    string;
+  energyLevel:   "" | "low" | "steady" | "high" | "variable";
   mainStruggle:  string[];
   equipment:     string[];
   // Body stats — drive BMR / calorie & macro targets
@@ -98,6 +99,13 @@ const SLEEP_OPTIONS: { value: string; label: string }[] = [
   { value: "7",         label: "7 hours" },
   { value: "8",         label: "8 hours" },
   { value: "9+",        label: "9+" },
+];
+
+const ENERGY_OPTIONS: { value: OnboardingAnswers["energyLevel"]; label: string; sub: string }[] = [
+  { value: "low",      label: "Low",          sub: "Often drained / sluggish" },
+  { value: "steady",   label: "Steady",       sub: "Consistent through the day" },
+  { value: "high",     label: "High",         sub: "Energetic most of the time" },
+  { value: "variable", label: "Up and down",  sub: "Swings / afternoon crashes" },
 ];
 
 const STRUGGLE_OPTIONS: { value: string; label: string }[] = [
@@ -228,6 +236,7 @@ const DEFAULT: OnboardingAnswers = {
   dietStyle:     ["balanced"],
   mealsPerDay:   "3",
   sleepHours:    "7",
+  energyLevel:   "",
   mainStruggle:  [],
   equipment:     [],
   weight:        "",
@@ -278,6 +287,7 @@ export default function CalibrationPage() {
           sessionLength: typeof raw.sessionLength === "string" ? raw.sessionLength : a.sessionLength,
           mealsPerDay:   typeof raw.mealsPerDay === "string" ? raw.mealsPerDay : a.mealsPerDay,
           sleepHours:    typeof raw.sleepHours === "string" ? raw.sleepHours : a.sleepHours,
+          energyLevel:   typeof raw.energyLevel === "string" ? (raw.energyLevel as OnboardingAnswers["energyLevel"]) : a.energyLevel,
           dietStyle:     asArr(raw.dietStyle) ?? a.dietStyle,
           mainStruggle:  asArr(raw.mainStruggle) ?? a.mainStruggle,
           equipment:     asArr(raw.equipment) ?? a.equipment,
@@ -361,6 +371,7 @@ export default function CalibrationPage() {
       sex:             answers.sex || undefined,
       activityLevel:   answers.activityLevel || undefined,
       sleepHours:      answers.sleepHours,
+      energyLevel:     answers.energyLevel || undefined,
       sleepQuality:    0,
       stressLevel:     0,
       recoveryNote:    "",
@@ -803,6 +814,21 @@ export default function CalibrationPage() {
 	                    label={opt.label}
 	                    active={answers.sleepHours === opt.value}
 	                    onClick={() => setAnswers((a) => ({ ...a, sleepHours: opt.value }))}
+	                  />
+	                ))}
+	              </div>
+	            </div>
+
+	            <div>
+	              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-3">Daily energy levels</p>
+	              <div className="grid grid-cols-2 gap-2">
+	                {ENERGY_OPTIONS.map((opt) => (
+	                  <OptionCard
+	                    key={opt.value}
+	                    label={opt.label}
+	                    sub={opt.sub}
+	                    active={answers.energyLevel === opt.value}
+	                    onClick={() => setAnswers((a) => ({ ...a, energyLevel: a.energyLevel === opt.value ? "" : opt.value }))}
 	                  />
 	                ))}
 	              </div>
