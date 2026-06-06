@@ -140,11 +140,77 @@ export function loadApproach(userId: string): ApproachState {
 
 export function saveApproach(userId: string, state: ApproachState): void {
   try { localStorage.setItem(KEY(userId), JSON.stringify(state)); } catch { /* quota */ }
+  // Best-effort write-through to Supabase so the trainer sees the same picker.
+  // Silent failure (migration not applied, demo user, etc.) — local cache wins.
+  syncApproachToSupabase(userId, state).catch(() => { /* ignore */ });
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function canUseSupabase(userId: string): boolean {
+  return UUID_RE.test(userId)
+    && typeof process !== "undefined"
+    && !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+}
+
+async function syncApproachToSupabase(userId: string, state: ApproachState): Promise<void> {
+  if (!canUseSupabase(userId) || typeof fetch === "undefined") return;
+  try {
+    await fetch(`/api/clients/${userId}/nutrition-approach`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state),
+    });
+  } catch { /* ignore */ }
+}
+
+/**
+ * Hydrate the approach from Supabase on first load — falls back to localStorage
+ * (or DEFAULT_STATE) when the column is missing or the user is a demo account.
+ * Always returns a usable ApproachState.
+ */
+export async function fetchApproach(userId: string): Promise<ApproachState> {
+  const local = loadApproach(userId);
+  if (!canUseSupabase(userId) || typeof fetch === "undefined") return local;
+  try {
+    const res = await fetch(`/api/clients/${userId}/nutrition-approach`, { cache: "no-store" });
+    if (!res.ok) return local;
+    const json = await res.json() as { approach?: Partial<ApproachState> | null };
+    if (!json.approach) return local;
+    const merged = { ...DEFAULT_STATE, ...local, ...json.approach };
+    try { localStorage.setItem(KEY(userId), JSON.stringify(merged)); } catch { /* quota */ }
+    return merged;
+  } catch {
+    return local;
+  }
 }
 
 /** Has the user ever saved their own approach choices yet? */
 export function hasStoredApproach(userId: string): boolean {
   try { return localStorage.getItem(KEY(userId)) != null; } catch { return false; }
+}
+
+/**
+ * Short human-readable summary for the AI coach system prompt so it can align
+ * advice with the user's chosen approach. Defensive — accepts a loose object
+ * because it's coming from JSONB without compile-time guarantees.
+ */
+export function summarizeApproachForCoach(input: Partial<ApproachState> | null | undefined): string {
+  if (!input || typeof input !== "object") return "";
+  const goal    = input.goalMode    && GOAL_MODE_META[input.goalMode];
+  const pattern = input.mealPattern && MEAL_PATTERN_META[input.mealPattern];
+  const timing  = input.trainingTiming && TRAINING_TIMING_META[input.trainingTiming];
+  const window  = pattern && typeof input.firstMealHour24 === "number"
+    ? fastingWindowLabel(input.mealPattern as MealPattern, input.firstMealHour24)
+    : null;
+
+  const lines: string[] = [];
+  if (goal)    lines.push(`- Goal mode: ${goal.label} (${goal.sub})`);
+  if (pattern) lines.push(`- Meal pattern: ${pattern.label} — ${pattern.tagline}`);
+  if (timing)  lines.push(`- Training timing: ${timing.label} (${timing.sub})`);
+  if (window)  lines.push(`- Eating window: ${window}`);
+  lines.push(`- Carb cycling: ${input.carbCyclingOn ? "ON (high/low day rotation)" : "OFF (even daily macros)"}`);
+  return lines.join("\n");
 }
 
 /** Map an intake primaryGoal string onto a default goal mode for first-load. */

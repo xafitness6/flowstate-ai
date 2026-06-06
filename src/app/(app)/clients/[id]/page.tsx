@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
-import { goalModeFromIntake } from "@/lib/nutrition/approach";
+import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
+import { goalModeFromIntake, type ApproachState } from "@/lib/nutrition/approach";
 import { useUser } from "@/context/UserContext";
 import type { RawIntake } from "@/lib/intake/format";
 import type { EnergyProfile } from "@/lib/nutrition";
@@ -180,6 +181,7 @@ export default function ClientDetailPage() {
   const [nutrition, setNutrition] = useState<NutritionSummary | null>(null);
   const [nutritionLoading, setNutritionLoading] = useState(false);
   const [nutritionError, setNutritionError] = useState<string | null>(null);
+  const [clientApproach, setClientApproach] = useState<ApproachState | null>(null);
 
   const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -289,6 +291,15 @@ export default function ClientDetailPage() {
       })
       .catch((e) => setNutritionError(e instanceof Error ? e.message : "Couldn't load nutrition."))
       .finally(() => setNutritionLoading(false));
+    // Approach lives on profiles.nutrition_approach — silent if migration 030
+    // hasn't been applied yet.
+    fetch(`/api/clients/${id}/nutrition-approach`, { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = await res.json() as { approach?: ApproachState | null };
+        if (json.approach) setClientApproach(json.approach);
+      })
+      .catch(() => { /* silent */ });
   }, [tab, id, nutrition, nutritionLoading]);
 
   // Lazy-load training activity for the trainer-only snapshot tabs.
@@ -1172,11 +1183,16 @@ export default function ClientDetailPage() {
             </h2>
             <NutritionSnapshot n={nutrition} activity={activitySummary} loading={nutritionLoading} />
             {nutrition?.energy && (
-              <div className="mt-3 sm:max-w-sm">
+              <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <EnergyCard
                   energy={nutrition.energy}
-                  goalMode={goalModeFromIntake(intake?.primaryGoal as string | undefined) ?? undefined}
+                  goalMode={
+                    clientApproach?.goalMode
+                    ?? goalModeFromIntake(intake?.primaryGoal as string | undefined)
+                    ?? undefined
+                  }
                 />
+                <ApproachSummary approach={clientApproach} />
               </div>
             )}
             {nutritionLoading ? (

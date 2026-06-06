@@ -32,7 +32,8 @@ import {
   type TargetsOverride,
 } from "@/lib/nutrition/targetsOverride";
 import {
-  loadApproach, saveApproach, hasStoredApproach, goalModeFromIntake,
+  loadApproach, saveApproach, fetchApproach,
+  hasStoredApproach, goalModeFromIntake,
   goalAdjustedMacros, buildCarbCycleBreakdown,
   type ApproachState,
 } from "@/lib/nutrition/approach";
@@ -969,21 +970,25 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
   useEffect(() => {
     setUnitSystem(readStoredUnitSystem(user.id) ?? "metric");
-    const saved = loadApproach(user.id);
+    // 1. Optimistic paint from localStorage so the picker isn't blank
+    setApproach(loadApproach(user.id));
+    // 2. Hydrate from Supabase (silent fallback to local on failure)
+    fetchApproach(user.id).then(setApproach);
     loadIntakeAsync(user.id).then((intake) => {
       setEnergy(intake ? calculateEnergy(intake) : null);
       // Default goal mode from intake's primary goal — only on the very first
-      // load (no saved state under this key yet).
+      // load when nothing's saved yet under this key.
       if (intake && !hasStoredApproach(user.id)) {
         const inferred = goalModeFromIntake(intake.primaryGoal);
-        if (inferred && inferred !== saved.goalMode) {
-          const next = { ...saved, goalMode: inferred };
-          saveApproach(user.id, next);
-          setApproach(next);
-          return;
+        if (inferred) {
+          setApproach((prev) => {
+            if (prev.goalMode === inferred) return prev;
+            const next = { ...prev, goalMode: inferred };
+            saveApproach(user.id, next);
+            return next;
+          });
         }
       }
-      setApproach(saved);
     });
     fetchWeightLogs(user.id).then(setWeightLogs);
   }, [user.id]);

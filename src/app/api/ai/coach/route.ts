@@ -43,8 +43,9 @@ function buildSystem(params: {
   context:             { goal: string; phase: string; week: string; status: string };
   athleteProfile?:     string;
   recoveryContext?:    string;
+  nutritionApproach?:  string;
 }): string {
-  const { intensity, allowStrongLanguage, context, athleteProfile, recoveryContext } = params;
+  const { intensity, allowStrongLanguage, context, athleteProfile, recoveryContext, nutritionApproach } = params;
 
   return `You are the AI coach inside Flowstate, an elite training system. You are ONE consistent personable, charismatic personal-trainer persona — like a great real-life coach who can make someone feel good but also tell them straight what needs to happen. Your warmth-vs-hardness is set by the INTENSITY dial below; your identity never changes, only the delivery.
 
@@ -56,6 +57,9 @@ ATHLETE CONTEXT:
 ${athleteProfile ? `
 ATHLETE INTAKE (from their onboarding — coach to THIS person specifically; respect injuries, equipment, diet, and their stated reasons):
 ${athleteProfile}
+` : ""}${nutritionApproach ? `
+ATHLETE NUTRITION APPROACH (from their nutrition page — when answering nutrition questions, align with this picker; never recommend a meal pattern or carb-cycling state that contradicts it. If they want to change it, point them at the Nutrition tab):
+${nutritionApproach}
 ` : ""}${recoveryContext ? `
 TODAY'S STATED RECOVERY (use this to coach today's session — adapt, don't change their saved program):
 ${recoveryContext}
@@ -162,19 +166,25 @@ export async function POST(req: NextRequest) {
     // Pull the signed-in athlete's onboarding intake so the coach speaks to
     // THEIR specifics (injuries, equipment, diet, goals). Best-effort — never
     // block the reply if it's missing or slow.
-    let athleteProfile = "";
+    let athleteProfile    = "";
+    let nutritionApproach = "";
     try {
       const { createClient } = await import("@/lib/supabase/server");
       const { summarizeIntakeForCoach } = await import("@/lib/intake/format");
+      const { summarizeApproachForCoach } = await import("@/lib/nutrition/approach");
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) {
-        const { data } = await supabase
-          .from("onboarding_state")
-          .select("raw_answers")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        athleteProfile = summarizeIntakeForCoach((data?.raw_answers ?? null) as Record<string, unknown> | null);
+        const [{ data: intakeRow }, { data: profileRow }] = await Promise.all([
+          supabase.from("onboarding_state").select("raw_answers").eq("user_id", user.id).maybeSingle(),
+          supabase.from("profiles").select("nutrition_approach").eq("id", user.id).maybeSingle(),
+        ]);
+        athleteProfile    = summarizeIntakeForCoach((intakeRow?.raw_answers ?? null) as Record<string, unknown> | null);
+        // `nutrition_approach` is JSONB; missing column / null is fine.
+        const approach = (profileRow as { nutrition_approach?: unknown } | null)?.nutrition_approach;
+        if (approach && typeof approach === "object") {
+          nutritionApproach = summarizeApproachForCoach(approach as Parameters<typeof summarizeApproachForCoach>[0]);
+        }
       }
     } catch { /* coach still works without the intake */ }
 
@@ -190,7 +200,7 @@ export async function POST(req: NextRequest) {
       model:      "gpt-4o",
       max_tokens: 700,
       messages:   [
-        { role: "system", content: buildSystem({ intensity, allowStrongLanguage, context, athleteProfile, recoveryContext }) },
+        { role: "system", content: buildSystem({ intensity, allowStrongLanguage, context, athleteProfile, recoveryContext, nutritionApproach }) },
         ...historyMessages,
         { role: "user",   content: message.trim() },
       ],
