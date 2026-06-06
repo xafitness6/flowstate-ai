@@ -16,6 +16,7 @@ import { ClientNutritionManager } from "@/components/clients/ClientNutritionMana
 import { ClientAccountActions } from "@/components/clients/ClientAccountActions";
 import { ClientTasksManager } from "@/components/clients/ClientTasksManager";
 import { ClientAIBreakdown } from "@/components/clients/ClientAIBreakdown";
+import { ClientWorkoutHistory } from "@/components/clients/ClientWorkoutHistory";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
@@ -957,6 +958,14 @@ export default function ClientDetailPage() {
                 )}
               </div>
             )}
+
+            {/* Recent logged sessions — incl. pain/feedback notes */}
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-white/80 mb-3 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Recent sessions
+              </h2>
+              <ClientWorkoutHistory clientId={id} />
+            </div>
           </div>
         )}
 
