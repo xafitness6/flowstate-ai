@@ -4,10 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Check, CheckCircle2,
-  Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock, AlertTriangle,
+  Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock, AlertTriangle, Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 import {
   loadActiveProgramForUser, getWorkoutLogsForUser, saveWorkoutLog, getPreviousPerf,
   formatDuration,
@@ -259,7 +260,7 @@ function WarmUpSection({
 
 function ExerciseCard({
   exercise, setInputs, editingKey, prevPerf, pbSets,
-  onSetTap, onInputChange, onFeel, onLogSet,
+  onSetTap, onInputChange, onFeel, onLogSet, onVoiceFill, voiceActiveKey,
 }: {
   exercise:      WorkoutExercise;
   setInputs:     Record<string, SetInput>;
@@ -270,6 +271,8 @@ function ExerciseCard({
   onInputChange: (key: string, field: "reps" | "load", val: string) => void;
   onFeel:        (key: string, feel: Feel) => void;
   onLogSet:      (key: string, restSecs: number, exerciseId: string, exerciseName: string, inp: SetInput) => void;
+  onVoiceFill?:  (key: string) => void;
+  voiceActiveKey?: string | null;
 }) {
   const completedCount = exercise.sets.filter(
     (s) => setInputs[`${exercise.exerciseId}_${s.setNumber}`]?.done
@@ -408,6 +411,18 @@ function ExerciseCard({
                       </button>
                     ))}
                   </div>
+
+                  {onVoiceFill && (
+                    <button
+                      onClick={() => onVoiceFill(key)}
+                      className={cn(
+                        "w-full py-2 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all",
+                        voiceActiveKey === key ? "border-[#B48B40]/50 bg-[#B48B40]/[0.1] text-[#B48B40] animate-pulse" : "border-white/[0.08] text-white/45 hover:text-white/75 hover:border-white/15",
+                      )}
+                    >
+                      <Mic className="w-3.5 h-3.5" strokeWidth={1.8} /> {voiceActiveKey === key ? "Listening… say e.g. \"8 reps at 135\"" : "Say it instead"}
+                    </button>
+                  )}
 
                   <button
                     onClick={() => onLogSet(key, s.restSeconds, exercise.exerciseId, exercise.name, inp)}
@@ -584,6 +599,21 @@ export default function WorkoutPage() {
   const handleInputChange = useCallback((key: string, field: "reps" | "load", val: string) => {
     setSetInputs((prev) => ({ ...prev, [key]: { ...prev[key], [field]: val } }));
   }, []);
+
+  // ── Voice logging: speak a set, fill reps + load ──────────────────────────
+  const voice = useVoiceInput();
+  const [voiceKey, setVoiceKey] = useState<string | null>(null);
+  const startVoiceForSet = useCallback((key: string) => { setVoiceKey(key); voice.start(); }, [voice]);
+  useEffect(() => {
+    if (!voiceKey || !voice.transcript) return;
+    const t = voice.transcript.toLowerCase();
+    // load: a number directly before kg/lb/pound/kilo, else the number after "at"/"@"
+    const loadM = t.match(/(\d+(?:\.\d+)?)\s*(?:kg|kilo|kilos|lb|lbs|pound|pounds)/) || t.match(/(?:at|@)\s*(\d+(?:\.\d+)?)/);
+    // reps: a number before "rep(s)", else the first number that isn't the load
+    const repsM = t.match(/(\d+)\s*(?:rep|reps|times|x)\b/) || t.match(/\b(\d+)\b/);
+    if (repsM) handleInputChange(voiceKey, "reps", repsM[1]);
+    if (loadM) handleInputChange(voiceKey, "load", loadM[1]);
+  }, [voice.transcript, voiceKey, handleInputChange]);
 
   const handleFeel = useCallback((key: string, feel: Feel) => {
     setSetInputs((prev) => ({
@@ -975,6 +1005,8 @@ export default function WorkoutPage() {
               onInputChange={handleInputChange}
               onFeel={handleFeel}
               onLogSet={handleLogSet}
+              onVoiceFill={voice.isSupported ? startVoiceForSet : undefined}
+              voiceActiveKey={voice.status === "listening" ? voiceKey : null}
             />
           ))}
         </div>
