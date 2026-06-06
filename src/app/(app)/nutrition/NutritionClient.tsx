@@ -6,7 +6,7 @@ import {
   Mic, Camera, Plus, Droplets, Flame,
   ChevronDown, ChevronUp, AlertCircle, TrendingUp,
   X, Clock, ChevronLeft, ChevronRight, Loader2, Trash2,
-  Pencil, RotateCcw, CalendarDays, Search, Sliders,
+  Pencil, RotateCcw, CalendarDays, Search,
 } from "lucide-react";
 import { useVoiceInput }      from "@/hooks/useVoiceInput";
 import { VoiceReviewModal }   from "@/components/voice/VoiceReviewModal";
@@ -19,14 +19,8 @@ import { FoodSearchModal }    from "@/components/nutrition/FoodSearchModal";
 import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
 import { loadIntakeAsync } from "@/lib/data/intake";
-import { EnergyCard }           from "@/components/nutrition/EnergyCard";
 import { MacroSourcesCard }     from "@/components/nutrition/MacroSourcesCard";
 import { TargetsEditModal }     from "@/components/nutrition/TargetsEditModal";
-import { EatingApproachCard }   from "@/components/nutrition/EatingApproachCard";
-import { MealScheduleCard }     from "@/components/nutrition/MealScheduleCard";
-import { CarbCyclingCard }      from "@/components/nutrition/CarbCyclingCard";
-import { WeeklyCheckInCard }    from "@/components/nutrition/WeeklyCheckInCard";
-import { PhilosophyTips }       from "@/components/nutrition/PhilosophyTips";
 import {
   getTargetsOverride, saveTargetsOverride, clearTargetsOverride, applyOverride,
   type TargetsOverride,
@@ -952,7 +946,6 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // Date navigation
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [viewWeek,     setViewWeek]     = useState(false);
-  const [planOpen,     setPlanOpen]     = useState(false);  // collapse the plan/approach stack by default
 
   // Meal data — seed today's meals from SSR
   const [meals,     setMeals]     = useState<LoggedMeal[]>(initial?.meals ?? []);
@@ -1550,60 +1543,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
              Lays out the user's eating approach (balanced foundation + their
              goal mode + meal pattern + optional carb cycling), the resulting
              meal schedule, and Xavier's playbook tips. */}
-        {!viewWeek && (
-          <div>
-            <button
-              onClick={() => setPlanOpen((o) => !o)}
-              className="w-full flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 hover:border-white/15 transition-all"
-            >
-              <span className="text-sm font-medium text-white/70 flex items-center gap-2">
-                <Sliders className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={1.8} />
-                Your plan &amp; approach
-                <span className="text-[11px] font-normal text-white/30 capitalize">· {approach.goalMode?.replace(/_/g, " ")} · {approach.mealPattern?.replace(/_/g, " ")}</span>
-              </span>
-              <ChevronDown className={cn("w-4 h-4 text-white/35 transition-transform", planOpen && "rotate-180")} strokeWidth={1.8} />
-            </button>
-
-            {planOpen && (
-              <div className="space-y-3 mt-3">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <EatingApproachCard
-                    goalMode={approach.goalMode}
-                    mealPattern={approach.mealPattern}
-                    carbCyclingOn={approach.carbCyclingOn}
-                    firstMealHour24={approach.firstMealHour24}
-                    onChange={patchApproach}
-                  />
-                  {energy && <EnergyCard energy={energy} goalMode={approach.goalMode} />}
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <MealScheduleCard
-                    mealPattern={approach.mealPattern}
-                    trainingTiming={approach.trainingTiming}
-                    firstMealHour24={approach.firstMealHour24}
-                    dailyCarbsG={targets.carbsG}
-                    onTimingChange={(t) => patchApproach({ trainingTiming: t })}
-                  />
-                  <WeeklyCheckInCard
-                    userId={user.id}
-                    goalMode={approach.goalMode}
-                    avgCalories={weeklySummary.avgCalories}
-                    targetCalories={targets.calories}
-                    daysLogged={weeklySummary.daysLogged}
-                    weightTrend={weightTrend}
-                    unitSystem={unitSystem}
-                    onWeightLogged={() => fetchWeightLogs(user.id).then(setWeightLogs)}
-                  />
-                </div>
-
-                {carbCycle && <CarbCyclingCard data={carbCycle} />}
-
-                <PhilosophyTips />
-              </div>
-            )}
-          </div>
-        )}
+        {/* Plan & approach (goal mode, BMR, meal schedule, carb cycling) live
+            behind the meal-plan engine / coach side now — the client's page
+            stays focused on tracking. */}
 
         {/* ── Quick actions ─────────────────────────────────────────────────── */}
         <div>
