@@ -807,13 +807,23 @@ export default function ClientDetailPage() {
               <h2 className="text-sm font-semibold text-white/80 flex items-center gap-2">
                 <Dumbbell className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Current program
               </h2>
-              <Link
-                href="/program/builder"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/80 hover:border-[#B48B40]/40 hover:text-[#B48B40] transition-all"
-              >
-                <ExternalLink className="w-3.5 h-3.5" strokeWidth={2} />
-                {program ? "Change program" : "Assign program"}
-              </Link>
+              <div className="flex items-center gap-1.5">
+                {program && (
+                  <Link
+                    href={`/program/builder?clientId=${id}&client=${encodeURIComponent(name)}&edit=1`}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/80 hover:border-[#B48B40]/40 hover:text-[#B48B40] transition-all"
+                  >
+                    <Pencil className="w-3.5 h-3.5" strokeWidth={2} /> Edit
+                  </Link>
+                )}
+                <Link
+                  href={`/program/builder?clientId=${id}&client=${encodeURIComponent(name)}`}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#B48B40]/30 bg-[#B48B40]/[0.08] px-3 py-2 text-xs font-semibold text-[#B48B40] hover:bg-[#B48B40]/[0.14] transition-all"
+                >
+                  <Dumbbell className="w-3.5 h-3.5" strokeWidth={2} />
+                  {program ? "New program" : "Build program"}
+                </Link>
+              </div>
             </div>
 
             {!program ? (
@@ -821,7 +831,7 @@ export default function ClientDetailPage() {
                 <Dumbbell className="w-7 h-7 text-white/15 mx-auto mb-3" strokeWidth={1.5} />
                 <p className="text-sm text-white/55 mb-1">No active program yet</p>
                 <p className="text-xs text-white/30 max-w-xs mx-auto">
-                  Build or generate a program, then use “Send to user” in the builder to assign it to {name}.
+                  Tap <span className="text-white/50 font-medium">Build program</span> to create a multi-week plan for {name} — it&apos;s saved straight to their account.
                 </p>
               </div>
             ) : (

@@ -105,6 +105,11 @@ export default function ProgramBuilderPage() {
   const isAdmin    = user?.role === "master" || !!user?.isAdmin;
   const canPersist = !!user?.id && UUID_RE.test(user.id);
 
+  // When opened from a client file (?clientId=…[&client=Name][&edit=1]) the
+  // builder targets THAT client instead of the signed-in user.
+  const [clientId,    setClientId]    = useState<string | null>(null);
+  const [clientLabel, setClientLabel] = useState<string>("");
+
   // ── Computed: the week currently shown ──
   // For week 1, edits go to baseWeek.
   // For weeks 2+, edits go to weekOverrides[week] (created on first edit).
@@ -228,6 +233,18 @@ export default function ProgramBuilderPage() {
     }
 
     try {
+      // Building for a client (opened from their file) → save to THEM.
+      if (clientId) {
+        const res = await fetch(`/api/clients/${clientId}/program`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ payload: buildPayload(), activate: setActive }),
+        });
+        const data = await res.json() as { ok?: boolean; error?: string };
+        if (!res.ok || data.error) throw new Error(data.error ?? `Save failed (${res.status})`);
+        setSaveState("saved");
+        router.push(`/clients/${clientId}`);
+        return;
+      }
       const program = await saveBuilderWorkoutForSelf(user.id, buildPayload(), setActive);
       if (!program) throw new Error("Save returned no row");
       setSaveState("saved");
@@ -264,6 +281,39 @@ export default function ProgramBuilderPage() {
     }
   }
 
+  // Read the target client from the query string, and (when ?edit=1) hydrate the
+  // builder from their current active program so it can be edited in place.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const cid = sp.get("clientId");
+    if (!cid || !UUID_RE.test(cid)) return;
+    setClientId(cid);
+    const cname = sp.get("client");
+    if (cname) setClientLabel(cname);
+    if (sp.get("edit") !== "1") return;
+    fetch(`/api/clients/${cid}/program`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        const p = j?.program;
+        const split = p?.weekly_split as ProgramSplitV2 | undefined;
+        if (!p || !split || split.version !== 2) return;
+        setName(p.block_name ?? "");
+        const g = ["strength", "hypertrophy", "fat_loss", "performance"].includes(p.goal) ? p.goal : "hypertrophy";
+        setGoal(g as Goal);
+        setWeeks(p.duration_weeks ?? split.phase?.weeks ?? 4);
+        setSessionMin(p.session_length_target ?? 60);
+        setBodyFocus(Array.isArray(p.body_focus_areas) ? p.body_focus_areas : []);
+        setEquipment(Array.isArray(p.equipment_profile) && p.equipment_profile.length ? p.equipment_profile : ["Full gym"]);
+        setCoachingNotes(p.coaching_notes ?? "");
+        setBaseWeek(split.baseWeek ?? { intent: "", days: [] });
+        setWeekOverrides(split.weekOverrides ?? {});
+        const prog = split.phase?.progression;
+        if (prog?.type) { setProgressionType(prog.type); setProgressionNotes(prog.notes ?? ""); }
+      })
+      .catch(() => {});
+  }, []);
+
   // Auto-default day-of-week picker visibility based on whether we have days yet
   const [showDowPicker, setShowDowPicker] = useState(true);
   useEffect(() => {
@@ -284,10 +334,16 @@ export default function ProgramBuilderPage() {
 
         {/* Header */}
         <div className="mb-6">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-2">Program · Builder</p>
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">New program</h1>
+          <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-2">
+            {clientId ? `Program · for ${clientLabel || "your client"}` : "Program · Builder"}
+          </p>
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+            {clientId ? `Build for ${clientLabel || "client"}` : "New program"}
+          </h1>
           <p className="text-xs text-white/40 mt-2 max-w-xl leading-relaxed">
-            Build a full multi-week phase. Edit Week 1 first — it&apos;s the base pattern. Weeks 2+ inherit by default; override any week to introduce progressive overload, deloads, or peak weeks.
+            {clientId
+              ? "Saving assigns this program to your client. Edit Week 1 first — it's the base pattern; weeks 2+ inherit by default. Override any week for progressive overload, deloads, or peak weeks."
+              : "Build a full multi-week phase. Edit Week 1 first — it's the base pattern. Weeks 2+ inherit by default; override any week to introduce progressive overload, deloads, or peak weeks."}
           </p>
         </div>
 
@@ -584,11 +640,11 @@ export default function ProgramBuilderPage() {
               onChange={(e) => { setSetActive(e.target.checked); markDirty(); }}
               className="w-4 h-4 rounded border-white/15 bg-white/[0.04] accent-[#B48B40]"
             />
-            <span className="text-xs text-white/65">Set as my active program after saving</span>
+            <span className="text-xs text-white/65">{clientId ? "Set as their active program after saving" : "Set as my active program after saving"}</span>
           </label>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {isAdmin && (
+            {isAdmin && !clientId && (
               <button
                 onClick={() => { setSaveError(null); setAssignOpen(true); }}
                 disabled={saveState === "saving" || assignBusy}
