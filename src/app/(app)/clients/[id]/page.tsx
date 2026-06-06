@@ -18,6 +18,7 @@ import { ClientTasksManager } from "@/components/clients/ClientTasksManager";
 import { ClientAIBreakdown } from "@/components/clients/ClientAIBreakdown";
 import { ClientWorkoutHistory } from "@/components/clients/ClientWorkoutHistory";
 import { ChatThread } from "@/components/chat/ChatThread";
+import { ClientAICoachView } from "@/components/clients/ClientAICoachView";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
@@ -178,6 +179,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const [tab,     setTab]     = useState<TabKey>("overview");
+  const [chatMode, setChatMode] = useState<"direct" | "ai">("direct");
 
   const [draft, setDraft] = useState("");
   const [shareNew, setShareNew] = useState(false);
@@ -1343,10 +1345,23 @@ export default function ClientDetailPage() {
         )}
         {tab === "chat" && (
           <div className="no-print flex flex-col h-[60vh] min-h-[24rem]">
-            <h2 className="text-sm font-semibold text-white/80 mb-2 flex items-center gap-2 shrink-0">
-              <MessageSquare className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} /> Chat with {name}
-            </h2>
-            <ChatThread endpoint={`/api/clients/${id}/messages`} mineFromCoach emptyHint={`Start the conversation with ${name}.`} />
+            <div className="flex items-center gap-1.5 mb-3 shrink-0">
+              {([["direct", "Direct chat"], ["ai", "Their AI coach"]] as const).map(([m, label]) => (
+                <button
+                  key={m}
+                  onClick={() => setChatMode(m)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-medium border transition-all",
+                    chatMode === m ? "bg-[#B48B40]/12 text-[#B48B40] border-[#B48B40]/25" : "border-white/[0.08] text-white/45 hover:text-white/70 hover:border-white/15",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {chatMode === "direct"
+              ? <ChatThread endpoint={`/api/clients/${id}/messages`} mineFromCoach emptyHint={`Start the conversation with ${name}.`} />
+              : <ClientAICoachView clientId={id} clientName={name} />}
           </div>
         )}
       </div>
