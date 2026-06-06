@@ -486,10 +486,13 @@ export default function WorkoutPage() {
   const startRef    = useRef(Date.now());
   const [elapsed,   setElapsed]   = useState(0);
   const [finished,  setFinished]  = useState(false);
-  // Flow: preview (see details, nothing running) → countdown (5..1) → active
+  // Flow: preview (see details, nothing running) → countdown (5..1) → active.
+  // Freestyle skips the countdown + running clock + auto rest timers — just log.
   const [phase,     setPhase]     = useState<"preview" | "countdown" | "active">("preview");
   const [paused,    setPaused]    = useState(false);
   const [countdown, setCountdown] = useState(5);
+  const [freestyle, setFreestyle] = useState(false);
+  const freestyleRef = useRef(false);
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -552,7 +555,8 @@ export default function WorkoutPage() {
     return () => clearTimeout(t);
   }, [phase, countdown]);
 
-  function startWorkout() { setCountdown(5); setPhase("countdown"); }
+  function startWorkout() { freestyleRef.current = false; setFreestyle(false); setCountdown(5); setPhase("countdown"); }
+  function startFreestyle() { freestyleRef.current = true; setFreestyle(true); setPhase("active"); }
 
   // ── Warm-up handlers ─────────────────────────────────────────────────────
 
@@ -603,7 +607,8 @@ export default function WorkoutPage() {
     setSetInputs((prev) => ({ ...prev, [key]: { ...prev[key], done: true } }));
     setEditingKey(null);
 
-    // Rest timer
+    // Rest timer — skipped in freestyle (no-timer) mode.
+    if (freestyleRef.current) return;
     if (restRef.current) clearInterval(restRef.current);
     setRestSecs(restSeconds);
     setRestTotal(restSeconds);
@@ -653,6 +658,11 @@ export default function WorkoutPage() {
       })),
     };
     saveWorkoutLog(user.id, log);
+    // Ping the coach + feed accountability (best-effort, never blocks the finish).
+    fetch("/api/me/workout-complete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workoutName: workout.focus, sets: completedSetCount, durationMins: Math.ceil(elapsed / 60) }),
+    }).catch(() => {});
     setFinished(true);
     setTimeout(() => router.replace("/program"), 2200);
   }
@@ -701,7 +711,7 @@ export default function WorkoutPage() {
         <div className="px-4 pt-5 space-y-5 max-w-lg mx-auto">
           {/* Title block */}
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[#B48B40]/70 mb-1">{workout.dayLabel}</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#B48B40]/70 mb-1">{workout.dayLabel} · Today&apos;s focus</p>
             <h1 className="text-2xl font-bold tracking-tight text-white/90">{workout.focus}</h1>
             <div className="flex items-center gap-4 mt-2 text-xs text-white/40">
               <span className="flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5" strokeWidth={1.5} /> {workout.exercises.length} exercises</span>
@@ -764,12 +774,18 @@ export default function WorkoutPage() {
         <div
           className="fixed bottom-0 inset-x-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/95 to-transparent px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
         >
-          <div className="max-w-lg mx-auto">
+          <div className="max-w-lg mx-auto space-y-2">
             <button
               onClick={startWorkout}
               className="w-full rounded-2xl bg-[#B48B40] text-black py-4 text-sm font-bold tracking-wide flex items-center justify-center gap-2 hover:bg-[#c99840] active:scale-[0.98] transition-all"
             >
-              <Play className="w-4 h-4" strokeWidth={2.5} fill="currentColor" /> Start Workout
+              <Play className="w-4 h-4" strokeWidth={2.5} fill="currentColor" /> Start workout — guided + timer
+            </button>
+            <button
+              onClick={startFreestyle}
+              className="w-full rounded-2xl border border-white/12 bg-white/[0.03] text-white/70 py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:text-white/90 hover:border-white/20 active:scale-[0.98] transition-all"
+            >
+              <Dumbbell className="w-4 h-4" strokeWidth={2} /> Log freestyle — no timer
             </button>
           </div>
         </div>
@@ -822,25 +838,28 @@ export default function WorkoutPage() {
           <p className="text-[11px] text-white/35">{completedSetCount}/{totalSetCount} sets</p>
         </div>
 
-        {/* Timer */}
-        <div className={cn(
-          "flex items-center gap-1.5 text-sm font-bold tabular-nums px-2.5 py-1.5 rounded-xl border",
-          paused ? "text-white/40 border-white/10 bg-white/[0.02]" : "text-[#B48B40] border-[#B48B40]/20 bg-[#B48B40]/[0.06]",
-        )}>
-          <Timer className="w-3.5 h-3.5" strokeWidth={1.5} />
-          {formatDuration(elapsed)}
-        </div>
-
-        {/* Pause / Resume */}
-        <button
-          onClick={() => setPaused((p) => !p)}
-          className="w-9 h-9 rounded-xl border border-white/[0.1] bg-white/[0.03] flex items-center justify-center text-white/60 hover:text-white hover:border-white/20 transition-all shrink-0"
-          title={paused ? "Resume" : "Pause"}
-        >
-          {paused
-            ? <Play  className="w-4 h-4 text-[#B48B40]" strokeWidth={2} fill="currentColor" />
-            : <Pause className="w-4 h-4" strokeWidth={2} />}
-        </button>
+        {/* Timer + pause — hidden in freestyle (no-timer) mode */}
+        {!freestyle && (
+          <>
+            <div className={cn(
+              "flex items-center gap-1.5 text-sm font-bold tabular-nums px-2.5 py-1.5 rounded-xl border",
+              paused ? "text-white/40 border-white/10 bg-white/[0.02]" : "text-[#B48B40] border-[#B48B40]/20 bg-[#B48B40]/[0.06]",
+            )}>
+              <Timer className="w-3.5 h-3.5" strokeWidth={1.5} />
+              {formatDuration(elapsed)}
+            </div>
+            <button
+              onClick={() => setPaused((p) => !p)}
+              className="w-9 h-9 rounded-xl border border-white/[0.1] bg-white/[0.03] flex items-center justify-center text-white/60 hover:text-white hover:border-white/20 transition-all shrink-0"
+              title={paused ? "Resume" : "Pause"}
+            >
+              {paused
+                ? <Play  className="w-4 h-4 text-[#B48B40]" strokeWidth={2} fill="currentColor" />
+                : <Pause className="w-4 h-4" strokeWidth={2} />}
+            </button>
+          </>
+        )}
+        {freestyle && <span className="text-[10px] uppercase tracking-wider text-white/30 px-2 shrink-0">Freestyle</span>}
 
         {/* Finish / stop */}
         <button
@@ -964,7 +983,7 @@ export default function WorkoutPage() {
               className="w-full rounded-2xl bg-[#B48B40] text-black py-4 text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#c99840] active:scale-[0.98] transition-all"
             >
               <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
-              Finish Workout · {completedSetCount}/{totalSetCount} sets
+              Workout complete · {completedSetCount}/{totalSetCount} sets
             </button>
           </div>
         )}

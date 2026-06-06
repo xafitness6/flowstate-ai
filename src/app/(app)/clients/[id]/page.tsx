@@ -8,7 +8,7 @@ import {
   User, Dumbbell, Apple, LineChart, MessageSquare,
   CalendarDays, Clock, PlayCircle, CheckCircle2,
   Activity, Camera, Image as ImageIcon, Scale, TrendingUp, Upload, Bell,
-  Pencil, Check, X,
+  Pencil, Check, X, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
@@ -101,11 +101,12 @@ type ProgressPhoto = {
   signed_url: string | null;
 };
 
-type TabKey = "overview" | "program" | "nutrition" | "progress" | "notes" | "chat";
+type TabKey = "overview" | "info" | "program" | "nutrition" | "progress" | "notes" | "chat";
 
 const TABS: { key: TabKey; label: string; icon: typeof User; ready: boolean }[] = [
-  { key: "overview",  label: "Dashboard", icon: User,          ready: true  },
-  { key: "program",   label: "Program",   icon: Dumbbell,      ready: true  },
+  { key: "overview",  label: "Dashboard",   icon: User,          ready: true  },
+  { key: "info",      label: "Client info", icon: ClipboardList, ready: true  },
+  { key: "program",   label: "Program",     icon: Dumbbell,      ready: true  },
   { key: "nutrition", label: "Nutrition", icon: Apple,         ready: true  },
   { key: "progress",  label: "Progress",  icon: LineChart,     ready: true  },
   { key: "notes",     label: "Notes",     icon: StickyNote,    ready: true  },
@@ -769,7 +770,6 @@ export default function ClientDetailPage() {
         {/* ── Overview tab: onboarding action + intake + prefill ── */}
         {tab === "overview" && (
           <>
-            <ClientVitals intake={intake} />
             <EngagementCard data={engagement} />
             {viewerIsAdmin && (
               <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-3 flex-wrap">
@@ -823,9 +823,12 @@ export default function ClientDetailPage() {
             </div>
           </>
         )}
-        {/* Printable region: intake. Visible on screen only in Overview, but
-            always rendered for print so Download PDF works from any tab. */}
-        <div id="print-area" className={tab === "overview" ? "" : "hidden print:block"}>
+        {/* Client info tab — vitals + the full onboarding intake. */}
+        {tab === "info" && <div className="no-print"><ClientVitals intake={intake} /></div>}
+
+        {/* Printable region: intake. Visible on screen in the Client info tab,
+            but always rendered for print so Download PDF works from any tab. */}
+        <div id="print-area" className={tab === "info" ? "" : "hidden print:block"}>
           <div className="hidden print:block mb-4">
             <h2 className="text-xl font-semibold">{name} — Onboarding intake</h2>
             <p className="text-xs text-white/50">{profile?.email}</p>
