@@ -21,6 +21,7 @@ import { useUser }            from "@/context/UserContext";
 import { loadIntakeAsync } from "@/lib/data/intake";
 import { MacroSourcesCard }     from "@/components/nutrition/MacroSourcesCard";
 import { TargetsEditModal }     from "@/components/nutrition/TargetsEditModal";
+import { ClientMealPlanCard }   from "@/components/nutrition/ClientMealPlanCard";
 import {
   getTargetsOverride, saveTargetsOverride, clearTargetsOverride, applyOverride,
   type TargetsOverride,
@@ -946,6 +947,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // Date navigation
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [viewWeek,     setViewWeek]     = useState(false);
+  // null = unknown; true = coached (targets managed by coach, request changes);
+  // false = self-directed (edit own targets directly).
+  const [clientHasCoach, setClientHasCoach] = useState<boolean | null>(null);
 
   // Meal data — seed today's meals from SSR
   const [meals,     setMeals]     = useState<LoggedMeal[]>(initial?.meals ?? []);
@@ -1493,19 +1497,21 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
               <TrendingUp className="w-3 h-3" strokeWidth={1.5} />
               7 days
             </button>
-            <button
-              onClick={() => setTargetsEditOpen(true)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all",
-                override
-                  ? "border-[#B48B40]/30 bg-[#B48B40]/[0.08] text-[#B48B40]"
-                  : "border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white/65 hover:border-white/15",
-              )}
-              title="Edit targets"
-            >
-              <Pencil className="w-3 h-3" strokeWidth={1.5} />
-              {override ? "Custom" : "Adjust"}
-            </button>
+            {clientHasCoach !== true && (
+              <button
+                onClick={() => setTargetsEditOpen(true)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all",
+                  override
+                    ? "border-[#B48B40]/30 bg-[#B48B40]/[0.08] text-[#B48B40]"
+                    : "border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white/65 hover:border-white/15",
+                )}
+                title="Edit targets"
+              >
+                <Pencil className="w-3 h-3" strokeWidth={1.5} />
+                {override ? "Custom" : "Adjust"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1538,6 +1544,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           <MacrosCard  totals={totals}            targets={targets} />
           <HydrationCard current={hydration}      target={targets.waterMl} onAdd={addWaterMl} />
         </div>
+
+        {/* ── Coach-set meal plan (view + request a change) — coached clients only ── */}
+        <ClientMealPlanCard onCoachStatus={setClientHasCoach} />
 
         {/* ── Philosophy stack ──────────────────────────────────────────────
              Lays out the user's eating approach (balanced foundation + their
