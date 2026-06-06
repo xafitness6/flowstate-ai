@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
+import { goalModeFromIntake } from "@/lib/nutrition/approach";
 import { useUser } from "@/context/UserContext";
 import type { RawIntake } from "@/lib/intake/format";
 import type { EnergyProfile } from "@/lib/nutrition";
@@ -1172,7 +1173,10 @@ export default function ClientDetailPage() {
             <NutritionSnapshot n={nutrition} activity={activitySummary} loading={nutritionLoading} />
             {nutrition?.energy && (
               <div className="mt-3 sm:max-w-sm">
-                <EnergyCard energy={nutrition.energy} />
+                <EnergyCard
+                  energy={nutrition.energy}
+                  goalMode={goalModeFromIntake(intake?.primaryGoal as string | undefined) ?? undefined}
+                />
               </div>
             )}
             {nutritionLoading ? (

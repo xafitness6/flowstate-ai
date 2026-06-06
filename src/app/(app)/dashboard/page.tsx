@@ -34,6 +34,9 @@ import type { AdminProfile } from "@/lib/admin/profileMapper";
 import { loadIntake, loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { calculateEnergy, type EnergyProfile } from "@/lib/nutrition";
+import {
+  loadApproach, goalModeFromIntake, type GoalMode,
+} from "@/lib/nutrition/approach";
 
 // ─── Build real pipeline data from localStorage ───────────────────────────────
 
@@ -436,6 +439,7 @@ function DashboardContent() {
   const [question,     setQuestion    ] = useState("");
   const [energy,       setEnergy       ] = useState<EnergyProfile | null>(null);
   const [energyGoal,   setEnergyGoal   ] = useState<string | undefined>(undefined);
+  const [energyGoalMode, setEnergyGoalMode] = useState<GoalMode | undefined>(undefined);
   const pipeline = useAIPipeline();
   const hasRun   = useRef(false);
 
@@ -447,6 +451,9 @@ function DashboardContent() {
       if (!active) return;
       setEnergy(intake ? calculateEnergy(intake) : null);
       setEnergyGoal(intake ? GOAL_LABELS[intake.primaryGoal] : undefined);
+      setEnergyGoalMode(intake
+        ? (loadApproach(actualUserId).goalMode ?? goalModeFromIntake(intake.primaryGoal) ?? undefined)
+        : undefined);
     });
     return () => { active = false; };
   }, [actualUserId, role]);
@@ -640,7 +647,7 @@ function DashboardContent() {
         {/* Energy / BMR card — same view the trainer sees */}
         {(role === "member" || role === "client") && energy && (
           <div className="sm:max-w-sm">
-            <EnergyCard energy={energy} goalLabel={energyGoal} />
+            <EnergyCard energy={energy} goalLabel={energyGoal} goalMode={energyGoalMode} />
           </div>
         )}
 

@@ -142,6 +142,30 @@ export function saveApproach(userId: string, state: ApproachState): void {
   try { localStorage.setItem(KEY(userId), JSON.stringify(state)); } catch { /* quota */ }
 }
 
+/** Has the user ever saved their own approach choices yet? */
+export function hasStoredApproach(userId: string): boolean {
+  try { return localStorage.getItem(KEY(userId)) != null; } catch { return false; }
+}
+
+/** Map an intake primaryGoal string onto a default goal mode for first-load. */
+export function goalModeFromIntake(primaryGoal: string | undefined | null): GoalMode | null {
+  switch (primaryGoal) {
+    case "fat_loss":
+    case "weight_loss":
+      return "cut";
+    case "muscle_gain":
+    case "strength":
+      return "build";
+    case "recomp":
+    case "endurance":
+    case "general":
+    case "maintain":
+      return "maintain";
+    default:
+      return null;
+  }
+}
+
 // ─── Meal-pattern → meal slots + clock times ─────────────────────────────────
 
 export type MealSlot = {

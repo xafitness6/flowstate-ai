@@ -32,10 +32,14 @@ import {
   type TargetsOverride,
 } from "@/lib/nutrition/targetsOverride";
 import {
-  loadApproach, saveApproach,
+  loadApproach, saveApproach, hasStoredApproach, goalModeFromIntake,
   goalAdjustedMacros, buildCarbCycleBreakdown,
   type ApproachState,
 } from "@/lib/nutrition/approach";
+import {
+  fetchWeightLogs, computeWeightTrend, type WeightLog,
+} from "@/lib/nutrition/weightLogs";
+import { readStoredUnitSystem, type UnitSystem } from "@/lib/units";
 import {
   calculateNutritionTargets,
   calculateEnergy,
@@ -890,6 +894,10 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     trainingTiming: "after_1_meal", carbCyclingOn: false, firstMealHour24: 8,
   });
 
+  // Bodyweight logs for the weekly check-in.
+  const [weightLogs,  setWeightLogs]  = useState<WeightLog[]>([]);
+  const [unitSystem,  setUnitSystem]  = useState<UnitSystem>("metric");
+
   // Date navigation
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [viewWeek,     setViewWeek]     = useState(false);
@@ -960,10 +968,24 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // ── Load energy profile (BMR / TDEE) — always, independent of SSR targets ─────
 
   useEffect(() => {
-    setApproach(loadApproach(user.id));
+    setUnitSystem(readStoredUnitSystem(user.id) ?? "metric");
+    const saved = loadApproach(user.id);
     loadIntakeAsync(user.id).then((intake) => {
       setEnergy(intake ? calculateEnergy(intake) : null);
+      // Default goal mode from intake's primary goal — only on the very first
+      // load (no saved state under this key yet).
+      if (intake && !hasStoredApproach(user.id)) {
+        const inferred = goalModeFromIntake(intake.primaryGoal);
+        if (inferred && inferred !== saved.goalMode) {
+          const next = { ...saved, goalMode: inferred };
+          saveApproach(user.id, next);
+          setApproach(next);
+          return;
+        }
+      }
+      setApproach(saved);
     });
+    fetchWeightLogs(user.id).then(setWeightLogs);
   }, [user.id]);
 
   // Persist the approach as the user toggles it.
@@ -1042,6 +1064,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     if (!approach.carbCyclingOn || !energy) return null;
     return buildCarbCycleBreakdown(energy.tdee, energy.weightKg, approach.goalMode);
   }, [approach.carbCyclingOn, approach.goalMode, energy]);
+
+  // 7-day weight trend — feeds the check-in coaching message.
+  const weightTrend = useMemo(() => computeWeightTrend(weightLogs, 7), [weightLogs]);
 
   const suggestions = useMemo(() =>
     buildSuggestions(targets, totals, hydration, meals.length)
@@ -1431,10 +1456,14 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
                 onTimingChange={(t) => patchApproach({ trainingTiming: t })}
               />
               <WeeklyCheckInCard
+                userId={user.id}
                 goalMode={approach.goalMode}
                 avgCalories={weeklySummary.avgCalories}
                 targetCalories={targets.calories}
                 daysLogged={weeklySummary.daysLogged}
+                weightTrend={weightTrend}
+                unitSystem={unitSystem}
+                onWeightLogged={() => fetchWeightLogs(user.id).then(setWeightLogs)}
               />
             </div>
 
