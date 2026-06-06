@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
+import { ClientNutritionManager } from "@/components/clients/ClientNutritionManager";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
@@ -1195,6 +1196,12 @@ export default function ClientDetailPage() {
                 <ApproachSummary approach={clientApproach} />
               </div>
             )}
+            <ClientNutritionManager
+              clientId={id}
+              clientName={name}
+              computedTargets={nutrition?.targets ?? null}
+            />
+
             {nutritionLoading ? (
               <div className="flex items-center justify-center py-12 text-white/40 text-sm">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading nutrition…
@@ -1202,13 +1209,13 @@ export default function ClientDetailPage() {
             ) : nutritionError ? (
               <p className="text-xs text-red-300/80 px-1">{nutritionError}</p>
             ) : !nutrition || nutrition.totalMeals14 === 0 ? (
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-5 py-10 text-center">
+              <div className="mt-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-5 py-10 text-center">
                 <Apple className="w-7 h-7 text-white/15 mx-auto mb-3" strokeWidth={1.5} />
                 <p className="text-sm text-white/55 mb-1">No meals logged in the last 14 days</p>
                 <p className="text-xs text-white/30">Once {name} logs meals, their intake and trends show here.</p>
               </div>
             ) : (
-              <NutritionPanel n={nutrition} />
+              <div className="mt-4"><NutritionPanel n={nutrition} /></div>
             )}
           </div>
         )}
