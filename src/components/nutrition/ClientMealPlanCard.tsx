@@ -140,7 +140,7 @@ export function ClientMealPlanCard({ onCoachStatus }: { onCoachStatus?: (hasCoac
       {viewOpen && plan && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setViewOpen(false)} />
-          <div className="relative w-full sm:max-w-lg bg-[#0E0E0E] border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 max-h-[88vh] overflow-y-auto">
+          <div className="relative w-full sm:max-w-lg bg-[#111111] border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 max-h-[88vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0">
                 <p className="text-base font-semibold text-white/90">{plan.title}</p>
@@ -232,7 +232,7 @@ export function ClientMealPlanCard({ onCoachStatus }: { onCoachStatus?: (hasCoac
       {requestOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !sending && setRequestOpen(false)} />
-          <div className="relative w-full sm:max-w-md bg-[#0E0E0E] border border-white/10 rounded-t-2xl sm:rounded-2xl p-5">
+          <div className="relative w-full sm:max-w-md bg-[#111111] border border-white/10 rounded-t-2xl sm:rounded-2xl p-5">
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-semibold text-white/90">Request a change</p>
               <button onClick={() => !sending && setRequestOpen(false)} className="text-white/40 hover:text-white/80"><X className="w-4 h-4" strokeWidth={2} /></button>

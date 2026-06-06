@@ -335,7 +335,7 @@ export function ClientNutritionManager({
       {composerOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !generating && setComposerOpen(false)} />
-          <div className="relative w-full sm:max-w-lg bg-[#0E0E0E] border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 max-h-[88vh] overflow-y-auto">
+          <div className="relative w-full sm:max-w-lg bg-[#111111] border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 max-h-[88vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-semibold text-white/90 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} />
