@@ -18,16 +18,24 @@ import { NutritionAnalytics } from "@/components/nutrition/NutritionAnalytics";
 import { FoodSearchModal }    from "@/components/nutrition/FoodSearchModal";
 import { cn }                 from "@/lib/utils";
 import { useUser }            from "@/context/UserContext";
-import { loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
-import { EnergyCard }        from "@/components/nutrition/EnergyCard";
-import { MacroSourcesCard }  from "@/components/nutrition/MacroSourcesCard";
-import { TargetsEditModal }  from "@/components/nutrition/TargetsEditModal";
-import { BmiCard }           from "@/components/nutrition/BmiCard";
-import { readStoredUnitSystem, type UnitSystem } from "@/lib/units";
+import { loadIntakeAsync } from "@/lib/data/intake";
+import { EnergyCard }           from "@/components/nutrition/EnergyCard";
+import { MacroSourcesCard }     from "@/components/nutrition/MacroSourcesCard";
+import { TargetsEditModal }     from "@/components/nutrition/TargetsEditModal";
+import { EatingApproachCard }   from "@/components/nutrition/EatingApproachCard";
+import { MealScheduleCard }     from "@/components/nutrition/MealScheduleCard";
+import { CarbCyclingCard }      from "@/components/nutrition/CarbCyclingCard";
+import { WeeklyCheckInCard }    from "@/components/nutrition/WeeklyCheckInCard";
+import { PhilosophyTips }       from "@/components/nutrition/PhilosophyTips";
 import {
   getTargetsOverride, saveTargetsOverride, clearTargetsOverride, applyOverride,
   type TargetsOverride,
 } from "@/lib/nutrition/targetsOverride";
+import {
+  loadApproach, saveApproach,
+  goalAdjustedMacros, buildCarbCycleBreakdown,
+  type ApproachState,
+} from "@/lib/nutrition/approach";
 import {
   calculateNutritionTargets,
   calculateEnergy,
@@ -872,14 +880,15 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   const [override,        setOverride]        = useState<TargetsOverride | null>(null);
   const [hasIntake,       setHasIntake]       = useState(initial?.targets != null);
   const [targetsEditOpen, setTargetsEditOpen] = useState(false);
-  const targets = useMemo(() => applyOverride(computedTargets, override), [computedTargets, override]);
 
   // Energy profile (BMR / TDEE / target) for the Energy card
   const [energy,    setEnergy]    = useState<EnergyProfile | null>(null);
-  const [goalLabel, setGoalLabel] = useState<string | undefined>(undefined);
-  // Body metrics for the BMI card
-  const [bodyHeightCm, setBodyHeightCm] = useState<number | null>(null);
-  const [unitSystem,   setUnitSystem]   = useState<UnitSystem>("metric");
+
+  // Eating approach: goal mode + meal pattern + optional carb cycling
+  const [approach, setApproach] = useState<ApproachState>({
+    goalMode: "maintain", mealPattern: "three_plus_snacks",
+    trainingTiming: "after_1_meal", carbCyclingOn: false, firstMealHour24: 8,
+  });
 
   // Date navigation
   const [selectedDate, setSelectedDate] = useState(todayISO);
@@ -951,19 +960,20 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // ── Load energy profile (BMR / TDEE) — always, independent of SSR targets ─────
 
   useEffect(() => {
-    setUnitSystem(readStoredUnitSystem(user.id) ?? "metric");
+    setApproach(loadApproach(user.id));
     loadIntakeAsync(user.id).then((intake) => {
       setEnergy(intake ? calculateEnergy(intake) : null);
-      setGoalLabel(intake ? GOAL_LABELS[intake.primaryGoal] : undefined);
-      // Height in cm for the BMI card
-      if (intake?.height) {
-        const raw = parseFloat(intake.height);
-        setBodyHeightCm(!raw || isNaN(raw) ? null : intake.heightUnit === "ft" ? Math.round(raw * 30.48) : raw);
-      } else {
-        setBodyHeightCm(null);
-      }
     });
   }, [user.id]);
+
+  // Persist the approach as the user toggles it.
+  function patchApproach(patch: Partial<ApproachState>) {
+    setApproach((prev) => {
+      const next = { ...prev, ...patch };
+      saveApproach(user.id, next);
+      return next;
+    });
+  }
 
   // ── Load meals & hydration when date changes ────────────────────────────────
   // Skip the first run when SSR already delivered today's meals.
@@ -988,16 +998,50 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   }, [user.id, selectedDate]);
 
   // ── Load week meals ─────────────────────────────────────────────────────────
+  // Eagerly so the weekly check-in card always has a 7-day window to read.
 
   useEffect(() => {
-    if (viewWeek) {
-      getMealsForRange(user.id, getLast7Start(), todayISO()).then(setWeekMeals);
+    getMealsForRange(user.id, getLast7Start(), todayISO()).then(setWeekMeals);
+  }, [user.id, meals]);
+
+  // ── Goal-mode adjusted targets ──────────────────────────────────────────────
+  // When the user toggles Cut / Maintain / Build, derive calories + macros from
+  // their measured TDEE. Falls back to intake-derived numbers when energy isn't
+  // yet computed (no bodyweight in intake).
+
+  const goalTargets = useMemo<NutritionTargets>(() => {
+    if (energy) {
+      const m = goalAdjustedMacros(energy.tdee, approach.goalMode, energy.weightKg);
+      return { ...m, waterMl: computedTargets.waterMl };
     }
-  }, [user.id, viewWeek, meals]); // refresh when day meals change too
+    return computedTargets;
+  }, [energy, approach.goalMode, computedTargets]);
+
+  const targets = useMemo(() => applyOverride(goalTargets, override), [goalTargets, override]);
 
   // ── Derived totals ──────────────────────────────────────────────────────────
 
   const totals = useMemo(() => sumTotals(viewWeek ? weekMeals : meals), [meals, weekMeals, viewWeek]);
+
+  // 7-day average calories — feeds the weekly check-in card.
+  const weeklySummary = useMemo(() => {
+    const byDay = new Map<string, number>();
+    weekMeals.forEach((m) => {
+      const day = m.eatenAt.slice(0, 10);
+      byDay.set(day, (byDay.get(day) ?? 0) + m.totals.calories);
+    });
+    const cals = Array.from(byDay.values()).filter((v) => v > 0);
+    return {
+      daysLogged: cals.length,
+      avgCalories: cals.length === 0 ? 0 : Math.round(cals.reduce((s, c) => s + c, 0) / cals.length),
+    };
+  }, [weekMeals]);
+
+  // Carb cycling breakdown only when toggled on and we have a TDEE.
+  const carbCycle = useMemo(() => {
+    if (!approach.carbCyclingOn || !energy) return null;
+    return buildCarbCycleBreakdown(energy.tdee, energy.weightKg, approach.goalMode);
+  }, [approach.carbCyclingOn, approach.goalMode, energy]);
 
   const suggestions = useMemo(() =>
     buildSuggestions(targets, totals, hydration, meals.length)
@@ -1285,8 +1329,10 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           </div>
         )}
 
-        {/* ── Date controls ────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2.5">
+        {/* ── Date & view controls — one tidy row ────────────────────────────
+             Date stepper on the left, view-mode + adjust pills on the right.
+             Targets header lives in the same row so there isn't a second band. */}
+        <div className="flex items-center gap-2 flex-wrap">
           {!viewWeek && (
             <button
               onClick={() => setSelectedDate((d) => offsetDate(d, -1))}
@@ -1295,14 +1341,14 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
               <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
             </button>
           )}
-          <div className="flex-1 flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <p className="text-sm font-medium text-white/60 truncate">{dateLabel}</p>
             {!isToday && !viewWeek && (
               <button
                 onClick={() => setSelectedDate(todayISO())}
                 className="text-[11px] text-[#B48B40]/70 hover:text-[#B48B40] transition-colors shrink-0"
               >
-                Back to today
+                Today
               </button>
             )}
           </div>
@@ -1314,42 +1360,42 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
               <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
             </button>
           )}
-          <button
-            onClick={() => setCalendarOpen(true)}
-            className="w-8 h-8 rounded-xl border border-white/[0.08] bg-white/[0.02] flex items-center justify-center text-white/30 hover:text-white/60 hover:border-white/15 transition-all shrink-0"
-            title="Open calendar"
-          >
-            <CalendarDays className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={() => setViewWeek((v) => !v)}
-            className={cn(
-              "px-3 py-1.5 rounded-xl border text-[11px] font-medium transition-all shrink-0",
-              viewWeek
-                ? "border-[#B48B40]/30 bg-[#B48B40]/8 text-[#B48B40]"
-                : "border-white/[0.08] text-white/30 hover:text-white/55 hover:border-white/15",
-            )}
-          >
-            7 days
-          </button>
-        </div>
 
-        {/* ── Targets header + adjust ───────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-1 -mb-1">
-          <div className="flex items-center gap-2">
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25">Today&apos;s targets</p>
-            {override && (
-              <span className="text-[9px] font-semibold uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-md bg-[#B48B40]/10 text-[#B48B40]/70 border border-[#B48B40]/20">
-                Custom
-              </span>
-            )}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <button
+              onClick={() => setCalendarOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.02] text-[11px] font-medium text-white/40 hover:text-white/65 hover:border-white/15 transition-all"
+              title="Open calendar"
+            >
+              <CalendarDays className="w-3 h-3" strokeWidth={1.5} />
+              <span className="hidden sm:inline">Calendar</span>
+            </button>
+            <button
+              onClick={() => setViewWeek((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all",
+                viewWeek
+                  ? "border-[#B48B40]/30 bg-[#B48B40]/[0.08] text-[#B48B40]"
+                  : "border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white/65 hover:border-white/15",
+              )}
+            >
+              <TrendingUp className="w-3 h-3" strokeWidth={1.5} />
+              7 days
+            </button>
+            <button
+              onClick={() => setTargetsEditOpen(true)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all",
+                override
+                  ? "border-[#B48B40]/30 bg-[#B48B40]/[0.08] text-[#B48B40]"
+                  : "border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white/65 hover:border-white/15",
+              )}
+              title="Edit targets"
+            >
+              <Pencil className="w-3 h-3" strokeWidth={1.5} />
+              {override ? "Custom" : "Adjust"}
+            </button>
           </div>
-          <button
-            onClick={() => setTargetsEditOpen(true)}
-            className="flex items-center gap-1.5 text-[11px] font-medium text-white/40 hover:text-[#B48B40] transition-colors"
-          >
-            <Pencil className="w-3 h-3" strokeWidth={1.5} /> Adjust
-          </button>
         </div>
 
         {/* ── Summary cards ─────────────────────────────────────────────────── */}
@@ -1359,15 +1405,42 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
           <HydrationCard current={hydration}      target={targets.waterMl} onAdd={addWaterMl} />
         </div>
 
-        {/* ── Energy (BMR / maintenance / target) + BMI ─────────────────────── */}
+        {/* ── Philosophy stack ──────────────────────────────────────────────
+             Lays out the user's eating approach (balanced foundation + their
+             goal mode + meal pattern + optional carb cycling), the resulting
+             meal schedule, and Xavier's playbook tips. */}
         {!viewWeek && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {energy && <EnergyCard energy={energy} goalLabel={goalLabel} />}
-            <BmiCard
-              initialWeightKg={energy?.weightKg ?? null}
-              initialHeightCm={bodyHeightCm}
-              unitSystem={unitSystem}
-            />
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <EatingApproachCard
+                goalMode={approach.goalMode}
+                mealPattern={approach.mealPattern}
+                carbCyclingOn={approach.carbCyclingOn}
+                firstMealHour24={approach.firstMealHour24}
+                onChange={patchApproach}
+              />
+              {energy && <EnergyCard energy={energy} goalMode={approach.goalMode} />}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <MealScheduleCard
+                mealPattern={approach.mealPattern}
+                trainingTiming={approach.trainingTiming}
+                firstMealHour24={approach.firstMealHour24}
+                dailyCarbsG={targets.carbsG}
+                onTimingChange={(t) => patchApproach({ trainingTiming: t })}
+              />
+              <WeeklyCheckInCard
+                goalMode={approach.goalMode}
+                avgCalories={weeklySummary.avgCalories}
+                targetCalories={targets.calories}
+                daysLogged={weeklySummary.daysLogged}
+              />
+            </div>
+
+            {carbCycle && <CarbCyclingCard data={carbCycle} />}
+
+            <PhilosophyTips />
           </div>
         )}
 

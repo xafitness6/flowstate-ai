@@ -3,53 +3,60 @@
 import { Flame, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BMR_METHOD_LABEL, type EnergyProfile } from "@/lib/nutrition";
+import {
+  GOAL_MODE_META, goalCalorieAdjustment, goalAdjustedCalories,
+  type GoalMode,
+} from "@/lib/nutrition/approach";
 
 /**
- * Energy breakdown card — BMR → maintenance (TDEE) → target calories.
- * Shared by the client's nutrition tab and the trainer's client file.
+ * Energy breakdown — BMR → maintenance (TDEE) → goal-adjusted target.
+ * The Cut / Maintain / Build pill changes which target line you see.
  */
 export function EnergyCard({
-  energy,
-  goalLabel,
-  className,
+  energy, goalMode, goalLabel, className,
 }: {
   energy:     EnergyProfile;
+  goalMode?:  GoalMode;        // when omitted, falls back to the intake-derived target
   goalLabel?: string;
   className?: string;
 }) {
   const { bmr, tdee, targetCalories, activityMultiplier, goalAdjustment, method, leanMassKg } = energy;
 
+  // When the page passes a goalMode override, recompute from TDEE; else use the
+  // value the EnergyProfile was created with.
+  const target  = goalMode ? goalAdjustedCalories(tdee, goalMode) : targetCalories;
+  const adjKcal = goalMode ? goalCalorieAdjustment(goalMode) : goalAdjustment;
+  const tgtLabel = goalMode ? GOAL_MODE_META[goalMode].label : "Target";
+  const tgtSub   = goalMode ? GOAL_MODE_META[goalMode].sub   : (goalLabel || "Goal-adjusted");
+
   // Bars scaled to the largest of the three so the comparison reads at a glance.
-  const max = Math.max(bmr, tdee, targetCalories, 1);
+  const max  = Math.max(bmr, tdee, target, 1);
   const rows = [
-    { label: "BMR",         sub: "At rest",      value: bmr,            color: "bg-white/30"      },
-    { label: "Maintenance", sub: "BMR × activity", value: tdee,         color: "bg-[#93C5FD]/55"  },
-    { label: "Target",      sub: goalLabel || "Goal-adjusted", value: targetCalories, color: "bg-[#B48B40]" },
+    { label: "BMR",         sub: "At rest",                value: bmr,    color: "bg-white/30"      },
+    { label: "Maintenance", sub: "BMR × activity",         value: tdee,   color: "bg-[#93C5FD]/55"  },
+    { label: tgtLabel,      sub: tgtSub,                   value: target, color: "bg-[#B48B40]" },
   ];
 
-  const adj = goalAdjustment === 0
-    ? "maintenance"
-    : `${goalAdjustment > 0 ? "+" : ""}${goalAdjustment} kcal`;
+  const adjLabel = adjKcal === 0 ? "maintenance" : `${adjKcal > 0 ? "+" : ""}${adjKcal} kcal`;
 
   return (
     <div className={cn("rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-4", className)}>
-      {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Energy</p>
         <Flame className="w-3.5 h-3.5 text-[#B48B40]/40" strokeWidth={1.5} />
       </div>
 
-      {/* Headline BMR */}
+      {/* Headline target */}
       <div>
         <div className="flex items-baseline gap-1.5">
           <span className="text-[1.6rem] font-semibold tabular-nums leading-none text-white/90">
-            {bmr.toLocaleString()}
+            {target.toLocaleString()}
           </span>
-          <span className="text-sm text-white/28">kcal/day BMR</span>
+          <span className="text-sm text-white/28">kcal/day · {tgtLabel.toLowerCase()}</span>
         </div>
         <p className="text-xs text-white/30 mt-1">
           {leanMassKg != null ? `${leanMassKg} kg lean mass · ` : ""}
-          ×{activityMultiplier} activity → {tdee.toLocaleString()} maintenance
+          BMR {bmr.toLocaleString()} × {activityMultiplier} → {tdee.toLocaleString()} maintenance
         </p>
       </div>
 
@@ -73,11 +80,11 @@ export function EnergyCard({
         ))}
       </div>
 
-      {/* Footnote: goal adjustment + method */}
+      {/* Footnote */}
       <div className="flex items-start gap-1.5 pt-0.5">
         <Info className="w-3 h-3 text-white/20 shrink-0 mt-0.5" strokeWidth={1.5} />
         <p className="text-[10px] text-white/28 leading-relaxed">
-          Target = maintenance {goalAdjustment === 0 ? "(" : ""}{adj}{goalAdjustment === 0 ? ")" : ""}.{" "}
+          Target = maintenance {adjKcal === 0 ? "" : adjLabel}.{" "}
           {BMR_METHOD_LABEL[method]}.
         </p>
       </div>
