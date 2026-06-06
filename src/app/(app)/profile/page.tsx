@@ -13,6 +13,7 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { readStoredUnitSystem, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/units";
 import { Card } from "@/components/ui/Card";
+import { IntakeQuestionPrompt } from "@/components/profile/IntakeQuestionPrompt";
 import { StatTile } from "@/components/ui/StatTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -469,6 +470,9 @@ export default function ProfilePage() {
 
   return (
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto space-y-8 text-white">
+
+      {/* Backfill prompt for intake fields added after the user onboarded */}
+      <IntakeQuestionPrompt />
 
       {/* ── Profile card ─────────────────────────────────────────────── */}
       <Card>
