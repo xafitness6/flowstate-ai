@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ChevronLeft, Download, Loader2, Trash2, StickyNote, Send,
   User, Dumbbell, Apple, LineChart, MessageSquare,
-  ExternalLink, CalendarDays, Clock, PlayCircle, CheckCircle2,
+  CalendarDays, Clock, PlayCircle, CheckCircle2,
   Activity, Camera, Image as ImageIcon, Scale, TrendingUp, Upload, Bell,
   Pencil, Check, X,
 } from "lucide-react";
