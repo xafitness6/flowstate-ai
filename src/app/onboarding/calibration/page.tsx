@@ -26,6 +26,10 @@ type OnboardingAnswers = {
   sleepHours:    string;
   energyLevel:   "" | "low" | "steady" | "high" | "variable";
   mainStruggle:  string[];
+  // Injury deep-dive — only collected when "Injuries" is a main friction point.
+  injuryAreas:   string[];
+  injuryNote:    string;
+  injuryCleared: "" | "yes" | "no";
   equipment:     string[];
   // Body stats — drive BMR / calorie & macro targets
   weight:        string;
@@ -107,6 +111,8 @@ const ENERGY_OPTIONS: { value: OnboardingAnswers["energyLevel"]; label: string; 
   { value: "high",     label: "High",         sub: "Energetic most of the time" },
   { value: "variable", label: "Up and down",  sub: "Swings / afternoon crashes" },
 ];
+
+const INJURY_AREAS = ["Knee", "Shoulder", "Lower back", "Ankle / Achilles", "Hip", "Wrist / Elbow", "Neck", "Other"];
 
 const STRUGGLE_OPTIONS: { value: string; label: string }[] = [
   { value: "Consistency", label: "Consistency" },
@@ -237,6 +243,9 @@ const DEFAULT: OnboardingAnswers = {
   mealsPerDay:   "3",
   sleepHours:    "7",
   energyLevel:   "",
+  injuryAreas:   [],
+  injuryNote:    "",
+  injuryCleared: "",
   mainStruggle:  [],
   equipment:     [],
   weight:        "",
@@ -287,6 +296,9 @@ export default function CalibrationPage() {
           mealsPerDay:   typeof raw.mealsPerDay === "string" ? raw.mealsPerDay : a.mealsPerDay,
           sleepHours:    typeof raw.sleepHours === "string" ? raw.sleepHours : a.sleepHours,
           energyLevel:   typeof raw.energyLevel === "string" ? (raw.energyLevel as OnboardingAnswers["energyLevel"]) : a.energyLevel,
+          injuryAreas:   asArr(raw.injuryAreas) ?? a.injuryAreas,
+          injuryNote:    typeof raw.injuryNote === "string" ? raw.injuryNote : a.injuryNote,
+          injuryCleared: raw.injuryCleared === "yes" || raw.injuryCleared === "no" ? raw.injuryCleared : a.injuryCleared,
           dietStyle:     asArr(raw.dietStyle) ?? a.dietStyle,
           mainStruggle:  asArr(raw.mainStruggle) ?? a.mainStruggle,
           equipment:     asArr(raw.equipment) ?? a.equipment,
@@ -366,6 +378,9 @@ export default function CalibrationPage() {
       activityLevel:   answers.activityLevel || undefined,
       sleepHours:      answers.sleepHours,
       energyLevel:     answers.energyLevel || undefined,
+      injuryAreas:     answers.injuryAreas,
+      injuryNote:      answers.injuryNote,
+      injuryCleared:   answers.injuryCleared || undefined,
       sleepQuality:    0,
       stressLevel:     0,
       recoveryNote:    "",
@@ -851,6 +866,38 @@ export default function CalibrationPage() {
 	                })}
 	              </div>
 	            </div>
+
+	            {answers.mainStruggle.includes("Injuries") && (
+	              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-4 space-y-4">
+	                <div>
+	                  <p className="text-sm font-semibold text-amber-300/90">Tell us about the injury</p>
+	                  <p className="text-[11px] text-white/40 mt-0.5">So your coach trains around it safely — never through it.</p>
+	                </div>
+	                <div>
+	                  <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">Area(s) affected</p>
+	                  <div className="flex flex-wrap gap-2">
+	                    {INJURY_AREAS.map((area) => (
+	                      <ChipButton key={area} label={area} active={answers.injuryAreas.includes(area)} onClick={() => setAnswers((p) => ({ ...p, injuryAreas: toggle(p.injuryAreas, area) }))} />
+	                    ))}
+	                  </div>
+	                </div>
+	                <textarea
+	                  value={answers.injuryNote}
+	                  onChange={(e) => setAnswers((p) => ({ ...p, injuryNote: e.target.value }))}
+	                  rows={3}
+	                  placeholder="What happened, what movements aggravate it, and anything that feels off — e.g. 'torn Achilles, can't bear weight, walking hurts' or 'sharp knee pain on squats'."
+	                  className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-[#B48B40]/50 resize-none"
+	                />
+	                <div>
+	                  <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">Cleared to train by a doctor / physio?</p>
+	                  <div className="flex gap-2">
+	                    {([{ v: "yes", l: "Yes, cleared" }, { v: "no", l: "Not sure / No" }] as const).map((o) => (
+	                      <ChipButton key={o.v} label={o.l} active={answers.injuryCleared === o.v} onClick={() => setAnswers((p) => ({ ...p, injuryCleared: p.injuryCleared === o.v ? "" : o.v }))} />
+	                    ))}
+	                  </div>
+	                </div>
+	              </div>
+	            )}
 
 	            <button
 	              onClick={advance}

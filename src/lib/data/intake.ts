@@ -37,6 +37,9 @@ export type IntakeData = {
   // Recovery
   sleepHours:      string;   // "5 or less" | "6" | "7" | "8" | "9+"
   energyLevel?:    "low" | "steady" | "high" | "variable";  // daily energy, onboarding
+  injuryAreas?:    string[];   // injury deep-dive (onboarding)
+  injuryNote?:     string;
+  injuryCleared?:  "yes" | "no";
   sleepQuality:    number;   // 1–5, 0 = not set
   stressLevel:     number;   // 1–5, 0 = not set
   recoveryNote:    string;

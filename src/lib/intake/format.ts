@@ -102,6 +102,10 @@ export function summarizeIntakeForCoach(intake: RawIntake | null): string {
   add("Diet style", list(intake.dietStyle));
   add("Sleep", intake.sleepHours ? `${asString(intake.sleepHours)} hrs` : "");
   add("Daily energy", { low: "Low / often drained", steady: "Steady", high: "High", variable: "Up and down" }[asString(intake.energyLevel)] ?? "");
+  // Injury deep-dive (onboarding) — critical for safe programming.
+  add("INJURY areas", list(intake.injuryAreas));
+  add("INJURY detail", asString(intake.injuryNote));
+  add("Injury cleared by doctor", { yes: "Yes", no: "Not sure / no" }[asString(intake.injuryCleared)] ?? "");
 
   // Deep-cal specifics that materially change coaching:
   add("Height/weight", [heightLabel(deep.heightCm), weightLabel(deep.weightKg)].filter((s) => s !== "—").join(", "));

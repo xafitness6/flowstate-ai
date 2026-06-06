@@ -15,6 +15,7 @@ import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { ClientNutritionManager } from "@/components/clients/ClientNutritionManager";
 import { ClientAccountActions } from "@/components/clients/ClientAccountActions";
 import { ClientTasksManager } from "@/components/clients/ClientTasksManager";
+import { ClientAIBreakdown } from "@/components/clients/ClientAIBreakdown";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
@@ -785,6 +786,7 @@ export default function ClientDetailPage() {
         {/* ── Overview tab: onboarding action + intake + prefill ── */}
         {tab === "overview" && (
           <>
+            <ClientAIBreakdown clientId={id} />
             <EngagementCard data={engagement} />
             {viewerIsAdmin && (
               <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-3 flex-wrap">
