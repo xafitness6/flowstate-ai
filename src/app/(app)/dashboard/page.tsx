@@ -563,6 +563,13 @@ function DashboardContent() {
 
   return (
     <div className="relative px-5 md:px-8 py-6 text-white max-w-5xl mx-auto">
+      {/* Get smarter coaching — trumps everything until deep calibration is done */}
+      {actualUserId && (
+        <div className="relative z-10 mb-6">
+          <DeepCalPrompt userId={actualUserId} />
+        </div>
+      )}
+
       <GreetingBanner />
 
       {/* Ambient glow — backdrop behind hero */}
@@ -649,11 +656,6 @@ function DashboardContent() {
           <div className="sm:max-w-sm">
             <EnergyCard energy={energy} goalLabel={energyGoal} goalMode={energyGoalMode} />
           </div>
-        )}
-
-        {/* Deep calibration nudge */}
-        {actualUserId && (
-          <DeepCalPrompt userId={actualUserId} />
         )}
 
         {/* Two-column on desktop: AI Coach left, Role panel right */}
