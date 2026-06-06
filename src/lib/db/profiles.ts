@@ -92,7 +92,7 @@ export function profileToMockUser(profile: Profile) {
   const role = profile.is_admin ? "master" : profile.role;
   return {
     id:                 profile.id,
-    name:               profile.full_name ?? (`${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email),
+    name:               (profile.nickname?.trim() || profile.full_name?.trim()) ?? (`${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email),
     role,
     isAdmin:            profile.is_admin,
     status:             "active" as const,

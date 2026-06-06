@@ -16,7 +16,7 @@ export async function GET(
 
   const [{ data: profile }, { data: onboarding }] = await Promise.all([
     admin.from("profiles")
-      .select("id,full_name,first_name,last_name,email,role,plan,assigned_trainer_id")
+      .select("id,nickname,full_name,first_name,last_name,email,role,plan,assigned_trainer_id")
       .eq("id", id)
       .maybeSingle(),
     admin.from("onboarding_state")

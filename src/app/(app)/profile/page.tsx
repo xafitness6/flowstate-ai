@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/Card";
 import { IntakeQuestionPrompt } from "@/components/profile/IntakeQuestionPrompt";
 import { CoachTaskList } from "@/components/tasks/CoachTaskList";
 import { TimezoneSetting } from "@/components/profile/TimezoneSetting";
+import { NicknameSetting } from "@/components/profile/NicknameSetting";
 import { StatTile } from "@/components/ui/StatTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -744,6 +745,9 @@ export default function ProfilePage() {
             />
           </SettingsRow>
 
+          <SettingsRow label="Nickname" description="Shown across the app instead of your full name.">
+            <NicknameSetting />
+          </SettingsRow>
           <SettingsRow label="Units" description="Weight, distance, and measurement display.">
             <PillToggle options={UNIT_SYSTEMS} value={units} onChange={setUnits} />
           </SettingsRow>

@@ -16,8 +16,8 @@ export async function GET() {
   const trainerId = (prof?.assigned_trainer_id as string | null) ?? null;
   let coachName: string | null = null;
   if (trainerId) {
-    const { data: tr } = await admin.from("profiles").select("full_name,first_name,email").eq("id", trainerId).maybeSingle();
-    coachName = (tr?.full_name as string) || (tr?.first_name as string) || (tr?.email as string) || "Your coach";
+    const { data: tr } = await admin.from("profiles").select("nickname,full_name,first_name,email").eq("id", trainerId).maybeSingle();
+    coachName = (tr?.nickname as string) || (tr?.full_name as string) || (tr?.first_name as string) || (tr?.email as string) || "Your coach";
   }
 
   const { data } = await supabase
@@ -55,10 +55,10 @@ export async function POST(req: Request) {
   // Notify the coach (in-app).
   try {
     const admin = await createAdminClient();
-    const { data: prof } = await admin.from("profiles").select("assigned_trainer_id,full_name,first_name,email").eq("id", user.id).maybeSingle();
+    const { data: prof } = await admin.from("profiles").select("assigned_trainer_id,nickname,full_name,first_name,email").eq("id", user.id).maybeSingle();
     const trainerId = (prof?.assigned_trainer_id as string | null) ?? null;
     if (trainerId) {
-      const who = (prof?.full_name as string) || (prof?.first_name as string) || (prof?.email as string) || "Your client";
+      const who = (prof?.nickname as string) || (prof?.full_name as string) || (prof?.first_name as string) || (prof?.email as string) || "Your client";
       await admin.from("notifications").insert({
         user_id: trainerId, type: "general", title: `Message from ${who}`, body: text.slice(0, 140), link: `/clients/${user.id}`, actor_name: who,
       });

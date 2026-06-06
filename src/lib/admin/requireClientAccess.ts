@@ -33,7 +33,7 @@ export async function requireClientAccess(
 
   const { data: actor } = await admin
     .from("profiles")
-    .select("id,role,is_admin,full_name,email")
+    .select("id,role,is_admin,nickname,full_name,email")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -60,7 +60,9 @@ export async function requireClientAccess(
   }
 
   const authorName =
-    (typeof actor.full_name === "string" && actor.full_name.trim()) || actor.email || "Coach";
+    (typeof actor.nickname === "string" && actor.nickname.trim())
+    || (typeof actor.full_name === "string" && actor.full_name.trim())
+    || actor.email || "Coach";
 
   return { ok: true as const, admin, actorId: actor.id, authorName, isAdmin, isSelf };
 }

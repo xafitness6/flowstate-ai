@@ -37,7 +37,7 @@ import {
 } from "@/lib/units";
 
 type ClientProfile = {
-  id: string; full_name: string | null; first_name: string | null; last_name: string | null;
+  id: string; nickname: string | null; full_name: string | null; first_name: string | null; last_name: string | null;
   email: string | null; role: string; plan: string;
   assigned_trainer_id: string | null;
   assigned_trainer_name: string | null;
@@ -667,7 +667,7 @@ export default function ClientDetailPage() {
   }
 
   const name = profile
-    ? (profile.full_name?.trim() || `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email || "Client")
+    ? (profile.nickname?.trim() || profile.full_name?.trim() || `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email || "Client")
     : "Client";
 
   async function sendThroughOnboarding(complete: boolean) {

@@ -30,7 +30,7 @@ export async function GET() {
 
   const { data: rows, error } = await admin
     .from("profiles")
-    .select("id,full_name,first_name,last_name,email,plan,subscription_status,created_at")
+    .select("id,nickname,full_name,first_name,last_name,email,plan,subscription_status,created_at")
     .eq("assigned_trainer_id", user.id)
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -53,7 +53,7 @@ export async function GET() {
 
   const result = clients.map((c) => ({
     id:    c.id,
-    name:  (c.full_name?.trim())
+    name:  (c.nickname?.trim()) || (c.full_name?.trim())
         || [c.first_name, c.last_name].filter(Boolean).join(" ").trim()
         || c.email?.split("@")[0]
         || "Client",
