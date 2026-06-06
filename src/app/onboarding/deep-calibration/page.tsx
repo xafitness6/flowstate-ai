@@ -181,14 +181,41 @@ export default function DeepCalibrationPage() {
         const { getOnboardingState } = await import("@/lib/db/onboarding");
         const state = await getOnboardingState(userId);
         const raw = state?.raw_answers as Record<string, unknown> | null | undefined;
+        if (!active || !raw) return;
         const deep = raw && typeof raw.deep === "object" ? raw.deep as Record<string, unknown> : null;
-        if (!active || !deep || Object.keys(deep).length === 0) return;
-        // Only copy keys that exist on DeepCalAnswers; ignore the rest.
+
+        // Seed units / height / weight from the FIRST onboarding (top-level
+        // intake) so deep calibration never re-asks them.
+        const str = (v: unknown) => (typeof v === "string" ? v : "");
+        const topWeightUnit = str(raw.weightUnit);   // "kg" | "lbs"
+        const topHeightUnit = str(raw.heightUnit);    // "cm" | "ft"
+        const topWeight = parseFloat(str(raw.weight));
+        const topHeight = str(raw.height);
+        const seededUnits: Units = (topWeightUnit === "lbs" || topHeightUnit === "ft") ? "imperial" : "metric";
+        let seededHeightCm = "";
+        if (topHeight) {
+          if (topHeightUnit === "ft") {
+            const [ft, inPart] = topHeight.split(".");
+            seededHeightCm = String(feetInchesToCm(parseInt(ft || "0", 10), parseInt((inPart || "0").padEnd(1, "0"), 10)));
+          } else {
+            const n = parseFloat(topHeight);
+            if (n > 0) seededHeightCm = String(Math.round(n));
+          }
+        }
+        const seededWeightKg = topWeight > 0 ? String(topWeightUnit === "lbs" ? lbsToKg(topWeight) : Math.round(topWeight)) : "";
+
         setAnswers((a) => {
           const next = { ...a } as Record<string, unknown>;
-          for (const k of Object.keys(DEFAULTS)) {
-            if (deep[k] !== undefined && deep[k] !== null) next[k] = deep[k];
+          // Coach-prefilled deep answers win where present.
+          if (deep) {
+            for (const k of Object.keys(DEFAULTS)) {
+              if (deep[k] !== undefined && deep[k] !== null) next[k] = deep[k];
+            }
           }
+          // Backfill the already-known basics if deep didn't carry them.
+          next.units = seededUnits;
+          if (!next.heightCm && seededHeightCm) next.heightCm = seededHeightCm;
+          if (!next.weightKg && seededWeightKg) next.weightKg = seededWeightKg;
           return next as DeepCalAnswers;
         });
       } catch { /* no pre-fill — start from DEFAULTS */ }
@@ -358,14 +385,13 @@ export default function DeepCalibrationPage() {
         {/* ── Chunk A — Body & history ──────────────────────────────────── */}
         {step === "body" && (
           <div className="space-y-8">
-            <UnitToggle value={answers.units} onChange={(v) => update("units", v)} />
-
+            {/* Units + height come from the first onboarding — don't re-ask. Just
+                confirm current weight (it changes) and the goal. */}
             <Question
-              prompt="How tall are you, and what do you weigh right now?"
-              coach="Honest numbers only — I'd rather start from where you actually are than where you'd like to be."
+              prompt="What do you weigh right now?"
+              coach="Honest number — I'd rather start from where you actually are than where you'd like to be."
             >
               <Grid2>
-                <HeightInput units={answers.units} valueCm={answers.heightCm} onChange={(cm) => update("heightCm", cm)} />
                 <WeightInput units={answers.units} valueKg={answers.weightKg} onChange={(kg) => update("weightKg", kg)} label="Current weight" />
               </Grid2>
             </Question>
