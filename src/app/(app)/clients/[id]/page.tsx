@@ -157,6 +157,7 @@ export default function ClientDetailPage() {
 
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [intake,  setIntake]  = useState<RawIntake | null>(null);
+  const [engagement, setEngagement] = useState<EngagementData | null>(null);
   // Weight is stored canonically as kg; display in the viewing trainer's
   // preferred unit, falling back to the client's onboarding answers, then metric.
   const [viewerUnit, setViewerUnit] = useState<UnitSystem | null>(null);
@@ -270,6 +271,16 @@ export default function ClientDetailPage() {
     setWeightLogs([]); setPhotos([]); setProgressLoaded(false); setProgressError(null);
     setReminders([]); setRemindersLoaded(false);
     setCalendarReminders([]); setCalendarRemindersLoaded(false);
+    setEngagement(null);
+  }, [id]);
+
+  // Engagement: Learn progress + login frequency (coach view).
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/clients/${id}/engagement`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setEngagement(j as EngagementData))
+      .catch(() => {});
   }, [id]);
 
   // Load assignable trainers (admins only) for the coach selector.
@@ -755,6 +766,7 @@ export default function ClientDetailPage() {
         {tab === "overview" && (
           <>
             <ClientVitals intake={intake} />
+            <EngagementCard data={engagement} />
             {viewerIsAdmin && (
               <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
@@ -1293,6 +1305,57 @@ function StatTile({ label, value, capitalize }: { label: string; value: string; 
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
       <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">{label}</p>
       <p className={cn("text-sm font-semibold text-white/90 truncate", capitalize && "capitalize")}>{value}</p>
+    </div>
+  );
+}
+
+type EngagementData = {
+  learn: { done: number; total: number; byCategory: { id: string; label: string; done: number; total: number }[] };
+  activeDays30: number;
+  lastSeenAt: string | null;
+  lastSignInAt: string | null;
+  joinedAt: string | null;
+};
+
+// Coach view: how engaged the client is — Learn progress (overall + per
+// category) and login frequency (last seen, active days in the last 30).
+function EngagementCard({ data }: { data: EngagementData | null }) {
+  if (!data) return null;
+  const { learn } = data;
+  const pct = learn.total > 0 ? Math.round((learn.done / learn.total) * 100) : 0;
+  const ago = (iso: string | null) => {
+    if (!iso) return "—";
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (days <= 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 30) return `${days}d ago`;
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  return (
+    <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-3 flex items-center gap-1.5">
+        <Activity className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.8} /> Engagement &amp; learning
+      </p>
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <StatTile label="Last seen" value={ago(data.lastSeenAt ?? data.lastSignInAt)} />
+        <StatTile label="Active days / 30" value={String(data.activeDays30)} />
+        <StatTile label="Joined" value={data.joinedAt ? new Date(data.joinedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"} />
+      </div>
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <p className="text-xs font-medium text-white/60">Learning progress</p>
+        <p className="text-[11px] text-white/45 tabular-nums">{learn.done}/{learn.total} · {pct}%</p>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden mb-3">
+        <div className="h-full bg-[#B48B40] rounded-full" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {learn.byCategory.map((c) => (
+          <span key={c.id} className="text-[11px] rounded-lg bg-black/15 border border-white/[0.06] px-2 py-1 text-white/55">
+            {c.label} <span className={cn("tabular-nums", c.done === c.total && c.total > 0 ? "text-emerald-400/80" : "text-white/40")}>{c.done}/{c.total}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

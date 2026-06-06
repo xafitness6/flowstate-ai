@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/AppShell";
+import { ActivityPing } from "@/components/layout/ActivityPing";
 
 // Authenticated app layout.
 // Every route inside (app)/ gets the full sidebar + topbar + bottom nav.
@@ -8,5 +9,10 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      <ActivityPing />
+      {children}
+    </AppShell>
+  );
 }

@@ -75,13 +75,41 @@ export default function LearnPage() {
   const [query, setQuery] = useState("");
   const [done,  setDone]  = useState<Set<string>>(new Set());
 
-  useEffect(() => { if (user?.id) setDone(loadLearnProgress(user.id)); }, [user?.id]);
+  // Paint from localStorage instantly, then hydrate from the DB (authoritative,
+  // cross-device). Migrate any local-only completions up to the DB so nothing
+  // logged before sync existed is lost.
+  useEffect(() => {
+    if (!user?.id) return;
+    const local = loadLearnProgress(user.id);
+    setDone(local);
+    if (!/^[0-9a-f-]{36}$/i.test(user.id) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    fetch("/api/me/learn-progress", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        const remote = new Set<string>(Array.isArray(j?.completed) ? j.completed : []);
+        // push local-only ids to the DB
+        [...local].filter((id) => !remote.has(id)).forEach((id) => {
+          remote.add(id);
+          fetch("/api/me/learn-progress", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ articleId: id, done: true }) }).catch(() => {});
+        });
+        setDone(remote);
+        saveLearnProgress(user.id, remote);
+      })
+      .catch(() => {});
+  }, [user?.id]);
 
   function toggleDone(id: string) {
     setDone((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const willComplete = !next.has(id);
+      if (willComplete) next.add(id); else next.delete(id);
       if (user?.id) saveLearnProgress(user.id, next);
+      if (user?.id && /^[0-9a-f-]{36}$/i.test(user.id) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        fetch("/api/me/learn-progress", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ articleId: id, done: willComplete }),
+        }).catch(() => {});
+      }
       return next;
     });
   }
@@ -101,6 +129,16 @@ export default function LearnPage() {
       return (a.title + " " + a.summary + " " + a.body.join(" ")).toLowerCase().includes(q);
     });
   }, [cat, query]);
+
+  // Per-category completion (done/total) for the tab badges.
+  const catProgress = useMemo(() => {
+    const m: Record<string, { done: number; total: number }> = { all: { done: completedCount, total } };
+    for (const c of LEARN_CATEGORIES) {
+      const arts = LEARN_ARTICLES.filter((a) => a.category === c.id);
+      m[c.id] = { done: arts.filter((a) => done.has(a.id)).length, total: arts.length };
+    }
+    return m;
+  }, [done, completedCount, total]);
 
   const tabs: { id: LearnCategory | "all"; label: string }[] = [
     { id: "all", label: "All" },
@@ -148,20 +186,28 @@ export default function LearnPage() {
 
         {/* Category tabs */}
         <div className="flex gap-2 flex-wrap">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setCat(t.id)}
-              className={cn(
-                "px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all border",
-                cat === t.id
-                  ? "bg-[#B48B40]/12 text-[#B48B40] border-[#B48B40]/25"
-                  : "border-white/[0.08] text-white/40 hover:text-white/65 hover:border-white/15",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+          {tabs.map((t) => {
+            const p = catProgress[t.id];
+            return (
+              <button
+                key={t.id}
+                onClick={() => setCat(t.id)}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all border flex items-center gap-1.5",
+                  cat === t.id
+                    ? "bg-[#B48B40]/12 text-[#B48B40] border-[#B48B40]/25"
+                    : "border-white/[0.08] text-white/40 hover:text-white/65 hover:border-white/15",
+                )}
+              >
+                {t.label}
+                {p && (
+                  <span className={cn("text-[10px] tabular-nums", p.done === p.total && p.total > 0 ? "text-emerald-400/80" : "opacity-60")}>
+                    {p.done}/{p.total}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Articles */}
