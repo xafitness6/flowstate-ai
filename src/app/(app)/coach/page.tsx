@@ -390,6 +390,14 @@ function CoachPageInner() {
         setLoading(false);
         return;
       }
+      // Relay to the human coach — fire the notification, then let the AI reply
+      // conversationally (no early return).
+      if (act && intent === "message_coach" && route!.payload.coachMessage) {
+        fetch("/api/me/coach-message", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: route!.payload.coachMessage }),
+        }).catch(() => {});
+      }
 
       // 3. Recovery → capture any numbers, then coach with the context
       if (intent === "recovery_check" && route) {

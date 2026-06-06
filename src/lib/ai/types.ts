@@ -73,6 +73,7 @@ export type CoachIntent =
   | "log_workout_complete"
   | "log_reflection"
   | "recovery_check"
+  | "message_coach"
   | "chat";
 
 export type CoachIntentOutput = {
@@ -87,6 +88,7 @@ export type CoachIntentOutput = {
     feel?:            string | null;   // "easy"|"good"|"hard"
     note?:            string | null;
     reflectionText?:  string;          // log_reflection
+    coachMessage?:    string;          // message_coach — relay to the human coach
     // recovery_check — any the model could extract
     sleepHours?:      number | null;
     soreness?:        number | null;   // 1–5

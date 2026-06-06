@@ -49,9 +49,14 @@ RULES:
   Venting, excuses, resistance, jokes, swearing, "I don't want to train" → "chat".
   A reply the coach should TALK BACK to is "chat", never a silent log.
 
+- "message_coach" — they explicitly want their HUMAN coach told something or to
+  change their plan ("tell my coach…", "let my coach know…", "can you ask my
+  coach to change my workout", "let her know I'm travelling"). payload.coachMessage
+  = a clear one-line relay of what to tell the coach. Still answer them warmly too.
+
 OUTPUT SCHEMA (JSON only):
 {
-  "intent": "log_meal" | "log_workout_complete" | "log_reflection" | "recovery_check" | "chat",
+  "intent": "log_meal" | "log_workout_complete" | "log_reflection" | "recovery_check" | "message_coach" | "chat",
   "confidence": 0.0,
   "needsClarification": false,
   "clarifyingQuestion": null,
@@ -62,6 +67,7 @@ OUTPUT SCHEMA (JSON only):
     "feel": null,
     "note": null,
     "reflectionText": null,
+    "coachMessage": null,
     "sleepHours": null,
     "soreness": null,
     "energy": null

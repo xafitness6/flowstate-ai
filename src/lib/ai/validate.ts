@@ -99,7 +99,7 @@ export function validateDetectOutput(raw: unknown): DetectOutput {
 }
 
 const COACH_INTENTS: CoachIntent[] = [
-  "log_meal", "log_workout_complete", "log_reflection", "recovery_check", "chat",
+  "log_meal", "log_workout_complete", "log_reflection", "recovery_check", "message_coach", "chat",
 ];
 
 export function validateCoachIntent(raw: unknown): CoachIntentOutput {

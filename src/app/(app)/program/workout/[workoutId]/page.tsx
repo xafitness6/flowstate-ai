@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Check, CheckCircle2,
-  Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock,
+  Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -486,6 +486,9 @@ export default function WorkoutPage() {
   const startRef    = useRef(Date.now());
   const [elapsed,   setElapsed]   = useState(0);
   const [finished,  setFinished]  = useState(false);
+  // Pain / "felt off" feedback — surfaced to the coach (notes + notification).
+  const [painNote,  setPainNote]  = useState("");
+  const [painOpen,  setPainOpen]  = useState(false);
   // Flow: preview (see details, nothing running) → countdown (5..1) → active.
   // Freestyle skips the countdown + running clock + auto rest timers — just log.
   const [phase,     setPhase]     = useState<"preview" | "countdown" | "active">("preview");
@@ -641,6 +644,7 @@ export default function WorkoutPage() {
       completedAt:   Date.now(),
       durationMins:  Math.ceil(elapsed / 60),
       setsCompleted: completedSetCount,
+      notes:         painNote.trim() ? `⚠️ Pain/feedback: ${painNote.trim()}` : undefined,
       exercises:     workout.exercises.map((ex) => ({
         exerciseId: ex.exerciseId,
         name:       ex.name,
@@ -661,7 +665,7 @@ export default function WorkoutPage() {
     // Ping the coach + feed accountability (best-effort, never blocks the finish).
     fetch("/api/me/workout-complete", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workoutName: workout.focus, sets: completedSetCount, durationMins: Math.ceil(elapsed / 60) }),
+      body: JSON.stringify({ workoutName: workout.focus, sets: completedSetCount, durationMins: Math.ceil(elapsed / 60), painNote: painNote.trim() || undefined }),
     }).catch(() => {});
     setFinished(true);
     setTimeout(() => router.replace("/program"), 2200);
@@ -973,6 +977,34 @@ export default function WorkoutPage() {
               onLogSet={handleLogSet}
             />
           ))}
+        </div>
+
+        {/* ── Pain / feedback — goes to the coach ── */}
+        <div className="pt-1">
+          {!painOpen && !painNote && (
+            <button
+              onClick={() => setPainOpen(true)}
+              className="w-full rounded-xl border border-amber-400/20 bg-amber-400/[0.04] py-2.5 text-xs font-medium text-amber-300/80 flex items-center justify-center gap-2 hover:bg-amber-400/[0.08] transition-all"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" strokeWidth={1.8} /> Something hurt or felt off? Tell your coach
+            </button>
+          )}
+          {(painOpen || painNote) && (
+            <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-3">
+              <p className="text-xs font-semibold text-amber-300/90 mb-2 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" strokeWidth={2} /> Pain / feedback for your coach
+              </p>
+              <textarea
+                value={painNote}
+                onChange={(e) => setPainNote(e.target.value)}
+                rows={2}
+                autoFocus={painOpen}
+                placeholder="Which movement, where it hurt, and how it felt — e.g. 'sharp left knee on lunges, stopped early'."
+                className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-amber-400/40 resize-none"
+              />
+              <p className="text-[10px] text-white/35 mt-1.5">Saved with this workout + your coach is notified when you finish.</p>
+            </div>
+          )}
         </div>
 
         {/* ── Finish ── */}

@@ -11,11 +11,12 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ ok: false }, { status: 401 });
 
-  let body: { workoutName?: unknown; sets?: unknown; durationMins?: unknown };
+  let body: { workoutName?: unknown; sets?: unknown; durationMins?: unknown; painNote?: unknown };
   try { body = await req.json(); } catch { body = {}; }
   const name = typeof body.workoutName === "string" ? body.workoutName : "a workout";
   const sets = typeof body.sets === "number" ? body.sets : 0;
   const mins = typeof body.durationMins === "number" ? body.durationMins : 0;
+  const painNote = typeof body.painNote === "string" && body.painNote.trim() ? body.painNote.trim() : null;
 
   try {
     const admin = await createAdminClient();
@@ -28,11 +29,12 @@ export async function POST(req: Request) {
     if (trainerId) {
       const who = (prof?.full_name as string) || (prof?.first_name as string) || (prof?.email as string) || "Your client";
       const detail = [sets ? `${sets} sets` : "", mins ? `${mins} min` : ""].filter(Boolean).join(" · ");
+      // A pain report gets its own, louder notification.
       await notifyClient({
         userId: trainerId,
-        type: "general",
-        title: `${who} completed a workout`,
-        body: `${name}${detail ? ` — ${detail}` : ""}`,
+        type: painNote ? "general" : "general",
+        title: painNote ? `⚠️ ${who} reported pain in their workout` : `${who} completed a workout`,
+        body: painNote ? `"${painNote}" — during ${name}` : `${name}${detail ? ` — ${detail}` : ""}`,
         link: `/clients/${user.id}`,
         actorName: who,
       });
