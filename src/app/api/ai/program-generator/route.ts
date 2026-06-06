@@ -171,10 +171,15 @@ REST DAYS:
 - For active recovery: set focus="Walk 30 min" or "Mobility flow" with 1–3 light entries (no load)
 - The phase has 7 days per week total — training + rest combined must equal 7 days unless explicitly omitted
 
-INJURIES:
-- If "knee" is listed, avoid: heavy back squats, plyometrics, jumping, deep lunges. Substitute: leg press, hack squat with limited ROM, hip thrusts.
-- If "lower_back" is listed, avoid: conventional deadlifts, heavy bent-over rows, loaded good mornings. Substitute: trap-bar variants, chest-supported rows, hip hinges with kettlebells at moderate load.
-- If "shoulder" is listed, avoid: behind-neck pressing, heavy overhead barbell, upright rows. Substitute: neutral-grip DB pressing, landmine press, cable Y-raises.
+INJURIES — treat as hard constraints. Train AROUND the area, never through it. Match keywords loosely (e.g. "achilles", "ankle", "calf" → ankle rules):
+- knee: avoid heavy back squats, plyometrics, jumping, deep lunges. Substitute: leg press / hack squat with limited ROM, hip thrusts, leg curls.
+- lower back: avoid conventional deadlifts, heavy bent-over rows, loaded good mornings. Substitute: trap-bar/hip-hinge at moderate load, chest-supported rows, McGill-style core.
+- shoulder: avoid behind-neck pressing, heavy overhead barbell, upright rows. Substitute: neutral-grip DB pressing, landmine press, cable Y-raises.
+- ankle / Achilles / calf: avoid ALL weight-bearing, jumping, running, standing calf work, walking lunges, anything that loads the ankle. Build the session from SEATED / non-weight-bearing work: seated upper-body (chest, back, shoulders, arms), seated/lying machines, core, and gentle prescribed mobility — plus pain-free isometrics only if cleared. If standing/walking is painful, assume NO lower-body loading.
+- hip: avoid deep squats, heavy hinges, explosive work. Substitute: supported machines, controlled partial-ROM, glute isolation in pain-free range.
+- elbow / wrist: avoid heavy direct arm work, straight-bar curls, deep dips. Substitute: neutral-grip / strap-assisted pulling, machine pressing, lighter ROM-limited work.
+- neck: avoid loaded overhead, heavy shrugs, bridge work. Keep the spine neutral and supported.
+- ANY injury you don't have a rule for, or that sounds severe/undiagnosed (can't bear weight, recent surgery, cast, sharp pain): be conservative — exclude everything that loads that region, lower overall intensity, add a coaching note flagging it for the human coach to review.
 
 OUTPUT ONLY THE JSON. Conform exactly to the schema.`;
 }
