@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen } from "lucide-react";
+import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen, Clock, Plus, X, MessageSquare, Trash2 } from "lucide-react";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, UpgradeCard, FEATURES } from "@/components/ui/PlanGate";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
@@ -209,6 +209,12 @@ function CoachPageInner() {
   const [contextOpen, setContextOpen] = useState(false);
   const [promptsUsed, setPromptsUsed] = useState(false);
   const [context,     setContext    ] = useState<CoachContext>(FALLBACK_CONTEXT);
+  // Persistent conversations (cross-device).
+  const [convId,      setConvId     ] = useState<string | null>(null);
+  const [convList,    setConvList   ] = useState<{ id: string; preview: string; updatedAt: string }[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [convLoaded,  setConvLoaded ] = useState(false);
+  const isRealUser = !!user?.id && /^[0-9a-f-]{36}$/i.test(user.id) && !!process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   // Pull the real active program + derive coach context so the side panel
   // doesn't lie ("Week 3 of 8") to every user.
@@ -246,6 +252,66 @@ function CoachPageInner() {
       .filter((m) => m.id !== "init" && !m.typing)
       .map((m) => ({ role: m.role === "ai" ? "coach" as const : "user" as const, content: m.text })),
   []);
+
+  // ── Persistence: load the most recent conversation, save as it changes ──────
+  const fetchConvList = useCallback(() => {
+    fetch("/api/me/coach-conversations", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { if (Array.isArray(j?.conversations)) setConvList(j.conversations); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isRealUser) { setConvLoaded(true); return; }
+    let active = true;
+    fetch("/api/me/coach-conversations", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(async (j) => {
+        if (!active) return;
+        const list = Array.isArray(j?.conversations) ? j.conversations : [];
+        setConvList(list);
+        if (list[0]) {
+          const t = await fetch(`/api/me/coach-conversations?id=${list[0].id}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+          const tr = Array.isArray(t?.transcript) ? t.transcript : [];
+          if (active && tr.length) {
+            setConvId(list[0].id);
+            setMessages([INITIAL_MESSAGE, ...tr.map((m: { role: string; text: string }, i: number) => ({ id: `h${i}`, role: m.role === "user" ? "user" as const : "ai" as const, text: m.text }))]);
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setConvLoaded(true); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Debounced save of the active transcript.
+  useEffect(() => {
+    if (!isRealUser || !convLoaded || loading) return;
+    const transcript = messages.filter((m) => m.id !== "init" && !m.typing && m.text.trim()).map((m) => ({ role: m.role, text: m.text }));
+    if (transcript.length === 0) return;
+    const h = setTimeout(() => {
+      fetch("/api/me/coach-conversations", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: convId ?? undefined, transcript }) })
+        .then((r) => r.json())
+        .then((j) => { if (j?.id && !convId) { setConvId(j.id); fetchConvList(); } })
+        .catch(() => {});
+    }, 900);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, convLoaded, loading]);
+
+  function newConversation() {
+    setConvId(null);
+    setMessages([INITIAL_MESSAGE]);
+    setHistoryOpen(false);
+  }
+  async function openConversation(id: string) {
+    const t = await fetch(`/api/me/coach-conversations?id=${id}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    const tr = Array.isArray(t?.transcript) ? t.transcript : [];
+    setConvId(id);
+    setMessages([INITIAL_MESSAGE, ...tr.map((m: { role: string; text: string }, i: number) => ({ id: `h${i}`, role: m.role === "user" ? "user" as const : "ai" as const, text: m.text }))]);
+    setHistoryOpen(false);
+  }
 
   // ── Message helpers ─────────────────────────────────────────────────────────
   const removeTyping = (id: string) => setMessages((prev) => prev.filter((m) => m.id !== id));
@@ -439,6 +505,55 @@ function CoachPageInner() {
 
   return (
     <div className="flex h-[calc(100dvh-56px-6rem)] min-h-0 flex-col overflow-hidden text-white md:h-[calc(100dvh-56px-1.5rem)]">
+
+      {/* ── Conversation controls ───────────────────────────────────── */}
+      {isRealUser && (
+        <div className="flex items-center justify-between gap-2 border-b border-white/6 bg-[#0A0A0A] px-4 py-2 shrink-0 md:px-6">
+          <button onClick={() => { fetchConvList(); setHistoryOpen(true); }} className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white/85 transition-colors">
+            <Clock className="w-3.5 h-3.5" strokeWidth={1.8} /> Past conversations{convList.length ? ` · ${convList.length}` : ""}
+          </button>
+          <button onClick={newConversation} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-white/60 hover:text-white/90 hover:border-white/20 transition-all">
+            <Plus className="w-3.5 h-3.5" strokeWidth={2} /> New chat
+          </button>
+        </div>
+      )}
+
+      {/* ── History drawer ──────────────────────────────────────────── */}
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setHistoryOpen(false)} />
+          <div className="relative ml-auto h-full w-full max-w-xs bg-[#0E0E0E] border-l border-white/10 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+              <p className="text-sm font-semibold text-white/85">Past conversations</p>
+              <button onClick={() => setHistoryOpen(false)} className="text-white/40 hover:text-white/80"><X className="w-4 h-4" strokeWidth={2} /></button>
+            </div>
+            <button onClick={newConversation} className="mx-3 mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#B48B40] text-black py-2 text-xs font-semibold hover:bg-[#c99840] transition-all">
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} /> New conversation
+            </button>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {convList.length === 0 ? (
+                <p className="text-xs text-white/30 px-1 py-4 text-center">No past conversations yet.</p>
+              ) : convList.map((c) => (
+                <div key={c.id} className={cn("group flex items-center gap-2 rounded-xl border px-3 py-2.5", c.id === convId ? "border-[#B48B40]/30 bg-[#B48B40]/[0.06]" : "border-white/[0.06] bg-white/[0.02] hover:border-white/15")}>
+                  <button onClick={() => openConversation(c.id)} className="flex items-start gap-2 min-w-0 flex-1 text-left">
+                    <MessageSquare className="w-3.5 h-3.5 text-white/30 mt-0.5 shrink-0" strokeWidth={1.8} />
+                    <span className="min-w-0">
+                      <span className="block text-[13px] text-white/80 truncate">{c.preview}</span>
+                      <span className="block text-[10px] text-white/30 mt-0.5">{new Date(c.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { fetch(`/api/me/coach-conversations?id=${c.id}`, { method: "DELETE" }).catch(() => {}); setConvList((p) => p.filter((x) => x.id !== c.id)); if (c.id === convId) newConversation(); }}
+                    className="text-white/20 hover:text-red-300/80 opacity-0 group-hover:opacity-100 transition-all shrink-0" aria-label="Delete conversation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" strokeWidth={1.7} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Context bar ──────────────────────────────────────────────── */}
       <div className="border-b border-white/6 bg-[#0A0A0A] shrink-0">
