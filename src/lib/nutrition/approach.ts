@@ -377,6 +377,22 @@ export type CarbCycleBreakdown = {
 
 const round5 = (n: number) => Math.round(n / 5) * 5;
 
+/**
+ * Return today's day type in the carb-cycling rotation.
+ * Cut runs 3 low : 1 high (every 5 days); maintain/build runs 3 high : 2 low.
+ * Anchored to a stable epoch so the rotation is deterministic across devices.
+ */
+export function dayTypeForDate(goal: GoalMode, isoDate: string): "high" | "low" {
+  // 2026-01-01 = day 0 of the rotation
+  const anchor = Date.UTC(2026, 0, 1);
+  const d      = new Date(isoDate + "T00:00:00Z").getTime();
+  const days   = Math.floor((d - anchor) / (24 * 60 * 60 * 1000));
+  const idx    = ((days % 5) + 5) % 5;
+  // Cut: indexes [0..3] = low, 4 = high. Maintain/Build: [0..2] = high, [3..4] = low.
+  if (goal === "cut") return idx === 4 ? "high" : "low";
+  return idx < 3 ? "high" : "low";
+}
+
 export function buildCarbCycleBreakdown(
   tdee: number,
   bodyWeightKg: number,

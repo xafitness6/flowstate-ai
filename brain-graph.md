@@ -314,6 +314,20 @@ shapes WHEN and HOW from Xavier's ebook *Conquer Your Carbs*.
   through from nutrition page, dashboard, and trainer client-file).
 - Top action row consolidated: date stepper left, Calendar / 7 days / Adjust
   pills right with matching sizing.
+- Approach **persists to Supabase**: migration `030_profiles_nutrition_approach.sql`
+  adds `profiles.nutrition_approach` JSONB (applied to live 2026-06-06). Route
+  `/api/clients/[id]/nutrition-approach` (GET/PATCH) — self/trainer/admin. Store
+  has `fetchApproach()` (optimistic localStorage paint → Supabase hydrate);
+  `saveApproach()` write-throughs in background.
+- Trainer client file Nutrition tab shows `ApproachSummary` next to EnergyCard.
+- **AI coach** (`/api/ai/coach`) fetches `nutrition_approach` and injects a
+  "ATHLETE NUTRITION APPROACH" block via `summarizeApproachForCoach()` so the
+  coach never recommends a meal pattern or carb-cycling state that
+  contradicts the user's picker.
+- **Carb-cycle rotation**: when carb cycling is on, today's targets follow
+  the high/low day rotation (`dayTypeForDate(goal, isoDate)`); the page
+  shows a "Today is a HIGH/LOW-carb day" badge; suggestions adapt
+  (post-workout carb push, overshoot warning on low days).
 
 ## Workout flow overhaul (2026-06)
 

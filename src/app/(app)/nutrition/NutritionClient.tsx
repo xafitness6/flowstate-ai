@@ -35,6 +35,7 @@ import {
   loadApproach, saveApproach, fetchApproach,
   hasStoredApproach, goalModeFromIntake,
   goalAdjustedMacros, buildCarbCycleBreakdown,
+  dayTypeForDate, MEAL_PATTERN_META,
   type ApproachState,
 } from "@/lib/nutrition/approach";
 import {
@@ -224,9 +225,13 @@ function buildSuggestions(
   totals: MealTotals,
   hydration: number,
   mealCount: number,
+  approach: ApproachState,
+  carbDayType: "high" | "low" | null,
 ): Suggestion[] {
-  const calPct   = totals.calories / targets.calories;
-  const waterPct = hydration / targets.waterMl;
+  const calPct     = totals.calories / targets.calories;
+  const proteinPct = totals.protein  / targets.proteinG;
+  const carbPct    = totals.carbs    / targets.carbsG;
+  const waterPct   = hydration       / targets.waterMl;
   const out: Suggestion[] = [];
 
   if (mealCount === 0) {
@@ -234,15 +239,50 @@ function buildSuggestions(
       label: "Start logging your meals",
       body: "Use voice or photo to track today's intake." });
   }
+
+  // Approach-aware: surface the current day type when carb cycling is on.
+  if (carbDayType && mealCount > 0) {
+    const isHigh = carbDayType === "high";
+    out.push({ id: `carb-${carbDayType}`, type: "info",
+      label: isHigh ? "High-carb day — push carbs post-workout" : "Low-carb day — earn your carbs",
+      body: isHigh
+        ? `Place ~33% of today's ${targets.carbsG}g carbs right after training. Pyramid the rest across meals.`
+        : `Keep carbs low-glycemic until after training. ${targets.carbsG}g total — save them for the post-workout window.`,
+    });
+  }
+
+  // Protein is the universal anchor across every modality.
+  if (mealCount > 0 && proteinPct < 0.55) {
+    out.push({ id: "protein-low", type: "warning",
+      label: "Protein tracking low",
+      body: `${Math.round(totals.protein)}g of ${targets.proteinG}g — protein floors keep muscle in a deficit and build it in a surplus.`,
+    });
+  }
+
+  // Hydration nudge — tie to ebook timing.
   if (waterPct < 0.45 && mealCount > 0) {
     out.push({ id: "water", type: "info",
-      label: "Increase water intake",
-      body: `${(hydration / 1000).toFixed(1)}L of ${(targets.waterMl / 1000).toFixed(1)}L target.` });
+      label: "Drink water before your next meal",
+      body: `${(hydration / 1000).toFixed(1)}L of ${(targets.waterMl / 1000).toFixed(1)}L target. Aim for 1–2 cups 30 min before eating.`,
+    });
   }
+
+  // Intermittent-fast users: late-day calorie nudge inside the window.
+  if (MEAL_PATTERN_META[approach.mealPattern].isFast && mealCount > 0 && calPct < 0.65) {
+    out.push({ id: "if-window", type: "info",
+      label: "Window closing soon — hit your numbers",
+      body: `You're at ${Math.round(calPct * 100)}% of calories. The fast doesn't help if you're chronically under — push the next meal.`,
+    });
+  }
+
+  // Goal-aware over/under tone.
   if (mealCount > 0 && calPct < 0.55) {
     out.push({ id: "cals-low", type: "warning",
       label: "Calories tracking low",
-      body: `${Math.round(totals.calories).toLocaleString()} of ${targets.calories.toLocaleString()} kcal consumed.` });
+      body: approach.goalMode === "build"
+        ? `${Math.round(totals.calories).toLocaleString()} of ${targets.calories.toLocaleString()} — building needs the food. Add a calorie-dense snack.`
+        : `${Math.round(totals.calories).toLocaleString()} of ${targets.calories.toLocaleString()} kcal consumed.`,
+    });
   }
   if (mealCount > 0 && calPct >= 0.85 && calPct <= 1.0) {
     out.push({ id: "on-track", type: "positive",
@@ -251,9 +291,19 @@ function buildSuggestions(
   }
   if (mealCount > 0 && calPct > 1.05) {
     out.push({ id: "over", type: "warning",
-      label: "Over daily calorie target",
-      body: `${Math.round(totals.calories - targets.calories).toLocaleString()} kcal over goal.` });
+      label: approach.goalMode === "cut" ? "Over target — costs the cut" : "Over daily calorie target",
+      body: `${Math.round(totals.calories - targets.calories).toLocaleString()} kcal over goal.`,
+    });
   }
+
+  // Carb-cycling cut day: too many carbs is the classic error.
+  if (carbDayType === "low" && mealCount > 0 && carbPct > 1.15) {
+    out.push({ id: "carb-overshoot", type: "warning",
+      label: "Carb overshoot on a low day",
+      body: `${Math.round(totals.carbs)}g vs ${targets.carbsG}g target. Hold the line tomorrow — that's the engine of carb cycling.`,
+    });
+  }
+
   return out.slice(0, 3);
 }
 
@@ -1036,13 +1086,29 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   // their measured TDEE. Falls back to intake-derived numbers when energy isn't
   // yet computed (no bodyweight in intake).
 
+  // Today's day type in the carb cycle (null when toggle is off).
+  const carbDayType = useMemo<"high" | "low" | null>(() => {
+    if (!approach.carbCyclingOn) return null;
+    return dayTypeForDate(approach.goalMode, selectedDate);
+  }, [approach.carbCyclingOn, approach.goalMode, selectedDate]);
+
   const goalTargets = useMemo<NutritionTargets>(() => {
-    if (energy) {
-      const m = goalAdjustedMacros(energy.tdee, approach.goalMode, energy.weightKg);
-      return { ...m, waterMl: computedTargets.waterMl };
+    if (!energy) return computedTargets;
+    // Carb cycling on: today's macros follow the high/low rotation.
+    if (carbDayType) {
+      const cycle = buildCarbCycleBreakdown(energy.tdee, energy.weightKg, approach.goalMode);
+      const day   = carbDayType === "high" ? cycle.high : cycle.low;
+      return {
+        calories: day.calories,
+        proteinG: day.proteinG,
+        carbsG:   day.carbsG,
+        fatG:     day.fatG,
+        waterMl:  computedTargets.waterMl,
+      };
     }
-    return computedTargets;
-  }, [energy, approach.goalMode, computedTargets]);
+    const m = goalAdjustedMacros(energy.tdee, approach.goalMode, energy.weightKg);
+    return { ...m, waterMl: computedTargets.waterMl };
+  }, [energy, approach.goalMode, computedTargets, carbDayType]);
 
   const targets = useMemo(() => applyOverride(goalTargets, override), [goalTargets, override]);
 
@@ -1074,9 +1140,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
   const weightTrend = useMemo(() => computeWeightTrend(weightLogs, 7), [weightLogs]);
 
   const suggestions = useMemo(() =>
-    buildSuggestions(targets, totals, hydration, meals.length)
+    buildSuggestions(targets, totals, hydration, meals.length, approach, carbDayType)
       .filter((s) => !dismissed.includes(s.id)),
-    [targets, totals, hydration, meals.length, dismissed],
+    [targets, totals, hydration, meals.length, approach, carbDayType, dismissed],
   );
 
   const mealsBySlot = useMemo<Record<MealSlotKey, LoggedMeal[]>>(() => {
@@ -1427,6 +1493,29 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
             </button>
           </div>
         </div>
+
+        {/* ── Carb-cycle day badge ────────────────────────────────────────── */}
+        {!viewWeek && carbDayType && (
+          <div className={cn(
+            "rounded-2xl border px-4 py-3 flex items-center gap-3",
+            carbDayType === "high"
+              ? "border-[#B48B40]/30 bg-[#B48B40]/[0.06]"
+              : "border-white/[0.08] bg-white/[0.02]",
+          )}>
+            <span className="text-base">{carbDayType === "high" ? "⬆️" : "⬇️"}</span>
+            <div className="flex-1 min-w-0">
+              <p className={cn(
+                "text-sm font-semibold",
+                carbDayType === "high" ? "text-[#B48B40]" : "text-white/80",
+              )}>
+                Today is a {carbDayType === "high" ? "HIGH" : "LOW"}-carb day
+              </p>
+              <p className="text-[11px] text-white/45 mt-0.5">
+                Targets and pyramid are tuned to this day in the rotation.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Summary cards ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
