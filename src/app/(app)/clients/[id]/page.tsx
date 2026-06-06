@@ -19,6 +19,7 @@ import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
 import { goalModeFromIntake, type ApproachState } from "@/lib/nutrition/approach";
 import { useUser } from "@/context/UserContext";
 import type { RawIntake } from "@/lib/intake/format";
+import { weightLabel, heightLabel } from "@/lib/intake/format";
 import type { EnergyProfile } from "@/lib/nutrition";
 import {
   inferUnitSystemFromRawAnswers,
@@ -736,6 +737,7 @@ export default function ClientDetailPage() {
         {/* ── Overview tab: onboarding action + intake + prefill ── */}
         {tab === "overview" && (
           <>
+            <ClientVitals intake={intake} />
             {viewerIsAdmin && (
               <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
@@ -1274,6 +1276,52 @@ function StatTile({ label, value, capitalize }: { label: string; value: string; 
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
       <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">{label}</p>
       <p className={cn("text-sm font-semibold text-white/90 truncate", capitalize && "capitalize")}>{value}</p>
+    </div>
+  );
+}
+
+// Compact vitals strip at the top of Overview: the numbers a coach wants at a
+// glance. Reads from both the top-level intake (onboarding body-stats step) and
+// the `deep` block (trainer pre-fill / deep intake), whichever is present.
+function ClientVitals({ intake }: { intake: RawIntake | null }) {
+  const deep = (intake?.deep ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" && v.trim()) || (typeof v === "number" ? String(v) : "");
+
+  const age = str(intake?.age) || str(deep.age);
+  const sex = str(intake?.sex) || str(deep.sex);
+
+  const topWeight = str(intake?.weight);
+  const weight = topWeight
+    ? `${topWeight}${str(intake?.weightUnit) ? ` ${str(intake?.weightUnit)}` : ""}`
+    : (deep.weightKg != null ? weightLabel(deep.weightKg) : "");
+
+  const topHeight = str(intake?.height);
+  const height = topHeight
+    ? `${topHeight}${str(intake?.heightUnit) ? ` ${str(intake?.heightUnit)}` : ""}`
+    : (deep.heightCm != null ? heightLabel(deep.heightCm) : "");
+
+  const bodyFat = intake?.bodyFat != null ? `${str(intake?.bodyFat)}%` : (deep.bodyFatPct != null ? `${str(deep.bodyFatPct)}%` : "");
+  const goalWeight = deep.goalWeightKg != null ? weightLabel(deep.goalWeightKg) : "";
+
+  const tiles = [
+    { label: "Age", value: age },
+    { label: "Sex", value: sex, capitalize: true },
+    { label: "Weight", value: weight },
+    { label: "Height", value: height },
+    { label: "Body fat", value: bodyFat },
+    { label: "Goal weight", value: goalWeight },
+  ].filter((t) => t.value);
+
+  if (tiles.length === 0) return null;
+
+  return (
+    <div className="no-print mb-4">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2 px-1 flex items-center gap-1.5">
+        <User className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.8} /> Client info
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {tiles.map((t) => <StatTile key={t.label} label={t.label} value={t.value} capitalize={t.capitalize} />)}
+      </div>
     </div>
   );
 }
