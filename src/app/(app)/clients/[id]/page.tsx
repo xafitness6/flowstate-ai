@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { IntakeReadout } from "@/components/intake/IntakeReadout";
 import { ClientNutritionManager } from "@/components/clients/ClientNutritionManager";
+import { ClientAccountActions } from "@/components/clients/ClientAccountActions";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
 import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { ApproachSummary } from "@/components/nutrition/ApproachSummary";
@@ -813,6 +814,7 @@ export default function ClientDetailPage() {
                 {onboardingStatus === "Complete" ? "Restart onboarding" : "Send through onboarding"}
               </button>
             </div>
+            <ClientAccountActions clientId={id} clientName={name} />
             <div className="no-print mb-6">
               <PrefillPanel clientId={id} onSaved={load} />
             </div>
