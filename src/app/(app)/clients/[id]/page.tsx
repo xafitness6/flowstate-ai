@@ -684,6 +684,21 @@ export default function ClientDetailPage() {
     }
   }
 
+  async function markOnboardingDone() {
+    if (!confirm(`Mark ${name}'s onboarding as complete? Use this if you filled it out with them.`)) return;
+    setObBusy(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/onboarding/complete`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Couldn't mark complete.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't mark complete.");
+    } finally {
+      setObBusy(false);
+    }
+  }
+
   const onboardingStatus = useMemo(() => {
     if (meta?.onboarding_complete) return "Complete";
     if (intake) return "In progress";
@@ -804,18 +819,29 @@ export default function ClientDetailPage() {
                   <p className="text-xs text-white/40 mt-0.5">
                     {onboardingStatus === "Complete"
                       ? `Completed${meta?.completed_at ? ` ${new Date(meta.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}. You can run it again any time.`
-                      : "Send them into the guided setup flow — they'll start it next time they open the app."}
+                      : "Send them into the guided setup, or fill it in yourself below (Pre-fill from notes) and mark it complete."}
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => sendThroughOnboarding(onboardingStatus === "Complete")}
-                disabled={obBusy}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-3.5 py-2 text-xs font-semibold hover:bg-[#c99840] disabled:opacity-50 transition-all"
-              >
-                {obBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" strokeWidth={2} />}
-                {onboardingStatus === "Complete" ? "Restart onboarding" : "Send through onboarding"}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {onboardingStatus !== "Complete" && (
+                  <button
+                    onClick={markOnboardingDone}
+                    disabled={obBusy}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.08] px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-400/[0.14] disabled:opacity-50 transition-all"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2} /> Mark complete
+                  </button>
+                )}
+                <button
+                  onClick={() => sendThroughOnboarding(onboardingStatus === "Complete")}
+                  disabled={obBusy}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-3.5 py-2 text-xs font-semibold hover:bg-[#c99840] disabled:opacity-50 transition-all"
+                >
+                  {obBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" strokeWidth={2} />}
+                  {onboardingStatus === "Complete" ? "Restart onboarding" : "Send through onboarding"}
+                </button>
+              </div>
             </div>
             <ClientAccountActions clientId={id} clientName={name} />
             <div className="no-print mb-6">

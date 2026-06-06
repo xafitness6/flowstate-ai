@@ -25,9 +25,13 @@ INTENTS:
   workout", "smashed legs today", "completed today's session"). payload.workoutHint
   = "today" or a named workout if given; payload.feel = "easy"|"good"|"hard" if
   stated; payload.note = any extra detail.
-- "log_reflection" — they're explaining WHY they trained a certain way or how it
-  went, as context for the coach ("trained light because my back was tight",
-  "kept it easy, felt off today"). payload.reflectionText = their words.
+- "log_reflection" — ONLY when they clearly want a post-session note recorded
+  ABOUT A SESSION THEY DID ("log this: trained light because my back was tight",
+  "note for my coach: kept it easy, felt off today"). This silently SAVES and
+  shares with their coach, so be conservative.
+  Do NOT use it for venting, excuses, resistance, mood, or "I don't feel like
+  training / being lazy / on vacation" — those are conversational and must be
+  "chat" so the coach can actually talk it through. When in doubt → "chat".
 - "recovery_check" — they mention sleep/soreness/fatigue/energy and/or ask whether
   they should train ("only slept 4 hours, should I train?", "I'm really sore"). Pull
   any numbers: payload.sleepHours, payload.soreness (1-5), payload.energy (1-5).
@@ -41,6 +45,9 @@ RULES:
   intent "chat", needsClarification true, and give a short clarifyingQuestion.
 - confidence is 0-1 about the INTENT. Be honest; sub-0.6 means you're unsure.
 - "should I still train?" with recovery info → "recovery_check", not "chat".
+- DEFAULT TO "chat". Only pick a logging intent when the user is clearly logging.
+  Venting, excuses, resistance, jokes, swearing, "I don't want to train" → "chat".
+  A reply the coach should TALK BACK to is "chat", never a silent log.
 
 OUTPUT SCHEMA (JSON only):
 {
