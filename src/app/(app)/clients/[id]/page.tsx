@@ -255,6 +255,18 @@ export default function ClientDetailPage() {
 
   useEffect(() => { if (id) void load(); }, [id, load]);
 
+  // This page is REUSED (not remounted) when navigating between client files, so
+  // the lazily-loaded per-tab caches must be cleared on id change — otherwise a
+  // new client shows the previous client's (or no) data. Each tab's loader
+  // re-runs once its "loaded" flag is reset.
+  useEffect(() => {
+    setNutrition(null); setNutritionError(null);
+    setActivitySummary(null);
+    setWeightLogs([]); setPhotos([]); setProgressLoaded(false); setProgressError(null);
+    setReminders([]); setRemindersLoaded(false);
+    setCalendarReminders([]); setCalendarRemindersLoaded(false);
+  }, [id]);
+
   // Load assignable trainers (admins only) for the coach selector.
   useEffect(() => {
     if (!viewerIsAdmin || !id) return;
