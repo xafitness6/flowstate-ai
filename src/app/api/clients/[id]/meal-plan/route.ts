@@ -56,7 +56,7 @@ export async function GET(
 
   const { data, error } = await auth.admin
     .from("meal_plans")
-    .select("id,title,summary,plan,prompt,created_by_name,created_at,status")
+    .select("id,title,summary,plan,prompt,created_by_name,created_at,status,allow_client_food_edits")
     .eq("user_id", id)
     .eq("status", "active")
     .order("created_at", { ascending: false })
@@ -65,6 +65,33 @@ export async function GET(
 
   if (error) return NextResponse.json({ plan: null }); // table not migrated yet
   return NextResponse.json({ plan: data ?? null });
+}
+
+// PATCH — coach toggles whether the client may edit the plan's foods.
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const auth = await requireClientAccess(id);
+  if (!auth.ok) return auth.response;
+
+  let body: { allow_client_food_edits?: unknown };
+  try { body = await req.json(); } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  if (typeof body.allow_client_food_edits !== "boolean") {
+    return NextResponse.json({ error: "allow_client_food_edits must be a boolean." }, { status: 400 });
+  }
+
+  const { error } = await auth.admin
+    .from("meal_plans")
+    .update({ allow_client_food_edits: body.allow_client_food_edits, updated_at: new Date().toISOString() })
+    .eq("user_id", id)
+    .eq("status", "active");
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true, allow_client_food_edits: body.allow_client_food_edits });
 }
 
 export async function POST(

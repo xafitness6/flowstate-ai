@@ -13,6 +13,7 @@ type PlanMeal = { name: string; time: string; note: string; items: PlanItem[]; c
 type MealPlan = {
   id: string; title: string; summary: string | null; created_by_name: string | null;
   plan: { meals: PlanMeal[]; totals: { calories: number; protein: number; carbs: number; fat: number } };
+  allow_client_food_edits?: boolean;
 };
 
 export function ClientMealPlanCard({ onCoachStatus }: { onCoachStatus?: (hasCoach: boolean) => void }) {
@@ -26,6 +27,10 @@ export function ClientMealPlanCard({ onCoachStatus }: { onCoachStatus?: (hasCoac
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Food editing (only when the coach enabled it)
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<{ food: string; qty: string }[][]>([]);
+  const [savingEdits, setSavingEdits] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +68,32 @@ export function ClientMealPlanCard({ onCoachStatus }: { onCoachStatus?: (hasCoac
       setErr(e instanceof Error ? e.message : "Couldn't send.");
     } finally {
       setSending(false);
+    }
+  }
+
+  function startFoodEdit() {
+    if (!plan) return;
+    setDraft(plan.plan.meals.map((m) => (m.items ?? []).map((it) => ({ food: it.food, qty: it.qty }))));
+    setEditing(true);
+  }
+
+  async function saveFoodEdits() {
+    if (savingEdits || !plan) return;
+    setSavingEdits(true); setErr(null);
+    try {
+      const meals = draft.map((items) => ({ items }));
+      const res = await fetch("/api/me/meal-plan", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meals }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Couldn't save.");
+      setEditing(false);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't save.");
+    } finally {
+      setSavingEdits(false);
     }
   }
 
@@ -126,6 +157,26 @@ export function ClientMealPlanCard({ onCoachStatus }: { onCoachStatus?: (hasCoac
                 ))}
               </div>
             )}
+            {/* Food edit controls (only when the coach enabled it) */}
+            {plan.allow_client_food_edits && (
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-[11px] text-white/35">{editing ? "Swap foods or portions — calories & macros stay as your coach set them." : "Your coach lets you swap foods in this plan."}</p>
+                {editing ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditing(false)} disabled={savingEdits} className="text-[11px] text-white/45 hover:text-white/75 px-2 py-1 disabled:opacity-50">Cancel</button>
+                    <button onClick={saveFoodEdits} disabled={savingEdits} className="inline-flex items-center gap-1 text-[11px] font-semibold text-black bg-[#B48B40] hover:bg-[#c99840] disabled:opacity-50 rounded-lg px-2.5 py-1">
+                      {savingEdits ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" strokeWidth={2.5} />} Save
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={startFoodEdit} className="inline-flex items-center gap-1 text-[11px] text-white/60 hover:text-[#B48B40] border border-white/12 rounded-lg px-2.5 py-1 shrink-0">
+                    Edit foods
+                  </button>
+                )}
+              </div>
+            )}
+            {err && editing && <p className="mb-2 text-xs text-red-300/80">{err}</p>}
+
             <div className="space-y-2">
               {plan.plan.meals?.map((m, i) => {
                 const img = images[dishKey(m)];
@@ -142,12 +193,29 @@ export function ClientMealPlanCard({ onCoachStatus }: { onCoachStatus?: (hasCoac
                         <p className="text-sm font-semibold text-white/85">{m.name} <span className="text-[11px] font-normal text-white/35">{m.time}</span></p>
                         <p className="text-[11px] text-white/55 shrink-0 tabular-nums">{m.calories} kcal</p>
                       </div>
-                      <ul className="mt-1 space-y-0.5">
+                      <ul className="mt-1 space-y-1">
                         {m.items?.map((it, j) => (
-                          <li key={j} className="text-[12px] text-white/60 flex items-center justify-between gap-2">
-                            <span className="truncate">{it.qty} {it.food}</span>
-                            <span className="text-white/30 shrink-0 tabular-nums">{it.calories}</span>
-                          </li>
+                          editing ? (
+                            <li key={j} className="flex items-center gap-1.5">
+                              <input
+                                value={draft[i]?.[j]?.qty ?? ""}
+                                onChange={(e) => setDraft((d) => d.map((items, mi) => mi === i ? items.map((x, xi) => xi === j ? { ...x, qty: e.target.value } : x) : items))}
+                                placeholder="qty"
+                                className="w-16 bg-white/[0.04] border border-white/10 rounded-md px-1.5 py-1 text-[12px] text-white/85 outline-none focus:border-[#B48B40]/50"
+                              />
+                              <input
+                                value={draft[i]?.[j]?.food ?? ""}
+                                onChange={(e) => setDraft((d) => d.map((items, mi) => mi === i ? items.map((x, xi) => xi === j ? { ...x, food: e.target.value } : x) : items))}
+                                placeholder="food"
+                                className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-md px-1.5 py-1 text-[12px] text-white/85 outline-none focus:border-[#B48B40]/50"
+                              />
+                            </li>
+                          ) : (
+                            <li key={j} className="text-[12px] text-white/60 flex items-center justify-between gap-2">
+                              <span className="truncate">{it.qty} {it.food}</span>
+                              <span className="text-white/30 shrink-0 tabular-nums">{it.calories}</span>
+                            </li>
+                          )
                         ))}
                       </ul>
                       {m.note && <p className="text-[11px] text-[#B48B40]/70 mt-1">{m.note}</p>}

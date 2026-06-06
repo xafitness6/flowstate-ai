@@ -19,7 +19,7 @@ type PlanMeal = { name: string; time: string; note: string; items: PlanItem[]; c
 type PlanBody = { meals: PlanMeal[]; totals: { calories: number; protein: number; carbs: number; fat: number } };
 type MealPlan = {
   id: string; title: string; summary: string | null; created_by_name: string | null; created_at: string;
-  plan: PlanBody;
+  plan: PlanBody; allow_client_food_edits?: boolean;
 };
 
 const FIELDS = [
@@ -169,6 +169,16 @@ export function ClientNutritionManager({
     }
   }
 
+  async function toggleClientEdits(next: boolean) {
+    if (!plan) return;
+    setPlan({ ...plan, allow_client_food_edits: next }); // optimistic
+    const res = await fetch(`/api/clients/${clientId}/meal-plan`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allow_client_food_edits: next }),
+    });
+    if (!res.ok) setPlan((p) => (p ? { ...p, allow_client_food_edits: !next } : p)); // revert
+  }
+
   async function deletePlan() {
     if (!plan) return;
     if (!confirm("Archive this meal plan?")) return;
@@ -264,6 +274,19 @@ export function ClientNutritionManager({
                 ))}
               </div>
             )}
+
+            {/* Coach permission: let the client swap foods (never the calories/macros). */}
+            <label className="mt-3 flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!plan.allow_client_food_edits}
+                onChange={(e) => toggleClientEdits(e.target.checked)}
+                className="accent-[#B48B40] w-3.5 h-3.5"
+              />
+              <span className="text-[11px] text-white/55">
+                Let {clientName} swap foods in this plan <span className="text-white/30">· calories &amp; macros stay locked</span>
+              </span>
+            </label>
           </div>
 
           {/* Meals */}
