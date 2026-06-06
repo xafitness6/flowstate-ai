@@ -96,6 +96,7 @@ export default function ProgramBuilderPage() {
   const [editingWeek, setEditingWeek]  = useState(1);
   const [pickerOpen,  setPickerOpen]   = useState(false);
   const [pickerTarget, setPickerTarget] = useState<number | null>(null);   // day index in the current editing week
+  const [swapTarget,  setSwapTarget]   = useState<{ day: number; ex: number } | null>(null); // exercise being swapped in place
   const [saveState,   setSaveState]    = useState<SaveState>("idle");
   const [saveError,   setSaveError]    = useState<string | null>(null);
   const [setActive,   setSetActive]    = useState(true);
@@ -168,12 +169,27 @@ export default function ProgramBuilderPage() {
   }
 
   function onPickerSelect(ex: Exercise) {
+    const fromLib = exerciseFromLibrary(ex);
+    // Swap mode: replace the targeted exercise's library fields in place, keeping
+    // the coach's sets/reps/load/rest/notes so a swap isn't a re-entry chore.
+    if (swapTarget) {
+      const { day: dayIdx, ex: exIdx } = swapTarget;
+      updateCurrentWeek((w) => ({
+        ...w,
+        days: w.days.map((d, i) => i !== dayIdx ? d : {
+          ...d,
+          exercises: d.exercises.map((e, j) => j !== exIdx ? e
+            : { ...e, exerciseId: fromLib.exerciseId, name: fromLib.name, videoId: fromLib.videoId }),
+        }),
+      }));
+      setSwapTarget(null);
+      return;
+    }
     if (pickerTarget === null) return;
-    const exercise = exerciseFromLibrary(ex);
     updateCurrentWeek((w) => ({
       ...w,
       days: w.days.map((d, i) => i === pickerTarget
-        ? { ...d, exercises: [...d.exercises, exercise] }
+        ? { ...d, exercises: [...d.exercises, fromLib] }
         : d),
     }));
   }
@@ -617,7 +633,8 @@ export default function ProgramBuilderPage() {
               day={day}
               onChange={(patch) => patchDay(idx, patch)}
               onRemove={() => removeDay(idx)}
-              onOpenPicker={() => { setPickerTarget(idx); setPickerOpen(true); }}
+              onOpenPicker={() => { setSwapTarget(null); setPickerTarget(idx); setPickerOpen(true); }}
+              onSwapExercise={(exIdx) => { setSwapTarget({ day: idx, ex: exIdx }); setPickerOpen(true); }}
             />
           ))}
         </div>
@@ -698,7 +715,7 @@ export default function ProgramBuilderPage() {
       {/* ── Exercise picker drawer ── */}
       <ExercisePickerDrawer
         open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        onClose={() => { setPickerOpen(false); setSwapTarget(null); }}
         onSelect={onPickerSelect}
       />
 

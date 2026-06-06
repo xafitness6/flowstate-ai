@@ -10,7 +10,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical, Plus, Trash2, ChevronUp, ChevronDown, Copy, Library, Moon, Dumbbell,
+  GripVertical, Plus, Trash2, ChevronUp, ChevronDown, Copy, Library, Moon, Dumbbell, Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
@@ -72,7 +72,7 @@ function InlineField({
 // ─── Exercise row (DnD sortable) ─────────────────────────────────────────────
 
 function ExerciseRow({
-  id, index, exercise, onChange, onRemove, onDuplicate, onMoveUp, onMoveDown, isFirst, isLast,
+  id, index, exercise, onChange, onRemove, onDuplicate, onMoveUp, onMoveDown, onSwap, isFirst, isLast,
 }: {
   id:          string;
   index:       number;
@@ -82,6 +82,7 @@ function ExerciseRow({
   onDuplicate: () => void;
   onMoveUp:    () => void;
   onMoveDown:  () => void;
+  onSwap?:     () => void;
   isFirst:     boolean;
   isLast:      boolean;
 }) {
@@ -116,6 +117,7 @@ function ExerciseRow({
           className="flex-1 bg-transparent text-sm font-medium text-white/90 placeholder:text-white/25 outline-none min-w-0"
         />
         <div className="flex gap-0.5 shrink-0">
+          {onSwap && <button onClick={onSwap} title="Swap exercise from library" className="p-1 text-white/15 hover:text-[#B48B40] transition-colors"><Repeat className="w-3.5 h-3.5" strokeWidth={1.8} /></button>}
           <button onClick={onMoveUp}    disabled={isFirst} className="p-1 text-white/15 hover:text-white/45 disabled:opacity-0 transition-colors"><ChevronUp   className="w-3.5 h-3.5" strokeWidth={2} /></button>
           <button onClick={onMoveDown}  disabled={isLast}  className="p-1 text-white/15 hover:text-white/45 disabled:opacity-0 transition-colors"><ChevronDown className="w-3.5 h-3.5" strokeWidth={2} /></button>
           <button onClick={onDuplicate} className="p-1 text-white/15 hover:text-white/45 transition-colors"><Copy   className="w-3.5 h-3.5" strokeWidth={1.5} /></button>
@@ -145,12 +147,13 @@ function ExerciseRow({
 // ─── DayCard — training or rest ──────────────────────────────────────────────
 
 export function DayCard({
-  day, onChange, onRemove, onOpenPicker,
+  day, onChange, onRemove, onOpenPicker, onSwapExercise,
 }: {
   day:          DayWorkout;
   onChange:     (patch: Partial<DayWorkout>) => void;
   onRemove:     () => void;
   onOpenPicker: () => void;
+  onSwapExercise?: (idx: number) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -333,6 +336,7 @@ export function DayCard({
                       onDuplicate={() => duplicateExercise(idx)}
                       onMoveUp={() => moveExercise(idx, -1)}
                       onMoveDown={() => moveExercise(idx, 1)}
+                      onSwap={onSwapExercise ? () => onSwapExercise(idx) : undefined}
                       isFirst={idx === 0}
                       isLast={idx === day.exercises.length - 1}
                     />
