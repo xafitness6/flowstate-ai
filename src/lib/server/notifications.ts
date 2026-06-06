@@ -10,9 +10,11 @@ export type NotificationType =
   | "general" | "onboarding" | "program_assigned" | "program_changed"
   | "nutrition_added" | "workout_added" | "note";
 
-// Only these events email the client (per product decision).
+// Only these events email the client (per product decision). "onboarding" is
+// included so a coach sending a client through setup also reaches them by email.
 const EMAIL_TYPES: ReadonlySet<NotificationType> = new Set([
   "program_assigned", "program_changed", "nutrition_added", "workout_added",
+  "onboarding",
 ]);
 
 export async function notifyClient(args: {
