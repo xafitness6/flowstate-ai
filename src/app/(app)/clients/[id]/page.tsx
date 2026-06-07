@@ -17,6 +17,7 @@ import { ClientAccountActions } from "@/components/clients/ClientAccountActions"
 import { ClientTasksManager } from "@/components/clients/ClientTasksManager";
 import { ClientAIBreakdown } from "@/components/clients/ClientAIBreakdown";
 import { ClientWorkoutHistory } from "@/components/clients/ClientWorkoutHistory";
+import { ClientScheduleManager } from "@/components/clients/ClientScheduleManager";
 import { ChatThread } from "@/components/chat/ChatThread";
 import { ClientAICoachView } from "@/components/clients/ClientAICoachView";
 import { PrefillPanel } from "@/components/intake/PrefillPanel";
@@ -961,6 +962,9 @@ export default function ClientDetailPage() {
                 )}
               </div>
             )}
+
+            {/* Schedule workouts on calendar days */}
+            <ClientScheduleManager clientId={id} clientName={name} />
 
             {/* Recent logged sessions — incl. pain/feedback notes */}
             <div className="mt-6">

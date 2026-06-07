@@ -12,6 +12,7 @@ import { useUser } from "@/context/UserContext";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DeepCalPrompt } from "@/components/ui/DeepCalPrompt";
+import { MyScheduledWorkouts } from "@/components/program/MyScheduledWorkouts";
 import {
   loadActiveProgram, loadActiveProgramForUser, saveActiveProgramSnapshot,
   saveActiveProgram,
@@ -402,6 +403,11 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
             <DeepCalPrompt userId={user.id} />
           </div>
         )}
+
+        {/* Coach-scheduled workouts (reschedulable) */}
+        <div className="mb-6">
+          <MyScheduledWorkouts />
+        </div>
 
         {/* ── 1. Header strip: active program identity ── */}
         <div className="mb-6">

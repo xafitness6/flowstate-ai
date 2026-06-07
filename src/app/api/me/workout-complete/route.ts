@@ -20,6 +20,12 @@ export async function POST(req: Request) {
 
   try {
     const admin = await createAdminClient();
+    // Tick off any workout scheduled for today (accountability).
+    const today = new Date().toISOString().slice(0, 10);
+    await admin.from("scheduled_workouts")
+      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .eq("client_id", user.id).eq("scheduled_date", today).eq("status", "scheduled");
+
     const { data: prof } = await admin
       .from("profiles")
       .select("assigned_trainer_id,full_name,first_name,email")
