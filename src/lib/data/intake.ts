@@ -56,6 +56,10 @@ export type IntakeData = {
   limitedDays:     string[];
   coachNote:       string;
 
+  // Accountability — habits the athlete commits to + how they want to be nudged.
+  commitments?:    string[];
+  checkInCadence?: "daily" | "weekly" | "none";
+
   completedAt:     string;   // ISO timestamp
 };
 

@@ -8,6 +8,9 @@ import {
 const ENERGY_LABEL: Record<string, string> = { low: "Low", steady: "Steady", high: "High", variable: "Up and down" };
 const energyValue = (v: unknown) => (typeof v === "string" && ENERGY_LABEL[v]) || "—";
 
+const CADENCE_LABEL: Record<string, string> = { daily: "Daily nudge", weekly: "Weekly check-in", none: "Hands off" };
+const cadenceValue = (v: unknown) => (typeof v === "string" && CADENCE_LABEL[v]) || "—";
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 border-b border-white/[0.04] last:border-0">
@@ -53,6 +56,13 @@ export function IntakeReadout({ intake }: { intake: RawIntake | null }) {
         <Row label="Sleep"          value={intake.sleepHours ? `${dash(intake.sleepHours)} hrs` : "—"} />
         <Row label="Energy"         value={energyValue(intake.energyLevel)} />
       </Section>
+
+      {(Array.isArray(intake.commitments) && intake.commitments.length > 0) || intake.checkInCadence ? (
+        <Section title="Accountability">
+          <Row label="Committed to"  value={list(intake.commitments)} />
+          <Row label="Check-in style" value={cadenceValue(intake.checkInCadence)} />
+        </Section>
+      ) : null}
 
       {!deepDone && (
         <div className="rounded-xl border border-[#B48B40]/20 bg-[#B48B40]/[0.05] px-4 py-2.5">

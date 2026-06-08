@@ -131,5 +131,32 @@ export async function POST(request: Request) {
     console.warn("[onboarding/starter-complete] injury coach-notify failed:", e);
   }
 
-  return NextResponse.json({ ok: true, programSaved, warning: programWarning, coachNotifiedOfInjury });
+  // Accountability: seed the commitments the athlete chose as their first
+  // check-in tasks (they show on the Accountability tab + highlight the nav).
+  let tasksSeeded = 0;
+  try {
+    const intakeObj = (body.intake ?? {}) as Record<string, unknown>;
+    const commitments = Array.isArray(intakeObj.commitments)
+      ? (intakeObj.commitments as unknown[]).filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+      : [];
+    if (commitments.length) {
+      // Don't double-seed if onboarding is re-run.
+      const { data: existing } = await (admin.from("client_tasks") as any)
+        .select("id").eq("client_id", user.id).eq("assigned_by_name", "Onboarding").limit(1);
+      if (!existing || existing.length === 0) {
+        const rows = commitments.slice(0, 8).map((title) => ({
+          client_id: user.id,
+          title,
+          assigned_by_name: "Onboarding",
+          detail: "You set this as a commitment during setup — your coach can adjust it.",
+        }));
+        const ins = await (admin.from("client_tasks") as any).insert(rows);
+        if (!ins.error) tasksSeeded = rows.length;
+      }
+    }
+  } catch (e) {
+    console.warn("[onboarding/starter-complete] task seeding failed:", e);
+  }
+
+  return NextResponse.json({ ok: true, programSaved, warning: programWarning, coachNotifiedOfInjury, tasksSeeded });
 }

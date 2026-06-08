@@ -12,9 +12,9 @@ import { DEMO_USERS } from "@/context/UserContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = "goal" | "experience" | "body" | "schedule" | "nutrition" | "recovery" | "equipment";
+type Step = "goal" | "experience" | "body" | "schedule" | "nutrition" | "recovery" | "equipment" | "commitment";
 
-const STEPS: Step[] = ["goal", "experience", "body", "schedule", "nutrition", "recovery", "equipment"];
+const STEPS: Step[] = ["goal", "experience", "body", "schedule", "nutrition", "recovery", "equipment", "commitment"];
 
 type OnboardingAnswers = {
   primaryGoal:   string;
@@ -40,7 +40,29 @@ type OnboardingAnswers = {
   age:           string;             // optional
   sex:           "" | "male" | "female"; // optional
   activityLevel: "" | "sedentary" | "light" | "moderate" | "very_active" | "athlete";
+  // Accountability — habits the athlete commits to; seeded as their first
+  // check-in tasks and shown to the coach as what to hold them to.
+  commitments:   string[];
+  checkInCadence: "" | "daily" | "weekly" | "none";
 };
+
+// Starter accountability commitments. Each selected one becomes a check-in task.
+const COMMITMENT_OPTIONS: { value: string; label: string }[] = [
+  { value: "Train on my scheduled days", label: "Train on my scheduled days" },
+  { value: "Hit my daily protein target", label: "Hit my protein target" },
+  { value: "Log my workouts",            label: "Log my workouts" },
+  { value: "Log my meals",               label: "Log my meals" },
+  { value: "Sleep 7+ hours",             label: "Sleep 7+ hours" },
+  { value: "10k steps a day",            label: "10k steps a day" },
+  { value: "Drink enough water",         label: "Stay hydrated" },
+  { value: "Weekly check-in with my coach", label: "Weekly coach check-in" },
+];
+
+const CADENCE_OPTIONS: { value: "daily" | "weekly" | "none"; label: string; sub: string }[] = [
+  { value: "daily",  label: "Daily nudge",   sub: "Keep me on it every day" },
+  { value: "weekly", label: "Weekly check-in", sub: "A weekly review is enough" },
+  { value: "none",   label: "Hands off",     sub: "I'll drive it myself" },
+];
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -256,6 +278,8 @@ const DEFAULT: OnboardingAnswers = {
   age:           "",
   sex:           "",
   activityLevel: "",
+  commitments:    [],
+  checkInCadence: "",
 };
 
 export default function CalibrationPage() {
@@ -392,6 +416,8 @@ export default function CalibrationPage() {
       equipment,
       limitedDays:     [],
       coachNote:       "",
+      commitments:     answers.commitments,
+      checkInCadence:  answers.checkInCadence || undefined,
       completedAt:     new Date().toISOString(),
     };
 
@@ -951,31 +977,82 @@ export default function CalibrationPage() {
             </div>
 
 	            <button
-	              onClick={finishOnboarding}
-	              disabled={saving}
-	              className={cn(
-	                "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all",
-	                saving
-	                  ? "bg-white/5 text-white/25 cursor-default"
-	                  : "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]",
-	              )}
+	              onClick={advance}
+	              className="w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]"
 	            >
-	              {saving ? "Building..." : "Build my plan"}
+	              Continue
 	              <ArrowRight className="w-4 h-4" strokeWidth={2} />
 	            </button>
-              {saveError && (
-                <p className="text-xs text-red-400/70 leading-relaxed">{saveError}</p>
-              )}
+          </div>
+        )}
+        {/* ── Accountability / commitment ───────────────────────────────── */}
+        {step === "commitment" && (
+          <div className="space-y-7">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">What will you commit to?</h1>
+              <p className="text-sm text-white/38 mt-1.5">
+                Pick the habits you want to be held to. These become your first check-in tasks,
+                and your coach sees them — so they know exactly what to keep you on.
+              </p>
+            </div>
 
-	            <button
-	              onClick={finishOnboarding}
-	              disabled={saving}
-	              className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
-	            >
+            <div>
+              <div className="flex items-baseline justify-between mb-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/28">Your commitments</p>
+                <p className="text-[10px] text-white/30">Pick a few</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {COMMITMENT_OPTIONS.map((opt) => (
+                  <OptionCard
+                    key={opt.value}
+                    label={opt.label}
+                    active={answers.commitments.includes(opt.value)}
+                    onClick={() => setAnswers((a) => ({ ...a, commitments: toggle(a.commitments, opt.value) }))}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-3">How do you want to be held accountable?</p>
+              <div className="grid grid-cols-3 gap-2">
+                {CADENCE_OPTIONS.map((opt) => (
+                  <OptionCard
+                    key={opt.value}
+                    label={opt.label}
+                    sub={opt.sub}
+                    active={answers.checkInCadence === opt.value}
+                    onClick={() => setAnswers((a) => ({ ...a, checkInCadence: a.checkInCadence === opt.value ? "" : opt.value }))}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={finishOnboarding}
+              disabled={saving}
+              className={cn(
+                "w-full rounded-2xl py-4 text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-all",
+                saving ? "bg-white/5 text-white/25 cursor-default" : "bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98]",
+              )}
+            >
+              {saving ? "Building..." : "Build my plan"}
+              <ArrowRight className="w-4 h-4" strokeWidth={2} />
+            </button>
+            {saveError && (
+              <p className="text-xs text-red-400/70 leading-relaxed">{saveError}</p>
+            )}
+
+            <button
+              onClick={finishOnboarding}
+              disabled={saving}
+              className="w-full text-center text-xs text-white/22 hover:text-white/40 transition-colors py-1"
+            >
               Skip — I'll set this up later
             </button>
           </div>
         )}
+
 
       </div>
     </div>
