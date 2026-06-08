@@ -5,12 +5,16 @@ import { UserProvider } from "@/context/UserContext";
 export const metadata: Metadata = {
   title: "Flowstate AI",
   description: "Your performance operating system.",
+  // Installable on phones via "Add to Home Screen" (standalone, full-screen).
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Flowstate", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#0A0A0A",
 };
 
 // Root layout: HTML shell + context providers only.
