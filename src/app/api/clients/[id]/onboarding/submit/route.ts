@@ -26,13 +26,25 @@ export async function POST(
   const auth = await requireClientAccess(id);
   if (!auth.ok) return auth.response;
 
-  const body = await req.json().catch(() => ({})) as { payload?: unknown; intake?: Record<string, unknown> };
+  const body = await req.json().catch(() => ({})) as {
+    payload?: unknown;
+    intake?: Record<string, unknown>;
+    // Handoff: the coach saved partial progress and is sending the client to
+    // finish. stage = where the coach stopped, so the client resumes there.
+    partial?: boolean;
+    stage?: "calibration" | "deep";
+  };
   const admin = auth.admin;
+  const partial = body.partial === true;
+  const stage = body.stage === "calibration" ? "calibration" : "deep";
+  // During-calibration handoff: calibration itself isn't finished, so don't mark
+  // it complete or build a program — the client resumes calibration.
+  const calibrationDone = !(partial && stage === "calibration");
 
-  // Starter program (best-effort — onboarding still completes without it).
+  // Starter program (best-effort — only once calibration is actually done).
   let programSaved = false;
   let programWarning: string | null = null;
-  if (isBuilderPayload(body.payload)) {
+  if (calibrationDone && isBuilderPayload(body.payload)) {
     const archive = await (admin.from("programs") as any).update({ status: "archived" }).eq("user_id", id).eq("status", "active");
     if (archive.error) programWarning = archive.error.message;
     else {
@@ -46,13 +58,13 @@ export async function POST(
   const onboarding = await (admin.from("onboarding_state") as any).upsert({
     user_id: id,
     walkthrough_seen: true,
-    onboarding_complete: true,
-    body_focus_complete: true,
-    planning_conversation_complete: true,
-    program_generated: true,
-    profile_complete: true,
+    onboarding_complete: calibrationDone,
+    body_focus_complete: calibrationDone,
+    planning_conversation_complete: !partial, // deep stays "not done" until the client finishes
+    program_generated: calibrationDone,
+    profile_complete: calibrationDone,
     raw_answers: body.intake ?? null,
-    onboarding_completed_at: new Date().toISOString(),
+    onboarding_completed_at: partial ? null : new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (onboarding.error) return NextResponse.json({ error: onboarding.error.message }, { status: 500 });
@@ -78,16 +90,26 @@ export async function POST(
     }
   } catch { /* best-effort */ }
 
-  // Let the client know their coach set them up.
+  // Notify the client — either "you're set up" or "finish where your coach left off".
   try {
     const { data: prof } = await admin.from("profiles").select("email").eq("id", id).maybeSingle();
+    const notif = partial
+      ? {
+          title: "Finish your onboarding",
+          body: "Your coach started your setup — tap to answer the rest so your plan gets dialed in.",
+          link: stage === "calibration" ? "/onboarding/calibration" : "/onboarding/deep-calibration",
+        }
+      : {
+          title: "Your coach set up your profile",
+          body: "Your starter plan and targets are ready — open Flowstate to take a look.",
+          link: "/dashboard",
+        };
     await notifyClient({
       userId: id, type: "onboarding",
-      title: "Your coach set up your profile",
-      body: "Your starter plan and targets are ready — open Flowstate to take a look.",
-      link: "/dashboard", actorName: auth.authorName, email: (prof?.email as string | null) ?? null,
+      title: notif.title, body: notif.body, link: notif.link,
+      actorName: auth.authorName, email: (prof?.email as string | null) ?? null,
     });
   } catch { /* best-effort */ }
 
-  return NextResponse.json({ ok: true, programSaved, warning: programWarning, tasksSeeded });
+  return NextResponse.json({ ok: true, programSaved, warning: programWarning, tasksSeeded, partial });
 }

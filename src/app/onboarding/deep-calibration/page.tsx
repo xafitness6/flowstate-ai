@@ -313,6 +313,27 @@ export default function DeepCalibrationPage() {
     }));
   }
 
+  // Coach handoff: save what's filled so far to the client and send THEM to
+  // finish the rest (they resume here, prefilled with the coach's partial deep
+  // answers from raw_answers.deep).
+  async function sendRestToClient() {
+    if (!coachClientId || saving) return;
+    setSaving(true);
+    setFinishStatus("Sending to your client…");
+    let basic: Record<string, unknown> = {};
+    try { const s = sessionStorage.getItem(COACH_INTAKE_STASH); if (s) basic = JSON.parse(s); } catch { /* ignore */ }
+    const combined = { ...basic, deep: answers };
+    let payload: BuilderProgramPayload | undefined;
+    try { payload = starterPlanToBuilderPayload(generateStarterPlan(basic as unknown as IntakeData)); } catch { /* optional */ }
+    const res = await fetch(`/api/clients/${coachClientId}/onboarding/submit`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+      body: JSON.stringify({ payload, intake: combined, partial: true, stage: "deep" }),
+    }).catch(() => null);
+    if (!res?.ok) { setFinishStatus("Couldn't send to your client. Try again."); setSaving(false); return; }
+    try { sessionStorage.removeItem(COACH_INTAKE_STASH); } catch { /* ignore */ }
+    router.replace(`/clients/${coachClientId}`);
+  }
+
   async function finish() {
     if (saving) return;
     setSaving(true);
@@ -428,8 +449,15 @@ export default function DeepCalibrationPage() {
       {saving && <BuildingScreen />}
 
       {coachClientId && (
-        <div className="bg-[#B48B40]/12 border-b border-[#B48B40]/25 px-5 py-2 text-center text-[12px] text-[#B48B40] shrink-0">
-          Detailed onboarding for your client — answers save to <span className="font-semibold">their</span> account.
+        <div className="bg-[#B48B40]/12 border-b border-[#B48B40]/25 px-5 py-2 shrink-0 flex items-center justify-center gap-3 flex-wrap text-[12px] text-[#B48B40]">
+          <span>Detailed onboarding for your client — answers save to <span className="font-semibold">their</span> account.</span>
+          <button
+            onClick={sendRestToClient}
+            disabled={saving}
+            className="rounded-lg border border-[#B48B40]/40 px-2.5 py-1 font-semibold hover:bg-[#B48B40]/15 disabled:opacity-50 transition-all"
+          >
+            Send the rest to them to finish →
+          </button>
         </div>
       )}
 
