@@ -18,6 +18,9 @@ Rules:
   (protein 4 kcal/g, carbs 4 kcal/g, fat 9 kcal/g).
 - Protein: anchor to bodyweight + goal — ~1.6-2.2 g/kg (higher for fat loss / muscle
   retention, lower end for endurance). If weight is unknown, target ~30-35% of calories.
+  EXCEPTION for fat loss when over ~200 lb (91 kg) AND a goal weight is given: anchor
+  protein to ~1 g per lb of their GOAL weight, not current (e.g. cutting 261 → 180 lb →
+  ~180 g) — current-weight protein is excessive and impractical for heavier cutters.
 - Fat: keep at least ~0.6 g/kg (hormonal floor), usually 20-35% of calories.
 - Carbs: fill the remainder; more for muscle gain / high training volume, fewer for fat
   loss or a stated low-carb / keto preference.

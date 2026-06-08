@@ -60,6 +60,30 @@ function resolveActivityMultiplier(intake: IntakeData): number {
 }
 
 // Protein multiplier (g per kg of bodyweight) based on goal
+const LB_PER_KG = 2.2046226;
+
+/**
+ * Protein for heavier weight-loss clients: anchor grams to GOAL weight, not
+ * current. A 261lb client cutting to 180 gets ~180g protein (1g/lb of goal),
+ * not 2.2g/kg of 261lb (~260g) which is excessive and hard to hit. Returns null
+ * when it doesn't apply (not weight loss, under 200lb, or no goal weight set).
+ */
+function goalWeightProtein(currentKg: number, goalWeightKg: number | null, goal: string): number | null {
+  const isWeightLoss = goal === "fat_loss" || goal === "recomp";
+  if (!isWeightLoss) return null;
+  if (currentKg * LB_PER_KG <= 200) return null;
+  if (!goalWeightKg || goalWeightKg <= 0) return null;
+  return Math.round(goalWeightKg * LB_PER_KG); // 1g per lb of goal weight
+}
+
+/** Goal weight (kg) from the deep-cal answers, if present. */
+function goalWeightKgFromIntake(intake: IntakeData): number | null {
+  const deep = (intake as unknown as { deep?: Record<string, unknown> }).deep;
+  const raw = deep?.goalWeightKg;
+  const n = typeof raw === "number" ? raw : parseFloat(String(raw ?? ""));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function proteinMultiplier(goal: string): number {
   switch (goal) {
     case "muscle_gain": return 2.2;
@@ -192,8 +216,9 @@ export function calculateNutritionTargets(intake: IntakeData): NutritionTargets 
   // Calories from the shared energy profile (BMR × activity ± goal)
   const calories = energy.targetCalories;
 
-  // Protein (g)
-  const proteinG = Math.round(weightKg * proteinMultiplier(intake.primaryGoal));
+  // Protein (g) — heavier weight-loss clients anchor to GOAL weight (see helper)
+  const proteinG = goalWeightProtein(weightKg, goalWeightKgFromIntake(intake), intake.primaryGoal)
+    ?? Math.round(weightKg * proteinMultiplier(intake.primaryGoal));
 
   // Fat: 28% of total calories
   const fatG = Math.round((calories * 0.28) / 9);

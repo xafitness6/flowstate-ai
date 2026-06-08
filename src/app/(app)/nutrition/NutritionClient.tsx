@@ -934,6 +934,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
   // Energy profile (BMR / TDEE / target) for the Energy card
   const [energy,    setEnergy]    = useState<EnergyProfile | null>(null);
+  const [goalWeightKg, setGoalWeightKg] = useState<number | null>(null);
 
   // Eating approach: goal mode + meal pattern + optional carb cycling
   const [approach, setApproach] = useState<ApproachState>({
@@ -1049,6 +1050,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
     fetchApproach(user.id).then(setApproach);
     loadIntakeAsync(user.id).then((intake) => {
       setEnergy(intake ? calculateEnergy(intake) : null);
+      const gw = (intake as unknown as { deep?: { goalWeightKg?: unknown } } | null)?.deep?.goalWeightKg;
+      const gwn = typeof gw === "number" ? gw : parseFloat(String(gw ?? ""));
+      setGoalWeightKg(Number.isFinite(gwn) && gwn > 0 ? gwn : null);
       // Default goal mode from intake's primary goal — only on the very first
       // load when nothing's saved yet under this key.
       if (intake && !hasStoredApproach(user.id)) {
@@ -1129,9 +1133,9 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         waterMl:  computedTargets.waterMl,
       };
     }
-    const m = goalAdjustedMacros(energy.tdee, approach.goalMode, energy.weightKg);
+    const m = goalAdjustedMacros(energy.tdee, approach.goalMode, energy.weightKg, goalWeightKg);
     return { ...m, waterMl: computedTargets.waterMl };
-  }, [energy, approach.goalMode, computedTargets, carbDayType]);
+  }, [energy, approach.goalMode, computedTargets, carbDayType, goalWeightKg]);
 
   const targets = useMemo(() => applyOverride(goalTargets, override), [goalTargets, override]);
 
