@@ -1,24 +1,40 @@
 {
   "main": {
-    "id": "5db7fa59ca837688",
+    "id": "ce6e7eda50779443",
     "type": "split",
     "children": [
       {
-        "id": "362674c347b64389",
+        "id": "12c12e635dc4563d",
         "type": "tabs",
         "children": [
           {
-            "id": "77d65f5bb2b6d010",
+            "id": "3601cfb7989ba824",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "brain-graph.md",
+                "file": "Welcome.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "brain-graph"
+              "title": "Welcome"
+            }
+          }
+        ]
+      },
+      {
+        "id": "bc49a029942fafea",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b9c5b5662f350e92",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -27,15 +43,15 @@
     "direction": "vertical"
   },
   "left": {
-    "id": "70b1432985c36527",
+    "id": "2244c850935295e9",
     "type": "split",
     "children": [
       {
-        "id": "a00cc9186005a9f1",
+        "id": "517fa0c0847fda59",
         "type": "tabs",
         "children": [
           {
-            "id": "32467aca037492fe",
+            "id": "f4b378a6ba671327",
             "type": "leaf",
             "state": {
               "type": "file-explorer",
@@ -48,7 +64,7 @@
             }
           },
           {
-            "id": "6a4c78e07513acd3",
+            "id": "5f6c22854f806594",
             "type": "leaf",
             "state": {
               "type": "search",
@@ -65,7 +81,7 @@
             }
           },
           {
-            "id": "7b9f3f04cc7724cf",
+            "id": "99208ce0ed6ef4b0",
             "type": "leaf",
             "state": {
               "type": "bookmarks",
@@ -78,22 +94,23 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 300
   },
   "right": {
-    "id": "a74c27526daaa9f5",
+    "id": "7acc72b9fa43e841",
     "type": "split",
     "children": [
       {
-        "id": "d29ca76e19e1ff27",
+        "id": "d31d69195b0eb32e",
         "type": "tabs",
         "children": [
           {
-            "id": "f7867859a866c2fd",
+            "id": "60e1a42bd201e350",
             "type": "leaf",
             "state": {
               "type": "backlink",
               "state": {
+                "file": "Welcome.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -103,24 +120,25 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks"
+              "title": "Backlinks for Welcome"
             }
           },
           {
-            "id": "9dbab3d57ad990b6",
+            "id": "676bd4c597abb7fa",
             "type": "leaf",
             "state": {
               "type": "outgoing-link",
               "state": {
+                "file": "Welcome.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links"
+              "title": "Outgoing links from Welcome"
             }
           },
           {
-            "id": "526831d28615ec5f",
+            "id": "3a043b43eaf93274",
             "type": "leaf",
             "state": {
               "type": "tag",
@@ -135,7 +153,7 @@
             }
           },
           {
-            "id": "632ab15e9b59837e",
+            "id": "561a4fba32ea579c",
             "type": "leaf",
             "state": {
               "type": "all-properties",
@@ -149,17 +167,18 @@
             }
           },
           {
-            "id": "435680861c6d4af2",
+            "id": "979be88ea12a9a2b",
             "type": "leaf",
             "state": {
               "type": "outline",
               "state": {
+                "file": "Welcome.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline"
+              "title": "Outline of Welcome"
             }
           }
         ]
@@ -180,25 +199,19 @@
       "bases:Create new base": false
     }
   },
-  "active": "77d65f5bb2b6d010",
+  "active": "3601cfb7989ba824",
   "lastOpenFiles": [
-    "X's Second Brain/Welcome.md",
-    "X's Second Brain",
-    "node_modules/next/dist/docs/01-app/02-guides/production-checklist.md",
-    "flowstate-planner.md",
-    "Untitled 1.canvas",
-    "brain-graph.md",
-    "src/components/nutrition/BarcodeScanner.tsx",
-    "src/components/nutrition/FoodSearchModal.tsx",
-    "src/components/nutrition/NutritionAnalytics.tsx",
-    "src/components/nutrition/CalendarOverlay.tsx",
-    "src/lib/nutrition/analytics.ts",
-    "src/lib/nutrition/recentFoods.ts",
-    "src/lib/nutrition/barcodeService.ts",
-    "src/lib/nutrition/foodSearch.ts",
-    "src/components/nutrition/MealEditModal.tsx",
-    "CLAUDE.md",
-    "Untitled.canvas",
-    "docs/app/api-reference/file-conventions/page.md"
+    "02 - Projects/FlowState AI.md",
+    "01 - Ideas/Idea - Example - FlowState AI flow-state coaching.md",
+    "_Templates/Idea Template.md",
+    "01 - Ideas/Ideas MOC.md",
+    "🏠 Home.md",
+    "_Templates",
+    "05 - Archive",
+    "04 - Resources",
+    "03 - Areas",
+    "02 - Projects",
+    "01 - Ideas",
+    "Welcome.md"
   ]
 }
