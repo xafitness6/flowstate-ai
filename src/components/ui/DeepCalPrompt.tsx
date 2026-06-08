@@ -85,7 +85,7 @@ export function DeepCalPrompt({ userId }: { userId: string }) {
             href="/onboarding/deep-calibration"
             className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#B48B40] text-black px-5 py-2.5 text-sm font-semibold hover:bg-[#c99840] transition-colors"
           >
-            Start deep calibration <ArrowRight className="w-4 h-4" strokeWidth={2} />
+            Continue onboarding <ArrowRight className="w-4 h-4" strokeWidth={2} />
           </Link>
           <span className="text-[11px] text-white/35">About 15 minutes · do it once</span>
         </div>

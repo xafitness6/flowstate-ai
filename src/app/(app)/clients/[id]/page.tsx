@@ -48,6 +48,7 @@ type Reminder = { id: string; body: string; due_date: string | null; done: boole
 type CalendarReminder = { id: string; title: string; notes: string | null; due_at: string; done: boolean; created_at: string };
 type IntakeMeta = {
   onboarding_complete: boolean | null;
+  deep_complete: boolean | null;
   program_generated: boolean | null;
   completed_at: string | null;
 } | null;
@@ -705,11 +706,21 @@ export default function ClientDetailPage() {
     }
   }
 
+  // Fully done = basics AND deep calibration. A client mid-flow (left the page,
+  // or the coach handed off the rest) is "In progress" → resume, don't restart.
   const onboardingStatus = useMemo(() => {
-    if (meta?.onboarding_complete) return "Complete";
-    if (intake) return "In progress";
+    if (meta?.onboarding_complete && meta?.deep_complete) return "Complete";
+    if (intake || meta?.onboarding_complete) return "In progress";
     return "Not started";
   }, [meta, intake]);
+
+  // Where to resume: deep calibration if the basics are done, else the basics.
+  const onboardingResumeHref = useMemo(
+    () => meta?.onboarding_complete
+      ? `/onboarding/deep-calibration?clientId=${id}`
+      : `/onboarding/calibration?clientId=${id}`,
+    [meta, id],
+  );
 
   const week = program ? currentWeek(program.start_date, program.duration_weeks) : null;
 
@@ -832,10 +843,11 @@ export default function ClientDetailPage() {
               </div>
               <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                 <Link
-                  href={`/onboarding/calibration?clientId=${id}`}
+                  href={onboardingStatus === "In progress" ? onboardingResumeHref : `/onboarding/calibration?clientId=${id}`}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-[#B48B40]/35 bg-[#B48B40]/[0.08] px-3 py-2 text-xs font-semibold text-[#B48B40] hover:bg-[#B48B40]/[0.15] transition-all"
                 >
-                  <Pencil className="w-3.5 h-3.5" strokeWidth={2} /> Fill it out now
+                  <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
+                  {onboardingStatus === "In progress" ? "Continue onboarding" : "Fill it out now"}
                 </Link>
                 {onboardingStatus !== "Complete" && (
                   <button

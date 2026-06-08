@@ -20,7 +20,7 @@ export async function GET(
       .eq("id", id)
       .maybeSingle(),
     admin.from("onboarding_state")
-      .select("raw_answers,onboarding_complete,program_generated,tutorial_complete,profile_complete,onboarding_completed_at,updated_at")
+      .select("raw_answers,onboarding_complete,planning_conversation_complete,program_generated,tutorial_complete,profile_complete,onboarding_completed_at,updated_at")
       .eq("user_id", id)
       .maybeSingle(),
   ]);
@@ -47,6 +47,7 @@ export async function GET(
     meta: onboarding
       ? {
           onboarding_complete: onboarding.onboarding_complete,
+          deep_complete:       onboarding.planning_conversation_complete,
           program_generated:   onboarding.program_generated,
           tutorial_complete:   onboarding.tutorial_complete,
           profile_complete:    onboarding.profile_complete,
