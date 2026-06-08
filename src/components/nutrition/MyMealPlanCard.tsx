@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Utensils, Sparkles, Wand2, Plus, Loader2, X, ImagePlus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { dishKey } from "@/lib/nutrition/dishKey";
 
 type PlanItem = { food: string; qty: string; calories: number; protein: number; carbs: number; fat: number };
 type PlanMeal = { name: string; time: string; note: string; items: PlanItem[]; calories: number; protein: number; carbs: number; fat: number };
@@ -32,6 +33,8 @@ export function MyMealPlanCard({
   const [plan, setPlan]   = useState<MealPlan | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  const [mealImages, setMealImages] = useState<Record<string, string>>({});
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [mode, setMode]   = useState<"create" | "tweak">("create");
   const [prompt, setPrompt] = useState("");
@@ -48,6 +51,21 @@ export function MyMealPlanCard({
     } catch { /* resilient */ } finally { setLoaded(true); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Generate/serve a dish image per meal (one per call; poll until done) — same
+  // shared cache the trainer plans use, so members get the same polished look.
+  const loadImages = useCallback(async () => {
+    setImagesLoading(true);
+    try {
+      for (let i = 0; i < 12; i++) {
+        const r = await fetch("/api/me/meal-plan/images", { method: "POST" });
+        const j = await r.json();
+        if (j?.images) setMealImages((prev) => ({ ...prev, ...j.images }));
+        if (!j?.remaining || j.remaining <= 0) break;
+      }
+    } catch { /* best-effort */ } finally { setImagesLoading(false); }
+  }, []);
+  useEffect(() => { if (plan?.id) void loadImages(); }, [plan?.id, loadImages]);
 
   function openComposer(m: "create" | "tweak") {
     setMode(m); setErr(null); setPrompt(""); setImages([]); setComposerOpen(true);
@@ -121,25 +139,41 @@ export function MyMealPlanCard({
               </div>
             )}
           </div>
-          <div className="divide-y divide-white/[0.05]">
-            {plan.plan.meals.map((m, i) => (
-              <div key={i} className="px-4 py-3">
-                <div className="flex items-center justify-between gap-3 mb-1.5">
-                  <p className="text-sm font-medium text-white/85">{m.name} <span className="text-white/30 text-[11px] font-normal">· {m.time}</span></p>
-                  <p className="text-[11px] text-white/55 shrink-0 tabular-nums">{m.calories} kcal · {m.protein}/{m.carbs}/{m.fat}</p>
-                </div>
-                <div className="space-y-0.5">
-                  {m.items.map((it, j) => (
-                    <div key={j} className="flex items-center justify-between gap-3 text-[12px]">
-                      <span className="text-white/60 truncate">{it.qty} {it.food}</span>
-                      <span className="text-white/30 shrink-0 tabular-nums">{it.calories}</span>
+          <div className="p-3 space-y-2">
+            {plan.plan.meals.map((m, i) => {
+              const imgUrl = mealImages[dishKey(m)];
+              return (
+                <div key={i} className="rounded-xl border border-white/[0.06] bg-black/15 p-2.5 flex gap-3">
+                  <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-white/[0.06] bg-white/[0.03] flex items-center justify-center">
+                    {imgUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imgUrl} alt={m.name} className="w-full h-full object-cover" />
+                    ) : imagesLoading ? (
+                      <Loader2 className="w-4 h-4 text-white/25 animate-spin" />
+                    ) : (
+                      <Utensils className="w-4 h-4 text-white/20" strokeWidth={1.6} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-white/85">{m.name} <span className="text-[11px] font-normal text-white/35">{m.time}</span></p>
+                      <p className="text-[11px] text-white/55 shrink-0 tabular-nums">{m.calories} kcal · {m.protein}/{m.carbs}/{m.fat}</p>
                     </div>
-                  ))}
+                    <ul className="mt-1 space-y-0.5">
+                      {m.items.map((it, j) => (
+                        <li key={j} className="text-[12px] text-white/60 flex items-center justify-between gap-2">
+                          <span className="truncate">{it.qty} {it.food}</span>
+                          <span className="text-white/30 shrink-0 tabular-nums">{it.calories}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {m.note && <p className="text-[11px] text-[#B48B40]/70 mt-1">{m.note}</p>}
+                  </div>
                 </div>
-                {m.note && <p className="text-[11px] text-white/35 mt-1.5 italic">{m.note}</p>}
-              </div>
-            ))}
+              );
+            })}
           </div>
+          {imagesLoading && <p className="text-[10px] text-white/25 px-4 pb-3">Generating dish images…</p>}
         </>
       )}
 
