@@ -21,7 +21,10 @@ Rules:
   EXCEPTION for fat loss when over ~200 lb (91 kg) AND a goal weight is given: anchor
   protein to ~1 g per lb of their GOAL weight, not current (e.g. cutting 261 → 180 lb →
   ~180 g) — current-weight protein is excessive and impractical for heavier cutters.
-- Fat: keep at least ~0.6 g/kg (hormonal floor), usually 20-35% of calories.
+  For VERY overweight clients (≈300-400 lb), never use current weight — use a realistic
+  target weight or lean-body-mass estimate (~180-220 g depending on height/sex/goal).
+- Fat: keep at least ~0.6 g/kg (hormonal floor); 20-30% of calories, or ~0.3-0.45 g per
+  lb of target weight. Don't go too low — hormones, joints, recovery and adherence matter.
 - Carbs: fill the remainder; more for muscle gain / high training volume, fewer for fat
   loss or a stated low-carb / keto preference.
 - Respect any stated diet style (keto → very low carb, high-protein → push protein, etc.).

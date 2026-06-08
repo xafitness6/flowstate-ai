@@ -85,36 +85,35 @@ function goalWeightKgFromIntake(intake: IntakeData): number | null {
 }
 
 function proteinMultiplier(goal: string): number {
+  // ≈1 g per lb of bodyweight (2.2 g/kg) for maintain / gain / recomp / fat loss,
+  // per the coaching methodology. Endurance slightly lower.
   switch (goal) {
     case "muscle_gain": return 2.2;
-    case "strength":    return 2.0;
-    case "fat_loss":    return 2.2; // high protein preserves muscle in deficit
-    case "recomp":      return 2.0;
-    case "endurance":   return 1.6;
-    default:            return 1.8; // general / fallback
+    case "strength":    return 2.2;
+    case "fat_loss":    return 2.2;
+    case "recomp":      return 2.2;
+    case "endurance":   return 1.8;
+    default:            return 2.0;
   }
 }
 
 // Calorie adjustment from TDEE based on goal AND how fast they want results.
 // Shorter timeframe → more aggressive, clamped to safe bounds (-750 / +500).
-function calorieAdjustment(goal: string, timeframe?: string): number {
-  const base = (() => {
-    switch (goal) {
-      case "muscle_gain": return  300;
-      case "strength":    return  150;
-      case "fat_loss":    return -500;
-      case "recomp":      return    0;
-      case "endurance":   return  100;
-      default:            return    0;
+function calorieAdjustment(goal: string, timeframe: string | undefined, tdee: number): number {
+  switch (goal) {
+    // Bulk = a % of maintenance (standard lean bulk +15%; strength a touch lower).
+    case "muscle_gain": return Math.round(tdee * 0.15);
+    case "strength":    return Math.round(tdee * 0.10);
+    case "endurance":   return Math.round(tdee * 0.05);
+    case "recomp":      return 0;
+    // Fat loss = a flat deficit in the standard 300-650 range, steeper if the
+    // timeframe is short (never beyond aggressive -750).
+    case "fat_loss": {
+      const deficit = timeframe === "4w" ? -650 : timeframe === "8w" ? -550 : -450;
+      return Math.max(-750, deficit);
     }
-  })();
-  // Urgency factor from the goal timeframe
-  const urgency =
-    timeframe === "4w"  ? 1.5  :
-    timeframe === "8w"  ? 1.25 :
-    timeframe === "12w" ? 1.0  :
-    timeframe === "6m" || timeframe === "long_term" ? 0.8 : 1.0;
-  return Math.max(-750, Math.min(500, Math.round(base * urgency)));
+    default: return 0;
+  }
 }
 
 /** Hydration target in ml — scales with bodyweight and training days */
@@ -169,16 +168,17 @@ export function calculateEnergy(intake: IntakeData): EnergyProfile | null {
   let method: BmrMethod;
   let leanMassKg: number | null = null;
 
-  if (!isNaN(bodyFatPct) && bodyFatPct > 0 && bodyFatPct < 70) {
-    // Katch-McArdle: BMR = 370 + 21.6 × lean body mass (kg)
-    leanMassKg = weightKg * (1 - bodyFatPct / 100);
-    bmr = 370 + 21.6 * leanMassKg;
-    method = "katch";
-  } else if (!isNaN(age) && age > 0 && intake.sex && heightCm != null) {
-    // Mifflin-St Jeor
+  if (!isNaN(age) && age > 0 && intake.sex && heightCm != null) {
+    // Mifflin-St Jeor — the default per the coaching methodology.
     const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
     bmr = intake.sex === "male" ? base + 5 : base - 161;
     method = "mifflin";
+    if (!isNaN(bodyFatPct) && bodyFatPct > 0 && bodyFatPct < 70) leanMassKg = weightKg * (1 - bodyFatPct / 100);
+  } else if (!isNaN(bodyFatPct) && bodyFatPct > 0 && bodyFatPct < 70) {
+    // Fallback when age/sex/height are missing: Katch-McArdle (lean-mass based).
+    leanMassKg = weightKg * (1 - bodyFatPct / 100);
+    bmr = 370 + 21.6 * leanMassKg;
+    method = "katch";
   } else {
     bmr = weightKg * 22;
     method = "estimate";
@@ -187,7 +187,7 @@ export function calculateEnergy(intake: IntakeData): EnergyProfile | null {
   bmr = Math.round(bmr);
   const mult           = resolveActivityMultiplier(intake);
   const tdee           = Math.round(bmr * mult);
-  const goalAdjustment = calorieAdjustment(intake.primaryGoal, intake.timeframe);
+  const goalAdjustment = calorieAdjustment(intake.primaryGoal, intake.timeframe, tdee);
   const targetCalories = Math.max(1200, tdee + goalAdjustment);
 
   return {
@@ -216,9 +216,20 @@ export function calculateNutritionTargets(intake: IntakeData): NutritionTargets 
   // Calories from the shared energy profile (BMR × activity ± goal)
   const calories = energy.targetCalories;
 
-  // Protein (g) — heavier weight-loss clients anchor to GOAL weight (see helper)
-  const proteinG = goalWeightProtein(weightKg, goalWeightKgFromIntake(intake), intake.primaryGoal)
+  // Protein (g): ~1g/lb of current weight, EXCEPT heavier weight-loss clients
+  // anchor to GOAL weight, and very-overweight clients (no goal set) are capped
+  // to lean mass + buffer so we never hand out a 300g+ target.
+  const goalKg = goalWeightKgFromIntake(intake);
+  let proteinG = goalWeightProtein(weightKg, goalKg, intake.primaryGoal)
     ?? Math.round(weightKg * proteinMultiplier(intake.primaryGoal));
+  const lbs = weightKg * LB_PER_KG;
+  if (lbs > 250 && !(goalKg && goalKg > 0)) {
+    const bf = parseFloat(intake.bodyFat);
+    const cap = (!isNaN(bf) && bf > 0 && bf < 70)
+      ? Math.round(weightKg * (1 - bf / 100) * LB_PER_KG + 30) // lean mass + buffer
+      : 220;                                                    // sane default cap
+    proteinG = Math.min(proteinG, Math.max(150, cap));
+  }
 
   // Fat: 28% of total calories
   const fatG = Math.round((calories * 0.28) / 9);
