@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { saveOnboardingState, loadOnboardingState } from "@/lib/onboarding";
 import { saveBuilderWorkoutForSelf, type BuilderProgramPayload } from "@/lib/db/programs";
+import { useTone, toneLoadingMessages } from "@/lib/tone";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -868,27 +869,19 @@ function TimeFormatToggle({ value, onChange }: { value: TimeFormat; onChange: (v
   );
 }
 
-const BUILD_STAGES = [
-  "Reading your calibration…",
-  "Synthesizing your training split…",
-  "Combobulating progression curves…",
-  "Calibrating intensity to your push level…",
-  "Balancing volume against recovery…",
-  "Negotiating with your past self…",
-  "Reticulating splines…",
-  "Dialing in macros and meal timing…",
-  "Stress-testing week 4…",
-  "Polishing the final block…",
-] as const;
+// Build-screen stages now come from src/lib/tone.ts (toneLoadingMessages),
+// tuned to the athlete's coaching intensity + strong-language preference.
 
 function BuildingScreen() {
+  const tone   = useTone();
+  const stages = useMemo(() => toneLoadingMessages("buildProgram", tone), [tone]);
   const [i, setI] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => {
-      setI((prev) => (prev + 1) % BUILD_STAGES.length);
+      setI((prev) => (prev + 1) % stages.length);
     }, 1700);
     return () => window.clearInterval(t);
-  }, []);
+  }, [stages.length]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#0A0A0A] flex flex-col items-center justify-center px-6 text-white">
@@ -906,13 +899,13 @@ function BuildingScreen() {
         </p>
 
         <p key={i} className="text-lg font-medium text-white/90 leading-snug animate-[fadeIn_0.4s_ease-out] min-h-[3.5rem] flex items-center">
-          {BUILD_STAGES[i]}
+          {stages[i]}
         </p>
 
         <div className="mt-6 w-56 h-1 rounded-full bg-white/[0.06] overflow-hidden">
           <div
             className="h-full bg-[#B48B40] transition-all duration-700 ease-out"
-            style={{ width: `${Math.round(((i + 1) / BUILD_STAGES.length) * 100)}%` }}
+            style={{ width: `${Math.round(((i + 1) / stages.length) * 100)}%` }}
           />
         </div>
 

@@ -5,6 +5,7 @@ import { Zap, Loader2, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAIPipeline } from "@/hooks/useAIPipeline";
 import { useUser } from "@/context/UserContext";
+import { useTone, toneWorkingLabel } from "@/lib/tone";
 import type { RawUserData } from "@/lib/ai/types";
 
 // ── Demo data builder ─────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ function buildDemoData(userId: string): RawUserData {
   };
 }
 
+// "formatting" (building the plan) is tone-aware — see labelFor below.
 const STATUS_LABELS: Record<string, string> = {
   summarizing: "Reading your state…",
   deciding:    "Calculating adjustments…",
@@ -46,7 +48,13 @@ const RECOVERY_COLORS: Record<string, string> = {
 export function CoachPanel() {
   const { user }  = useUser();
   const pipeline  = useAIPipeline();
+  const tone      = useTone();
   const [notesOpen, setNotesOpen] = useState(false);
+
+  const labelFor = (status: string) =>
+    status === "formatting"
+      ? toneWorkingLabel("buildProgram", tone)
+      : STATUS_LABELS[status] ?? "Processing…";
 
   const isLoading = ["summarizing", "deciding", "formatting"].includes(pipeline.status);
   const cachedResult =
@@ -84,7 +92,7 @@ export function CoachPanel() {
           ) : (
             <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
           )}
-          {isLoading ? STATUS_LABELS[pipeline.status] ?? "Processing…" : "Run analysis"}
+          {isLoading ? labelFor(pipeline.status) : "Run analysis"}
         </button>
       </div>
 
@@ -106,7 +114,7 @@ export function CoachPanel() {
       {isLoading && (
         <div className="px-5 py-8 flex flex-col items-center gap-2">
           <Loader2 className="w-5 h-5 text-[#B48B40]/50 animate-spin" />
-          <p className="text-xs text-white/30">{STATUS_LABELS[pipeline.status]}</p>
+          <p className="text-xs text-white/30">{labelFor(pipeline.status)}</p>
         </div>
       )}
 
