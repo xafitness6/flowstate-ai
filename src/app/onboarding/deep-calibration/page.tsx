@@ -175,6 +175,11 @@ export default function DeepCalibrationPage() {
     return c && UUID_RE.test(c) ? c : null;
   });
 
+  // Dedup: the merged flow runs basic calibration first, so deep-cal must NOT
+  // re-ask weight / body-fat / injuries when those were already collected.
+  const [fromBasics, setFromBasics] = useState(false);            // seeded from a prior calibration
+  const [basicsHadInjury, setBasicsHadInjury] = useState(false);  // calibration already asked about injuries
+
   const [stepIdx, setStepIdx] = useState(0);
   const [answers, setAnswers] = useState<DeepCalAnswers>(DEFAULTS);
   const [saving,  setSaving]  = useState(false);
@@ -185,60 +190,82 @@ export default function DeepCalibrationPage() {
   // a coach pre-filled (onboarding_state.raw_answers.deep) so the client
   // confirms/edits instead of starting from scratch.
   useEffect(() => {
-    if (!userId) return;
+    if (!userId && !coachClientId) return;
     let active = true;
     (async () => {
-      try {
-        const draft = localStorage.getItem(DRAFT_KEY(userId));
-        if (draft) { setAnswers({ ...DEFAULTS, ...JSON.parse(draft) }); return; }
-      } catch { /* ignore */ }
+      // The basic-onboarding answers we already have. Proxy → from the stash
+      // calibration left; self → from the user's saved raw_answers (+ any deep
+      // a coach pre-filled). A local draft (self only) wins if present.
+      let basis: Record<string, unknown> | null = null;
+      let deep: Record<string, unknown> | null = null;
 
-      if (!UUID_RE.test(userId) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
-      try {
-        const { getOnboardingState } = await import("@/lib/db/onboarding");
-        const state = await getOnboardingState(userId);
-        const raw = state?.raw_answers as Record<string, unknown> | null | undefined;
-        if (!active || !raw) return;
-        const deep = raw && typeof raw.deep === "object" ? raw.deep as Record<string, unknown> : null;
+      if (coachClientId) {
+        try { const s = sessionStorage.getItem(COACH_INTAKE_STASH); if (s) basis = JSON.parse(s); } catch { /* ignore */ }
+      } else {
+        try {
+          const draft = localStorage.getItem(DRAFT_KEY(userId));
+          if (draft) { setAnswers({ ...DEFAULTS, ...JSON.parse(draft) }); /* keep going to still set dedup flags */ }
+        } catch { /* ignore */ }
+        if (UUID_RE.test(userId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+          try {
+            const { getOnboardingState } = await import("@/lib/db/onboarding");
+            const state = await getOnboardingState(userId);
+            const raw = state?.raw_answers as Record<string, unknown> | null | undefined;
+            if (raw) { basis = raw; deep = (typeof raw.deep === "object" ? raw.deep as Record<string, unknown> : null); }
+          } catch { /* ignore */ }
+        }
+      }
+      if (!active || !basis) return;
 
-        // Seed units / height / weight from the FIRST onboarding (top-level
-        // intake) so deep calibration never re-asks them.
-        const str = (v: unknown) => (typeof v === "string" ? v : "");
-        const topWeightUnit = str(raw.weightUnit);   // "kg" | "lbs"
-        const topHeightUnit = str(raw.heightUnit);    // "cm" | "ft"
-        const topWeight = parseFloat(str(raw.weight));
-        const topHeight = str(raw.height);
-        const seededUnits: Units = (topWeightUnit === "lbs" || topHeightUnit === "ft") ? "imperial" : "metric";
-        let seededHeightCm = "";
-        if (topHeight) {
-          if (topHeightUnit === "ft") {
-            const [ft, inPart] = topHeight.split(".");
-            seededHeightCm = String(feetInchesToCm(parseInt(ft || "0", 10), parseInt((inPart || "0").padEnd(1, "0"), 10)));
-          } else {
-            const n = parseFloat(topHeight);
-            if (n > 0) seededHeightCm = String(Math.round(n));
+      const str = (v: unknown) => (typeof v === "string" ? v : "");
+      const topWeightUnit = str(basis.weightUnit);
+      const topHeightUnit = str(basis.heightUnit);
+      const topWeight = parseFloat(str(basis.weight));
+      const topHeight = str(basis.height);
+      const seededUnits: Units = (topWeightUnit === "lbs" || topHeightUnit === "ft") ? "imperial" : "metric";
+      let seededHeightCm = "";
+      if (topHeight) {
+        if (topHeightUnit === "ft") {
+          const [ft, inPart] = topHeight.split(".");
+          seededHeightCm = String(feetInchesToCm(parseInt(ft || "0", 10), parseInt((inPart || "0").padEnd(1, "0"), 10)));
+        } else {
+          const n = parseFloat(topHeight);
+          if (n > 0) seededHeightCm = String(Math.round(n));
+        }
+      }
+      const seededWeightKg = topWeight > 0 ? String(topWeightUnit === "lbs" ? lbsToKg(topWeight) : Math.round(topWeight)) : "";
+
+      // Body-fat + injuries the basics already collected → seed, don't re-ask.
+      const bf = parseFloat(str(basis.bodyFat));
+      const seededBodyFat = Number.isFinite(bf) && bf > 0 ? bf : null;
+      const INJURY_MAP: Record<string, string> = { "Ankle / Achilles": "Ankle", "Wrist / Elbow": "Wrist" };
+      const seededInjuries = (Array.isArray(basis.injuryAreas) ? basis.injuryAreas as string[] : [])
+        .map((a) => INJURY_MAP[a] ?? a)
+        .filter((a) => (COMMON_INJURIES as readonly string[]).includes(a));
+      const seededInjuryNote = str(basis.injuryNote);
+      const askedInjury = (typeof basis.mainStruggle === "string" && basis.mainStruggle.includes("Injuries"))
+        || seededInjuries.length > 0 || seededInjuryNote.trim().length > 0;
+
+      setAnswers((a) => {
+        const next = { ...a } as Record<string, unknown>;
+        if (deep) {
+          for (const k of Object.keys(DEFAULTS)) {
+            if (deep[k] !== undefined && deep[k] !== null) next[k] = deep[k];
           }
         }
-        const seededWeightKg = topWeight > 0 ? String(topWeightUnit === "lbs" ? lbsToKg(topWeight) : Math.round(topWeight)) : "";
-
-        setAnswers((a) => {
-          const next = { ...a } as Record<string, unknown>;
-          // Coach-prefilled deep answers win where present.
-          if (deep) {
-            for (const k of Object.keys(DEFAULTS)) {
-              if (deep[k] !== undefined && deep[k] !== null) next[k] = deep[k];
-            }
-          }
-          // Backfill the already-known basics if deep didn't carry them.
-          next.units = seededUnits;
-          if (!next.heightCm && seededHeightCm) next.heightCm = seededHeightCm;
-          if (!next.weightKg && seededWeightKg) next.weightKg = seededWeightKg;
-          return next as DeepCalAnswers;
-        });
-      } catch { /* no pre-fill — start from DEFAULTS */ }
+        next.units = seededUnits;
+        if (!next.heightCm && seededHeightCm) next.heightCm = seededHeightCm;
+        if (!next.weightKg && seededWeightKg) next.weightKg = seededWeightKg;
+        if (next.bodyFatPct == null && seededBodyFat != null) next.bodyFatPct = seededBodyFat;
+        if ((!Array.isArray(next.injuries) || (next.injuries as string[]).length === 0) && seededInjuries.length) next.injuries = seededInjuries;
+        if (!next.injuryDetails && seededInjuryNote) next.injuryDetails = seededInjuryNote;
+        return next as DeepCalAnswers;
+      });
+      setFromBasics(true);
+      setBasicsHadInjury(askedInjury);
     })();
     return () => { active = false; };
-  }, [userId]);
+  }, [userId, coachClientId]);
 
   // Auto-save draft on every change
   useEffect(() => {
@@ -426,16 +453,18 @@ export default function DeepCalibrationPage() {
         {/* ── Chunk A — Body & history ──────────────────────────────────── */}
         {step === "body" && (
           <div className="space-y-8">
-            {/* Units + height come from the first onboarding — don't re-ask. Just
-                confirm current weight (it changes) and the goal. */}
-            <Question
-              prompt="What do you weigh right now?"
-              coach="Honest number — I'd rather start from where you actually are than where you'd like to be."
-            >
-              <Grid2>
-                <WeightInput units={answers.units} valueKg={answers.weightKg} onChange={(kg) => update("weightKg", kg)} label="Current weight" />
-              </Grid2>
-            </Question>
+            {/* Units, height, weight, body fat come from the basic calibration —
+                don't re-ask them here. Only shown if we have no basics to seed from. */}
+            {!fromBasics && (
+              <Question
+                prompt="What do you weigh right now?"
+                coach="Honest number — I'd rather start from where you actually are than where you'd like to be."
+              >
+                <Grid2>
+                  <WeightInput units={answers.units} valueKg={answers.weightKg} onChange={(kg) => update("weightKg", kg)} label="Current weight" />
+                </Grid2>
+              </Question>
+            )}
 
             <Question
               prompt="Where are you trying to land?"
@@ -448,13 +477,15 @@ export default function DeepCalibrationPage() {
               </Grid2>
             </Question>
 
-            <Question
-              prompt="What's your body fat rough estimate?"
-              coach="Eyeball it. If you genuinely don't know, skip — I'll figure it out from your other answers."
-              optional
-            >
-              <BodyFatSlider value={answers.bodyFatPct} onChange={(v) => update("bodyFatPct", v)} />
-            </Question>
+            {!fromBasics && (
+              <Question
+                prompt="What's your body fat rough estimate?"
+                coach="Eyeball it. If you genuinely don't know, skip — I'll figure it out from your other answers."
+                optional
+              >
+                <BodyFatSlider value={answers.bodyFatPct} onChange={(v) => update("bodyFatPct", v)} />
+              </Question>
+            )}
 
             <Question
               prompt="How long have you been training, and what was your most consistent stretch?"
@@ -476,6 +507,7 @@ export default function DeepCalibrationPage() {
               </div>
             </Question>
 
+            {!(fromBasics && basicsHadInjury) && (
             <Question
               prompt="Anything hurt? Anything I need to work around?"
               coach="Don't tough it out — if a pattern hurts, I'll swap it. The program's nothing if you can't show up to train."
@@ -505,6 +537,7 @@ export default function DeepCalibrationPage() {
                 )}
               </div>
             </Question>
+            )}
 
             <Question
               prompt="Anything medical I should know?"
