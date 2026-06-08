@@ -48,7 +48,7 @@ export async function GET() {
 
   const { data: plan } = await supabase
     .from("meal_plans")
-    .select("id,title,summary,plan,created_by_name,created_at,status,allow_client_food_edits")
+    .select("id,title,summary,plan,created_by_name,created_at,status,allow_client_food_edits,grocery_list")
     .eq("user_id", user.id)
     .eq("status", "active")
     .order("created_at", { ascending: false })
@@ -201,13 +201,12 @@ export async function PATCH(req: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  let body: { meals?: unknown };
+  let body: { meals?: unknown; plan?: unknown; grocery_list?: unknown };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const incoming = Array.isArray(body.meals) ? (body.meals as Meal[]) : null;
-  if (!incoming) return NextResponse.json({ error: "meals must be an array." }, { status: 400 });
 
+  const admin = await createAdminClient();
   const { data: row } = await supabase
     .from("meal_plans")
     .select("id,plan,allow_client_food_edits")
@@ -217,6 +216,29 @@ export async function PATCH(req: Request) {
     .limit(1)
     .maybeSingle();
   if (!row) return NextResponse.json({ error: "No active plan." }, { status: 404 });
+
+  const { data: prof } = await admin.from("profiles").select("assigned_trainer_id").eq("id", user.id).maybeSingle();
+  const hasCoach = !!(prof as { assigned_trainer_id?: string | null } | null)?.assigned_trainer_id;
+
+  // Grocery list edit — always allowed on your own plan.
+  if (body.grocery_list && typeof body.grocery_list === "object") {
+    const { error } = await admin.from("meal_plans").update({ grocery_list: body.grocery_list, updated_at: new Date().toISOString() }).eq("id", row.id).eq("user_id", user.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  // Full plan edit (items + macros, reconciled client-side) — only when you own
+  // the plan. Coached clients can't rewrite their coach's macros.
+  if (body.plan && typeof body.plan === "object" && Array.isArray((body.plan as { meals?: unknown }).meals)) {
+    if (hasCoach) return NextResponse.json({ error: "Your coach manages your plan." }, { status: 403 });
+    const { error } = await admin.from("meal_plans").update({ plan: body.plan, updated_at: new Date().toISOString() }).eq("id", row.id).eq("user_id", user.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  // Otherwise: food-only edit (coached client swapping foods, needs permission).
+  const incoming = Array.isArray(body.meals) ? (body.meals as Meal[]) : null;
+  if (!incoming) return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   if (!row.allow_client_food_edits) return NextResponse.json({ error: "Your coach hasn't enabled plan edits." }, { status: 403 });
 
   // Merge: preserve everything, override only item.food / item.qty by position.
@@ -238,7 +260,6 @@ export async function PATCH(req: Request) {
 
   // Ownership + permission already verified above; write via service role since
   // there's no client UPDATE policy on meal_plans (read-only by RLS).
-  const admin = await createAdminClient();
   const { error } = await admin
     .from("meal_plans")
     .update({ plan: { ...current, meals }, updated_at: new Date().toISOString() })

@@ -6,14 +6,16 @@
 // owns that case (the coach sets their plan).
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Utensils, Sparkles, Wand2, Plus, Loader2, X, ImagePlus, Trash2 } from "lucide-react";
+import { Utensils, Sparkles, Wand2, Plus, Loader2, X, ImagePlus, Trash2, Pencil, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dishKey } from "@/lib/nutrition/dishKey";
+import { MealPlanEditor, type PlanBody as EditablePlan } from "@/components/nutrition/MealPlanEditor";
+import { GroceryListModal, type GroceryList } from "@/components/nutrition/GroceryListModal";
 
 type PlanItem = { food: string; qty: string; calories: number; protein: number; carbs: number; fat: number };
 type PlanMeal = { name: string; time: string; note: string; items: PlanItem[]; calories: number; protein: number; carbs: number; fat: number };
 type PlanBody = { meals: PlanMeal[]; totals: { calories: number; protein: number; carbs: number; fat: number } };
-type MealPlan = { id: string; title: string; summary: string | null; plan: PlanBody };
+type MealPlan = { id: string; title: string; summary: string | null; plan: PlanBody; grocery_list?: GroceryList | null };
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -35,7 +37,25 @@ export function MyMealPlanCard({
 
   const [mealImages, setMealImages] = useState<Record<string, string>>({});
   const [imagesLoading, setImagesLoading] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [groceryOpen, setGroceryOpen] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+
+  async function savePlanEdit(updated: EditablePlan) {
+    setSavingPlan(true);
+    try {
+      const res = await fetch("/api/me/meal-plan", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: updated }) });
+      if (res.ok) { setPlan((p) => p ? { ...p, plan: updated } : p); setEditorOpen(false); }
+    } finally { setSavingPlan(false); }
+  }
+  async function saveGrocery(list: GroceryList) {
+    setSavingPlan(true);
+    try {
+      const res = await fetch("/api/me/meal-plan", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grocery_list: list }) });
+      if (res.ok) { setPlan((p) => p ? { ...p, grocery_list: list } : p); setGroceryOpen(false); }
+    } finally { setSavingPlan(false); }
+  }
   const [mode, setMode]   = useState<"create" | "tweak">("create");
   const [prompt, setPrompt] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -120,7 +140,13 @@ export function MyMealPlanCard({
                 </p>
                 {plan.summary && <p className="text-[12px] text-white/45 mt-1 leading-relaxed">{plan.summary}</p>}
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                <button onClick={() => setGroceryOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-white/12 px-2.5 py-1.5 text-[11px] text-white/65 hover:text-white/95 hover:border-white/25 transition-all">
+                  <ShoppingCart className="w-3.5 h-3.5" strokeWidth={1.8} /> Grocery list
+                </button>
+                <button onClick={() => setEditorOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-white/12 px-2.5 py-1.5 text-[11px] text-white/65 hover:text-white/95 hover:border-white/25 transition-all">
+                  <Pencil className="w-3.5 h-3.5" strokeWidth={1.8} /> Edit
+                </button>
                 <button onClick={() => openComposer("tweak")} className="inline-flex items-center gap-1 rounded-lg border border-white/12 px-2.5 py-1.5 text-[11px] text-white/65 hover:text-white/95 hover:border-white/25 transition-all">
                   <Wand2 className="w-3.5 h-3.5" strokeWidth={1.8} /> Tweak
                 </button>
@@ -227,6 +253,25 @@ export function MyMealPlanCard({
             </div>
           </div>
         </div>
+      )}
+
+      {editorOpen && plan && (
+        <MealPlanEditor
+          plan={plan.plan as EditablePlan}
+          title={plan.title}
+          saving={savingPlan}
+          onSave={savePlanEdit}
+          onClose={() => setEditorOpen(false)}
+        />
+      )}
+      {groceryOpen && plan && (
+        <GroceryListModal
+          plan={plan.plan}
+          savedList={plan.grocery_list ?? null}
+          saving={savingPlan}
+          onPersist={saveGrocery}
+          onClose={() => setGroceryOpen(false)}
+        />
       )}
     </div>
   );

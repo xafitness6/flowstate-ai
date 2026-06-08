@@ -7,9 +7,11 @@
 // the plan (and reach the client's own app).
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Apple, Loader2, Sparkles, Pencil, Check, X, Trash2, ImagePlus, Utensils, Wand2, Plus } from "lucide-react";
+import { Apple, Loader2, Sparkles, Pencil, Check, X, Trash2, ImagePlus, Utensils, Wand2, Plus, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dishKey } from "@/lib/nutrition/dishKey";
+import { MealPlanEditor, type PlanBody as EditablePlan } from "@/components/nutrition/MealPlanEditor";
+import { GroceryListModal, type GroceryList } from "@/components/nutrition/GroceryListModal";
 import { TargetsEditModal } from "@/components/nutrition/TargetsEditModal";
 import type { NutritionTargets } from "@/lib/nutrition";
 import type { TargetsOverride } from "@/lib/nutrition/targetsOverride";
@@ -26,7 +28,7 @@ type PlanMeal = { name: string; time: string; note: string; items: PlanItem[]; c
 type PlanBody = { meals: PlanMeal[]; totals: { calories: number; protein: number; carbs: number; fat: number } };
 type MealPlan = {
   id: string; title: string; summary: string | null; created_by_name: string | null; created_at: string;
-  plan: PlanBody; allow_client_food_edits?: boolean;
+  plan: PlanBody; allow_client_food_edits?: boolean; grocery_list?: GroceryList | null;
 };
 
 const FIELDS = [
@@ -62,6 +64,26 @@ export function ClientNutritionManager({
 
   // Targets editing — full %/grams/AI configurator (shared TargetsEditModal)
   const [targetsModalOpen, setTargetsModalOpen] = useState(false);
+
+  // Meal-plan editing + grocery list
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [groceryOpen, setGroceryOpen] = useState(false);
+  const [savingPlanEdit, setSavingPlanEdit] = useState(false);
+
+  async function savePlanEdit(updated: EditablePlan) {
+    setSavingPlanEdit(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/meal-plan`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: updated }) });
+      if (res.ok) { setPlan((p) => p ? { ...p, plan: updated } : p); setEditorOpen(false); }
+    } finally { setSavingPlanEdit(false); }
+  }
+  async function saveGrocery(list: GroceryList) {
+    setSavingPlanEdit(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/meal-plan`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grocery_list: list }) });
+      if (res.ok) { setPlan((p) => p ? { ...p, grocery_list: list } : p); setGroceryOpen(false); }
+    } finally { setSavingPlanEdit(false); }
+  }
 
   // Composer modal
   const [composerOpen, setComposerOpen] = useState(false);
@@ -236,7 +258,13 @@ export function ClientNutritionManager({
                 </p>
                 {plan.summary && <p className="text-[12px] text-white/45 mt-1 leading-relaxed">{plan.summary}</p>}
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                <button onClick={() => setGroceryOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-white/12 px-2.5 py-1.5 text-[11px] text-white/65 hover:text-white/95 hover:border-white/25 transition-all">
+                  <ShoppingCart className="w-3.5 h-3.5" strokeWidth={1.8} /> Grocery
+                </button>
+                <button onClick={() => setEditorOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-white/12 px-2.5 py-1.5 text-[11px] text-white/65 hover:text-white/95 hover:border-white/25 transition-all">
+                  <Pencil className="w-3.5 h-3.5" strokeWidth={1.8} /> Edit
+                </button>
                 <button onClick={() => openComposer("tweak")} className="inline-flex items-center gap-1 rounded-lg border border-white/12 px-2.5 py-1.5 text-[11px] text-white/65 hover:text-white/95 hover:border-white/25 transition-all">
                   <Wand2 className="w-3.5 h-3.5" strokeWidth={1.8} /> Tweak
                 </button>
@@ -389,6 +417,24 @@ export function ClientNutritionManager({
           onSave={(o: TargetsOverride) => void persistTargets(o as Record<string, number>)}
           onReset={() => void persistTargets({})}
           onClose={() => setTargetsModalOpen(false)}
+        />
+      )}
+      {editorOpen && plan && (
+        <MealPlanEditor
+          plan={plan.plan as EditablePlan}
+          title={plan.title}
+          saving={savingPlanEdit}
+          onSave={savePlanEdit}
+          onClose={() => setEditorOpen(false)}
+        />
+      )}
+      {groceryOpen && plan && (
+        <GroceryListModal
+          plan={plan.plan}
+          savedList={plan.grocery_list ?? null}
+          saving={savingPlanEdit}
+          onPersist={saveGrocery}
+          onClose={() => setGroceryOpen(false)}
         />
       )}
     </div>

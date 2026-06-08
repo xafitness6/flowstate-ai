@@ -56,7 +56,7 @@ export async function GET(
 
   const { data, error } = await auth.admin
     .from("meal_plans")
-    .select("id,title,summary,plan,prompt,created_by_name,created_at,status,allow_client_food_edits")
+    .select("id,title,summary,plan,prompt,created_by_name,created_at,status,allow_client_food_edits,grocery_list")
     .eq("user_id", id)
     .eq("status", "active")
     .order("created_at", { ascending: false })
@@ -76,22 +76,32 @@ export async function PATCH(
   const auth = await requireClientAccess(id);
   if (!auth.ok) return auth.response;
 
-  let body: { allow_client_food_edits?: unknown };
+  let body: { allow_client_food_edits?: unknown; plan?: unknown; grocery_list?: unknown };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  if (typeof body.allow_client_food_edits !== "boolean") {
-    return NextResponse.json({ error: "allow_client_food_edits must be a boolean." }, { status: 400 });
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (typeof body.allow_client_food_edits === "boolean") update.allow_client_food_edits = body.allow_client_food_edits;
+  // Full plan edit (items + macros, already reconciled client-side).
+  if (body.plan && typeof body.plan === "object" && Array.isArray((body.plan as { meals?: unknown }).meals)) update.plan = body.plan;
+  // Edited grocery list.
+  if (body.grocery_list && typeof body.grocery_list === "object") update.grocery_list = body.grocery_list;
+
+  if (Object.keys(update).length === 1) {
+    return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  const { error } = await auth.admin
+  const { data, error } = await auth.admin
     .from("meal_plans")
-    .update({ allow_client_food_edits: body.allow_client_food_edits, updated_at: new Date().toISOString() })
+    .update(update)
     .eq("user_id", id)
-    .eq("status", "active");
+    .eq("status", "active")
+    .select("id,plan,grocery_list,allow_client_food_edits")
+    .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, allow_client_food_edits: body.allow_client_food_edits });
+  return NextResponse.json({ ok: true, plan: data });
 }
 
 export async function POST(
