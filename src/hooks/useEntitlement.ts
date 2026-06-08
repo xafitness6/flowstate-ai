@@ -22,12 +22,16 @@ import type { Plan } from "@/types";
 
 export function useEntitlement() {
   const { user } = useUser();
-  const plan     = user.plan as Plan;
+  // Admin / master = access to everything, regardless of plan. The owner sees
+  // every feature and upgrade so nothing is ever hidden behind a tier for them.
+  const isAdmin  = user.isAdmin === true || user.role === "master";
+  const plan     = (isAdmin ? "coaching" : user.plan) as Plan;
   // Admin override — not yet set via UI but threaded through so future grants work
   const override = (user as { entitlementOverride?: Plan }).entitlementOverride;
 
   /** True if the current user can access `feature`. */
   function can(feature: Feature): boolean {
+    if (isAdmin) return true;
     return canAccessFeature(plan, feature, override);
   }
 
