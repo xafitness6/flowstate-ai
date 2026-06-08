@@ -826,11 +826,17 @@ export default function ClientDetailPage() {
                   <p className="text-xs text-white/40 mt-0.5">
                     {onboardingStatus === "Complete"
                       ? `Completed${meta?.completed_at ? ` ${new Date(meta.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}. You can run it again any time.`
-                      : "Send them into the guided setup, or fill it in yourself below (Pre-fill from notes) and mark it complete."}
+                      : "“Fill it out now” opens the real onboarding wizard for you to complete on their behalf. Or send them through it themselves, or pre-fill from notes below."}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                <Link
+                  href={`/onboarding/calibration?clientId=${id}`}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#B48B40]/35 bg-[#B48B40]/[0.08] px-3 py-2 text-xs font-semibold text-[#B48B40] hover:bg-[#B48B40]/[0.15] transition-all"
+                >
+                  <Pencil className="w-3.5 h-3.5" strokeWidth={2} /> Fill it out now
+                </Link>
                 {onboardingStatus !== "Complete" && (
                   <button
                     onClick={markOnboardingDone}

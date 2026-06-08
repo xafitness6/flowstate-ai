@@ -291,6 +291,14 @@ export default function CalibrationPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
 
+  // Coach proxy mode: /onboarding/calibration?clientId=<uuid> lets a coach run
+  // the real wizard FOR a client; answers save to the client's account.
+  const [coachClientId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const c = new URLSearchParams(window.location.search).get("clientId");
+    return c && UUID_RE.test(c) ? c : null;
+  });
+
   const stepIndex   = STEPS.indexOf(step);
   const progressPct = ((stepIndex + 1) / STEPS.length) * 100;
 
@@ -300,7 +308,9 @@ export default function CalibrationPage() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const userId = await getActiveUserId();
+      // In coach proxy mode, prefill from the CLIENT's existing answers (never the
+      // coach's own). Otherwise prefill from the signed-in user's saved answers.
+      const userId = coachClientId ?? await getActiveUserId();
       if (!UUID_RE.test(userId) || !process.env.NEXT_PUBLIC_SUPABASE_URL) return;
       try {
         const { getOnboardingState } = await import("@/lib/db/onboarding");
@@ -339,7 +349,7 @@ export default function CalibrationPage() {
       } catch { /* no pre-fill — start blank */ }
     })();
     return () => { active = false; };
-  }, []);
+  }, [coachClientId]);
 
   // Auto-advance is triggered directly from the option onClick (see pickAndAdvance)
   // so a single tap always moves on — even re-tapping the already-highlighted
@@ -420,6 +430,27 @@ export default function CalibrationPage() {
       checkInCadence:  answers.checkInCadence || undefined,
       completedAt:     new Date().toISOString(),
     };
+
+    // Coach proxy mode: save the wizard's result to the CLIENT's account and
+    // return to their file — skip all of the signed-in coach's own state writes.
+    if (coachClientId) {
+      const clientPlan = generateStarterPlan(intake);
+      const clientPayload = starterPlanToBuilderPayload(clientPlan);
+      const res = await withTimeout(
+        fetch(`/api/clients/${coachClientId}/onboarding/submit`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+          body: JSON.stringify({ payload: clientPayload, intake: intake as unknown as Record<string, unknown> }),
+        }),
+        12_000, "coach onboarding submit",
+      ).catch(() => null);
+      if (!res?.ok) {
+        setSaveError("Couldn't save this client's onboarding. Please try again.");
+        setSaving(false);
+        return;
+      }
+      router.replace(`/clients/${coachClientId}`);
+      return;
+    }
 
     saveIntake(userId, intake);
 
@@ -514,6 +545,13 @@ export default function CalibrationPage() {
           style={{ width: `${progressPct}%` }}
         />
       </div>
+
+      {/* Coach proxy banner — you're filling this out on the client's behalf */}
+      {coachClientId && (
+        <div className="bg-[#B48B40]/12 border-b border-[#B48B40]/25 px-5 py-2 text-center text-[12px] text-[#B48B40] shrink-0">
+          You&apos;re completing onboarding for your client — answers save to <span className="font-semibold">their</span> account.
+        </div>
+      )}
 
       {/* Header */}
       <div className="px-5 pt-5 pb-2 shrink-0 max-w-lg mx-auto w-full flex items-center justify-between">
