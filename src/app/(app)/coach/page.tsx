@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen, Clock, Plus, X, MessageSquare, Trash2 } from "lucide-react";
+import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen, Clock, Plus, X, MessageSquare, Trash2, AudioLines } from "lucide-react";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, UpgradeCard, FEATURES } from "@/components/ui/PlanGate";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { VoiceMic } from "@/components/voice/VoiceMic";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -234,6 +235,30 @@ function CoachPageInner() {
     if (voice.transcript) setInput(voice.transcript);
   }, [voice.transcript]);
 
+  // ── Live, hands-free voice conversation ──────────────────────────────────────
+  // Continuous mic: each spoken utterance auto-sends as a message; the coach's
+  // reply is spoken back, then listening resumes — a real back-and-forth that
+  // reads as a normal chat thread.
+  const conv = useVoiceConversation((text) => { voice.reset(); void sendMessage(text); });
+  const liveRef = useRef(false);
+  useEffect(() => { liveRef.current = conv.active; }, [conv.active]);
+
+  // Speak the coach's reply (live mode only), then un-pause the mic on end so it
+  // never transcribes the coach's own voice.
+  const speakThenResume = useCallback((text: string) => {
+    if (!liveRef.current) return;
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : null;
+    if (!synth || !text.trim()) { conv.setPaused(false); return; }
+    try {
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text.replace(/[*_#`>]/g, ""));
+      u.rate = 1.05;
+      const resume = () => conv.setPaused(false);
+      u.onend = resume; u.onerror = resume;
+      synth.speak(u);
+    } catch { conv.setPaused(false); }
+  }, [conv]);
+
   const [intensity,      setIntensity]      = useLocalStorage<number> ("coach-intensity",       3);
   const [strongLanguage, setStrongLanguage] = useLocalStorage<boolean>("coach-strong-language", false);
 
@@ -355,6 +380,8 @@ function CoachPageInner() {
         if (i === paragraphs.length - 1) setLoading(false);
       }, i * 500);
     });
+    // Live mode: speak the full reply, then resume listening.
+    speakThenResume(data.content);
   }
 
   // ── Meal intent → parse → review-first modal ──────────────────────────────────
@@ -421,6 +448,8 @@ function CoachPageInner() {
     setInput("");
     setLoading(true);
     setPromptsUsed(true);
+    // Live mode: pause the mic while we think + speak so it doesn't hear itself.
+    if (liveRef.current) conv.setPaused(true);
 
     try {
       // 1. Classify intent (fall back to chat if the router is unavailable)
@@ -428,7 +457,7 @@ function CoachPageInner() {
       try {
         const r = await fetch("/api/ai/coach-intent", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: clean }),
+          body: JSON.stringify({ input: clean, history: buildHistory(messages) }),
         });
         if (r.ok) route = await r.json() as CoachIntentOutput;
       } catch { /* fall through to chat */ }
@@ -440,6 +469,7 @@ function CoachPageInner() {
       if (act && intent === "log_meal" && route!.payload.mealTranscript) {
         await handleMealIntent(route!.payload.mealTranscript, typingId);
         setLoading(false);
+        if (liveRef.current) conv.setPaused(false);
         return;
       }
       if (act && intent === "log_workout_complete") {
@@ -447,6 +477,7 @@ function CoachPageInner() {
         removeTyping(typingId);
         pushActionCard("workout", r.summary, { logId: r.logId });
         setLoading(false);
+        speakThenResume(r.summary);
         return;
       }
       if (act && intent === "log_reflection" && route!.payload.reflectionText) {
@@ -454,6 +485,7 @@ function CoachPageInner() {
         removeTyping(typingId);
         pushActionCard("reflection", r.summary, { logId: r.logId });
         setLoading(false);
+        speakThenResume(r.summary);
         return;
       }
       // Relay to the human coach — fire the notification, then let the AI reply
@@ -477,11 +509,16 @@ function CoachPageInner() {
         }
       }
 
-      // 4. Ambiguous → ask, don't act
-      if (route?.needsClarification && route.clarifyingQuestion) {
+      // 4. Ambiguous → ask, don't act — but ONLY for logging intents, where acting
+      //    on the wrong thing is harmful. For chat / follow-ups, never short-circuit:
+      //    the main coach has the full thread and answers with context (this is what
+      //    was making it ask "what do you mean?" instead of using the conversation).
+      const LOGGING_INTENTS = ["log_meal", "log_workout_complete", "log_reflection"];
+      if (route?.needsClarification && route.clarifyingQuestion && LOGGING_INTENTS.includes(intent)) {
         removeTyping(typingId);
         pushAi(route.clarifyingQuestion);
         setLoading(false);
+        speakThenResume(route.clarifyingQuestion);
         return;
       }
 
@@ -494,6 +531,7 @@ function CoachPageInner() {
       removeTyping(typingId);
       pushAi(errText);
       setLoading(false);
+      if (liveRef.current) conv.setPaused(false);
     }
   }
 
@@ -687,32 +725,58 @@ function CoachPageInner() {
       <div className="px-4 pb-3 shrink-0 md:px-6 md:pb-5">
         <div className={cn(
           "flex items-end gap-3 rounded-2xl border bg-[#111111] px-4 py-3 transition-colors",
-          input ? "border-[#B48B40]/30" : "border-white/8"
+          conv.active ? "border-[#B48B40]/45" : input ? "border-[#B48B40]/30" : "border-white/8"
         )}>
           <textarea
-            value={voice.status === "listening" ? (input + (voice.interim ? ` ${voice.interim}` : "")) : input}
+            value={
+              conv.active ? conv.interim
+              : voice.status === "listening" ? (input + (voice.interim ? ` ${voice.interim}` : ""))
+              : input
+            }
             onChange={(e) => { setInput(e.target.value); if (voice.status !== "listening") voice.reset(); }}
             onKeyDown={handleKeyDown}
-            placeholder={voice.status === "listening" ? "Listening…" : "Ask anything..."}
+            placeholder={
+              conv.active ? (loading ? "Coach is replying…" : "Listening — just talk…")
+              : voice.status === "listening" ? "Listening…" : "Ask anything..."
+            }
             rows={1}
-            disabled={loading}
+            readOnly={conv.active}
+            disabled={loading && !conv.active}
             className="flex-1 bg-transparent text-sm text-white/80 placeholder:text-white/22 resize-none outline-none leading-relaxed max-h-32 disabled:opacity-50"
             style={{ scrollbarWidth: "none" }}
           />
           <div className="flex items-center gap-1.5 mb-0.5">
-            <VoiceMic
-              status={voice.status}
-              isSupported={voice.isSupported}
-              onStart={voice.start}
-              onStop={() => { voice.stop(); }}
-              size="sm"
-            />
+            {/* Live conversation toggle — hands-free back-and-forth */}
+            {conv.isSupported && (
+              <button
+                onClick={() => (conv.active ? conv.stop() : (voice.reset(), setInput(""), conv.start()))}
+                title={conv.active ? "End live voice" : "Start live voice conversation"}
+                className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all relative",
+                  conv.active
+                    ? "bg-[#B48B40]/20 text-[#B48B40] border border-[#B48B40]/40"
+                    : "bg-white/5 text-white/35 hover:text-white/70 hover:bg-white/8"
+                )}
+              >
+                {conv.active && <span className="absolute inset-0 rounded-xl bg-[#B48B40]/15 animate-ping" />}
+                <AudioLines className="w-4 h-4 relative" strokeWidth={2} />
+              </button>
+            )}
+            {!conv.active && (
+              <VoiceMic
+                status={voice.status}
+                isSupported={voice.isSupported}
+                onStart={voice.start}
+                onStop={() => { voice.stop(); }}
+                size="sm"
+              />
+            )}
             <button
               onClick={() => { sendMessage(input); voice.reset(); }}
-              disabled={!input.trim() || loading}
+              disabled={!input.trim() || loading || conv.active}
               className={cn(
                 "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all",
-                input.trim() && !loading
+                input.trim() && !loading && !conv.active
                   ? "bg-[#B48B40] text-black hover:bg-[#c99840]"
                   : "bg-white/5 text-white/20 cursor-not-allowed"
               )}

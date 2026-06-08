@@ -4,7 +4,7 @@
 // fall through to normal conversation. Extracts PHRASES only — never computes
 // macros or training decisions (those stay in /api/ai/nutrition and the coach).
 //
-// Input:  { input: string }
+// Input:  { input: string, history?: { role: "user"|"coach", content: string }[] }
 // Output: CoachIntentOutput
 
 import { NextRequest, NextResponse } from "next/server";
@@ -41,8 +41,15 @@ INTENTS:
 RULES:
 - A message can mention food AND a workout — pick the PRIMARY action; if truly
   both and clearly separable, prefer the one they emphasize.
-- If the message is vague ("I had a big day", "did some stuff", "feeling it") set
-  intent "chat", needsClarification true, and give a short clarifyingQuestion.
+- USE THE RECENT CONVERSATION (if provided) to resolve references. Pronouns and
+  back-references like "them", "it", "that", "those", "the plan", "the workout",
+  "what we just spoke about", "did you adjust them" almost always point to
+  something already discussed in the thread. These are FOLLOW-UPS → intent "chat",
+  needsClarification FALSE. The coach has the full conversation and WILL answer —
+  do NOT ask the user to re-explain something they already said.
+- Only set needsClarification true for a LOGGING intent (meal / workout / reflection)
+  when you genuinely cannot tell WHAT to log (e.g. "log that" with nothing to log).
+  NEVER set needsClarification for a plain chat question or a follow-up reference.
 - confidence is 0-1 about the INTENT. Be honest; sub-0.6 means you're unsure.
 - "should I still train?" with recovery info → "recovery_check", not "chat".
 - DEFAULT TO "chat". Only pick a logging intent when the user is clearly logging.
@@ -81,12 +88,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Coach not configured" }, { status: 503 });
   }
   try {
-    const body = await req.json() as { input?: string };
+    const body = await req.json() as {
+      input?: string;
+      history?: { role?: string; content?: string }[];
+    };
     const input = body.input;
 
     if (!input || typeof input !== "string" || input.trim().length === 0) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
     }
+
+    // Recent thread (last few turns) so references like "them"/"the plan" resolve.
+    const recent = Array.isArray(body.history)
+      ? body.history
+          .filter((m) => m && typeof m.content === "string" && m.content.trim())
+          .slice(-6)
+          .map((m) => `${m.role === "coach" ? "Coach" : "Athlete"}: ${m.content!.trim()}`)
+          .join("\n")
+      : "";
+
+    const userContent = recent
+      ? `RECENT CONVERSATION (for resolving references — do NOT re-route these, only the new message):\n${recent}\n\nNew message to route: "${input.trim()}"`
+      : `Route this message: "${input.trim()}"`;
 
     const completion = await client.chat.completions.create({
       model:           "gpt-4o",
@@ -95,7 +118,7 @@ export async function POST(req: NextRequest) {
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM },
-        { role: "user",   content: `Route this message: "${input.trim()}"` },
+        { role: "user",   content: userContent },
       ],
     });
 
