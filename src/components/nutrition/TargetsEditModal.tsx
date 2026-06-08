@@ -95,12 +95,12 @@ export function TargetsEditModal({
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calories: calNum || computed.calories }),
       });
-      if (!res.ok) throw new Error("AI unavailable");
-      const d = await res.json() as { calories: number; proteinG: number; carbsG: number; fatG: number; rationale?: string };
-      applyTargets({ calories: d.calories, proteinG: d.proteinG, carbsG: d.carbsG, fatG: d.fatG });
+      const d = await res.json().catch(() => ({})) as { calories?: number; proteinG?: number; carbsG?: number; fatG?: number; rationale?: string; error?: string };
+      if (!res.ok) throw new Error(d.error || "Couldn't calculate right now.");
+      applyTargets({ calories: d.calories ?? 0, proteinG: d.proteinG ?? 0, carbsG: d.carbsG ?? 0, fatG: d.fatG ?? 0 });
       setAiRationale(d.rationale || `Built from ${subjectLabel ? `${subjectLabel}'s` : "your"} goal, body stats and approach.`);
-    } catch {
-      setAiError("Couldn't reach the AI — set it by hand or use the calculated split.");
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Couldn't calculate right now.");
     } finally {
       setAiBusy(false);
     }
