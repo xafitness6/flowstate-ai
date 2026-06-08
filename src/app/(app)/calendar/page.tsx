@@ -720,6 +720,17 @@ function CalendarPageInner() {
       });
     } catch { /* ignore */ }
 
+    // Coach-scheduled workouts (planned). Completed ones already show as a
+    // logged workout, so only the still-scheduled ones are added here.
+    try {
+      const res = await fetch("/api/me/scheduled-workouts", { cache: "no-store" });
+      const json = await res.json();
+      (json.scheduled ?? []).forEach((s: { title: string; scheduled_date: string; status: string }) => {
+        if (s.status === "completed") return;
+        addEvent(next, s.scheduled_date, { type: "workout", label: `📅 ${s.title}` });
+      });
+    } catch { /* ignore */ }
+
     setEvents(next);
   }, [user.id]);
 
