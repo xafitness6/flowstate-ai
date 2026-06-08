@@ -28,6 +28,8 @@ export function TargetsEditModal({
   onSave,
   onReset,
   onClose,
+  macroSuggestUrl = "/api/me/macro-suggest",
+  subjectLabel,
 }: {
   computed: NutritionTargets;   // calculated-from-stats targets (the "prior" baseline)
   current:  NutritionTargets;   // currently-effective targets (computed + any override)
@@ -35,6 +37,8 @@ export function TargetsEditModal({
   onSave:   (o: TargetsOverride) => void;
   onReset:  () => void;
   onClose:  () => void;
+  macroSuggestUrl?: string;     // AI endpoint — self by default, client route on coach side
+  subjectLabel?:    string;     // e.g. a client's name for the header/AI copy
 }) {
   const [editBy,   setEditBy]   = useState<"percent" | "grams">("percent");
   const [calories, setCalories] = useState(String(current.calories));
@@ -87,14 +91,14 @@ export function TargetsEditModal({
   async function suggestWithAI() {
     setAiBusy(true); setAiError(null); setAiRationale(null);
     try {
-      const res = await fetch("/api/me/macro-suggest", {
+      const res = await fetch(macroSuggestUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calories: calNum || computed.calories }),
       });
       if (!res.ok) throw new Error("AI unavailable");
       const d = await res.json() as { calories: number; proteinG: number; carbsG: number; fatG: number; rationale?: string };
       applyTargets({ calories: d.calories, proteinG: d.proteinG, carbsG: d.carbsG, fatG: d.fatG });
-      setAiRationale(d.rationale || "Built from your goal, body stats and approach.");
+      setAiRationale(d.rationale || `Built from ${subjectLabel ? `${subjectLabel}'s` : "your"} goal, body stats and approach.`);
     } catch {
       setAiError("Couldn't reach the AI — set it by hand or use the calculated split.");
     } finally {
@@ -126,7 +130,9 @@ export function TargetsEditModal({
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-white/[0.06] shrink-0 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-white/80 tracking-tight">Calories &amp; macros</h2>
+            <h2 className="text-sm font-semibold text-white/80 tracking-tight">
+              {subjectLabel ? `${subjectLabel}'s calories & macros` : "Calories & macros"}
+            </h2>
             <p className="text-[11px] text-white/30 mt-0.5">Set the split by %, by grams, or let AI build it.</p>
           </div>
           <button onClick={onClose} className="w-7 h-7 rounded-lg border border-white/8 bg-white/[0.03] flex items-center justify-center text-white/30 hover:text-white/65 transition-colors">

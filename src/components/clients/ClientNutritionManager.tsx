@@ -10,6 +10,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Apple, Loader2, Sparkles, Pencil, Check, X, Trash2, ImagePlus, Utensils, Wand2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dishKey } from "@/lib/nutrition/dishKey";
+import { TargetsEditModal } from "@/components/nutrition/TargetsEditModal";
+import type { NutritionTargets } from "@/lib/nutrition";
+import type { TargetsOverride } from "@/lib/nutrition/targetsOverride";
+
+// Fallback when a client has no stats-based targets yet (no intake) — keeps the
+// configurator usable; the coach can still set everything by hand or via AI.
+const TARGET_FALLBACK: NutritionTargets = { calories: 2200, proteinG: 165, carbsG: 220, fatG: 70, waterMl: 2500 };
 
 type ComputedTargets = { calories: number; proteinG: number; carbsG: number; fatG: number; waterMl: number } | null;
 type Override = { calories?: number; proteinG?: number; carbsG?: number; fatG?: number; waterMl?: number } | null;
@@ -53,10 +60,8 @@ export function ClientNutritionManager({
   const eff = (k: keyof NonNullable<ComputedTargets>) =>
     (override?.[k as keyof NonNullable<Override>] ?? computedTargets?.[k] ?? "") as number | "";
 
-  // Targets editing (inline, compact)
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [savingTargets, setSavingTargets] = useState(false);
+  // Targets editing — full %/grams/AI configurator (shared TargetsEditModal)
+  const [targetsModalOpen, setTargetsModalOpen] = useState(false);
 
   // Composer modal
   const [composerOpen, setComposerOpen] = useState(false);
@@ -99,33 +104,27 @@ export function ClientNutritionManager({
 
   useEffect(() => { if (plan?.id) void loadImages(); }, [plan?.id, loadImages]);
 
-  function startEdit() {
-    const d: Record<string, string> = {};
-    FIELDS.forEach((f) => { const v = eff(f.key); d[f.key] = v === "" ? "" : String(v); });
-    setDraft(d);
-    setEditing(true);
-  }
+  // The baseline (stats-based) + currently-effective targets for the modal.
+  const computedBase: NutritionTargets = computedTargets ?? TARGET_FALLBACK;
+  const currentTargets: NutritionTargets = {
+    calories: override?.calories ?? computedBase.calories,
+    proteinG: override?.proteinG ?? computedBase.proteinG,
+    carbsG:   override?.carbsG   ?? computedBase.carbsG,
+    fatG:     override?.fatG     ?? computedBase.fatG,
+    waterMl:  override?.waterMl  ?? computedBase.waterMl,
+  };
 
-  async function saveTargets() {
-    if (savingTargets) return;
-    setSavingTargets(true);
+  async function persistTargets(body: Record<string, number>) {
     try {
-      const body: Record<string, number> = {};
-      FIELDS.forEach((f) => {
-        const n = Number(draft[f.key]);
-        if (Number.isFinite(n) && n > 0) body[f.key] = Math.round(n);
-      });
       const res = await fetch(`/api/clients/${clientId}/nutrition-targets`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Couldn't save targets.");
       setOverride(j.targets ?? null);
-      setEditing(false);
+      setTargetsModalOpen(false);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't save targets.");
-    } finally {
-      setSavingTargets(false);
     }
   }
 
@@ -200,30 +199,14 @@ export function ClientNutritionManager({
             <Apple className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={1.8} /> Daily targets
             <span className="text-white/25 normal-case tracking-normal">· {isCustom ? "custom, synced to their app" : "from intake"}</span>
           </p>
-          {!editing
-            ? <button onClick={startEdit} className="text-white/35 hover:text-white/80 transition-colors" aria-label="Edit targets"><Pencil className="w-3.5 h-3.5" strokeWidth={1.8} /></button>
-            : (
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setEditing(false)} className="inline-flex items-center gap-1 text-[11px] text-white/45 hover:text-white/70 rounded-lg px-2 py-1"><X className="w-3 h-3" strokeWidth={2} /></button>
-                <button onClick={saveTargets} disabled={savingTargets} className="inline-flex items-center gap-1 text-[11px] font-semibold text-black bg-[#B48B40] hover:bg-[#c99840] disabled:opacity-50 rounded-lg px-2.5 py-1">
-                  {savingTargets ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" strokeWidth={2.5} />} Save
-                </button>
-              </div>
-            )}
+          <button onClick={() => setTargetsModalOpen(true)} className="inline-flex items-center gap-1 text-[11px] text-white/45 hover:text-white/85 transition-colors rounded-lg border border-white/10 px-2 py-1" aria-label="Edit targets">
+            <Pencil className="w-3 h-3" strokeWidth={1.8} /> Edit
+          </button>
         </div>
         <div className="grid grid-cols-5 gap-2">
           {FIELDS.map((f) => (
             <div key={f.key}>
-              {editing ? (
-                <input
-                  type="number" min="0" inputMode="numeric"
-                  value={draft[f.key] ?? ""}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white/85 outline-none focus:border-[#B48B40]/50"
-                />
-              ) : (
-                <p className="text-sm font-semibold text-white/90 tabular-nums">{eff(f.key) === "" ? "—" : eff(f.key)}</p>
-              )}
+              <p className="text-sm font-semibold text-white/90 tabular-nums">{eff(f.key) === "" ? "—" : eff(f.key)}</p>
               <p className="text-[10px] uppercase tracking-wider text-white/30 mt-0.5">{f.label}</p>
             </div>
           ))}
@@ -394,6 +377,19 @@ export function ClientNutritionManager({
             </div>
           </div>
         </div>
+      )}
+
+      {targetsModalOpen && (
+        <TargetsEditModal
+          computed={computedBase}
+          current={currentTargets}
+          isCustom={isCustom}
+          subjectLabel={clientName}
+          macroSuggestUrl={`/api/clients/${clientId}/macro-suggest`}
+          onSave={(o: TargetsOverride) => void persistTargets(o as Record<string, number>)}
+          onReset={() => void persistTargets({})}
+          onClose={() => setTargetsModalOpen(false)}
+        />
       )}
     </div>
   );
