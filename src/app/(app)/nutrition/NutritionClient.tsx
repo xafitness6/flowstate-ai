@@ -22,6 +22,7 @@ import { loadIntakeAsync } from "@/lib/data/intake";
 import { MacroSourcesCard }     from "@/components/nutrition/MacroSourcesCard";
 import { TargetsEditModal }     from "@/components/nutrition/TargetsEditModal";
 import { ClientMealPlanCard }   from "@/components/nutrition/ClientMealPlanCard";
+import { MyMealPlanCard }       from "@/components/nutrition/MyMealPlanCard";
 import {
   getTargetsOverride, saveTargetsOverride, clearTargetsOverride, applyOverride,
   type TargetsOverride,
@@ -1547,6 +1548,11 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
         {/* ── Coach-set meal plan (view + request a change) — coached clients only ── */}
         <ClientMealPlanCard onCoachStatus={setClientHasCoach} />
+
+        {/* ── Self-serve meal plan — members with no coach generate their own ── */}
+        {clientHasCoach === false && (
+          <MyMealPlanCard targets={{ calories: targets.calories, proteinG: targets.proteinG, carbsG: targets.carbsG, fatG: targets.fatG }} />
+        )}
 
         {/* ── Philosophy stack ──────────────────────────────────────────────
              Lays out the user's eating approach (balanced foundation + their
