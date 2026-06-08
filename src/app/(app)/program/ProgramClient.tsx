@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Dumbbell, Play, ChevronRight, Zap, Plus, Clock,
-  CheckCircle2, BarChart2, Mic, Library, X,
+  CheckCircle2, BarChart2, Mic, Library, X, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -148,12 +148,14 @@ function ProgramRevealBanner({
   type,
   program,
   nextWo,
+  injuryReview = false,
   onDismiss,
   onStart,
 }: {
   type: Exclude<ProgramReveal, null>;
   program: ActiveProgram;
   nextWo: Workout | null;
+  injuryReview?: boolean;
   onDismiss: () => void;
   onStart: () => void;
 }) {
@@ -199,6 +201,17 @@ function ProgramRevealBanner({
           <p className="mt-1 text-xs font-semibold text-white/78">{program.daysPerWeek} days/wk</p>
         </div>
       </div>
+
+      {injuryReview && (
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#B48B40]/25 bg-[#B48B40]/[0.06] px-4 py-3">
+          <ShieldCheck className="w-4 h-4 text-[#B48B40] shrink-0 mt-0.5" strokeWidth={2} />
+          <p className="text-xs text-white/70 leading-relaxed">
+            You flagged an injury, so we kept this starter plan conservative. Your coach has
+            been notified and will tailor it to work around it — train to comfort, never through
+            sharp pain.
+          </p>
+        </div>
+      )}
 
       {nextWo && (
         <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
@@ -258,6 +271,7 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
     initial?.program ? getNextWorkout(initial.program, initial.weekLogs) : null,
   );
   const [reveal,     setReveal]     = useState<ProgramReveal>(null);
+  const [injuryReview, setInjuryReview] = useState(false);
   const [loadingProgram, setLoadingProgram] = useState(!initial?.program);
 
   useEffect(() => {
@@ -266,6 +280,12 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
       if (stored === "starter" || stored === "upgraded") {
         setReveal(stored);
         sessionStorage.removeItem("flowstate-program-reveal");
+      }
+      // Set during calibration when an injury was flagged — the starter plan is
+      // generic, so reassure them their coach will tailor it.
+      if (sessionStorage.getItem("flowstate-injury-coach-review") === "1") {
+        setInjuryReview(true);
+        sessionStorage.removeItem("flowstate-injury-coach-review");
       }
     } catch { /* ignore */ }
   }, []);
@@ -393,6 +413,7 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
             type={reveal}
             program={program}
             nextWo={nextWo}
+            injuryReview={injuryReview}
             onDismiss={() => setReveal(null)}
             onStart={() => nextWo && router.push(`/program/workout/${nextWo.workoutId}`)}
           />

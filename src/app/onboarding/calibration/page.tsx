@@ -447,6 +447,17 @@ export default function CalibrationPage() {
 
     try { sessionStorage.setItem("flowstate-program-reveal", "starter"); } catch { /* ignore */ }
     try { sessionStorage.setItem("flowstate-calibration-finished", "true"); } catch { /* ignore */ }
+    // Injury safety-gate (client side): if an injury was flagged, reassure them on
+    // the program reveal that their coach will tailor the generic starter plan.
+    try {
+      const injuryFlagged =
+        answers.injuryAreas.length > 0 ||
+        answers.injuryNote.trim().length > 0 ||
+        answers.injuryCleared === "no" ||
+        answers.mainStruggle.includes("Injuries");
+      if (injuryFlagged) sessionStorage.setItem("flowstate-injury-coach-review", "1");
+      else sessionStorage.removeItem("flowstate-injury-coach-review");
+    } catch { /* ignore */ }
     router.replace("/onboarding/tutorial");
 
     } catch (err) {
