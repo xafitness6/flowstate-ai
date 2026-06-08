@@ -160,6 +160,8 @@ const LS_KEY = "flowstate-active-role";
 const SS_KEY = "flowstate-session-role";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEFAULT_EQUIPMENT = "Bodyweight only";
+// Handoff to deep-cal when a coach runs the full onboarding for a client.
+const COACH_INTAKE_STASH = "flowstate-coach-calibration-intake";
 
 function readStoredUserId(): string {
   try {
@@ -299,6 +301,25 @@ export default function CalibrationPage() {
     return c && UUID_RE.test(c) ? c : null;
   });
 
+  // Does the SELF user have a coach? Coached clients go straight into deep
+  // calibration after the basics; self-directed members get the choice.
+  const [hasCoach, setHasCoach] = useState<boolean | null>(null);
+  const [showDeepPrompt, setShowDeepPrompt] = useState(false);
+  useEffect(() => {
+    if (coachClientId) return; // proxy mode doesn't need the coach's own status
+    let active = true;
+    (async () => {
+      try {
+        const uid = await getActiveUserId();
+        if (!UUID_RE.test(uid) || !process.env.NEXT_PUBLIC_SUPABASE_URL) { if (active) setHasCoach(false); return; }
+        const { createClient } = await import("@/lib/supabase/client");
+        const { data } = await createClient().from("profiles").select("assigned_trainer_id").eq("id", uid).maybeSingle();
+        if (active) setHasCoach(!!(data as { assigned_trainer_id?: string | null } | null)?.assigned_trainer_id);
+      } catch { if (active) setHasCoach(false); }
+    })();
+    return () => { active = false; };
+  }, [coachClientId]);
+
   const stepIndex   = STEPS.indexOf(step);
   const progressPct = ((stepIndex + 1) / STEPS.length) * 100;
 
@@ -435,24 +456,12 @@ export default function CalibrationPage() {
       completedAt:     new Date().toISOString(),
     };
 
-    // Coach proxy mode: save the wizard's result to the CLIENT's account and
-    // return to their file — skip all of the signed-in coach's own state writes.
+    // Coach proxy mode: clients get the FULL onboarding. Stash the basic intake
+    // and continue into deep calibration — it submits the combined answers to the
+    // client at the end. No signed-in coach state is written.
     if (targetClient) {
-      const clientPlan = generateStarterPlan(intake);
-      const clientPayload = starterPlanToBuilderPayload(clientPlan);
-      const res = await withTimeout(
-        fetch(`/api/clients/${targetClient}/onboarding/submit`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
-          body: JSON.stringify({ payload: clientPayload, intake: intake as unknown as Record<string, unknown> }),
-        }),
-        12_000, "coach onboarding submit",
-      ).catch(() => null);
-      if (!res?.ok) {
-        setSaveError("Couldn't save this client's onboarding. Please try again.");
-        setSaving(false);
-        return;
-      }
-      router.replace(`/clients/${targetClient}`);
+      try { sessionStorage.setItem(COACH_INTAKE_STASH, JSON.stringify(intake)); } catch { /* ignore */ }
+      router.replace(`/onboarding/deep-calibration?clientId=${targetClient}`);
       return;
     }
 
@@ -519,7 +528,17 @@ export default function CalibrationPage() {
       if (injuryFlagged) sessionStorage.setItem("flowstate-injury-coach-review", "1");
       else sessionStorage.removeItem("flowstate-injury-coach-review");
     } catch { /* ignore */ }
-    router.replace("/onboarding/tutorial");
+
+    // After the basics: coached clients go straight into the detailed deep
+    // calibration (the full onboarding). Self-directed members get a choice —
+    // go deeper now, or do it on next login (the dashboard keeps nudging it).
+    if (hasCoach) {
+      router.replace("/onboarding/deep-calibration");
+      return;
+    }
+    setShowDeepPrompt(true);
+    setSaving(false);
+    return;
 
     } catch (err) {
       console.error("[calibration] finish failed:", err);
@@ -554,6 +573,39 @@ export default function CalibrationPage() {
       {coachClientId && (
         <div className="bg-[#B48B40]/12 border-b border-[#B48B40]/25 px-5 py-2 text-center text-[12px] text-[#B48B40] shrink-0">
           You&apos;re completing onboarding for your client — answers save to <span className="font-semibold">their</span> account.
+        </div>
+      )}
+
+      {/* Member-only: offer deep calibration now (vs. on next login) */}
+      {showDeepPrompt && (
+        <div className="fixed inset-0 z-[100] bg-[#0A0A0A] flex items-center justify-center px-6">
+          <div className="max-w-md w-full">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[#B48B40]/70 mb-3 text-center">Your basics are saved</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-center">Want to go deeper now?</h1>
+            <p className="text-sm text-white/50 mt-3 leading-relaxed text-center">
+              Deep calibration is the rest of your onboarding — training history, your real goals and
+              motivation, lifestyle and recovery, injuries and medical notes, and how you want to be
+              coached. It&apos;s what turns a generic starter plan into one truly built for you. Takes a
+              few more minutes.
+            </p>
+            <div className="mt-7 space-y-2.5">
+              <button
+                onClick={() => router.replace("/onboarding/deep-calibration")}
+                className="w-full rounded-2xl py-4 text-sm font-semibold bg-[#B48B40] text-black hover:bg-[#c99840] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                Yes, let&apos;s go deeper now <ArrowRight className="w-4 h-4" strokeWidth={2} />
+              </button>
+              <button
+                onClick={() => router.replace("/onboarding/tutorial")}
+                className="w-full rounded-2xl py-3.5 text-sm font-medium border border-white/10 text-white/55 hover:text-white/80 hover:border-white/20 transition-all"
+              >
+                Maybe later — I&apos;ll do it next time
+              </button>
+            </div>
+            <p className="text-[11px] text-white/25 mt-4 text-center leading-relaxed">
+              If you skip for now, deep calibration will be waiting at the top of your dashboard.
+            </p>
+          </div>
         </div>
       )}
 

@@ -15,9 +15,16 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { saveOnboardingState, loadOnboardingState } from "@/lib/onboarding";
 import { saveBuilderWorkoutForSelf, type BuilderProgramPayload } from "@/lib/db/programs";
+import { generateStarterPlan, starterPlanToBuilderPayload } from "@/lib/starterPlan";
+import type { IntakeData } from "@/lib/data/intake";
 import { useTone, toneLoadingMessages } from "@/lib/tone";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Handoff: calibration (coach-proxy) stashes the basic intake here, then routes
+// to deep-cal so the coach answers the detailed questions; deep-cal submits the
+// combined set to the client at the end.
+const COACH_INTAKE_STASH = "flowstate-coach-calibration-intake";
 
 // Map deep-cal training years → experience bucket the AI endpoint expects
 function deriveExperience(trainingYears: string): "beginner" | "intermediate" | "advanced" {
@@ -159,6 +166,15 @@ export default function DeepCalibrationPage() {
   const { user } = useUser();
   const userId = user?.id ?? "";
 
+  // Coach proxy mode: /onboarding/deep-calibration?clientId=<uuid> — the coach is
+  // completing the detailed questions on a client's behalf (chained after the
+  // basic calibration). Answers save to the CLIENT, never the signed-in coach.
+  const [coachClientId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const c = new URLSearchParams(window.location.search).get("clientId");
+    return c && UUID_RE.test(c) ? c : null;
+  });
+
   const [stepIdx, setStepIdx] = useState(0);
   const [answers, setAnswers] = useState<DeepCalAnswers>(DEFAULTS);
   const [saving,  setSaving]  = useState(false);
@@ -275,6 +291,24 @@ export default function DeepCalibrationPage() {
     setSaving(true);
     setFinishStatus("Saving your answers…");
 
+    // Coach proxy: combine the basic intake (stashed by calibration) with these
+    // deep answers and submit everything to the CLIENT, then return to their file.
+    if (coachClientId) {
+      let basic: Record<string, unknown> = {};
+      try { const s = sessionStorage.getItem(COACH_INTAKE_STASH); if (s) basic = JSON.parse(s); } catch { /* ignore */ }
+      const combined = { ...basic, deep: answers };
+      let payload: BuilderProgramPayload | undefined;
+      try { payload = starterPlanToBuilderPayload(generateStarterPlan(basic as unknown as IntakeData)); } catch { /* program optional */ }
+      const res = await fetch(`/api/clients/${coachClientId}/onboarding/submit`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+        body: JSON.stringify({ payload, intake: combined }),
+      }).catch(() => null);
+      if (!res?.ok) { setFinishStatus("Couldn't save for your client. Try again."); setSaving(false); return; }
+      try { sessionStorage.removeItem(COACH_INTAKE_STASH); } catch { /* ignore */ }
+      router.replace(`/clients/${coachClientId}`);
+      return;
+    }
+
     if (!UUID_RE.test(userId)) {
       const existing = loadOnboardingState(userId);
       saveOnboardingState(userId, {
@@ -365,6 +399,12 @@ export default function DeepCalibrationPage() {
     <div className="min-h-screen bg-[#0A0A0A] text-white flex flex-col">
 
       {saving && <BuildingScreen />}
+
+      {coachClientId && (
+        <div className="bg-[#B48B40]/12 border-b border-[#B48B40]/25 px-5 py-2 text-center text-[12px] text-[#B48B40] shrink-0">
+          Detailed onboarding for your client — answers save to <span className="font-semibold">their</span> account.
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="h-1 bg-white/5 shrink-0">
