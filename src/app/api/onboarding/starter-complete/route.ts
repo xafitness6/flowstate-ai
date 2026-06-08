@@ -3,6 +3,22 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supabase/env";
 import { builderPayloadToProgramRow, type BuilderProgramPayload } from "@/lib/db/programs";
+import { notifyClient } from "@/lib/server/notifications";
+
+// Injury safety-gate: the auto-generated starter plan is generic. If onboarding
+// surfaced an injury, ping the assigned coach so they tailor the plan — and flag
+// the louder cases (not medically cleared, weight-bearing / acute red-flags).
+const RED_FLAG_RE = /can.?t walk|can.?t bear|bear weight|surgery|post.?op|cast|sharp pain|torn|rupture|fracture|herniat|acl|mcl|achilles|sciatic/i;
+function readInjury(intake: Record<string, unknown> | undefined) {
+  const i = intake ?? {};
+  const areas = Array.isArray(i.injuryAreas) ? (i.injuryAreas as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const note = typeof i.injuryNote === "string" ? i.injuryNote : "";
+  const struggles = Array.isArray(i.mainStruggle) ? (i.mainStruggle as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const cleared = i.injuryCleared;
+  const has = areas.length > 0 || note.trim().length > 0 || struggles.includes("Injuries") || cleared === "no";
+  const serious = cleared === "no" || RED_FLAG_RE.test(note);
+  return { has, serious, areas, note };
+}
 
 function isBuilderPayload(value: unknown): value is BuilderProgramPayload {
   if (!value || typeof value !== "object") return false;
@@ -86,5 +102,34 @@ export async function POST(request: Request) {
     console.warn("[onboarding/starter-complete] program save skipped:", programWarning);
   }
 
-  return NextResponse.json({ ok: true, programSaved, warning: programWarning });
+  // Injury safety-gate → notify the assigned coach to tailor the starter plan.
+  let coachNotifiedOfInjury = false;
+  try {
+    const injury = readInjury(body.intake);
+    if (injury.has) {
+      const { data: prof } = await (admin.from("profiles") as any)
+        .select("assigned_trainer_id,nickname,full_name,first_name,email")
+        .eq("id", user.id)
+        .maybeSingle();
+      const trainerId = prof?.assigned_trainer_id as string | undefined;
+      if (trainerId) {
+        const who = prof?.nickname || prof?.full_name || prof?.first_name || prof?.email || "A client";
+        const where = injury.areas.length ? injury.areas.join(", ") : "an injury";
+        await notifyClient({
+          userId: trainerId,
+          type: "general",
+          title: injury.serious
+            ? `⚠️ ${who} finished onboarding — injury to review`
+            : `${who} finished onboarding — has an injury noted`,
+          body: `${where}${injury.note ? ` — "${injury.note.slice(0, 140)}"` : ""}. Their starter plan is generic; open their file to tailor it to the injury.`,
+          link: `/clients/${user.id}`,
+        });
+        coachNotifiedOfInjury = true;
+      }
+    }
+  } catch (e) {
+    console.warn("[onboarding/starter-complete] injury coach-notify failed:", e);
+  }
+
+  return NextResponse.json({ ok: true, programSaved, warning: programWarning, coachNotifiedOfInjury });
 }
