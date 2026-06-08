@@ -385,6 +385,10 @@ export default function CalibrationPage() {
     setSaving(true);
     setSaveError(null);
     try {
+    // Source of truth for proxy mode = the URL, read fresh at save time so a
+    // hydration/timing gap can never make us fall back to saving onto the coach.
+    const urlClientId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("clientId") : null;
+    const targetClient = (urlClientId && UUID_RE.test(urlClientId)) ? urlClientId : coachClientId;
     const userId = await getActiveUserId();
     const equipment = answers.equipment.length > 0 ? answers.equipment : [DEFAULT_EQUIPMENT];
 
@@ -433,11 +437,11 @@ export default function CalibrationPage() {
 
     // Coach proxy mode: save the wizard's result to the CLIENT's account and
     // return to their file — skip all of the signed-in coach's own state writes.
-    if (coachClientId) {
+    if (targetClient) {
       const clientPlan = generateStarterPlan(intake);
       const clientPayload = starterPlanToBuilderPayload(clientPlan);
       const res = await withTimeout(
-        fetch(`/api/clients/${coachClientId}/onboarding/submit`, {
+        fetch(`/api/clients/${targetClient}/onboarding/submit`, {
           method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
           body: JSON.stringify({ payload: clientPayload, intake: intake as unknown as Record<string, unknown> }),
         }),
@@ -448,7 +452,7 @@ export default function CalibrationPage() {
         setSaving(false);
         return;
       }
-      router.replace(`/clients/${coachClientId}`);
+      router.replace(`/clients/${targetClient}`);
       return;
     }
 
