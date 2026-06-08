@@ -2,11 +2,12 @@
 //
 // POST /api/ai/nutrition
 //
-// Two modes:
+// Three modes:
 //   mode: "parse"   — transcript (string) → structured meal + nutrition estimates
 //   mode: "analyze" — imageBase64 + imageMimeType → structured meal + nutrition estimates
+//   mode: "edit"    — items[] + transcript (spoken edit) → updated items[] + summary
 //
-// Both return NutritionParseResult (see src/lib/nutrition/types.ts).
+// parse/analyze return NutritionParseResult; edit returns { items, summary }.
 
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -70,21 +71,76 @@ Rules:
 - If the image shows a menu or packaged food, parse what the person would likely order or eat
 ${RESPONSE_SCHEMA}`;
 
+const EDIT_SYSTEM = `You are a precise nutrition log editor. You receive the CURRENT food items of a meal (as JSON) and a spoken instruction from the user. Apply the instruction and return the COMPLETE updated item list.
+
+The user may, in one instruction, do any mix of:
+- ADD items ("also add a banana and a black coffee")
+- REMOVE items ("take off the rice", "remove the eggs")
+- CHANGE quantity/portion ("make the chicken 200 grams", "double the oats", "only had 2 eggs not 3")
+- CORRECT a name ("that wasn't chicken, it was turkey")
+
+Rules:
+- Return EVERY item that should remain, including unchanged ones, with the same shape.
+- For added or changed items, re-estimate macros with standard USDA-style values; round calories to nearest 5, macros to nearest gram.
+- Keep unchanged items exactly as given.
+- If the instruction is ambiguous about which item, pick the closest match by name.
+- If the instruction does nothing recognizable, return the items unchanged.
+- "summary" = one short past-tense sentence of what you changed, e.g. "Added a banana, removed the rice." If nothing changed, summary = "No changes made."
+Return ONLY valid JSON — no markdown:
+{
+  "items": [
+    { "name": lowercase singular, "quantity": number|null, "unit": "g"|"oz"|"ml"|"cup"|"tbsp"|"tsp"|"item"|"slice"|"scoop"|null, "grams": number|null, "calories": number|null, "protein": number|null, "carbs": number|null, "fat": number|null, "confidence": 0.0-1.0 }
+  ],
+  "summary": "short sentence"
+}`;
+
+type EditItemIn = {
+  name?: unknown; quantity?: unknown; unit?: unknown; grams?: unknown;
+  calories?: unknown; protein?: unknown; carbs?: unknown; fat?: unknown;
+};
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
-      mode: "parse" | "analyze";
+      mode: "parse" | "analyze" | "edit";
       transcript?: string;
       imageBase64?: string;
       imageMimeType?: string;
+      items?: EditItemIn[];
     };
 
-    const { mode, transcript, imageBase64, imageMimeType, timeContext } = body as typeof body & { timeContext?: string };
+    const { mode, transcript, imageBase64, imageMimeType, items, timeContext } = body as typeof body & { timeContext?: string };
 
-    if (!mode || !["parse", "analyze"].includes(mode)) {
-      return NextResponse.json({ error: "mode must be 'parse' or 'analyze'" }, { status: 400 });
+    if (!mode || !["parse", "analyze", "edit"].includes(mode)) {
+      return NextResponse.json({ error: "mode must be 'parse', 'analyze' or 'edit'" }, { status: 400 });
+    }
+
+    // ── Edit mode: current items + spoken instruction → updated items ──────────
+    if (mode === "edit") {
+      if (!transcript?.trim()) {
+        return NextResponse.json({ error: "transcript is required" }, { status: 400 });
+      }
+      const currentItems = Array.isArray(items) ? items : [];
+      const res = await client.chat.completions.create({
+        model:           "gpt-4o",
+        temperature:     0.1,
+        max_tokens:      1200,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: EDIT_SYSTEM },
+          {
+            role:    "user",
+            content: `CURRENT ITEMS:\n${JSON.stringify(currentItems)}\n\nINSTRUCTION: "${transcript.trim()}"`,
+          },
+        ],
+      });
+      const json = JSON.parse(res.choices[0].message.content ?? "{}");
+      return NextResponse.json({
+        items:   Array.isArray(json.items) ? json.items : currentItems,
+        summary: typeof json.summary === "string" ? json.summary : "No changes made.",
+      });
     }
 
     // ── Parse mode: transcript → structured meal ──────────────────────────────

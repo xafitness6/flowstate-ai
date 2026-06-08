@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-  X, ChevronDown, Plus, Trash2, ChevronUp, Check, Pencil,
+  X, ChevronDown, Plus, Trash2, ChevronUp, Check, Pencil, Mic, Loader2, Sparkles,
 } from "lucide-react";
 import { cn }         from "@/lib/utils";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { updateMeal, recalcMealTotals } from "@/lib/nutrition/store";
 import type {
   LoggedMeal,
@@ -294,6 +295,70 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
     setItems((prev) => [...prev, newItem(meal.source)]);
   }
 
+  // ── Voice-first editing: "add a banana", "make the chicken 200g", "remove rice" ──
+  const voice = useVoiceInput();
+  const [voiceBusy,    setVoiceBusy]    = useState(false);
+  const [voiceSummary, setVoiceSummary] = useState<string | null>(null);
+  const [voiceError,   setVoiceError]   = useState<string | null>(null);
+  const handledTranscript = useRef("");
+
+  async function applyVoiceEdit(transcript: string) {
+    setVoiceBusy(true);
+    setVoiceError(null);
+    setVoiceSummary(null);
+    try {
+      const active = items.filter((i) => !i.deletedAt).map((i) => ({
+        name: i.name, quantity: i.quantity, unit: i.unit, grams: i.grams,
+        calories: i.calories, protein: i.protein, carbs: i.carbs, fat: i.fat,
+      }));
+      const res = await fetch("/api/ai/nutrition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "edit", transcript, items: active }),
+      });
+      if (!res.ok) throw new Error("edit failed");
+      const data = await res.json() as {
+        items: Array<Partial<LoggedFoodItem>>;
+        summary?: string;
+      };
+      const next: EditItem[] = (data.items ?? []).map((it, idx) => ({
+        id:         `fi_${Date.now()}_${idx}`,
+        name:       typeof it.name === "string" ? it.name : "",
+        quantity:   typeof it.quantity === "number" ? it.quantity : null,
+        unit:       typeof it.unit === "string" ? it.unit : null,
+        grams:      typeof it.grams === "number" ? it.grams : null,
+        calories:   typeof it.calories === "number" ? it.calories : null,
+        protein:    typeof it.protein === "number" ? it.protein : null,
+        carbs:      typeof it.carbs === "number" ? it.carbs : null,
+        fat:        typeof it.fat === "number" ? it.fat : null,
+        confidence: 1,
+        source:     meal.source,
+        deletedAt:  null,
+        _expanded:  false,
+      }));
+      // Keep any items the user had already soft-deleted (so Restore still works).
+      const deleted = items.filter((i) => i.deletedAt);
+      setItems([...next, ...deleted]);
+      setVoiceSummary(data.summary ?? "Updated.");
+    } catch {
+      setVoiceError("Couldn't apply that — try again or edit by hand.");
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
+
+  // When a voice capture finishes with text, apply it once.
+  useEffect(() => {
+    if (voice.status === "done" && voice.transcript.trim() && voice.transcript !== handledTranscript.current) {
+      handledTranscript.current = voice.transcript;
+      void applyVoiceEdit(voice.transcript.trim());
+      voice.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.status, voice.transcript]);
+
+  const listening = voice.status === "listening";
+
   async function handleSave() {
     setSaving(true);
     // Strip _expanded before saving
@@ -385,7 +450,46 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
               <label className="text-[10px] uppercase tracking-[0.2em] text-white/22">
                 Items ({activeItemCount})
               </label>
+              {voice.isSupported && (
+                <button
+                  onClick={() => (listening ? voice.stop() : (setVoiceError(null), setVoiceSummary(null), voice.start()))}
+                  disabled={voiceBusy}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all",
+                    listening
+                      ? "border-[#EF4444]/40 bg-[#EF4444]/10 text-[#EF4444]/80"
+                      : voiceBusy
+                        ? "border-white/10 bg-white/[0.03] text-white/30"
+                        : "border-[#B48B40]/25 bg-[#B48B40]/[0.06] text-[#B48B40] hover:bg-[#B48B40]/12",
+                  )}
+                >
+                  {voiceBusy ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.8} /> Applying…</>
+                  ) : listening ? (
+                    <><span className="w-2 h-2 rounded-full bg-[#EF4444] animate-pulse" /> Listening — tap to stop</>
+                  ) : (
+                    <><Mic className="w-3 h-3" strokeWidth={1.8} /> Edit by voice</>
+                  )}
+                </button>
+              )}
             </div>
+
+            {/* Voice helper / result */}
+            {listening && (
+              <p className="text-[11px] text-white/35 mb-2 leading-relaxed">
+                Try “add a banana and a black coffee”, “make the chicken 200 grams”, or “remove the rice”.
+                {voice.interim && <span className="block text-white/50 italic mt-1">“{voice.interim}”</span>}
+              </p>
+            )}
+            {voiceSummary && !listening && (
+              <div className="mb-2 flex items-start gap-2 rounded-xl border border-[#B48B40]/20 bg-[#B48B40]/[0.05] px-3 py-2">
+                <Sparkles className="w-3.5 h-3.5 text-[#B48B40] shrink-0 mt-0.5" strokeWidth={1.8} />
+                <p className="text-[11px] text-white/65 leading-relaxed">{voiceSummary} <span className="text-white/30">Review the numbers below before saving.</span></p>
+              </div>
+            )}
+            {voiceError && (
+              <p className="text-[11px] text-[#EF4444]/70 mb-2">{voiceError}</p>
+            )}
             <div className="space-y-2">
               {items.map((item) => (
                 <ItemRow
