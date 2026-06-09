@@ -22,8 +22,14 @@ export async function POST(req: Request) {
 
   const result = suggestMacros(intake, body.calories);
   if (!result) {
+    const onboarded = !!intake && Object.keys(intake).length > 0;
     return NextResponse.json(
-      { error: "Add your weight, age, sex and height (finish onboarding) for a calibrated suggestion." },
+      {
+        error: onboarded
+          ? "Add your bodyweight in your profile for a calibrated suggestion."
+          : "Finish onboarding for a calibrated suggestion.",
+        needsOnboarding: !onboarded, // only push to onboarding if they never did it
+      },
       { status: 422 },
     );
   }

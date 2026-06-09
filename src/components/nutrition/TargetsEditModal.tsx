@@ -103,8 +103,8 @@ export function TargetsEditModal({
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calories: calNum || computed.calories }),
       });
-      const d = await res.json().catch(() => ({})) as { calories?: number; proteinG?: number; carbsG?: number; fatG?: number; rationale?: string; error?: string };
-      if (res.status === 422) { setAiNeedsOnboarding(true); throw new Error(d.error || "Finish onboarding for a calibrated suggestion."); }
+      const d = await res.json().catch(() => ({})) as { calories?: number; proteinG?: number; carbsG?: number; fatG?: number; rationale?: string; error?: string; needsOnboarding?: boolean };
+      if (res.status === 422) { setAiNeedsOnboarding(d.needsOnboarding === true); throw new Error(d.error || "Couldn't calculate right now."); }
       if (!res.ok) throw new Error(d.error || "Couldn't calculate right now.");
       applyTargets({ calories: d.calories ?? 0, proteinG: d.proteinG ?? 0, carbsG: d.carbsG ?? 0, fatG: d.fatG ?? 0 });
       setAiRationale(d.rationale || `Built from ${subjectLabel ? `${subjectLabel}'s` : "your"} goal, body stats and approach.`);

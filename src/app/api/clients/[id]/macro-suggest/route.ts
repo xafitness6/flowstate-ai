@@ -24,8 +24,14 @@ export async function POST(
 
   const result = suggestMacros(intake, body.calories);
   if (!result) {
+    const onboarded = !!intake && Object.keys(intake).length > 0;
     return NextResponse.json(
-      { error: "This client's profile is missing weight/age/sex/height — fill in their onboarding for a calibrated suggestion." },
+      {
+        error: onboarded
+          ? "This client's bodyweight is missing — add it to their profile for a calibrated suggestion."
+          : "Fill in this client's onboarding for a calibrated suggestion.",
+        needsOnboarding: !onboarded,
+      },
       { status: 422 },
     );
   }
