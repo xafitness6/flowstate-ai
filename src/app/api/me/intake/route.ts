@@ -11,9 +11,11 @@ const ENERGY = new Set(["low", "steady", "high", "variable"]);
 const CADENCE = new Set(["daily", "weekly", "none"]);
 const ACTIVITY = new Set(["sedentary", "light", "moderate", "very_active", "athlete"]);
 const GOALS = new Set(["muscle_gain", "fat_loss", "strength", "endurance", "recomp", "general"]);
-const COMMITMENT_VALUES = new Set(
-  (BACKFILL_QUESTIONS.find((q) => q.key === "commitments")?.options ?? []).map((o) => o.value),
-);
+const valuesFor = (key: string) => new Set((BACKFILL_QUESTIONS.find((q) => q.key === key)?.options ?? []).map((o) => o.value));
+const COMMITMENT_VALUES = valuesFor("commitments");
+const DIET_VALUES = valuesFor("dietStyle");
+const MEALS_VALUES = valuesFor("mealsPerDay");
+const SLEEP_VALUES = valuesFor("sleepHours");
 const posNum = (v: unknown) => { const n = parseFloat(String(v)); return Number.isFinite(n) && n > 0 ? n : null; };
 
 // Only these keys may be set through this route; each with its own validation.
@@ -25,6 +27,12 @@ function sanitize(body: Record<string, unknown>): Record<string, unknown> {
     const clean = body.commitments.filter((x): x is string => typeof x === "string" && COMMITMENT_VALUES.has(x));
     if (clean.length) out.commitments = Array.from(new Set(clean));
   }
+  if (Array.isArray(body.dietStyle)) {
+    const clean = body.dietStyle.filter((x): x is string => typeof x === "string" && DIET_VALUES.has(x));
+    if (clean.length) out.dietStyle = Array.from(new Set(clean));
+  }
+  if (typeof body.mealsPerDay === "string" && MEALS_VALUES.has(body.mealsPerDay)) out.mealsPerDay = body.mealsPerDay;
+  if (typeof body.sleepHours === "string" && SLEEP_VALUES.has(body.sleepHours)) out.sleepHours = body.sleepHours;
   // Core stats — fix-a-mistake editing.
   if (body.sex === "male" || body.sex === "female") out.sex = body.sex;
   if (typeof body.activityLevel === "string" && ACTIVITY.has(body.activityLevel)) out.activityLevel = body.activityLevel;

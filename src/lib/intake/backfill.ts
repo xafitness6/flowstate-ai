@@ -17,6 +17,46 @@ export type BackfillQuestion = {
 
 export const BACKFILL_QUESTIONS: BackfillQuestion[] = [
   {
+    key: "dietStyle",
+    question: "How do you like to eat?",
+    type: "multi",
+    options: [
+      { value: "balanced", label: "Balanced" },
+      { value: "high_protein", label: "High protein" },
+      { value: "plant_based", label: "Plant-based" },
+      { value: "vegetarian", label: "Vegetarian" },
+      { value: "pescatarian", label: "Pescatarian" },
+      { value: "lower_carb", label: "Lower carb" },
+      { value: "keto", label: "Keto" },
+      { value: "mediterranean", label: "Mediterranean" },
+      { value: "intermittent_fasting", label: "Intermittent fasting" },
+      { value: "flexible", label: "Flexible" },
+    ],
+  },
+  {
+    key: "mealsPerDay",
+    question: "How many meals a day works for you?",
+    type: "single",
+    options: [
+      { value: "2", label: "2 meals" },
+      { value: "3", label: "3 meals" },
+      { value: "4", label: "4 meals" },
+      { value: "5+", label: "5+ meals" },
+    ],
+  },
+  {
+    key: "sleepHours",
+    question: "How much sleep do you typically get?",
+    type: "single",
+    options: [
+      { value: "5 or less", label: "5 or less" },
+      { value: "6", label: "6 hours" },
+      { value: "7", label: "7 hours" },
+      { value: "8", label: "8 hours" },
+      { value: "9+", label: "9+ hours" },
+    ],
+  },
+  {
     key: "energyLevel",
     question: "How are your daily energy levels lately?",
     type: "single",
