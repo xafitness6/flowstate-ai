@@ -977,7 +977,12 @@ function TimeFormatToggle({ value, onChange }: { value: TimeFormat; onChange: (v
 
 function BuildingScreen() {
   const tone   = useTone();
-  const stages = useMemo(() => toneLoadingMessages("buildProgram", tone), [tone]);
+  // Shuffle the pool so each build surfaces a different, fresh sequence.
+  const stages = useMemo(() => {
+    const pool = [...toneLoadingMessages("buildProgram", tone)];
+    for (let k = pool.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [pool[k], pool[j]] = [pool[j], pool[k]]; }
+    return pool;
+  }, [tone]);
   const [i, setI] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => {
