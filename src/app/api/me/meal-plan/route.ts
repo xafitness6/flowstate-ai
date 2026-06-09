@@ -32,7 +32,17 @@ Return ONLY valid JSON (no markdown) matching this exact shape:
   ],
   "totals": { "calories": number, "protein": number, "carbs": number, "fat": number }
 }
-The meal totals must sum (within rounding) to "totals". Keep it realistic and practical.`;
+RULES — zero guesswork on amounts:
+- Break EVERY meal into its individual INGREDIENT lines. A composite dish (e.g.
+  "oat pancakes") must be split into its ingredients: "80g oats", "20g hemp
+  seeds", "1 medium banana", "2 eggs", "1 tbsp maple syrup" — never one vague
+  combined line, and never an ingredient with no amount.
+- Every item's "qty" must be a concrete measured amount: grams/oz/ml, cups/tbsp/
+  tsp, or a count ("2 eggs", "1 medium banana"). Never blank, never "to taste".
+- Every item MUST carry its own calories/protein/carbs/fat for THAT exact
+  quantity (USDA-style values).
+- The items' macros MUST add up to the meal's calories/protein/carbs/fat, and the
+  meals MUST add up to "totals". The numbers have to reconcile — no guesswork.`;
 
 type PlanMealOut = {
   name: string; time: string; note: string;
