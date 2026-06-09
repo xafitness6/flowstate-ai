@@ -14,6 +14,7 @@ import { getOnboardingState } from "@/lib/db/onboarding";
 import { getMeals } from "@/lib/nutrition/store";
 import type { LoggedMeal } from "@/lib/nutrition/types";
 import { getWorkoutLogsForUser, type WorkoutLog } from "@/lib/workout";
+import { WorkoutMuscleRadar } from "@/components/progress/WorkoutMuscleRadar";
 import {
   displayUnitToKg,
   inferUnitSystemFromRawAnswers,
@@ -503,6 +504,9 @@ export default function ProgressPage() {
           onCustomEnd={setCustomEnd}
         />
       </div>
+
+      {/* Training map — muscle-group radar + volume stats (self-gates if empty) */}
+      {isRealUser && <WorkoutMuscleRadar />}
 
       {!isRealUser && (
         <div className="rounded-2xl border border-white/[0.06] bg-[#111111] px-5 py-6 text-sm text-white/45">
