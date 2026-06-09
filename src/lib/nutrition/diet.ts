@@ -11,7 +11,7 @@ export function dietConstraint(dietStyle: unknown, foodsHate?: unknown): string 
   const rules: string[] = [];
 
   if (has("plant_based")) {
-    rules.push("STRICTLY plant-based / vegan — use NO animal products whatsoever: no meat, poultry, fish, seafood, dairy (no milk, cheese, butter, Greek or regular yogurt, whey), eggs, gelatin or honey. Build protein from tofu, tempeh, seitan, edamame, legumes/beans, plant milk, plant (soy/coconut) yogurt, and pea/soy/rice protein.");
+    rules.push("Plant-based — no meat, poultry, fish, seafood, dairy (no milk, cheese, butter, Greek or regular yogurt, whey), eggs or gelatin. (Honey is fine — it's a personal call.) Build protein from tofu, tempeh, seitan, edamame, legumes/beans, plant milk, plant (soy/coconut) yogurt, and pea/soy/rice protein.");
   } else if (has("vegetarian")) {
     rules.push("Vegetarian — no meat, poultry or fish/seafood. Dairy and eggs are allowed.");
   } else if (has("pescatarian")) {
