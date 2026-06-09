@@ -25,7 +25,16 @@ export async function GET() {
   if (error) return NextResponse.json({ tasks: [], unseen: 0 }); // table not migrated yet
   const tasks = data ?? [];
   const unseen = tasks.filter((t) => !t.seen_at).length;
-  return NextResponse.json({ tasks, unseen });
+
+  // Their accountability cadence drives the daily check-in popup.
+  let checkInCadence: string | null = null;
+  try {
+    const { data: onb } = await supabase.from("onboarding_state").select("raw_answers").eq("user_id", user.id).maybeSingle();
+    const raw = onb?.raw_answers as { checkInCadence?: unknown } | null;
+    if (raw && typeof raw.checkInCadence === "string") checkInCadence = raw.checkInCadence;
+  } catch { /* non-fatal */ }
+
+  return NextResponse.json({ tasks, unseen, checkInCadence });
 }
 
 export async function PATCH(req: Request) {

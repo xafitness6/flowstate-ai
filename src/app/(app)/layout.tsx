@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ActivityPing } from "@/components/layout/ActivityPing";
+import { DailyCheckInPopup } from "@/components/accountability/DailyCheckInPopup";
 import { TasksBadgeProvider } from "@/context/TasksBadgeContext";
 
 // Authenticated app layout.
@@ -14,6 +15,7 @@ export default function AppLayout({
     <TasksBadgeProvider>
       <AppShell>
         <ActivityPing />
+        <DailyCheckInPopup />
         {children}
       </AppShell>
     </TasksBadgeProvider>
