@@ -72,6 +72,27 @@ export async function POST(req: Request) {
           });
         }
       }
+
+      // Accountability cadence → turn the chosen check-in style into real nudges.
+      //   daily  → once per day  · weekly → once per 7 days · hands off → nothing.
+      const cadence = typeof raw?.checkInCadence === "string" ? raw.checkInCadence : null;
+      if (cadence === "daily" || cadence === "weekly") {
+        const link = cadence === "daily" ? "/accountability?checkin=daily" : "/nutrition?checkin=weekly";
+        const { data: lastC } = await admin
+          .from("notifications").select("created_at")
+          .eq("user_id", user.id).eq("link", link)
+          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const lastAt = lastC ? new Date(lastC.created_at as string) : null;
+        const due = cadence === "daily"
+          ? !(lastAt && lastAt.toISOString().slice(0, 10) === today)               // not yet today
+          : !(lastAt && Date.now() - lastAt.getTime() < 7 * 24 * 60 * 60 * 1000);  // not in last 7 days
+        if (due) {
+          const notif = cadence === "daily"
+            ? { title: "Daily check-in", body: "Did you train, hit your protein, and move today? Tick off your commitments." }
+            : { title: "Weekly check-in", body: "Log your weight and review your week — see how your 7-day averages are tracking." };
+          await admin.from("notifications").insert({ user_id: user.id, type: "general", title: notif.title, body: notif.body, link });
+        }
+      }
     } catch { /* nudge is best-effort */ }
   } catch { /* non-fatal */ }
 
