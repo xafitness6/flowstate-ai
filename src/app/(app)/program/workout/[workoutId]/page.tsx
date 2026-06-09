@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Check, CheckCircle2,
-  Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock, AlertTriangle, Mic,
+  Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock, AlertTriangle, Mic, Send, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
@@ -504,6 +504,8 @@ export default function WorkoutPage() {
   // Pain / "felt off" feedback — surfaced to the coach (notes + notification).
   const [painNote,  setPainNote]  = useState("");
   const [painOpen,  setPainOpen]  = useState(false);
+  const [painSending, setPainSending] = useState(false);
+  const [painSent,    setPainSent]    = useState(false);
   // Flow: preview (see details, nothing running) → countdown (5..1) → active.
   // Freestyle skips the countdown + running clock + auto rest timers — just log.
   const [phase,     setPhase]     = useState<"preview" | "countdown" | "active">("preview");
@@ -662,6 +664,21 @@ export default function WorkoutPage() {
 
   const completedSetCount = Object.values(setInputs).filter((s) => s.done).length;
   const totalSetCount     = workout ? workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0) : 0;
+
+  // Send the pain/feedback note to the coach RIGHT NOW (not just on finish), so
+  // the athlete gets confirmation it went through.
+  async function notifyCoachNow() {
+    const note = painNote.trim();
+    if (!note || painSending) return;
+    setPainSending(true);
+    try {
+      const res = await fetch("/api/me/coach-message", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: `Workout feedback${workout ? ` (${workout.focus})` : ""}: ${note}` }),
+      });
+      if (res.ok) setPainSent(true);
+    } catch { /* best-effort */ } finally { setPainSending(false); }
+  }
 
   function handleFinish() {
     if (!user?.id || !workout) return;
@@ -1028,13 +1045,30 @@ export default function WorkoutPage() {
               </p>
               <textarea
                 value={painNote}
-                onChange={(e) => setPainNote(e.target.value)}
+                onChange={(e) => { setPainNote(e.target.value); if (painSent) setPainSent(false); }}
                 rows={2}
                 autoFocus={painOpen}
                 placeholder="Which movement, where it hurt, and how it felt — e.g. 'sharp left knee on lunges, stopped early'."
                 className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-amber-400/40 resize-none"
               />
-              <p className="text-[10px] text-white/35 mt-1.5">Saved with this workout + your coach is notified when you finish.</p>
+              <div className="flex items-center justify-between gap-2 mt-2">
+                <p className="text-[10px] text-white/35">Saved with this workout when you finish.</p>
+                <button
+                  onClick={notifyCoachNow}
+                  disabled={!painNote.trim() || painSending || painSent}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all shrink-0",
+                    painSent
+                      ? "bg-emerald-400/15 border border-emerald-400/30 text-emerald-300"
+                      : "bg-amber-400/15 border border-amber-400/30 text-amber-200 hover:bg-amber-400/25 disabled:opacity-40",
+                  )}
+                >
+                  {painSending ? <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+                    : painSent ? <Check className="w-3 h-3" strokeWidth={2.5} />
+                    : <Send className="w-3 h-3" strokeWidth={2} />}
+                  {painSent ? "Sent to your coach" : painSending ? "Sending…" : "Notify coach now"}
+                </button>
+              </div>
             </div>
           )}
         </div>
