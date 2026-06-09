@@ -9,6 +9,7 @@
 // Replace generateStarterPlan() with a real AI call when ready.
 
 import type { IntakeData } from "./data/intake";
+import { filterExercises } from "./injuries";
 import type { BuilderProgramPayload } from "./db/programs";
 import type { ProgramSplitV2 } from "./program/types";
 
@@ -41,6 +42,9 @@ export type StarterPlan = {
   sessions:      TrainingDay[];
   // Coach note — short string shown on intro page
   coachNote:     string;
+  // Injuries to train around (drives exercise filtering / swaps)
+  injuryAreas?:  string[];
+  injuryNote?:   string;
 };
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -178,7 +182,20 @@ function coachNoteFor(goal: string, experience: string, days: number): string {
 
 type DefaultExercise = { name: string; sets: number; reps: string; note?: string };
 
-function defaultExercisesFor(focus: string, sessionName: string): DefaultExercise[] {
+function defaultExercisesFor(
+  focus: string,
+  sessionName: string,
+  injuryAreas?: string[],
+  injuryNote?: string,
+): DefaultExercise[] {
+  const base = baseExercisesFor(focus, sessionName);
+  if (injuryAreas && injuryAreas.length > 0) {
+    return filterExercises(base, injuryAreas, injuryNote);
+  }
+  return base;
+}
+
+function baseExercisesFor(focus: string, sessionName: string): DefaultExercise[] {
   const tag = `${focus} ${sessionName}`.toLowerCase();
 
   if (/push|chest|press/.test(tag)) {
@@ -245,7 +262,7 @@ export function starterPlanToProgram(plan: StarterPlan, programId?: string) {
       day:       DAY_INDEX[s.day] ?? idx + 1,
       dayLabel:  s.day,
       focus:     s.focus || s.name,
-      exercises: defaultExercisesFor(s.focus, s.name),
+      exercises: defaultExercisesFor(s.focus, s.name, plan.injuryAreas, plan.injuryNote),
     })),
   };
 }
@@ -281,7 +298,7 @@ export function starterPlanToBuilderPayload(plan: StarterPlan): BuilderProgramPa
         name: session.name,
         focus: session.focus,
         estimatedMinutes: sessionMinutes(plan.sessionLength),
-        exercises: defaultExercisesFor(session.focus, session.name).map((exercise) => ({
+        exercises: defaultExercisesFor(session.focus, session.name, plan.injuryAreas, plan.injuryNote).map((exercise) => ({
           name: exercise.name,
           sets: exercise.sets,
           reps: exercise.reps,
@@ -332,5 +349,7 @@ export function generateStarterPlan(intake: Partial<IntakeData>): StarterPlan {
     split:         splitLabel(days),
     sessions,
     coachNote:     coachNoteFor(goal, exp, days),
+    injuryAreas:   Array.isArray(intake.injuryAreas) ? intake.injuryAreas : undefined,
+    injuryNote:    typeof intake.injuryNote === "string" ? intake.injuryNote : undefined,
   };
 }
