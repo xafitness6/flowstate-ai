@@ -65,6 +65,19 @@ export const INJURY_RULES: InjuryRule[] = [
 
 const norm = (s: string) => s.toLowerCase();
 
+/** Human-readable movements to consider avoiding for the chosen areas — shown as
+ *  toggle chips in onboarding so the athlete dials in exactly what they can't do. */
+export function suggestedAvoidMovements(areas: string[]): string[] {
+  const set = new Set<string>();
+  for (const rule of rulesForAreas(areas)) {
+    for (const k of rule.avoid) {
+      if (k.length < 3) continue;            // skip cryptic partials (rdl, etc.)
+      set.add(k.replace(/\b\w/, (c) => c.toUpperCase()));
+    }
+  }
+  return [...set];
+}
+
 /** All rules that apply to a set of injured-area labels. */
 export function rulesForAreas(areas: string[]): InjuryRule[] {
   const out: InjuryRule[] = [];

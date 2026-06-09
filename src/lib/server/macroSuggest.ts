@@ -35,9 +35,9 @@ export function suggestMacros(intake: IntakeData | null, requestedCalories?: num
   }
 
   const goal = GOAL_LABEL[intake.primaryGoal] ?? "your goal";
-  const rationale =
-    `Mifflin BMR ~${energy.bmr} · TDEE ~${energy.tdee} kcal. ${goal} target ~${calories} kcal — ` +
-    `protein ${proteinG}g (≈1g/lb), fat ${fatG}g (~28%), carbs ${carbsG}g fill the rest.`;
+  const fmt = (n: number) => Math.round(n).toLocaleString();
+  // Clean + straightforward — the macro grams already show in the fields below.
+  const rationale = `Maintenance ≈ ${fmt(energy.tdee)} kcal. Your ${goal} target is ${fmt(calories)} kcal/day.`;
 
   return { calories, proteinG, carbsG, fatG, rationale };
 }
