@@ -135,18 +135,28 @@ const INTAKE_DEFAULTS: NutritionTargets = {
 };
 
 /** Parse the weight field to kg, or null when missing/unparseable. */
+// Deep-calibration stores canonical weight/height in raw_answers.deep
+// (weightKg / heightCm). Calibration stores them top-level (weight + unit).
+// Read top-level first, then fall back to the deep block, so a user who only
+// finished deep-cal still has a usable bodyweight/height.
+function deepBlock(intake: IntakeData): Record<string, unknown> | null {
+  const d = (intake as unknown as { deep?: unknown }).deep;
+  return d && typeof d === "object" ? d as Record<string, unknown> : null;
+}
+
 function weightToKg(intake: IntakeData): number | null {
   const raw = parseFloat(intake.weight);
-  if (!raw || isNaN(raw)) return null;
-  return intake.weightUnit === "lbs" ? raw * 0.4536 : raw;
+  if (raw && !isNaN(raw)) return intake.weightUnit === "lbs" ? raw * 0.4536 : raw;
+  const dk = parseFloat(String(deepBlock(intake)?.weightKg ?? ""));
+  return dk && !isNaN(dk) ? dk : null; // deep is already kg
 }
 
 /** Parse the height field to cm, or null when missing/unparseable. */
 function heightToCm(intake: IntakeData): number | null {
   const raw = parseFloat(intake.height);
-  if (!raw || isNaN(raw)) return null;
-  // "ft" stored as decimal feet (e.g. 5.8) — best-effort; cm is the common case.
-  return intake.heightUnit === "ft" ? raw * 30.48 : raw;
+  if (raw && !isNaN(raw)) return intake.heightUnit === "ft" ? raw * 30.48 : raw;
+  const dc = parseFloat(String(deepBlock(intake)?.heightCm ?? ""));
+  return dc && !isNaN(dc) ? dc : null; // deep is already cm
 }
 
 /**
@@ -160,7 +170,7 @@ export function calculateEnergy(intake: IntakeData): EnergyProfile | null {
   const weightKg = weightToKg(intake);
   if (weightKg == null) return null;
 
-  const bodyFatPct = parseFloat(intake.bodyFat);
+  const bodyFatPct = parseFloat(intake.bodyFat) || parseFloat(String(deepBlock(intake)?.bodyFatPct ?? ""));
   const age        = intake.age ? parseInt(intake.age, 10) : NaN;
   const heightCm   = heightToCm(intake);
 
