@@ -30,9 +30,19 @@ export function suggestMacros(intake: IntakeData | null, requestedCalories?: num
   }
 
   const fmt = (n: number) => Math.round(n).toLocaleString();
-  // Label from the actual calorie direction so it always matches the number.
-  const goal = calories < energy.tdee - 40 ? "fat-loss" : calories > energy.tdee + 40 ? "lean-bulk" : "maintenance";
-  const rationale = `Maintenance ≈ ${fmt(energy.tdee)} kcal. Your ${goal} target is ${fmt(calories)} kcal/day.`;
+  // Walk through the logic: maintenance → goal adjustment → target → macros.
+  const delta = calories - energy.tdee;
+  let step: string;
+  if (delta > 40) {
+    step = `for your gain goal we add ~${Math.round((calories / energy.tdee - 1) * 100)}% → ${fmt(calories)} kcal/day`;
+  } else if (delta < -40) {
+    step = `to lose fat we cut ~${fmt(energy.tdee - calories)} kcal → ${fmt(calories)} kcal/day`;
+  } else {
+    step = `you're right at maintenance → ${fmt(calories)} kcal/day`;
+  }
+  const rationale =
+    `Your maintenance is ≈ ${fmt(energy.tdee)} kcal; ${step}. ` +
+    `Protein ${proteinG}g (≈1g per lb of bodyweight), fat ${fatG}g (~28% of calories), carbs ${carbsG}g to fill the rest.`;
 
   return { calories, proteinG, carbsG, fatG, rationale };
 }
