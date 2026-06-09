@@ -96,12 +96,16 @@ export function proteinTargetG(
  * already near it.
  */
 function effectiveGoal(primaryGoal: string, currentKg: number | null, goalKg: number | null): string {
+  // Only override when the stated goal CONTRADICTS the goal-weight direction.
+  // Otherwise trust what they picked — a "build muscle" goal still bulks even if
+  // the goal weight isn't dramatically higher than current.
   if (currentKg && goalKg) {
-    if (goalKg < currentKg - 2) return "fat_loss";     // clearly wants to lose
-    if (goalKg > currentKg + 2) return "muscle_gain";  // clearly wants to gain
-    return primaryGoal === "fat_loss" || primaryGoal === "muscle_gain" ? "recomp" : primaryGoal; // at goal → hold
+    const wantsLoss = primaryGoal === "fat_loss" || primaryGoal === "recomp";
+    const wantsGain = primaryGoal === "muscle_gain" || primaryGoal === "strength";
+    if (goalKg < currentKg - 2 && !wantsLoss) return "fat_loss";    // goal weight says lose, label said gain → cut
+    if (goalKg > currentKg + 2 && !wantsGain) return "muscle_gain"; // goal weight says gain, label said cut → bulk
   }
-  return primaryGoal;
+  return primaryGoal; // respect the stated goal (muscle_gain → surplus, fat_loss → deficit)
 }
 
 /** Goal weight (kg) from the deep-cal answers, if present. */
