@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
+import { dietConstraint } from "@/lib/nutrition/diet";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -118,10 +119,13 @@ export async function POST(req: Request) {
 
   // Ground in their intake (best-effort).
   let context = "";
+  let dietRule = "";
   try {
     const { data: onb } = await admin.from("onboarding_state").select("raw_answers").eq("user_id", user.id).maybeSingle();
     const intake = onb?.raw_answers as Record<string, unknown> | null | undefined;
     if (intake && typeof intake === "object") {
+      const deep = (intake.deep ?? {}) as Record<string, unknown>;
+      dietRule = dietConstraint(intake.dietStyle, deep.foodsHate);
       context = [
         intake.primaryGoal ? `Goal: ${intake.primaryGoal}.` : "",
         intake.dietStyle ? `Diet style: ${Array.isArray(intake.dietStyle) ? (intake.dietStyle as string[]).join(", ") : intake.dietStyle}.` : "",
@@ -148,7 +152,7 @@ export async function POST(req: Request) {
       temperature: 0.6,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: `You are an expert nutrition coach building a practical daily meal plan for the user themselves. Hit their target macros as closely as possible. ${SCHEMA}` },
+        { role: "system", content: `You are an expert nutrition coach building a practical daily meal plan for the user themselves. Hit their target macros as closely as possible.${dietRule ? `\n\n${dietRule}` : ""} ${SCHEMA}` },
         { role: "user", content: userContent },
       ],
     });

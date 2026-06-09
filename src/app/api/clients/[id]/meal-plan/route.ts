@@ -14,6 +14,7 @@ import { requireClientAccess } from "@/lib/admin/requireClientAccess";
 import { notifyClient } from "@/lib/server/notifications";
 import { calculateEnergy, calculateNutritionTargets } from "@/lib/nutrition";
 import type { IntakeData } from "@/lib/data/intake";
+import { dietConstraint } from "@/lib/nutrition/diet";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -138,14 +139,18 @@ export async function POST(
 
   // Ground the model in the client's intake + computed targets where available.
   let context = "No intake data on file; use the coach's instructions and sensible defaults.";
+  let dietRule = "";
   try {
     const { data: onb } = await auth.admin.from("onboarding_state").select("raw_answers").eq("user_id", id).maybeSingle();
     const intake = onb?.raw_answers as IntakeData | null | undefined;
     if (intake && typeof intake === "object") {
       const energy = calculateEnergy(intake);
       const t = calculateNutritionTargets(intake);
+      const deep = ((intake as unknown as { deep?: Record<string, unknown> }).deep ?? {});
+      dietRule = dietConstraint(intake.dietStyle, deep.foodsHate);
       context = [
         intake.primaryGoal ? `Goal: ${intake.primaryGoal}.` : "",
+        intake.dietStyle ? `Diet style: ${Array.isArray(intake.dietStyle) ? intake.dietStyle.join(", ") : intake.dietStyle}.` : "",
         intake.weight ? `Bodyweight: ${intake.weight} ${intake.weightUnit ?? ""}.` : "",
         intake.daysPerWeek ? `Trains ${intake.daysPerWeek} days/week.` : "",
         energy ? `Estimated maintenance ~${energy.tdee} kcal.` : "",
@@ -173,7 +178,7 @@ export async function POST(
       temperature: 0.6,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: `You are an expert sports nutrition coach building a daily meal plan. Use the client context (and any attached meal photos) to choose calories and macros that fit their goal, then design meals. ${SCHEMA}` },
+        { role: "system", content: `You are an expert sports nutrition coach building a daily meal plan. Use the client context (and any attached meal photos) to choose calories and macros that fit their goal, then design meals.${dietRule ? `\n\n${dietRule}` : ""} ${SCHEMA}` },
         { role: "user", content: userContent },
       ],
     });
