@@ -61,9 +61,21 @@ export async function PATCH(req: Request) {
 
   const current = (row?.raw_answers && typeof row.raw_answers === "object") ? row.raw_answers as Record<string, unknown> : {};
   const next = { ...current, ...patch };
-  if (goalKg) {
+
+  // Keep the deep canonical block (weightKg/heightCm/goalWeightKg) in sync with
+  // edited top-level stats so EVERY reader agrees — nutrition calc, the deep-cal
+  // onboarding form, and the AI/coach (which read raw_answers + raw_answers.deep).
+  const deepUpdates: Record<string, unknown> = {};
+  if (goalKg) deepUpdates.goalWeightKg = goalKg;
+  if (typeof patch.height === "string") deepUpdates.heightCm = Number(patch.height); // stored in cm
+  if (typeof patch.weight === "string") {
+    const unit = (patch.weightUnit ?? current.weightUnit) === "lbs" ? "lbs" : "kg";
+    const w = Number(patch.weight);
+    if (Number.isFinite(w) && w > 0) deepUpdates.weightKg = unit === "lbs" ? Math.round(w * 0.4536 * 10) / 10 : w;
+  }
+  if (Object.keys(deepUpdates).length) {
     const deep = (next.deep && typeof next.deep === "object") ? next.deep as Record<string, unknown> : {};
-    next.deep = { ...deep, goalWeightKg: goalKg };
+    next.deep = { ...deep, ...deepUpdates };
   }
 
   const { error } = await admin

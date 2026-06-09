@@ -95,10 +95,22 @@ export function EditMyStats() {
     try {
       const res = await fetch("/api/me/intake", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (res.ok) {
-        // keep the local cache in sync so nutrition recalcs right away
+        // Keep the local cache in sync — top-level AND the deep canonical block —
+        // so every reader (nutrition, program, AI) agrees immediately.
         try {
           const intake = loadIntake(user.id);
-          if (intake) saveIntake(user.id, { ...intake, age, sex: (sex || undefined) as never, activityLevel: (activity || undefined) as never, primaryGoal: goal, weight: num(weight) ? String(num(weight)) : intake.weight, weightUnit: wUnit, height: heightCm > 0 ? String(heightCm) : intake.height, heightUnit: "cm" } as typeof intake);
+          if (intake) {
+            const deep: Record<string, unknown> = { ...(intake as unknown as { deep?: Record<string, unknown> }).deep };
+            if (heightCm > 0) deep.heightCm = heightCm;
+            if (num(weight)) deep.weightKg = Math.round(displayUnitToKg(num(weight)!, sys) * 10) / 10;
+            if (num(goalW)) deep.goalWeightKg = Math.round(displayUnitToKg(num(goalW)!, sys) * 10) / 10;
+            saveIntake(user.id, {
+              ...intake, deep,
+              age, sex: (sex || undefined) as never, activityLevel: (activity || undefined) as never, primaryGoal: goal,
+              weight: num(weight) ? String(num(weight)) : intake.weight, weightUnit: wUnit,
+              height: heightCm > 0 ? String(heightCm) : intake.height, heightUnit: "cm",
+            } as typeof intake);
+          }
         } catch { /* ignore */ }
         setSaved(true);
         setTimeout(() => setOpen(false), 900);
