@@ -15,6 +15,7 @@ import { readStoredUnitSystem, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/u
 import { Card } from "@/components/ui/Card";
 import { IntakeQuestionPrompt } from "@/components/profile/IntakeQuestionPrompt";
 import { YourOnboarding } from "@/components/profile/YourOnboarding";
+import { RedoOnboarding } from "@/components/profile/RedoOnboarding";
 import { CoachTaskList } from "@/components/tasks/CoachTaskList";
 import { TimezoneSetting } from "@/components/profile/TimezoneSetting";
 import { NicknameSetting } from "@/components/profile/NicknameSetting";
@@ -491,6 +492,9 @@ export default function ProfilePage() {
 
       {/* Read-only view of your own onboarding answers */}
       <YourOnboarding />
+
+      {/* Start onboarding over (clears local cache + your own server data) */}
+      <RedoOnboarding />
 
       {/* Coach-assigned tasks (also shown on the Accountability tab) */}
       <CoachTaskList />
