@@ -15,6 +15,7 @@ import { readStoredUnitSystem, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/u
 import { Card } from "@/components/ui/Card";
 import { IntakeQuestionPrompt } from "@/components/profile/IntakeQuestionPrompt";
 import { YourOnboarding } from "@/components/profile/YourOnboarding";
+import { EditMyStats } from "@/components/profile/EditMyStats";
 import { RedoOnboarding } from "@/components/profile/RedoOnboarding";
 import { CoachTaskList } from "@/components/tasks/CoachTaskList";
 import { TimezoneSetting } from "@/components/profile/TimezoneSetting";
@@ -489,6 +490,9 @@ export default function ProfilePage() {
 
       {/* Backfill prompt for intake fields added after the user onboarded */}
       <IntakeQuestionPrompt />
+
+      {/* Fix-a-mistake editor for core stats (age, height, weight, goal…) */}
+      <EditMyStats />
 
       {/* Read-only view of your own onboarding answers */}
       <YourOnboarding />
