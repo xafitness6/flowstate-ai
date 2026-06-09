@@ -45,6 +45,7 @@ export type StarterPlan = {
   // Injuries to train around (drives exercise filtering / swaps)
   injuryAreas?:  string[];
   injuryNote?:   string;
+  injuryAvoid?:  string[];        // explicit "can't do" exercises
 };
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -187,10 +188,12 @@ function defaultExercisesFor(
   sessionName: string,
   injuryAreas?: string[],
   injuryNote?: string,
+  injuryAvoid?: string[],
 ): DefaultExercise[] {
   const base = baseExercisesFor(focus, sessionName);
-  if (injuryAreas && injuryAreas.length > 0) {
-    return filterExercises(base, injuryAreas, injuryNote);
+  const hasInjury = (injuryAreas && injuryAreas.length > 0) || (injuryAvoid && injuryAvoid.length > 0);
+  if (hasInjury) {
+    return filterExercises(base, injuryAreas ?? [], injuryNote, injuryAvoid);
   }
   return base;
 }
@@ -262,7 +265,7 @@ export function starterPlanToProgram(plan: StarterPlan, programId?: string) {
       day:       DAY_INDEX[s.day] ?? idx + 1,
       dayLabel:  s.day,
       focus:     s.focus || s.name,
-      exercises: defaultExercisesFor(s.focus, s.name, plan.injuryAreas, plan.injuryNote),
+      exercises: defaultExercisesFor(s.focus, s.name, plan.injuryAreas, plan.injuryNote, plan.injuryAvoid),
     })),
   };
 }
@@ -298,7 +301,7 @@ export function starterPlanToBuilderPayload(plan: StarterPlan): BuilderProgramPa
         name: session.name,
         focus: session.focus,
         estimatedMinutes: sessionMinutes(plan.sessionLength),
-        exercises: defaultExercisesFor(session.focus, session.name, plan.injuryAreas, plan.injuryNote).map((exercise) => ({
+        exercises: defaultExercisesFor(session.focus, session.name, plan.injuryAreas, plan.injuryNote, plan.injuryAvoid).map((exercise) => ({
           name: exercise.name,
           sets: exercise.sets,
           reps: exercise.reps,
@@ -351,5 +354,6 @@ export function generateStarterPlan(intake: Partial<IntakeData>): StarterPlan {
     coachNote:     coachNoteFor(goal, exp, days),
     injuryAreas:   Array.isArray(intake.injuryAreas) ? intake.injuryAreas : undefined,
     injuryNote:    typeof intake.injuryNote === "string" ? intake.injuryNote : undefined,
+    injuryAvoid:   Array.isArray(intake.injuryAvoid) ? intake.injuryAvoid : undefined,
   };
 }

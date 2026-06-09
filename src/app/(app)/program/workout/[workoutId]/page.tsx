@@ -14,6 +14,8 @@ import {
   formatDuration,
   type Workout, type WorkoutExercise, type WarmUpItem, type WorkoutLog, type Feel,
 } from "@/lib/workout";
+import { safeAlternative } from "@/lib/injuries";
+import { loadIntake } from "@/lib/data/intake";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -260,7 +262,7 @@ function WarmUpSection({
 
 function ExerciseCard({
   exercise, setInputs, editingKey, prevPerf, pbSets,
-  onSetTap, onInputChange, onFeel, onLogSet, onVoiceFill, voiceActiveKey,
+  onSetTap, onInputChange, onFeel, onLogSet, onVoiceFill, voiceActiveKey, onCantDo,
 }: {
   exercise:      WorkoutExercise;
   setInputs:     Record<string, SetInput>;
@@ -273,6 +275,7 @@ function ExerciseCard({
   onLogSet:      (key: string, restSecs: number, exerciseId: string, exerciseName: string, inp: SetInput) => void;
   onVoiceFill?:  (key: string) => void;
   voiceActiveKey?: string | null;
+  onCantDo?:     (exerciseId: string, name: string) => void;
 }) {
   const completedCount = exercise.sets.filter(
     (s) => setInputs[`${exercise.exerciseId}_${s.setNumber}`]?.done
@@ -293,7 +296,18 @@ function ExerciseCard({
               <p className="text-[11px] text-white/35 mt-1 leading-relaxed">{exercise.notes}</p>
             )}
           </div>
-          {allDone && <CheckCircle2 className="w-5 h-5 text-[#B48B40] shrink-0 mt-0.5" strokeWidth={2} />}
+          <div className="flex items-center gap-2 shrink-0">
+            {onCantDo && (
+              <button
+                onClick={() => onCantDo(exercise.exerciseId, exercise.name)}
+                className="text-[10px] font-medium text-white/35 hover:text-amber-300/80 border border-white/10 hover:border-amber-300/30 rounded-lg px-2 py-1 transition-colors"
+                title="Swap this for something you can do"
+              >
+                Can&apos;t do — swap
+              </button>
+            )}
+            {allDone && <CheckCircle2 className="w-5 h-5 text-[#B48B40] mt-0.5" strokeWidth={2} />}
+          </div>
         </div>
 
         {prevPerf && (
@@ -478,6 +492,7 @@ export default function WorkoutPage() {
   const [workout,   setWorkout]   = useState<Workout | null>(null);
   const [prevPerfs, setPrevPerfs] = useState<Record<string, PrevPerf>>({});
   const [loaded,    setLoaded]    = useState(true);
+  const [injuryAreas, setInjuryAreas] = useState<string[]>([]);
 
   // Warm-up
   const [warmupPhase,   setWarmupPhase]   = useState<"active" | "done">("active");
@@ -664,6 +679,34 @@ export default function WorkoutPage() {
 
   const completedSetCount = Object.values(setInputs).filter((s) => s.done).length;
   const totalSetCount     = workout ? workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0) : 0;
+
+  // Load injuries (for the "Can't do" swap to pick an injury-appropriate sub).
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const intake = loadIntake(user.id) as { injuryAreas?: unknown } | null;
+      if (Array.isArray(intake?.injuryAreas)) setInjuryAreas((intake!.injuryAreas as unknown[]).filter((x): x is string => typeof x === "string"));
+    } catch { /* ignore */ }
+  }, [user?.id]);
+
+  // "Can't do this" → swap the exercise for a safe alternative + record it so
+  // future generated plans avoid it.
+  function handleCantDo(exerciseId: string, name: string) {
+    if (!workout) return;
+    const used = workout.exercises.map((e) => e.name);
+    const alt = safeAlternative(injuryAreas, [name.toLowerCase()], used);
+    if (alt) {
+      setWorkout((w) => w ? {
+        ...w,
+        exercises: w.exercises.map((e) =>
+          e.exerciseId === exerciseId ? { ...e, name: alt, notes: "Swapped — you flagged you can't do the original." } : e),
+      } : w);
+    }
+    fetch("/api/me/injury-avoid", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ exercise: name }),
+    }).catch(() => {});
+  }
 
   // Send the pain/feedback note to the coach RIGHT NOW (not just on finish), so
   // the athlete gets confirmation it went through.
@@ -1024,6 +1067,7 @@ export default function WorkoutPage() {
               onLogSet={handleLogSet}
               onVoiceFill={voice.isSupported ? startVoiceForSet : undefined}
               voiceActiveKey={voice.status === "listening" ? voiceKey : null}
+              onCantDo={handleCantDo}
             />
           ))}
         </div>
