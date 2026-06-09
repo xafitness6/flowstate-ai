@@ -11,13 +11,13 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
-import { readStoredUnitSystem, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/units";
+import { readStoredUnitSystem, inferUnitSystemFromRawAnswers, UNIT_STORAGE_KEY, type UnitSystem } from "@/lib/units";
+import { getOnboardingState } from "@/lib/db/onboarding";
 import { Card } from "@/components/ui/Card";
 import { IntakeQuestionPrompt } from "@/components/profile/IntakeQuestionPrompt";
 import { YourOnboarding } from "@/components/profile/YourOnboarding";
 import { EditMyStats } from "@/components/profile/EditMyStats";
 import { RedoOnboarding } from "@/components/profile/RedoOnboarding";
-import { CoachTaskList } from "@/components/tasks/CoachTaskList";
 import { TimezoneSetting } from "@/components/profile/TimezoneSetting";
 import { NicknameSetting } from "@/components/profile/NicknameSetting";
 import { StatTile } from "@/components/ui/StatTile";
@@ -375,8 +375,16 @@ export default function ProfilePage() {
   }, [user.id]);
 
   useEffect(() => {
-    const inferred = readStoredUnitSystem(user.id);
-    if (inferred && inferred !== units) setUnits(inferred);
+    const stored = readStoredUnitSystem(user.id);
+    if (stored) { if (stored !== units) setUnits(stored); return; }
+    // No saved unit pref (e.g. cache cleared) → infer from their data so a
+    // feet/pounds account doesn't silently fall back to metric.
+    let active = true;
+    getOnboardingState(user.id).then((st) => {
+      const inf = inferUnitSystemFromRawAnswers(st?.raw_answers);
+      if (active && inf && inf !== units) setUnits(inf);
+    }).catch(() => {});
+    return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
 
@@ -488,21 +496,7 @@ export default function ProfilePage() {
   return (
     <div className="px-5 md:px-8 py-6 max-w-2xl mx-auto space-y-8 text-white">
 
-      {/* Backfill prompt for intake fields added after the user onboarded */}
-      <IntakeQuestionPrompt />
-
-      {/* Fix-a-mistake editor for core stats (age, height, weight, goal…) */}
-      <EditMyStats />
-
-      {/* Read-only view of your own onboarding answers */}
-      <YourOnboarding />
-
-      {/* Start onboarding over (clears local cache + your own server data) */}
-      <RedoOnboarding />
-
-      {/* Coach-assigned tasks (also shown on the Accountability tab) */}
-      <CoachTaskList />
-
+      {/* Name + photo at the very top */}
       {/* ── Profile card ─────────────────────────────────────────────── */}
       <Card>
 
@@ -654,6 +648,17 @@ export default function ProfilePage() {
           </div>
         </div>
       </Card>
+
+      {/* ── Onboarding ───────────────────────────────────────────────── */}
+      <div>
+        <SectionHeader>Onboarding</SectionHeader>
+        <div className="space-y-3">
+          <IntakeQuestionPrompt />
+          <EditMyStats />
+          <YourOnboarding />
+          <RedoOnboarding />
+        </div>
+      </div>
 
       {/* ── Activity ─────────────────────────────────────────────────── */}
       <div>

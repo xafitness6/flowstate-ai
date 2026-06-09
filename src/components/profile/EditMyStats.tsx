@@ -12,7 +12,7 @@ import { useUser } from "@/context/UserContext";
 import { getOnboardingState } from "@/lib/db/onboarding";
 import { loadIntake, saveIntake } from "@/lib/data/intake";
 import {
-  readStoredUnitSystem, weightUnitLabel, kgToDisplayUnit, displayUnitToKg, type UnitSystem,
+  readStoredUnitSystem, inferUnitSystemFromRawAnswers, weightUnitLabel, kgToDisplayUnit, displayUnitToKg, type UnitSystem,
 } from "@/lib/units";
 
 const ACTIVITY: { v: string; l: string }[] = [
@@ -47,13 +47,15 @@ export function EditMyStats() {
 
   useEffect(() => {
     if (!isRealUser) { setLoaded(true); return; }
-    const s = readStoredUnitSystem(user.id) ?? "metric";
-    setSys(s);
     let active = true;
     getOnboardingState(user.id).then((st) => {
       if (!active) return;
       const raw = (st?.raw_answers ?? {}) as Record<string, unknown>;
       const deep = (raw.deep ?? {}) as Record<string, unknown>;
+      // Prefer the saved unit pref; if that's been cleared, infer from their data
+      // (e.g. weightUnit "lbs" → imperial) so feet/pounds still shows correctly.
+      const s = readStoredUnitSystem(user.id) ?? inferUnitSystemFromRawAnswers(raw) ?? "metric";
+      setSys(s);
       setAge(typeof raw.age === "string" ? raw.age : "");
       setSex(raw.sex === "male" || raw.sex === "female" ? raw.sex : "");
       setActivity(typeof raw.activityLevel === "string" ? raw.activityLevel : "");
