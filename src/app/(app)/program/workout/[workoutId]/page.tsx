@@ -288,14 +288,9 @@ function ExerciseCard({
       allDone ? "border-[#B48B40]/20 bg-[#B48B40]/[0.03]" : "border-white/[0.08] bg-white/[0.025]"
     )}>
       {/* Header */}
-      <div className="px-4 pt-4 pb-3">
+      <div className="px-4 pt-4 pb-2">
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-bold text-white/90 leading-tight">{exercise.name}</h3>
-            {exercise.notes && (
-              <p className="text-[11px] text-white/35 mt-1 leading-relaxed">{exercise.notes}</p>
-            )}
-          </div>
+          <h3 className="text-sm font-bold text-white/90 leading-tight">{exercise.name}</h3>
           <div className="flex items-center gap-2 shrink-0">
             {onCantDo && (
               <button
@@ -309,24 +304,18 @@ function ExerciseCard({
             {allDone && <CheckCircle2 className="w-5 h-5 text-[#B48B40] mt-0.5" strokeWidth={2} />}
           </div>
         </div>
+      </div>
 
-        {prevPerf && (
-          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-white/30">
-            <Flame className="w-3 h-3" strokeWidth={1.5} />
-            <span>Last: {prevPerf.reps} reps @ {prevPerf.load} kg</span>
+      {/* Two-column: log on the left, the how-to / explanation on the right */}
+      <div className="grid lg:grid-cols-[1fr_240px] gap-3 px-3 pb-3">
+        {/* LEFT — sets + logging */}
+        <div className="min-w-0">
+          <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-2 px-1 pb-1">
+            {["Set", "Target", "Prev", ""].map((h) => (
+              <span key={h} className="text-[9px] uppercase tracking-[0.18em] text-white/20">{h}</span>
+            ))}
           </div>
-        )}
-      </div>
-
-      {/* Column headers */}
-      <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-2 px-4 pb-1">
-        {["Set", "Target", "Prev", ""].map((h) => (
-          <span key={h} className="text-[9px] uppercase tracking-[0.18em] text-white/20">{h}</span>
-        ))}
-      </div>
-
-      {/* Sets */}
-      <div className="space-y-0.5 px-3 pb-3">
+          <div className="space-y-0.5">
         {exercise.sets.map((s) => {
           const key    = `${exercise.exerciseId}_${s.setNumber}`;
           const inp    = setInputs[key] ?? { reps: "", load: "", feel: null, done: false };
@@ -449,6 +438,25 @@ function ExerciseCard({
             </div>
           );
         })}
+          </div>
+        </div>
+
+        {/* RIGHT — how-to / explanation (stacks under on mobile) */}
+        <div className="rounded-xl border border-white/[0.06] bg-black/15 overflow-hidden self-start">
+          <div className="aspect-video bg-gradient-to-br from-[#B48B40]/[0.12] to-white/[0.02] flex items-center justify-center">
+            <Dumbbell className="w-8 h-8 text-[#B48B40]/40" strokeWidth={1.5} />
+          </div>
+          <div className="p-3 space-y-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/30">How to do it</p>
+            <p className="text-[12px] text-white/55 leading-relaxed">
+              {exercise.notes || "Controlled tempo, full range of motion, brace your core. Stop a rep or two shy of failure."}
+            </p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-white/[0.05] text-[11px] text-white/40">
+              <span>Target <span className="text-white/65">{exercise.sets[0]?.targetReps ?? "—"}</span> reps</span>
+              {prevPerf && <span className="flex items-center gap-1"><Flame className="w-3 h-3" strokeWidth={1.5} /> Last {prevPerf.reps} @ {prevPerf.load}kg</span>}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
