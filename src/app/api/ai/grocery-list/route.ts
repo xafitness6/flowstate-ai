@@ -45,17 +45,34 @@ export async function POST(req: NextRequest) {
     const res = await client.chat.completions.create({
       model: "gpt-4o",
       temperature: 0.2,
-      max_tokens: 1200,
+      max_tokens: 3000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: `Shopper's unit system: ${unit}.\n\nDay's meals (across ${meals.length} meals):\n${lines.map((l) => `- ${l}`).join("\n")}\n\nBuild the practical grocery list.` },
       ],
     });
-    const json = JSON.parse(res.choices[0]?.message?.content ?? "{}");
+    const choice = res.choices[0];
+    const raw = choice?.message?.content ?? "{}";
+    let json: { categories?: unknown };
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      // gpt sometimes truncates (finish_reason "length") → invalid JSON. Surface
+      // a clear, retryable error rather than a generic 500.
+      console.error("[ai/grocery-list] unparseable response", { finish: choice?.finish_reason, len: raw.length });
+      return NextResponse.json({ error: "The list got cut off — tap Regenerate to try again." }, { status: 502 });
+    }
     return NextResponse.json({ categories: Array.isArray(json.categories) ? json.categories : [] });
   } catch (err) {
     console.error("[ai/grocery-list]", err);
+    const status = (err as { status?: number })?.status;
+    if (status === 429) {
+      return NextResponse.json(
+        { error: "AI is temporarily unavailable (OpenAI quota reached). Try again later." },
+        { status: 429 },
+      );
+    }
     return NextResponse.json({ error: "Could not build the grocery list" }, { status: 500 });
   }
 }

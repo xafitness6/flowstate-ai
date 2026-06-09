@@ -1098,6 +1098,50 @@ export default function AccountabilityPage() {
       {/* ── Coach-assigned tasks (check-in checklist) ───────────────────────── */}
       <CoachTaskList />
 
+      {/* ── Execution tracker (today's checklist) ────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Today&rsquo;s checklist</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFocusModal(true)}
+              className="flex items-center gap-1.5 text-xs text-white/28 hover:text-white/55 px-2 py-1 rounded-lg border border-transparent hover:border-white/8 transition-all"
+            >
+              <SlidersHorizontal className="w-3 h-3" strokeWidth={1.5} />
+              <span>Edit Focus</span>
+            </button>
+            <button
+              onClick={() => setEditMode((v) => !v)}
+              className={cn(
+                "text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors",
+                editMode
+                  ? "text-[#B48B40] bg-[#B48B40]/8 border-[#B48B40]/20"
+                  : "text-white/30 hover:text-white/55 border-transparent"
+              )}
+            >
+              {editMode ? "Done" : "Edit"}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {activeCats.map((cat) => (
+            <CategoryGroup
+              key={cat}
+              category={cat}
+              habits={habits.filter((h) => h.category === cat)}
+              completedIds={todayLog.completedHabits}
+              editMode={editMode}
+              isRequired={requiredCats.includes(cat)}
+              onToggle={toggleHabit}
+              onToggleVisible={toggleVisible}
+              onRename={renameHabit}
+              onReorder={reorderCategory}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* ── Quote ────────────────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-5 py-4">
         <p className="text-sm text-white/50 leading-relaxed italic">&ldquo;{quote.text}&rdquo;</p>
@@ -1218,50 +1262,6 @@ export default function AccountabilityPage() {
         </div>
         <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-4 pt-4 pb-3">
           <ActivityHeatmap habits={habits} logs={logs} activeCats={activeCats} />
-        </div>
-      </div>
-
-      {/* ── Execution tracker ────────────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Execution</p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowFocusModal(true)}
-              className="flex items-center gap-1.5 text-xs text-white/28 hover:text-white/55 px-2 py-1 rounded-lg border border-transparent hover:border-white/8 transition-all"
-            >
-              <SlidersHorizontal className="w-3 h-3" strokeWidth={1.5} />
-              <span>Edit Focus</span>
-            </button>
-            <button
-              onClick={() => setEditMode((v) => !v)}
-              className={cn(
-                "text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors",
-                editMode
-                  ? "text-[#B48B40] bg-[#B48B40]/8 border-[#B48B40]/20"
-                  : "text-white/30 hover:text-white/55 border-transparent"
-              )}
-            >
-              {editMode ? "Done" : "Edit"}
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          {activeCats.map((cat) => (
-            <CategoryGroup
-              key={cat}
-              category={cat}
-              habits={habits.filter((h) => h.category === cat)}
-              completedIds={todayLog.completedHabits}
-              editMode={editMode}
-              isRequired={requiredCats.includes(cat)}
-              onToggle={toggleHabit}
-              onToggleVisible={toggleVisible}
-              onRename={renameHabit}
-              onReorder={reorderCategory}
-            />
-          ))}
         </div>
       </div>
 
