@@ -9,6 +9,8 @@
 // All defaults / day-pattern carb math come from Xavier's "How to Conquer Your
 // Carbs" ebook (XAthletics).
 
+import { proteinTargetG } from "@/lib/nutrition";
+
 export type GoalMode = "cut" | "maintain" | "build";
 
 export type MealPattern =
@@ -47,18 +49,12 @@ export function goalAdjustedMacros(
   bodyWeightKg: number,
   goalWeightKg?: number | null,
 ): { calories: number; proteinG: number; carbsG: number; fatG: number } {
-  const LB_PER_KG = 2.2046226;
   const calories  = goalAdjustedCalories(tdee, goalMode);
-  // Protein grams per kg: higher when cutting (preserve muscle in deficit).
-  const perKg     = goalMode === "cut" ? 2.2 : goalMode === "build" ? 2.0 : 1.8;
-  const fallback  = goalMode === "cut" ? 165 : goalMode === "build" ? 150 : 135;
-  // Heavier cutters anchor protein to GOAL weight (~1g/lb), not current weight.
-  const useGoalWeight = goalMode === "cut"
-    && bodyWeightKg * LB_PER_KG > 200
-    && !!goalWeightKg && goalWeightKg > 0;
-  const proteinG  = useGoalWeight
-    ? Math.round((goalWeightKg as number) * LB_PER_KG)
-    : bodyWeightKg > 0 ? Math.round(bodyWeightKg * perKg) : fallback;
+  // Protein uses the app-wide shared rule so the page matches the computed
+  // targets exactly (~1g/lb, goal-weight for heavier cutters, cap for very heavy).
+  const proteinG  = bodyWeightKg > 0
+    ? proteinTargetG(bodyWeightKg, goalWeightKg ?? null, goalMode === "cut")
+    : (goalMode === "cut" ? 165 : goalMode === "build" ? 150 : 135);
   const fatG      = Math.round((calories * 0.28) / 9);
   const carbsG    = Math.max(50, Math.round((calories - proteinG * 4 - fatG * 9) / 4));
   return { calories, proteinG, carbsG, fatG };
