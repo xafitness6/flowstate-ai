@@ -481,14 +481,16 @@ export default function DeepCalibrationPage() {
         {/* ── Chunk A — Body & history ──────────────────────────────────── */}
         {step === "body" && (
           <div className="space-y-8">
-            {/* Units, height, weight, body fat come from the basic calibration —
-                don't re-ask them here. Only shown if we have no basics to seed from. */}
-            {!fromBasics && (
+            {/* Height + current weight come from the basic calibration when present
+                (don't re-ask). But if EITHER is missing — e.g. you came straight to
+                deep calibration — show the field(s) so this step can't dead-end. */}
+            {(!(parseFloat(answers.heightCm) > 0) || !(parseFloat(answers.weightKg) > 0)) && (
               <Question
-                prompt="What do you weigh right now?"
-                coach="Honest number — I'd rather start from where you actually are than where you'd like to be."
+                prompt="First — your height and current weight"
+                coach="These set your calories, macros and program intensity. Quick to confirm."
               >
                 <Grid2>
+                  <HeightInput units={answers.units} valueCm={answers.heightCm} onChange={(cm) => update("heightCm", cm)} />
                   <WeightInput units={answers.units} valueKg={answers.weightKg} onChange={(kg) => update("weightKg", kg)} label="Current weight" />
                 </Grid2>
               </Question>
