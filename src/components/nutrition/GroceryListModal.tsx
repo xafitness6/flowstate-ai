@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { X, Check, Plus, Trash2, Loader2, RefreshCw, ShoppingCart } from "lucide-react";
+import { useUser } from "@/context/UserContext";
+import { readStoredUnitSystem } from "@/lib/units";
 
 export type GroceryItem = { item: string; qty: string; note?: string };
 export type GroceryCategory = { name: string; items: GroceryItem[] };
@@ -22,6 +24,7 @@ export function GroceryListModal({
   onPersist: (list: GroceryList) => void;
   onClose: () => void;
 }) {
+  const { user } = useUser();
   const [list, setList] = useState<GroceryList>(savedList ?? { categories: [] });
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,9 +32,10 @@ export function GroceryListModal({
   const generate = useCallback(async () => {
     setGenerating(true); setError(null);
     try {
+      const unitSystem = (user?.id ? readStoredUnitSystem(user.id) : null) ?? "metric";
       const r = await fetch("/api/ai/grocery-list", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, unitSystem }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Couldn't build the list.");
@@ -39,7 +43,7 @@ export function GroceryListModal({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't build the list.");
     } finally { setGenerating(false); }
-  }, [plan]);
+  }, [plan, user?.id]);
 
   // First open with no saved list → generate.
   useEffect(() => { if (!savedList || savedList.categories.length === 0) void generate(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);

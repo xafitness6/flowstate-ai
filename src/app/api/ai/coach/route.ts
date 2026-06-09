@@ -190,7 +190,12 @@ export async function POST(req: NextRequest) {
           supabase.from("onboarding_state").select("raw_answers").eq("user_id", user.id).maybeSingle(),
           supabase.from("profiles").select("nutrition_approach").eq("id", user.id).maybeSingle(),
         ]);
-        athleteProfile    = summarizeIntakeForCoach((intakeRow?.raw_answers ?? null) as Record<string, unknown> | null);
+        const rawA = (intakeRow?.raw_answers ?? null) as Record<string, unknown> | null;
+        athleteProfile    = summarizeIntakeForCoach(rawA);
+        // Hard dietary rule, so food advice in chat respects it (no dairy for vegan, etc.)
+        const { dietConstraint } = await import("@/lib/nutrition/diet");
+        const diet = dietConstraint(rawA?.dietStyle, (rawA?.deep as Record<string, unknown> | undefined)?.foodsHate);
+        if (diet) athleteProfile = `${athleteProfile}\n${diet}`;
         // `nutrition_approach` is JSONB; missing column / null is fine.
         const approach = (profileRow as { nutrition_approach?: unknown } | null)?.nutrition_approach;
         if (approach && typeof approach === "object") {
