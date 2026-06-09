@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { saveIntake, type IntakeData } from "@/lib/data/intake";
 import { completeOnboarding } from "@/lib/onboarding";
 import { generateStarterPlan, saveStarterPlan, starterPlanToBuilderPayload, starterPlanToProgram } from "@/lib/starterPlan";
+import { suggestedAvoidMovements } from "@/lib/injuries";
 import { saveActiveProgram } from "@/lib/workout";
 import { DEMO_USERS } from "@/context/UserContext";
 
@@ -30,6 +31,7 @@ type OnboardingAnswers = {
   injuryAreas:   string[];
   injuryNote:    string;
   injuryCleared: "" | "yes" | "no";
+  injuryAvoid:   string[];   // specific movements they can't do right now
   equipment:     string[];
   // Body stats — drive BMR / calorie & macro targets
   weight:        string;
@@ -270,6 +272,7 @@ const DEFAULT: OnboardingAnswers = {
   injuryAreas:   [],
   injuryNote:    "",
   injuryCleared: "",
+  injuryAvoid:   [],
   mainStruggle:  [],
   equipment:     [],
   weight:        "",
@@ -354,6 +357,7 @@ export default function CalibrationPage() {
           injuryAreas:   asArr(raw.injuryAreas) ?? a.injuryAreas,
           injuryNote:    typeof raw.injuryNote === "string" ? raw.injuryNote : a.injuryNote,
           injuryCleared: raw.injuryCleared === "yes" || raw.injuryCleared === "no" ? raw.injuryCleared : a.injuryCleared,
+          injuryAvoid:   asArr(raw.injuryAvoid) ?? a.injuryAvoid,
           dietStyle:     asArr(raw.dietStyle) ?? a.dietStyle,
           mainStruggle:  asArr(raw.mainStruggle) ?? a.mainStruggle,
           equipment:     asArr(raw.equipment) ?? a.equipment,
@@ -440,6 +444,7 @@ export default function CalibrationPage() {
       injuryAreas:     answers.injuryAreas,
       injuryNote:      answers.injuryNote,
       injuryCleared:   answers.injuryCleared || undefined,
+      injuryAvoid:     answers.injuryAvoid.length ? answers.injuryAvoid : undefined,
       sleepQuality:    0,
       stressLevel:     0,
       recoveryNote:    "",
@@ -1012,6 +1017,17 @@ export default function CalibrationPage() {
 	                    ))}
 	                  </div>
 	                </div>
+	                {answers.injuryAreas.length > 0 && suggestedAvoidMovements(answers.injuryAreas).length > 0 && (
+	                  <div>
+	                    <p className="text-xs uppercase tracking-[0.18em] text-white/28 mb-2">Movements you can&apos;t do right now</p>
+	                    <div className="flex flex-wrap gap-2">
+	                      {suggestedAvoidMovements(answers.injuryAreas).map((mv) => (
+	                        <ChipButton key={mv} label={mv} active={answers.injuryAvoid.includes(mv)} onClick={() => setAnswers((p) => ({ ...p, injuryAvoid: toggle(p.injuryAvoid, mv) }))} />
+	                      ))}
+	                    </div>
+	                    <p className="text-[10px] text-white/30 mt-1.5">Tap anything that’s off-limits — your plan will leave it out.</p>
+	                  </div>
+	                )}
 	                <textarea
 	                  value={answers.injuryNote}
 	                  onChange={(e) => setAnswers((p) => ({ ...p, injuryNote: e.target.value }))}
