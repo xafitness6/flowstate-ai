@@ -88,6 +88,22 @@ export function proteinTargetG(
   return g;
 }
 
+/**
+ * Reconcile the stated goal with the goal WEIGHT direction. If someone picked
+ * "muscle gain" but their goal weight is well BELOW current (they want to lose),
+ * the calorie direction must be a deficit — not a bulk. Goal-weight direction
+ * wins; only falls back to the stated goal when no goal weight is set or they're
+ * already near it.
+ */
+function effectiveGoal(primaryGoal: string, currentKg: number | null, goalKg: number | null): string {
+  if (currentKg && goalKg) {
+    if (goalKg < currentKg - 2) return "fat_loss";     // clearly wants to lose
+    if (goalKg > currentKg + 2) return "muscle_gain";  // clearly wants to gain
+    return primaryGoal === "fat_loss" || primaryGoal === "muscle_gain" ? "recomp" : primaryGoal; // at goal → hold
+  }
+  return primaryGoal;
+}
+
 /** Goal weight (kg) from the deep-cal answers, if present. */
 function goalWeightKgFromIntake(intake: IntakeData): number | null {
   const deep = (intake as unknown as { deep?: Record<string, unknown> }).deep;
@@ -197,7 +213,8 @@ export function calculateEnergy(intake: IntakeData): EnergyProfile | null {
   bmr = Math.round(bmr);
   const mult           = resolveActivityMultiplier(intake);
   const tdee           = Math.round(bmr * mult);
-  const goalAdjustment = calorieAdjustment(intake.primaryGoal, intake.timeframe, tdee);
+  const effGoal        = effectiveGoal(intake.primaryGoal, weightKg, goalWeightKgFromIntake(intake));
+  const goalAdjustment = calorieAdjustment(effGoal, intake.timeframe, tdee);
   const targetCalories = Math.max(1200, tdee + goalAdjustment);
 
   return {
@@ -228,7 +245,8 @@ export function calculateNutritionTargets(intake: IntakeData): NutritionTargets 
 
   // Protein (g): the single shared rule (see proteinTargetG).
   const goalKg = goalWeightKgFromIntake(intake);
-  const isWeightLoss = intake.primaryGoal === "fat_loss" || intake.primaryGoal === "recomp";
+  const effGoal = effectiveGoal(intake.primaryGoal, weightKg, goalKg);
+  const isWeightLoss = effGoal === "fat_loss" || effGoal === "recomp";
   const bf = parseFloat(intake.bodyFat);
   const proteinG = proteinTargetG(weightKg, goalKg, isWeightLoss, Number.isFinite(bf) ? bf : null);
 

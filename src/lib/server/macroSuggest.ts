@@ -8,11 +8,6 @@
 import { calculateEnergy, calculateNutritionTargets } from "@/lib/nutrition";
 import type { IntakeData } from "@/lib/data/intake";
 
-const GOAL_LABEL: Record<string, string> = {
-  muscle_gain: "lean-bulk", fat_loss: "fat-loss", strength: "strength",
-  recomp: "recomp", endurance: "endurance", general: "maintenance",
-};
-
 export type MacroSuggestion = {
   calories: number; proteinG: number; carbsG: number; fatG: number; rationale: string;
 };
@@ -34,9 +29,9 @@ export function suggestMacros(intake: IntakeData | null, requestedCalories?: num
     carbsG = Math.max(0, Math.round((req - proteinG * 4 - fatG * 9) / 4));
   }
 
-  const goal = GOAL_LABEL[intake.primaryGoal] ?? "your goal";
   const fmt = (n: number) => Math.round(n).toLocaleString();
-  // Clean + straightforward — the macro grams already show in the fields below.
+  // Label from the actual calorie direction so it always matches the number.
+  const goal = calories < energy.tdee - 40 ? "fat-loss" : calories > energy.tdee + 40 ? "lean-bulk" : "maintenance";
   const rationale = `Maintenance ≈ ${fmt(energy.tdee)} kcal. Your ${goal} target is ${fmt(calories)} kcal/day.`;
 
   return { calories, proteinG, carbsG, fatG, rationale };
