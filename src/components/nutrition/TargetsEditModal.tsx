@@ -59,6 +59,14 @@ export function TargetsEditModal({
   const [aiBusy,      setAiBusy]      = useState(false);
   const [aiRationale, setAiRationale] = useState<string | null>(null);
   const [aiError,     setAiError]     = useState<string | null>(null);
+  const [aiNeedsOnboarding, setAiNeedsOnboarding] = useState(false);
+
+  // Where to send them to fill in the missing profile. Coach editing a client
+  // (macroSuggestUrl = /api/clients/<id>/…) → that client's onboarding; else self.
+  const clientIdMatch = macroSuggestUrl.match(/\/clients\/([^/]+)\//);
+  const onboardingHref = clientIdMatch
+    ? `/onboarding/calibration?clientId=${clientIdMatch[1]}`
+    : "/onboarding/calibration";
 
   // Effective grams depend on the edit mode:
   //  • grams mode → the typed gram values
@@ -89,13 +97,14 @@ export function TargetsEditModal({
   }
 
   async function suggestWithAI() {
-    setAiBusy(true); setAiError(null); setAiRationale(null);
+    setAiBusy(true); setAiError(null); setAiRationale(null); setAiNeedsOnboarding(false);
     try {
       const res = await fetch(macroSuggestUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calories: calNum || computed.calories }),
       });
       const d = await res.json().catch(() => ({})) as { calories?: number; proteinG?: number; carbsG?: number; fatG?: number; rationale?: string; error?: string };
+      if (res.status === 422) { setAiNeedsOnboarding(true); throw new Error(d.error || "Finish onboarding for a calibrated suggestion."); }
       if (!res.ok) throw new Error(d.error || "Couldn't calculate right now.");
       applyTargets({ calories: d.calories ?? 0, proteinG: d.proteinG ?? 0, carbsG: d.carbsG ?? 0, fatG: d.fatG ?? 0 });
       setAiRationale(d.rationale || `Built from ${subjectLabel ? `${subjectLabel}'s` : "your"} goal, body stats and approach.`);
@@ -165,7 +174,19 @@ export function TargetsEditModal({
               <p className="text-[11px] text-white/65 leading-relaxed">{aiRationale}</p>
             </div>
           )}
-          {aiError && <p className="text-[11px] text-[#EF4444]/70">{aiError}</p>}
+          {aiError && (
+            <div className="rounded-xl border border-[#EF4444]/20 bg-[#EF4444]/[0.05] px-3 py-2">
+              <p className="text-[11px] text-[#EF4444]/80 leading-relaxed">{aiError}</p>
+              {aiNeedsOnboarding && (
+                <a
+                  href={onboardingHref}
+                  className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[#B48B40] hover:text-[#c99840] underline-offset-2 hover:underline"
+                >
+                  {subjectLabel ? `Fill out ${subjectLabel}'s onboarding` : "Finish onboarding"} →
+                </a>
+              )}
+            </div>
+          )}
 
           {/* Calories */}
           <div className="flex items-center gap-3">
