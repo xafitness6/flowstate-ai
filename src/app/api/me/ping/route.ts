@@ -75,8 +75,11 @@ export async function POST(req: Request) {
 
       // Accountability cadence → turn the chosen check-in style into real nudges.
       //   daily  → once per day  · weekly → once per 7 days · hands off → nothing.
+      // PAUSED: the check-in flow is being reworked (it duplicated the on-page
+      // checklist). Flip CHECKIN_NUDGES_ON to re-enable once the flow is redone.
+      const CHECKIN_NUDGES_ON = false;
       const cadence = typeof raw?.checkInCadence === "string" ? raw.checkInCadence : null;
-      if (cadence === "daily" || cadence === "weekly") {
+      if (CHECKIN_NUDGES_ON && (cadence === "daily" || cadence === "weekly")) {
         const link = cadence === "daily" ? "/accountability?checkin=daily" : "/nutrition?checkin=weekly";
         const { data: lastC } = await admin
           .from("notifications").select("created_at")
