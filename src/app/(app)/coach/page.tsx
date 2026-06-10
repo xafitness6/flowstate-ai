@@ -126,6 +126,10 @@ function TypingDots() {
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
+// Talking-head video is paused until Higgsfield Pro is in play — flip
+// NEXT_PUBLIC_ENABLE_COACH_AVATAR=true to re-enable.
+const AVATAR_ENABLED = process.env.NEXT_PUBLIC_ENABLE_COACH_AVATAR === "true";
+
 function MessageBubble({ message, onPlayAvatar, onPlayVoice }: {
   message:      Message;
   onPlayAvatar: (messageId: string) => void;
@@ -134,7 +138,7 @@ function MessageBubble({ message, onPlayAvatar, onPlayVoice }: {
   const isAI         = message.role === "ai";
   const canPlay      = isAI && !message.typing && !message.action && message.text.trim().length > 0;
   const canPlayVoice  = canPlay && !message.voice;
-  const canPlayAvatar = canPlay && !message.avatar;
+  const canPlayAvatar = AVATAR_ENABLED && canPlay && !message.avatar;
   return (
     <div className={cn("flex gap-3", isAI ? "items-start" : "items-start flex-row-reverse")}>
       {isAI && (
