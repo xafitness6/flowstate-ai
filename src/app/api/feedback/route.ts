@@ -7,8 +7,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
+import { sendNotificationEmail } from "@/lib/server/email";
 
 const ai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+// Where submitted reports get routed. Overridable via env; defaults to the admin.
+const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL?.trim() || "xavellis4@gmail.com";
 
 type Body = {
   message?:   unknown;
@@ -102,6 +106,31 @@ Be specific. No fluff. No headings. Plain text only.` },
   if (error) {
     console.error("[feedback] insert:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Route the report to the admin inbox — best-effort, never blocks the submit.
+  try {
+    const sevTag = severity === "critical" || severity === "high" ? `${severity.toUpperCase()} ` : "";
+    const short = message.length > 56 ? `${message.slice(0, 53)}…` : message;
+    const detail = [
+      `From: ${userEmail ?? "anonymous"}${userRole ? ` (${userRole})` : ""}`,
+      pageUrl ? `Page: ${pageUrl}` : "",
+      `Severity: ${severity}`,
+      "",
+      message,
+      aiDiagnosis ? `\nAI triage — ${aiDiagnosis}` : "",
+    ].filter(Boolean).join("\n");
+
+    await sendNotificationEmail({
+      to: ADMIN_ALERT_EMAIL,
+      subject: `[Flowstate ${category}] ${sevTag}${short}`,
+      heading: `New ${category} report${severity !== "normal" ? ` · ${severity}` : ""}`,
+      body: detail,
+      ctaText: pageUrl ? "Open the page" : undefined,
+      ctaUrl: pageUrl ?? undefined,
+    });
+  } catch (e) {
+    console.warn("[feedback] admin alert email failed:", e);
   }
 
   return NextResponse.json({ ok: true, id: (data as { id?: string } | null)?.id ?? null });
