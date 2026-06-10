@@ -18,9 +18,10 @@ const exec = promisify(execCb);
 export type AvatarResult = { videoUrl: string };
 
 type CreateOpts = {
-  startImage: string;   // absolute path to local portrait image
-  audioPath:  string;   // absolute path to local mp3
-  durationSec: number;  // clamped to Seedance's 4-15s range
+  startImage:  string;   // absolute path to local portrait image
+  audioPath:   string;   // absolute path to local mp3
+  durationSec: number;   // clamped to Seedance's 4-15s range
+  prompt:      string;   // required by the model schema; the spoken text works fine
 };
 
 const BIN = process.env.HIGGSFIELD_BIN ?? "higgsfield";
@@ -36,14 +37,18 @@ export async function isAvailable(): Promise<boolean> {
 
 export async function generateAvatarVideo(opts: CreateOpts): Promise<AvatarResult> {
   const duration = Math.max(4, Math.min(15, Math.round(opts.durationSec || 6)));
+  // Seedance 2.0 requires `prompt` — feeding the spoken text gives the model a
+  // matching motion guide for the lipsync rather than something contradictory.
   const args = [
     "generate", "create", "seedance_2_0",
+    "--prompt",      `Person speaking the following words to camera, natural expression, subtle head movement: ${opts.prompt}`,
     "--start-image", opts.startImage,
     "--audio",       opts.audioPath,
     "--duration",    String(duration),
     "--aspect_ratio", "9:16",
+    "--resolution",  "720p",
     "--wait",
-    "--wait-timeout", "15m",
+    "--wait-timeout", "25m",
     "--json",
   ];
 

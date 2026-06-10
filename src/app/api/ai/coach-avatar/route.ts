@@ -118,6 +118,7 @@ export async function POST(req: Request) {
       startImage:  portraitPath,
       audioPath,
       durationSec: duration,
+      prompt:      text,
     });
 
     return NextResponse.json({ videoUrl, durationSec: duration, spokenText: text });
