@@ -32,11 +32,7 @@ import {
 } from "@/lib/data/store";
 import type { AdminProfile } from "@/lib/admin/profileMapper";
 import { loadIntake, loadIntakeAsync, GOAL_LABELS } from "@/lib/data/intake";
-import { EnergyCard } from "@/components/nutrition/EnergyCard";
 import { calculateEnergy, type EnergyProfile } from "@/lib/nutrition";
-import {
-  loadApproach, goalModeFromIntake, type GoalMode,
-} from "@/lib/nutrition/approach";
 
 // ─── Build real pipeline data from localStorage ───────────────────────────────
 
@@ -437,9 +433,7 @@ function DashboardContent() {
   const [roleKey,      setRoleKey     ] = useState("");
   const [actualUserId, setActualUserId] = useState("");
   const [question,     setQuestion    ] = useState("");
-  const [energy,       setEnergy       ] = useState<EnergyProfile | null>(null);
-  const [energyGoal,   setEnergyGoal   ] = useState<string | undefined>(undefined);
-  const [energyGoalMode, setEnergyGoalMode] = useState<GoalMode | undefined>(undefined);
+  const [energy, setEnergy] = useState<EnergyProfile | null>(null);
   const pipeline = useAIPipeline();
   const hasRun   = useRef(false);
 
@@ -450,10 +444,6 @@ function DashboardContent() {
     loadIntakeAsync(actualUserId).then((intake) => {
       if (!active) return;
       setEnergy(intake ? calculateEnergy(intake) : null);
-      setEnergyGoal(intake ? GOAL_LABELS[intake.primaryGoal] : undefined);
-      setEnergyGoalMode(intake
-        ? (loadApproach(actualUserId).goalMode ?? goalModeFromIntake(intake.primaryGoal) ?? undefined)
-        : undefined);
     });
     return () => { active = false; };
   }, [actualUserId, role]);
@@ -562,252 +552,285 @@ function DashboardContent() {
   const planLabel = demoUser.plan ? demoUser.plan[0].toUpperCase() + demoUser.plan.slice(1) : null;
 
   return (
-    <div className="relative px-5 md:px-8 py-6 text-white max-w-5xl mx-auto">
-      {/* Get smarter coaching — trumps everything until deep calibration is done */}
-      {actualUserId && (
-        <div className="relative z-10 mb-6">
-          <DeepCalPrompt userId={actualUserId} />
-        </div>
-      )}
-
-      <GreetingBanner />
-
-      {/* Ambient glow — backdrop behind hero */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] overflow-hidden" aria-hidden>
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-[#B48B40]/[0.05] blur-[120px]" />
+    <div className="relative min-h-screen text-white">
+      {/* Ambient warmth — single radial vignette behind the entire surface,
+          no card borders, just light. */}
+      <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
+        <div className="absolute inset-0 bg-[radial-gradient(120%_55%_at_50%_-5%,rgba(180,139,64,0.07),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#0A0908_0%,#0B0908_100%)] -z-10" />
       </div>
 
-      {/* ── HERO ───────────────────────────────────────────────────────────── */}
-      <Card className="relative mb-6 border-white/[0.08] bg-gradient-to-br from-[#141414] via-[#0F0F0F] to-[#0A0A0A]">
-        <div className="px-6 md:px-8 py-7 md:py-8">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
-            <div className="md:col-span-3 min-w-0">
-              <div className="flex items-center gap-2 mb-3">
-                <p className="text-[10px] uppercase tracking-[0.28em] text-white/40">
-                  {todayLabel()}
-                </p>
-                <span className="text-white/15">·</span>
-                <span className="text-[10px] uppercase tracking-[0.2em] text-[#B48B40]/85 px-2 py-0.5 rounded-full border border-[#B48B40]/25 bg-[#B48B40]/[0.06]">
-                  {roleLabel[role]}
-                </span>
-                {planLabel && (
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-white/45 px-2 py-0.5 rounded-full border border-white/8 bg-white/[0.02]">
-                    {planLabel}
-                  </span>
-                )}
-              </div>
-              <h1 className="text-[2.5rem] md:text-[3rem] leading-[1.05] font-semibold tracking-tight">
-                {timeOfDayGreeting()},
-                <span className="block text-white/55 font-light">{firstName}.</span>
-              </h1>
-              <p className="mt-3 text-sm text-white/45 max-w-md leading-relaxed">
-                {heroSubline(role)}
-              </p>
-            </div>
+      {/* Login greeting toast still has its place — doesn't conflict with the new cover. */}
+      <GreetingBanner />
 
-            <div className="md:col-span-2 grid grid-cols-3 gap-3">
-              <HeroStat
-                label="Streak"
-                value={getStreakFromLogs()}
-                unit="d"
-                accent="text-[#B48B40]"
-              />
-              <HeroStat
-                label="Sessions"
-                value={getSessionsThisWeek()}
-                unit="/wk"
-              />
-              <HeroStat
-                label="Score"
-                value={getTodayScore()}
-                unit="/100"
-                accent="text-emerald-300"
-              />
-            </div>
+      <div className="relative mx-auto max-w-[640px] px-6 md:px-8 pt-10 md:pt-14 pb-28 space-y-16 md:space-y-20">
+
+        {/* Calibration nudge — quietly above the fold when present. */}
+        {actualUserId && <DeepCalPrompt userId={actualUserId} />}
+
+        {/* ── COVER ─────────────────────────────────────────────────────── */}
+        <header className="space-y-7">
+          {/* Date · role · plan as a single thin hairline row. No uppercase tracking. */}
+          <div className="flex items-center gap-3 text-[12px] text-white/30 tabular-nums">
+            <span>{todayLabel()}</span>
+            <span aria-hidden className="h-px w-8 bg-white/15" />
+            <span className="text-white/45">{roleLabel[role]}{planLabel ? ` · ${planLabel}` : ""}</span>
           </div>
-        </div>
 
-        {/* Primary CTA strip */}
+          {/* Editorial greeting — light weight, big numerals-like name. */}
+          <div className="space-y-1.5">
+            <p className="text-[28px] md:text-[34px] font-extralight text-white/45 leading-none">
+              {timeOfDayGreeting()},
+            </p>
+            <h1 className="text-[56px] md:text-[68px] font-medium tracking-[-0.025em] leading-[0.95]">
+              {firstName}.
+            </h1>
+          </div>
+
+          {/* One personal line, short. */}
+          <p className="text-[15px] text-white/55 leading-relaxed max-w-md">
+            {heroSubline(role)}
+          </p>
+        </header>
+
+        {/* ── PULSE — three stats, no boxes, hairline-separated. */}
+        <section className="grid grid-cols-3 gap-px bg-white/[0.06] rounded-2xl overflow-hidden">
+          <PulseStat label="Streak"   value={getStreakFromLogs()}    suffix="d" />
+          <PulseStat label="Sessions" value={getSessionsThisWeek()}  suffix=" / wk" />
+          <PulseStat label="Today"    value={getTodayScore()}        suffix=" / 100" accent />
+        </section>
+
+        {/* ── TODAY'S SESSION — the ONE bordered block on the page. The CTA. */}
         <Link
           href="/program"
-          className="relative flex items-center justify-between gap-4 border-t border-white/[0.06] px-6 md:px-8 py-4 hover:bg-white/[0.02] transition-colors group"
+          className="group block relative rounded-[28px] border border-[#B48B40]/22 bg-gradient-to-b from-[#100D08] to-[#0A0908] px-7 md:px-9 py-8 md:py-10 transition-all hover:border-[#B48B40]/45 hover:shadow-[0_24px_48px_-24px_rgba(180,139,64,0.35)]"
         >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#B48B40]/10 border border-[#B48B40]/25 flex items-center justify-center shrink-0">
-              <Dumbbell className="w-4 h-4 text-[#B48B40]" strokeWidth={2} />
+          {/* warm corner glow */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(80%_50%_at_85%_15%,rgba(180,139,64,0.10),transparent_55%)]" />
+          <div className="relative flex items-start justify-between gap-6">
+            <div className="space-y-3 min-w-0">
+              <p className="text-[11px] tracking-[0.08em] text-[#B48B40]/75 font-medium">Today's session</p>
+              <p className="text-[28px] md:text-[32px] font-medium tracking-tight leading-[1.05]">
+                Open your program
+              </p>
+              <p className="text-[13px] text-white/45 leading-relaxed max-w-[18rem]">
+                Your training, set to your goal and what you've done this week.
+              </p>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white/90">Today&apos;s session</p>
-              <p className="text-[11px] text-white/40 truncate">Open your program to start training</p>
+            <div className="shrink-0 mt-1 w-11 h-11 rounded-full border border-[#B48B40]/35 flex items-center justify-center transition-all group-hover:bg-[#B48B40]/10 group-hover:border-[#B48B40]/65 group-hover:translate-x-0.5">
+              <ArrowRight className="w-4 h-4 text-[#B48B40]" strokeWidth={2} />
             </div>
           </div>
-          <ArrowRight className="w-4 h-4 text-white/30 group-hover:text-white/70 group-hover:translate-x-0.5 transition-all" strokeWidth={2} />
         </Link>
-      </Card>
 
-      <div className="relative space-y-6">
-        {/* Today's snapshot — first thing a client/member sees */}
+        {/* Today snapshot — for member/client only. Borderless, just lives in the flow. */}
         {(role === "member" || role === "client") && (
           <TodaySnapshot userId={actualUserId} />
         )}
 
-        {/* Energy / BMR card — same view the trainer sees */}
+        {/* ── ENERGY — single inline line for member/client. No card, just data. */}
         {(role === "member" || role === "client") && energy && (
-          <div className="sm:max-w-sm">
-            <EnergyCard energy={energy} goalLabel={energyGoal} goalMode={energyGoalMode} />
-          </div>
+          <EnergyInline energy={energy} />
         )}
 
-        {/* Two-column on desktop: AI Coach left, Role panel right */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* AI Coach */}
-          <Card className="lg:col-span-3">
-            <div className="px-5 pt-5 pb-4 border-b border-white/[0.05]">
-              <div className="flex items-center justify-between mb-1">
-                <SectionHeader className="mb-0">AI Coach</SectionHeader>
-                <Link
-                  href="/coach"
-                  className="text-[10px] text-white/35 hover:text-white/70 flex items-center gap-1 transition-colors"
-                >
-                  Open chat <ArrowRight className="w-3 h-3" strokeWidth={2} />
-                </Link>
-              </div>
-              <p className="text-[11px] text-white/40">Ask for a plan, an adjustment, or an explanation.</p>
-            </div>
-
-            <form onSubmit={handleAsk} className="px-5 py-4 border-b border-white/[0.05]">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="e.g. Should I push harder on legs today?"
-                  className="flex-1 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-[#B48B40]/40 focus:bg-[#B48B40]/[0.04] transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={!question.trim() || ACTIVE_STATUSES.includes(pipeline.status)}
-                  className="rounded-xl bg-[#B48B40] text-black px-3.5 py-2.5 hover:bg-[#c99840] disabled:bg-white/[0.04] disabled:text-white/25 disabled:cursor-default transition-all"
-                  aria-label="Ask coach"
-                >
-                  <Send className="w-4 h-4" strokeWidth={2} />
-                </button>
-              </div>
-            </form>
-
-            <div className="px-5 py-4 space-y-3 min-h-[80px]">
-              {ACTIVE_STATUSES.includes(pipeline.status) && (
-                <div className="flex items-center gap-2.5">
-                  <Loader2 className="w-3.5 h-3.5 text-[#B48B40]/60 animate-spin" />
-                  <p className="text-xs text-white/45">
-                    {PIPELINE_LABELS[pipeline.status] ?? "Processing…"}
-                  </p>
-                </div>
-              )}
-
-              {pipeline.status === "error" && (
-                <p className="text-xs text-red-400/75">{pipeline.error}</p>
-              )}
-
-              {pipeline.activeMode === "education" && pipeline.educationResult && pipeline.status === "complete" && (
-                <div className="space-y-3">
-                  <p className="text-sm text-white/80 leading-relaxed">
-                    {pipeline.educationResult.explanation}
-                  </p>
-                  {pipeline.educationResult.example && (
-                    <p className="text-xs text-white/45 leading-relaxed italic border-l-2 border-white/10 pl-3">
-                      {pipeline.educationResult.example}
-                    </p>
-                  )}
-                  <div className="flex gap-2.5 pt-2 border-t border-white/[0.05]">
-                    <div className="w-[2px] rounded-full bg-[#B48B40]/40 shrink-0 mt-0.5" />
-                    <p className="text-sm text-white/65 leading-snug">
-                      {pipeline.educationResult.takeaway}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {pipeline.activeMode !== "education" && activeCoachResult &&
-                !["summarizing","deciding","formatting"].includes(pipeline.status) && (() => {
-                const r = activeCoachResult;
-                return (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1.5">Today&apos;s focus</p>
-                      <p className="text-sm text-white/85 leading-snug">{r.response.todays_focus}</p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.05]">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">Training range</p>
-                        <p className="text-sm font-semibold text-white/90">{r.response.training_plan.intensity}</p>
-                        <p className="text-[11px] text-white/40 mt-0.5">{r.response.training_plan.duration}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">Game plan</p>
-                        <p className="text-xs text-white/55 leading-snug">{r.response.training_plan.summary}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2.5 pt-3 border-t border-white/[0.05]">
-                      <div className="w-[2px] rounded-full bg-[#B48B40]/40 shrink-0 mt-0.5" />
-                      <p className="text-sm text-white/55 italic leading-snug">{r.response.coaching_insight}</p>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {!ACTIVE_STATUSES.includes(pipeline.status)
-                && pipeline.status !== "error"
-                && !activeCoachResult && !pipeline.educationResult && (
-                <p className="text-xs text-white/30">No recommendation yet. Ask a question or log training, nutrition, or habits to build one.</p>
-              )}
-            </div>
-          </Card>
-
-          {/* Role-specific overview */}
-          <div className="lg:col-span-2 space-y-6">
-            {role === "trainer" && <TrainerOverviewPanel userId={actualUserId} />}
-            {role === "client"  && <ClientOverviewPanel  userId={actualUserId} />}
-            {role === "master"  && <MasterOverviewPanel  />}
-            {role === "member"  && <MemberOverviewPanel  />}
+        {/* ── COACH — input lives on the page, reply flows below as editorial text. */}
+        <section className="space-y-6">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-[20px] font-medium text-white/85 tracking-tight">Ask your coach</h2>
+            <Link
+              href="/coach"
+              className="text-[12px] text-white/35 hover:text-[#B48B40] transition-colors"
+            >
+              Open chat →
+            </Link>
           </div>
-        </div>
 
-        {/* Quick access */}
+          <form onSubmit={handleAsk}>
+            <div className={cn(
+              "flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] px-5 py-4",
+              "transition-colors focus-within:border-[#B48B40]/40 focus-within:bg-[#B48B40]/[0.03]",
+            )}>
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Should I push harder on legs today?"
+                className="flex-1 bg-transparent text-[15px] text-white/85 placeholder:text-white/22 outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!question.trim() || ACTIVE_STATUSES.includes(pipeline.status)}
+                className="text-[12px] font-medium text-[#B48B40]/85 hover:text-[#B48B40] disabled:text-white/15 transition-colors"
+                aria-label="Ask coach"
+              >
+                {ACTIVE_STATUSES.includes(pipeline.status) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" strokeWidth={1.8} />}
+              </button>
+            </div>
+          </form>
+
+          {/* Coach output — flowing editorial text, no nested cards. */}
+          {ACTIVE_STATUSES.includes(pipeline.status) && (
+            <p className="text-[13px] text-white/40 flex items-center gap-2 pt-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#B48B40]/65 animate-pulse" />
+              {PIPELINE_LABELS[pipeline.status] ?? "Thinking…"}
+            </p>
+          )}
+
+          {pipeline.status === "error" && (
+            <p className="text-[13px] text-red-300/75">{pipeline.error}</p>
+          )}
+
+          {pipeline.activeMode === "education" && pipeline.educationResult && pipeline.status === "complete" && (
+            <div className="space-y-4 pt-2">
+              <p className="text-[15px] text-white/80 leading-relaxed">
+                {pipeline.educationResult.explanation}
+              </p>
+              {pipeline.educationResult.example && (
+                <p className="text-[13px] text-white/45 leading-relaxed italic border-l border-[#B48B40]/35 pl-4">
+                  {pipeline.educationResult.example}
+                </p>
+              )}
+              <p className="text-[14px] text-white/70 leading-snug pt-1">
+                <span className="text-[#B48B40]/85">→ </span>{pipeline.educationResult.takeaway}
+              </p>
+            </div>
+          )}
+
+          {pipeline.activeMode !== "education" && activeCoachResult &&
+            !["summarizing","deciding","formatting"].includes(pipeline.status) && (() => {
+            const r = activeCoachResult;
+            return (
+              <div className="space-y-6 pt-2">
+                <div>
+                  <p className="text-[11px] text-white/30 mb-1.5">Today's focus</p>
+                  <p className="text-[15px] text-white/85 leading-snug">{r.response.todays_focus}</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-5 border-t border-white/[0.06]">
+                  <div>
+                    <p className="text-[11px] text-white/30 mb-1">Training range</p>
+                    <p className="text-[16px] font-medium text-white/90">{r.response.training_plan.intensity}</p>
+                    <p className="text-[12px] text-white/40 mt-0.5">{r.response.training_plan.duration}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-white/30 mb-1">Game plan</p>
+                    <p className="text-[13px] text-white/60 leading-snug">{r.response.training_plan.summary}</p>
+                  </div>
+                </div>
+                <p className="text-[14px] text-white/55 italic leading-snug pt-1">
+                  <span className="text-[#B48B40]/85 not-italic">→ </span>{r.response.coaching_insight}
+                </p>
+              </div>
+            );
+          })()}
+
+          {!ACTIVE_STATUSES.includes(pipeline.status)
+            && pipeline.status !== "error"
+            && !activeCoachResult && !pipeline.educationResult && (
+            <p className="text-[13px] text-white/30 leading-relaxed pt-1">
+              No recommendation yet. Ask a question or log training, nutrition, or habits to build one.
+            </p>
+          )}
+        </section>
+
+        {/* ── CONTINUE — editorial stacked rows, hairline-divided. Replaces the 2×3 tile grid. */}
         <section>
-          <SectionHeader
-            action={
-              <span className="text-[11px] text-white/30">
-                {visibleCards.length} shortcuts
-              </span>
-            }
-          >
-            Quick Access
-          </SectionHeader>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-            {visibleCards.map(({ label, sub, href, icon: Icon, accent }) => (
+          <h2 className="text-[20px] font-medium text-white/85 tracking-tight mb-7">Continue</h2>
+          <div className="divide-y divide-white/[0.06] border-t border-b border-white/[0.06]">
+            {visibleCards.map(({ label, sub, href, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
-                className="group relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 hover:border-white/15 hover:bg-white/[0.04] transition-all overflow-hidden"
+                className="group flex items-center justify-between gap-4 py-5 transition-colors"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className={cn(
-                    "w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-colors",
-                    "border-white/[0.08] bg-white/[0.03] group-hover:border-white/15 group-hover:bg-white/[0.06]",
-                  )}>
-                    <Icon className={cn("w-4 h-4", accent)} strokeWidth={1.8} />
+                <div className="flex items-center gap-5 min-w-0">
+                  <Icon
+                    className="w-[18px] h-[18px] text-white/35 group-hover:text-[#B48B40] transition-colors shrink-0"
+                    strokeWidth={1.5}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[15px] text-white/85 group-hover:text-white transition-colors">{label}</p>
+                    <p className="text-[12px] text-white/35 mt-0.5">{sub}</p>
                   </div>
-                  <ArrowRight className="w-3.5 h-3.5 text-white/15 group-hover:text-white/55 group-hover:translate-x-0.5 transition-all" strokeWidth={2} />
                 </div>
-                <p className="text-sm font-semibold text-white/85 leading-none">{label}</p>
-                <p className="text-[11px] text-white/35 mt-1.5">{sub}</p>
+                <ArrowRight
+                  className="w-3.5 h-3.5 text-white/15 group-hover:text-[#B48B40] group-hover:translate-x-0.5 transition-all shrink-0"
+                  strokeWidth={2}
+                />
               </Link>
             ))}
           </div>
         </section>
+
+        {/* ── ROLE OVERVIEW — data widgets keep their internal styling for now;
+            they'll be re-skinned in a follow-up pass. */}
+        {(role === "trainer" || role === "client" || role === "master" || role === "member") && (
+          <section className="space-y-7">
+            <h2 className="text-[20px] font-medium text-white/85 tracking-tight">
+              {role === "master"  ? "Platform" :
+               role === "trainer" ? "Your roster" :
+               role === "client"  ? "Today" : "Stay sharp"}
+            </h2>
+            {role === "trainer" && <TrainerOverviewPanel userId={actualUserId} />}
+            {role === "client"  && <ClientOverviewPanel  userId={actualUserId} />}
+            {role === "master"  && <MasterOverviewPanel  />}
+            {role === "member"  && <MemberOverviewPanel  />}
+          </section>
+        )}
       </div>
     </div>
+  );
+}
+
+// ─── New editorial-premium dashboard components ─────────────────────────────
+
+function PulseStat({ label, value, suffix, accent }: {
+  label:   string;
+  value:   number;
+  suffix?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="bg-[#0A0908] px-5 py-6 text-center">
+      <p className={cn(
+        "text-[34px] md:text-[40px] font-medium tabular-nums leading-none tracking-tight",
+        accent ? "text-[#B48B40]" : "text-white/90",
+      )}>
+        {value}<span className="text-white/30 text-[18px] md:text-[20px] font-extralight">{suffix}</span>
+      </p>
+      <p className="text-[11px] text-white/35 mt-2.5">{label}</p>
+    </div>
+  );
+}
+
+function EnergyInline({ energy }: { energy: EnergyProfile }) {
+  // Pulls just BMR + target out of the EnergyProfile so the dashboard
+  // surfaces a single confident metric — full breakdown lives on /nutrition.
+  return (
+    <section>
+      <div className="flex items-baseline justify-between mb-5">
+        <h2 className="text-[20px] font-medium text-white/85 tracking-tight">Energy</h2>
+        <Link href="/nutrition" className="text-[12px] text-white/35 hover:text-[#B48B40] transition-colors">
+          Full breakdown →
+        </Link>
+      </div>
+      <div className="flex items-baseline gap-3">
+        <p className="text-[44px] md:text-[52px] font-medium tabular-nums leading-none tracking-tight text-white/90">
+          {energy.targetCalories.toLocaleString()}
+        </p>
+        <p className="text-[14px] text-white/40">kcal target</p>
+      </div>
+      <p className="text-[12px] text-white/35 mt-3">
+        BMR <span className="text-white/55 tabular-nums">{energy.bmr.toLocaleString()}</span>
+        <span className="mx-2.5 text-white/15">·</span>
+        Maintenance <span className="text-white/55 tabular-nums">{energy.tdee.toLocaleString()}</span>
+      </p>
+      <div className="mt-4 h-px bg-white/[0.06] relative overflow-hidden">
+        <div
+          className="absolute inset-y-[-1px] left-0 bg-[#B48B40]/85"
+          style={{ width: `${Math.min(100, Math.round((energy.targetCalories / Math.max(1, energy.tdee)) * 100))}%` }}
+        />
+      </div>
+    </section>
   );
 }
 
@@ -827,20 +850,6 @@ function heroSubline(role: Role): string {
   if (role === "trainer") return "Your roster's state today. Where attention is needed, what's on track.";
   if (role === "client")  return "Everything your coach has set up for you, plus what's coming next.";
   return "What matters most today, distilled down — train, eat, recover, repeat.";
-}
-
-function HeroStat({ label, value, unit, accent }: {
-  label: string; value: number | string; unit?: string; accent?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-3">
-      <p className={cn("text-2xl font-semibold tracking-tight tabular-nums", accent ?? "text-white/90")}>
-        {value}
-        {unit && <span className="text-xs text-white/30 ml-0.5 font-normal">{unit}</span>}
-      </p>
-      <p className="text-[10px] uppercase tracking-[0.15em] text-white/35 mt-1">{label}</p>
-    </div>
-  );
 }
 
 function getStreakFromLogs(): number {
