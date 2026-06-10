@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen, Clock, Plus, X, MessageSquare, Trash2, AudioLines, Video, Volume2, Loader2, AlertTriangle } from "lucide-react";
+import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen, Clock, Plus, X, MessageSquare, Trash2, AudioLines } from "lucide-react";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, UpgradeCard, FEATURES } from "@/components/ui/PlanGate";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
@@ -36,10 +36,6 @@ type Message = {
   text:    string;
   typing?: boolean;
   action?: ActionCard;
-  /** Optional avatar video — populated by /api/ai/coach-avatar on demand. */
-  avatar?: { status: "loading" | "ready" | "error"; videoUrl?: string; error?: string };
-  /** Optional TTS playback — populated by /api/ai/coach-voice on demand. */
-  voice?:  { status: "loading" | "ready" | "error"; audioUrl?: string; error?: string };
 };
 
 type Prompt = {
@@ -126,19 +122,8 @@ function TypingDots() {
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
-// Talking-head video is paused until Higgsfield Pro is in play — flip
-// NEXT_PUBLIC_ENABLE_COACH_AVATAR=true to re-enable.
-const AVATAR_ENABLED = process.env.NEXT_PUBLIC_ENABLE_COACH_AVATAR === "true";
-
-function MessageBubble({ message, onPlayAvatar, onPlayVoice }: {
-  message:      Message;
-  onPlayAvatar: (messageId: string) => void;
-  onPlayVoice:  (messageId: string) => void;
-}) {
-  const isAI         = message.role === "ai";
-  const canPlay      = isAI && !message.typing && !message.action && message.text.trim().length > 0;
-  const canPlayVoice  = canPlay && !message.voice;
-  const canPlayAvatar = AVATAR_ENABLED && canPlay && !message.avatar;
+function MessageBubble({ message }: { message: Message }) {
+  const isAI = message.role === "ai";
   return (
     <div className={cn("flex gap-3", isAI ? "items-start" : "items-start flex-row-reverse")}>
       {isAI && (
@@ -147,7 +132,7 @@ function MessageBubble({ message, onPlayAvatar, onPlayVoice }: {
         </div>
       )}
       <div className={cn(
-        "rounded-2xl px-4 py-3 max-w-[82%] space-y-2",
+        "rounded-2xl px-4 py-3 max-w-[82%]",
         isAI
           ? "bg-[#111111] border border-white/7 rounded-tl-sm"
           : "bg-[#B48B40]/12 border border-[#B48B40]/18 rounded-tr-sm"
@@ -160,77 +145,6 @@ function MessageBubble({ message, onPlayAvatar, onPlayVoice }: {
           <p className={cn("text-sm leading-relaxed", isAI ? "text-white/80" : "text-white/70")}>
             {message.text}
           </p>
-        )}
-
-        {/* Voice playback — fast path, always available */}
-        {message.voice?.status === "ready" && message.voice.audioUrl && (
-          <audio
-            src={message.voice.audioUrl}
-            controls
-            autoPlay
-            className="w-full max-w-[300px] mt-2"
-          />
-        )}
-        {message.voice?.status === "error" && (
-          <p className="text-[11px] text-red-300/75 flex items-center gap-1.5 mt-1">
-            <AlertTriangle className="w-3 h-3" strokeWidth={1.8} />
-            {message.voice.error ?? "Couldn't generate audio."}
-          </p>
-        )}
-        {message.voice?.status === "loading" && (
-          <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/45 pt-1">
-            <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
-            Voicing…
-          </p>
-        )}
-
-        {/* Avatar video — richer, needs Higgsfield Pro */}
-        {message.avatar?.status === "ready" && message.avatar.videoUrl && (
-          <video
-            src={message.avatar.videoUrl}
-            controls
-            autoPlay
-            playsInline
-            className="w-full max-w-[300px] rounded-xl border border-white/10 bg-black mt-2"
-          />
-        )}
-        {message.avatar?.status === "error" && (
-          <p className="text-[11px] text-red-300/75 flex items-center gap-1.5 mt-1">
-            <AlertTriangle className="w-3 h-3" strokeWidth={1.8} />
-            {message.avatar.error ?? "Couldn't generate video."}
-          </p>
-        )}
-        {message.avatar?.status === "loading" && (
-          <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/45 pt-1">
-            <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
-            Rendering avatar…
-          </p>
-        )}
-
-        {/* Action row — Play as audio (fast, free) + Play as video (lipsync, Pro) */}
-        {(canPlayVoice || canPlayAvatar) && (
-          <div className="flex items-center gap-3 pt-1">
-            {canPlayVoice && (
-              <button
-                onClick={() => onPlayVoice(message.id)}
-                className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#B48B40]/65 hover:text-[#B48B40] transition-colors"
-                title="Play this reply as audio"
-              >
-                <Volume2 className="w-3 h-3" strokeWidth={1.8} />
-                Play as audio
-              </button>
-            )}
-            {canPlayAvatar && (
-              <button
-                onClick={() => onPlayAvatar(message.id)}
-                className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40 hover:text-[#B48B40] transition-colors"
-                title="Generate a talking-head video (Higgsfield Pro)"
-              >
-                <Video className="w-3 h-3" strokeWidth={1.8} />
-                Play as video
-              </button>
-            )}
-          </div>
         )}
       </div>
     </div>
@@ -329,21 +243,45 @@ function CoachPageInner() {
   const liveRef = useRef(false);
   useEffect(() => { liveRef.current = conv.active; }, [conv.active]);
 
-  // Speak the coach's reply (live mode only), then un-pause the mic on end so it
-  // never transcribes the coach's own voice.
-  const speakThenResume = useCallback((text: string) => {
-    if (!liveRef.current) return;
-    const synth = typeof window !== "undefined" ? window.speechSynthesis : null;
-    if (!synth || !text.trim()) { conv.setPaused(false); return; }
+  // Speak the coach's reply (live mode only) using OpenAI TTS, then un-pause
+  // the mic on end so it never transcribes the coach's own voice. We hold a
+  // ref to the active audio so exiting voice mode mid-playback can cancel it.
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const stopAudio = useCallback(() => {
+    const a = currentAudioRef.current;
+    if (a) { a.pause(); a.src = ""; currentAudioRef.current = null; }
+  }, []);
+  const speakThenResume = useCallback(async (text: string) => {
+    const cleaned = text.replace(/[*_#`>]/g, "").trim();
+    if (!liveRef.current || !cleaned) { conv.setPaused(false); return; }
+    conv.setPaused(true);
+    stopAudio();
     try {
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text.replace(/[*_#`>]/g, ""));
-      u.rate = 1.05;
-      const resume = () => conv.setPaused(false);
-      u.onend = resume; u.onerror = resume;
-      synth.speak(u);
-    } catch { conv.setPaused(false); }
-  }, [conv]);
+      const res = await fetch("/api/ai/coach-voice", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ text: cleaned }),
+      });
+      if (!res.ok) throw new Error("voice failed");
+      const { audioUrl } = await res.json() as { audioUrl?: string };
+      if (!audioUrl || !liveRef.current) { conv.setPaused(false); return; }
+      const audio = new Audio(audioUrl);
+      currentAudioRef.current = audio;
+      const resume = () => {
+        if (currentAudioRef.current === audio) currentAudioRef.current = null;
+        if (liveRef.current) conv.setPaused(false);
+      };
+      audio.onended = resume;
+      audio.onerror = resume;
+      await audio.play();
+    } catch {
+      if (liveRef.current) conv.setPaused(false);
+    }
+  }, [conv, stopAudio]);
+
+  // When the user leaves live voice mode, kill any in-flight audio.
+  useEffect(() => { if (!conv.active) stopAudio(); }, [conv.active, stopAudio]);
+  useEffect(() => () => stopAudio(), [stopAudio]);
 
   const [intensity,      setIntensity]      = useLocalStorage<number> ("coach-intensity",       3);
   const [strongLanguage, setStrongLanguage] = useLocalStorage<boolean>("coach-strong-language", false);
@@ -410,74 +348,6 @@ function CoachPageInner() {
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, convLoaded, loading]);
-
-  // Voice playback — fast TTS-only fallback that works on every plan.
-  async function playVoice(messageId: string) {
-    setMessages((prev) => prev.map((m) =>
-      m.id === messageId ? { ...m, voice: { status: "loading" } } : m,
-    ));
-    const msg  = messages.find((m) => m.id === messageId);
-    const text = msg?.text?.trim();
-    if (!text) {
-      setMessages((prev) => prev.map((m) =>
-        m.id === messageId ? { ...m, voice: { status: "error", error: "No text to speak." } } : m,
-      ));
-      return;
-    }
-    try {
-      const res = await fetch("/api/ai/coach-voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ text }),
-      });
-      const json = await res.json() as { audioUrl?: string; error?: string };
-      if (!res.ok || !json.audioUrl) {
-        throw new Error(json.error ?? "Couldn't voice that reply.");
-      }
-      setMessages((prev) => prev.map((m) =>
-        m.id === messageId ? { ...m, voice: { status: "ready", audioUrl: json.audioUrl } } : m,
-      ));
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Couldn't voice that reply.";
-      setMessages((prev) => prev.map((m) =>
-        m.id === messageId ? { ...m, voice: { status: "error", error: message } } : m,
-      ));
-    }
-  }
-
-  // Avatar playback — generate a talking-head video for an AI reply on demand.
-  async function playAvatar(messageId: string) {
-    setMessages((prev) => prev.map((m) =>
-      m.id === messageId ? { ...m, avatar: { status: "loading" } } : m,
-    ));
-    const msg = messages.find((m) => m.id === messageId);
-    const text = msg?.text?.trim();
-    if (!text) {
-      setMessages((prev) => prev.map((m) =>
-        m.id === messageId ? { ...m, avatar: { status: "error", error: "No text to speak." } } : m,
-      ));
-      return;
-    }
-    try {
-      const res = await fetch("/api/ai/coach-avatar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ text }),
-      });
-      const json = await res.json() as { videoUrl?: string; error?: string };
-      if (!res.ok || !json.videoUrl) {
-        throw new Error(json.error ?? "Couldn't render that reply.");
-      }
-      setMessages((prev) => prev.map((m) =>
-        m.id === messageId ? { ...m, avatar: { status: "ready", videoUrl: json.videoUrl } } : m,
-      ));
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Couldn't render that reply.";
-      setMessages((prev) => prev.map((m) =>
-        m.id === messageId ? { ...m, avatar: { status: "error", error: message } } : m,
-      ));
-    }
-  }
 
   function newConversation() {
     setConvId(null);
@@ -847,7 +717,7 @@ function CoachPageInner() {
 
       {/* ── Messages ─────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 space-y-4 md:px-6 md:py-6">
-        {messages.map((msg) => <MessageBubble key={msg.id} message={msg} onPlayAvatar={playAvatar} onPlayVoice={playVoice} />)}
+        {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
         <div ref={bottomRef} />
       </div>
 
