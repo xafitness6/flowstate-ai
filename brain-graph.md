@@ -337,14 +337,23 @@ shapes WHEN and HOW from Xavier's ebook *Conquer Your Carbs*.
   vision and returns structured JSON: overall verdict + per-phase cues +
   one-thing-to-fix. UI: `FormCheckModal` mounted on every workout
   `ExerciseCard` via the "Form check" pill.
-- **Coach avatar / talking head** (`/api/ai/coach-avatar`): TTS via
-  `gpt-4o-mini-tts` → MP3 → Higgsfield CLI `seedance_2_0 --start-image
-  <portrait> --audio <mp3> --duration N --wait --json` for lipsync. Wrapper
-  at `src/lib/avatar/higgsfield.ts`. Coach chat shows "Play as video" on
-  every AI reply; renders inline. Setup: `higgsfield auth login` on host
-  (CLI installed via `@higgsfield/cli`), portrait at
-  `public/coach-portrait.jpg` (or `COACH_PORTRAIT_URL` env). Higgsfield skill
-  installed under `.agents/skills/higgsfield-generate` via
+- **Coach voice (TTS fallback)** (`/api/ai/coach-voice`): OpenAI
+  `gpt-4o-mini-tts` only — returns the mp3 as a base64 data URL the chat
+  drops into an `<audio>` element. Works on every plan, finishes in 1–3s.
+  Default fallback shown in chat as "Play as audio".
+- **Coach avatar / talking head** (`/api/ai/coach-avatar`): TTS →
+  Higgsfield CLI `seedance_2_0 --prompt <text> --start-image <portrait>
+  --audio <mp3> --duration N --wait --json` for lipsync. Wrapper at
+  `src/lib/avatar/higgsfield.ts`. Coach chat shows "Play as video" on every
+  AI reply; renders inline. **seedance_2_0 requires a Higgsfield Pro plan**
+  — on free, the voice fallback covers it. Setup:
+  1. CLI installed via `curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh -s -- --prefix=$HOME/.local`
+  2. `higgsfield auth login` (browser device flow, one-time)
+  3. `HIGGSFIELD_BIN` env points at the binary
+  4. Portrait at `public/coach-portrait.jpg` (or `COACH_PORTRAIT_URL` env).
+  Production note: the CLI's session-file auth won't survive Vercel serverless —
+  swap to Higgsfield's HTTP API + service token when deploying.
+  Higgsfield skill installed under `.agents/skills/higgsfield-generate` via
   `npx skills add higgsfield-ai/skills` — reference its SKILL.md for model
   choice + flags.
 
