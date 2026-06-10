@@ -330,6 +330,24 @@ shapes WHEN and HOW from Xavier's ebook *Conquer Your Carbs*.
   shows a "Today is a HIGH/LOW-carb day" badge; suggestions adapt
   (post-workout carb push, overshoot warning on low days).
 
+### AI form check + coach avatar (Higgsfield + OpenAI)
+- **Form check** (`/api/ai/form-check`): browser extracts ~8 frames from a
+  user-uploaded set (no server ffmpeg — `<video>` + canvas via
+  `src/lib/video/frames.ts`), POSTs as data URLs; route hands them to GPT-4o
+  vision and returns structured JSON: overall verdict + per-phase cues +
+  one-thing-to-fix. UI: `FormCheckModal` mounted on every workout
+  `ExerciseCard` via the "Form check" pill.
+- **Coach avatar / talking head** (`/api/ai/coach-avatar`): TTS via
+  `gpt-4o-mini-tts` → MP3 → Higgsfield CLI `seedance_2_0 --start-image
+  <portrait> --audio <mp3> --duration N --wait --json` for lipsync. Wrapper
+  at `src/lib/avatar/higgsfield.ts`. Coach chat shows "Play as video" on
+  every AI reply; renders inline. Setup: `higgsfield auth login` on host
+  (CLI installed via `@higgsfield/cli`), portrait at
+  `public/coach-portrait.jpg` (or `COACH_PORTRAIT_URL` env). Higgsfield skill
+  installed under `.agents/skills/higgsfield-generate` via
+  `npx skills add higgsfield-ai/skills` — reference its SKILL.md for model
+  choice + flags.
+
 ## Workout flow overhaul (2026-06)
 
 `/program/workout/[workoutId]` no longer auto-starts. Phase machine:

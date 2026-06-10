@@ -5,10 +5,12 @@ import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Check, CheckCircle2,
   Timer, Zap, X, Flame, Play, Pause, Square, Headphones, Dumbbell, Clock, AlertTriangle, Mic, Send, Loader2,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/UserContext";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { FormCheckModal } from "@/components/workout/FormCheckModal";
 import {
   loadActiveProgramForUser, getWorkoutLogsForUser, saveWorkoutLog, getPreviousPerf,
   formatDuration,
@@ -262,7 +264,7 @@ function WarmUpSection({
 
 function ExerciseCard({
   exercise, setInputs, editingKey, prevPerf, pbSets,
-  onSetTap, onInputChange, onFeel, onLogSet, onVoiceFill, voiceActiveKey, onCantDo,
+  onSetTap, onInputChange, onFeel, onLogSet, onVoiceFill, voiceActiveKey, onCantDo, onFormCheck,
 }: {
   exercise:      WorkoutExercise;
   setInputs:     Record<string, SetInput>;
@@ -276,6 +278,7 @@ function ExerciseCard({
   onVoiceFill?:  (key: string) => void;
   voiceActiveKey?: string | null;
   onCantDo?:     (exerciseId: string, name: string) => void;
+  onFormCheck?:  (exerciseId: string, name: string) => void;
 }) {
   const completedCount = exercise.sets.filter(
     (s) => setInputs[`${exercise.exerciseId}_${s.setNumber}`]?.done
@@ -292,6 +295,16 @@ function ExerciseCard({
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-bold text-white/90 leading-tight">{exercise.name}</h3>
           <div className="flex items-center gap-2 shrink-0">
+            {onFormCheck && (
+              <button
+                onClick={() => onFormCheck(exercise.exerciseId, exercise.name)}
+                className="flex items-center gap-1 text-[10px] font-medium text-[#B48B40]/80 hover:text-[#B48B40] border border-[#B48B40]/25 hover:border-[#B48B40]/45 bg-[#B48B40]/[0.04] rounded-lg px-2 py-1 transition-colors"
+                title="Upload a video — AI form check"
+              >
+                <Video className="w-3 h-3" strokeWidth={1.5} />
+                Form check
+              </button>
+            )}
             {onCantDo && (
               <button
                 onClick={() => onCantDo(exercise.exerciseId, exercise.name)}
@@ -697,6 +710,12 @@ export default function WorkoutPage() {
     } catch { /* ignore */ }
   }, [user?.id]);
 
+  // Form-check modal target — which exercise the user uploaded a video for.
+  const [formCheck, setFormCheck] = useState<{ id: string; name: string } | null>(null);
+  function handleFormCheck(exerciseId: string, name: string) {
+    setFormCheck({ id: exerciseId, name });
+  }
+
   // "Can't do this" → swap the exercise for a safe alternative + record it so
   // future generated plans avoid it.
   function handleCantDo(exerciseId: string, name: string) {
@@ -1076,6 +1095,7 @@ export default function WorkoutPage() {
               onVoiceFill={voice.isSupported ? startVoiceForSet : undefined}
               voiceActiveKey={voice.status === "listening" ? voiceKey : null}
               onCantDo={handleCantDo}
+              onFormCheck={handleFormCheck}
             />
           ))}
         </div>
@@ -1152,6 +1172,15 @@ export default function WorkoutPage() {
       {/* ── PB toast ── */}
       {pbCelebration && (
         <PBToast pb={pbCelebration} onDismiss={() => setPbCelebration(null)} />
+      )}
+
+      {/* ── Form-check modal ── */}
+      {formCheck && (
+        <FormCheckModal
+          exerciseName={formCheck.name}
+          exerciseId={formCheck.id}
+          onClose={() => setFormCheck(null)}
+        />
       )}
     </div>
   );

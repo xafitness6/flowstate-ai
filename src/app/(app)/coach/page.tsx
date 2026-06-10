@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen, Clock, Plus, X, MessageSquare, Trash2, AudioLines } from "lucide-react";
+import { Send, ChevronDown, Check, RotateCcw, Utensils, Dumbbell, NotebookPen, Clock, Plus, X, MessageSquare, Trash2, AudioLines, Video, Loader2, AlertTriangle } from "lucide-react";
 import { useEntitlement }               from "@/hooks/useEntitlement";
 import { LockedPageState, UpgradeCard, FEATURES } from "@/components/ui/PlanGate";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
@@ -36,6 +36,8 @@ type Message = {
   text:    string;
   typing?: boolean;
   action?: ActionCard;
+  /** Optional avatar video — populated by the coach-avatar API on demand. */
+  avatar?: { status: "loading" | "ready" | "error"; videoUrl?: string; error?: string };
 };
 
 type Prompt = {
@@ -122,8 +124,12 @@ function TypingDots() {
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: Message }) {
-  const isAI = message.role === "ai";
+function MessageBubble({ message, onPlayAvatar }: {
+  message:      Message;
+  onPlayAvatar: (messageId: string) => void;
+}) {
+  const isAI         = message.role === "ai";
+  const canPlayAvatar = isAI && !message.typing && !message.action && message.text.trim().length > 0;
   return (
     <div className={cn("flex gap-3", isAI ? "items-start" : "items-start flex-row-reverse")}>
       {isAI && (
@@ -132,7 +138,7 @@ function MessageBubble({ message }: { message: Message }) {
         </div>
       )}
       <div className={cn(
-        "rounded-2xl px-4 py-3 max-w-[82%]",
+        "rounded-2xl px-4 py-3 max-w-[82%] space-y-2",
         isAI
           ? "bg-[#111111] border border-white/7 rounded-tl-sm"
           : "bg-[#B48B40]/12 border border-[#B48B40]/18 rounded-tr-sm"
@@ -144,6 +150,39 @@ function MessageBubble({ message }: { message: Message }) {
         ) : (
           <p className={cn("text-sm leading-relaxed", isAI ? "text-white/80" : "text-white/70")}>
             {message.text}
+          </p>
+        )}
+
+        {/* Avatar video — appears when the user taps "Play as video" on an AI reply */}
+        {message.avatar?.status === "ready" && message.avatar.videoUrl && (
+          <video
+            src={message.avatar.videoUrl}
+            controls
+            autoPlay
+            playsInline
+            className="w-full max-w-[300px] rounded-xl border border-white/10 bg-black mt-2"
+          />
+        )}
+        {message.avatar?.status === "error" && (
+          <p className="text-[11px] text-red-300/75 flex items-center gap-1.5 mt-1">
+            <AlertTriangle className="w-3 h-3" strokeWidth={1.8} />
+            {message.avatar.error ?? "Couldn't generate video."}
+          </p>
+        )}
+        {canPlayAvatar && !message.avatar && (
+          <button
+            onClick={() => onPlayAvatar(message.id)}
+            className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#B48B40]/65 hover:text-[#B48B40] transition-colors pt-1"
+            title="Generate a talking-head video of this reply"
+          >
+            <Video className="w-3 h-3" strokeWidth={1.8} />
+            Play as video
+          </button>
+        )}
+        {message.avatar?.status === "loading" && (
+          <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/45 pt-1">
+            <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+            Rendering avatar…
           </p>
         )}
       </div>
@@ -324,6 +363,40 @@ function CoachPageInner() {
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, convLoaded, loading]);
+
+  // Avatar playback — generate a talking-head video for an AI reply on demand.
+  async function playAvatar(messageId: string) {
+    setMessages((prev) => prev.map((m) =>
+      m.id === messageId ? { ...m, avatar: { status: "loading" } } : m,
+    ));
+    const msg = messages.find((m) => m.id === messageId);
+    const text = msg?.text?.trim();
+    if (!text) {
+      setMessages((prev) => prev.map((m) =>
+        m.id === messageId ? { ...m, avatar: { status: "error", error: "No text to speak." } } : m,
+      ));
+      return;
+    }
+    try {
+      const res = await fetch("/api/ai/coach-avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ text }),
+      });
+      const json = await res.json() as { videoUrl?: string; error?: string };
+      if (!res.ok || !json.videoUrl) {
+        throw new Error(json.error ?? "Couldn't render that reply.");
+      }
+      setMessages((prev) => prev.map((m) =>
+        m.id === messageId ? { ...m, avatar: { status: "ready", videoUrl: json.videoUrl } } : m,
+      ));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Couldn't render that reply.";
+      setMessages((prev) => prev.map((m) =>
+        m.id === messageId ? { ...m, avatar: { status: "error", error: message } } : m,
+      ));
+    }
+  }
 
   function newConversation() {
     setConvId(null);
@@ -693,7 +766,7 @@ function CoachPageInner() {
 
       {/* ── Messages ─────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 space-y-4 md:px-6 md:py-6">
-        {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
+        {messages.map((msg) => <MessageBubble key={msg.id} message={msg} onPlayAvatar={playAvatar} />)}
         <div ref={bottomRef} />
       </div>
 
