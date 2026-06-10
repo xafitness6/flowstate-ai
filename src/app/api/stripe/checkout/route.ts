@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { STRIPE_PRICE_IDS, STRIPE_PRICE_IDS_ANNUAL } from "@/lib/plans";
 import { EARLY_ACCESS_ENABLED } from "@/lib/earlyAccess";
+import { createClient } from "@/lib/supabase/server";
+import { appendQuery, sameOriginUrl } from "@/lib/server/security";
 import type { Plan } from "@/types";
 
 export async function POST(req: NextRequest) {
@@ -13,15 +15,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { plan, userId, email, billing = "monthly", successUrl, cancelUrl } =
+    const { plan, billing = "monthly", successUrl, cancelUrl } =
       await req.json() as {
         plan:        Plan;
-        userId:      string;
-        email?:      string;
         billing?:    "monthly" | "annual";
         successUrl:  string;
         cancelUrl:   string;
       };
+
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const safeSuccessUrl = sameOriginUrl(req, successUrl, "/pricing/success");
+    const safeCancelUrl = sameOriginUrl(req, cancelUrl, "/pricing");
 
     const priceMap = billing === "annual" ? STRIPE_PRICE_IDS_ANNUAL : STRIPE_PRICE_IDS;
     const priceId  = priceMap[plan];
@@ -35,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === "sk_test_placeholder") {
       // Demo mode: skip real Stripe, redirect to success page with mock data
       return NextResponse.json({
-        url:  `${successUrl}?demo=true&plan=${plan}`,
+        url:  appendQuery(safeSuccessUrl, { demo: "true", plan }),
         demo: true,
       });
     }
@@ -44,14 +53,14 @@ export async function POST(req: NextRequest) {
       mode:       "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
       // success_url includes session_id so /pricing/success can verify via webhook
-      success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:  cancelUrl,
-      metadata:    { userId, plan, billing },
+      success_url: `${safeSuccessUrl}${safeSuccessUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  safeCancelUrl,
+      metadata:    { userId: user.id, plan, billing },
       // Pre-fill email and attach to customer record
-      ...(email ? { customer_email: email } : {}),
+      ...(user.email ? { customer_email: user.email } : {}),
       allow_promotion_codes: true,
       subscription_data: {
-        metadata: { userId, plan },
+        metadata: { userId: user.id, plan },
       },
     });
 

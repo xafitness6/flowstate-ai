@@ -5,7 +5,7 @@ import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supa
 import { isOwnerEmail } from "@/lib/auth/owner";
 
 const ALLOWED_ROLES = new Set(["master", "trainer", "client", "member"]);
-const SIGNUP_ROLES = new Set(["trainer", "client", "member"]);
+const SIGNUP_ROLES = new Set(["client", "member"]);
 const PLAN_RANK = {
   foundation:  1,
   training:    2,
@@ -88,8 +88,8 @@ export async function POST() {
   const metadataRole = typeof metadata.role === "string" ? metadata.role : "";
   const existingRole = typeof existingProfile?.role === "string" ? existingProfile.role : "";
   const owner = isOwnerEmail(email);
-  // Owner is always master. Otherwise keep an existing role, honor an invite's
-  // requested role, and default brand-new self-signups to "member".
+  // Owner is always master. Otherwise keep the DB role. Brand-new signups may
+  // only request member/client via metadata; trainer/master are admin-only.
   const role = owner
     ? "master"
     : ALLOWED_ROLES.has(existingRole)
@@ -110,11 +110,7 @@ export async function POST() {
         full_name: fullName || email,
         role,
         is_admin: isAdmin,
-        assigned_trainer_id:
-          existingProfile?.assigned_trainer_id ??
-          (typeof metadata.assigned_trainer_id === "string" && metadata.assigned_trainer_id
-            ? metadata.assigned_trainer_id
-            : null),
+        assigned_trainer_id: existingProfile?.assigned_trainer_id ?? null,
         plan,
         default_dashboard: isAdmin ? "overview" : (existingProfile?.default_dashboard ?? "dashboard"),
         push_level: existingProfile?.push_level ?? 5,

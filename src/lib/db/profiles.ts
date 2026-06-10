@@ -7,7 +7,19 @@ import type { Profile } from "@/lib/supabase/types";
 import { trace, mark } from "@/lib/authTrace";
 
 export type ProfileUpdate = Partial<
-  Pick<Profile, "first_name" | "last_name" | "full_name" | "avatar_url" | "bio" | "role" | "plan" | "push_level" | "default_dashboard" | "assigned_trainer_id">
+  Pick<
+    Profile,
+    | "first_name"
+    | "last_name"
+    | "full_name"
+    | "avatar_url"
+    | "bio"
+    | "push_level"
+    | "default_dashboard"
+    | "coach_chat_visible"
+    | "photos_visible"
+    | "meal_logs_visible"
+  >
 >;
 
 /** Get the currently authenticated user's profile. */

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { validateEducationOutput, parseAiJson } from "@/lib/ai/validate";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -53,6 +54,9 @@ OUTPUT SCHEMA:
 If no example is needed, omit the field entirely — do not include it as null or empty string.`;
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   try {
     const body = await req.json() as { question: string };
     const { question } = body;

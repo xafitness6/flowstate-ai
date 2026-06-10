@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { BuilderProgramPayload } from "@/lib/db/programs";
 import type { ProgramSplitV2, WeekTemplate, DayWorkout, ProgressionType } from "@/lib/program/types";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -285,6 +286,9 @@ function aiToPayload(ai: AIOutput, b: Body): BuilderProgramPayload {
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: "OPENAI_API_KEY missing on server" }, { status: 503 });
   }

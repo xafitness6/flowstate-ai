@@ -25,6 +25,9 @@ export interface Profile {
   is_admin:            boolean;
   assigned_trainer_id: string | null;
   assigned_trainer_name: string | null;
+  coach_chat_visible:  boolean;
+  photos_visible:      boolean;
+  meal_logs_visible:   boolean;
   plan:                Plan;
   default_dashboard:   string;
   push_level:          number;

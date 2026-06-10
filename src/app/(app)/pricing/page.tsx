@@ -167,8 +167,6 @@ export default function PricingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan,
-          userId:     user.id,
-          email:      (user as { email?: string }).email ?? undefined,
           billing,
           successUrl: `${origin}/pricing/success`,
           cancelUrl:  `${origin}/pricing`,

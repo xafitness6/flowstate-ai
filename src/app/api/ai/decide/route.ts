@@ -10,6 +10,7 @@ import type { StateSummary } from "@/lib/ai/types";
 import { validateDecisionOutput, parseAiJson } from "@/lib/ai/validate";
 import type { RollingMemory, ExpectationTier } from "@/lib/memory/types";
 import { memoryToPromptBlock } from "@/lib/memory/analyze";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -111,6 +112,9 @@ OUTPUT SCHEMA:
 }`;
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   try {
     const body = await req.json() as { state: StateSummary; memory?: RollingMemory };
     const { state, memory } = body;

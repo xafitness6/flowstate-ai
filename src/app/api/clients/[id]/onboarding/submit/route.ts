@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
 import { notifyClient } from "@/lib/server/notifications";
 import { builderPayloadToProgramRow, type BuilderProgramPayload } from "@/lib/db/programs";
+import { syncWeightLogFromIntake } from "@/lib/server/weightLogs";
 
 function isBuilderPayload(value: unknown): value is BuilderProgramPayload {
   if (!value || typeof value !== "object") return false;
@@ -69,6 +70,14 @@ export async function POST(
   }, { onConflict: "user_id" });
   if (onboarding.error) return NextResponse.json({ error: onboarding.error.message }, { status: 500 });
 
+  let startingWeightLogged = false;
+  try {
+    const result = await syncWeightLogFromIntake(admin, id, body.intake, {
+      note: "Starting weight from onboarding",
+    });
+    startingWeightLogged = result.changed;
+  } catch { /* best-effort */ }
+
   // Seed the commitments they chose as the client's first check-in tasks.
   let tasksSeeded = 0;
   try {
@@ -111,5 +120,5 @@ export async function POST(
     });
   } catch { /* best-effort */ }
 
-  return NextResponse.json({ ok: true, programSaved, warning: programWarning, tasksSeeded, partial });
+  return NextResponse.json({ ok: true, programSaved, warning: programWarning, tasksSeeded, partial, startingWeightLogged });
 }

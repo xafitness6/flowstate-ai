@@ -20,6 +20,16 @@ export async function GET(
   const { id } = await params;
   const auth = await requireClientAccess(id);
   if (!auth.ok) return auth.response;
+  if (!auth.isAdmin) {
+    const { data: profile } = await auth.admin
+      .from("profiles")
+      .select("coach_chat_visible")
+      .eq("id", id)
+      .maybeSingle();
+    if ((profile as { coach_chat_visible?: boolean } | null)?.coach_chat_visible !== true) {
+      return NextResponse.json({ error: "AI coach history is not shared by this client." }, { status: 403 });
+    }
+  }
   const cid = new URL(req.url).searchParams.get("id");
 
   if (cid) {

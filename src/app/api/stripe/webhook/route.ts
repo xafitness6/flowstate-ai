@@ -68,6 +68,9 @@ export async function POST(req: NextRequest) {
   try {
     if (STRIPE_WEBHOOK_SECRET) {
       event = stripe.webhooks.constructEvent(body, signature, STRIPE_WEBHOOK_SECRET);
+    } else if (process.env.NODE_ENV === "production") {
+      console.error("[webhook] STRIPE_WEBHOOK_SECRET is required in production");
+      return NextResponse.json({ error: "Webhook secret not configured" }, { status: 503 });
     } else {
       // Dev mode: parse without verification (never in production)
       event = JSON.parse(body) as Stripe.Event;

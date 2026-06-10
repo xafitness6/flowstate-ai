@@ -33,10 +33,19 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const since = new Date(Date.now() - 14 * DAY_MS).toISOString();
+  const { data: profile } = await auth.admin
+    .from("profiles")
+    .select("meal_logs_visible")
+    .eq("id", id)
+    .maybeSingle();
+  const canViewMealLabels = auth.isAdmin || (profile as { meal_logs_visible?: boolean } | null)?.meal_logs_visible === true;
 
+  const mealSelect = canViewMealLabels
+    ? "id,meal_type,raw_text,clean_transcript,calories,protein,carbs,fat,needs_review,logged_at"
+    : "id,meal_type,calories,protein,carbs,fat,needs_review,logged_at";
   const { data, error } = await auth.admin
     .from("nutrition_logs")
-    .select("id,meal_type,raw_text,clean_transcript,calories,protein,carbs,fat,needs_review,logged_at")
+    .select(mealSelect)
     .eq("user_id", id)
     .is("deleted_at", null)
     .gte("logged_at", since)
@@ -44,7 +53,7 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []) as Row[];
+  const rows = ((data ?? []) as unknown) as Row[];
 
   // Bucket the last 14 days (oldest → newest) so the UI can draw a mini chart.
   const days: { date: string; calories: number; protein: number; carbs: number; fat: number; meals: number }[] = [];
@@ -94,7 +103,7 @@ export async function GET(
   const recentMeals = rows.slice(0, 8).map((r) => ({
     id: r.id,
     meal_type: r.meal_type,
-    label: (r.clean_transcript || r.raw_text || "").slice(0, 120),
+    label: canViewMealLabels ? (r.clean_transcript || r.raw_text || "").slice(0, 120) : "",
     calories: num(r.calories),
     protein: num(r.protein),
     needs_review: r.needs_review === true,

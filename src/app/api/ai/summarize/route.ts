@@ -8,6 +8,7 @@ import OpenAI from "openai";
 import type { RawUserData } from "@/lib/ai/types";
 import { validateStateSummary, parseAiJson } from "@/lib/ai/validate";
 import type { RollingMemory } from "@/lib/memory/types";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -62,6 +63,9 @@ function buildBaselineBlock(memory?: RollingMemory): string {
 }
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   try {
     const body = await req.json() as { data: RawUserData; memory?: RollingMemory };
 

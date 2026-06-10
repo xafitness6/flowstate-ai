@@ -4,6 +4,22 @@
 
 import { NextResponse } from "next/server";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
+import { syncWeightLogFromIntake } from "@/lib/server/weightLogs";
+
+const KG_PER_LB = 0.45359237;
+
+function posNumber(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(n) && n > 0 && n < 1000 ? n : null;
+}
+
+function weightKgFromBasic(basic: Record<string, unknown>, current: Record<string, unknown>): number | null {
+  const weight = posNumber(basic.weight ?? current.weight);
+  if (weight == null) return null;
+  const unit = (basic.weightUnit ?? current.weightUnit) === "lbs" ? "lbs" : "kg";
+  const kg = unit === "lbs" ? weight * KG_PER_LB : weight;
+  return Math.round(kg * 10) / 10;
+}
 
 export async function GET(
   _req: Request,
@@ -91,10 +107,17 @@ export async function PATCH(
     ? current.deep as Record<string, unknown>
     : {};
 
+  const mergedDeep: Record<string, unknown> = { ...currentDeep, ...deep };
+  const touchedBasicWeight = basic.weight !== undefined || basic.weightUnit !== undefined;
+  if (touchedBasicWeight && deep.weightKg === undefined) {
+    const weightKg = weightKgFromBasic(basic, current);
+    if (weightKg != null) mergedDeep.weightKg = weightKg;
+  }
+
   const merged: Record<string, unknown> = {
     ...current,
     ...basic,
-    deep: { ...currentDeep, ...deep },
+    deep: mergedDeep,
     _prefilledBy: actorId,
     _prefilledAt: new Date().toISOString(),
   };
@@ -104,5 +127,20 @@ export async function PATCH(
     .upsert({ user_id: id, raw_answers: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, intake: merged });
+
+  let weightLogSynced = false;
+  const touchedWeight =
+    basic.weight !== undefined ||
+    basic.weightUnit !== undefined ||
+    deep.weightKg !== undefined;
+  if (touchedWeight) {
+    try {
+      const result = await syncWeightLogFromIntake(admin, id, merged, {
+        note: "Updated from intake",
+      });
+      weightLogSynced = result.changed;
+    } catch { /* best-effort */ }
+  }
+
+  return NextResponse.json({ ok: true, intake: merged, weightLogSynced });
 }

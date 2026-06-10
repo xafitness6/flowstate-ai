@@ -16,6 +16,22 @@ type PhotoRow = {
   created_at: string;
 };
 
+async function requirePhotoRead(auth: Awaited<ReturnType<typeof requireClientAccess>> & { ok: true }, clientId: string) {
+  if (auth.isAdmin || auth.isSelf) return null;
+  const { data: profile } = await auth.admin
+    .from("profiles")
+    .select("photos_visible")
+    .eq("id", clientId)
+    .maybeSingle();
+  if ((profile as { photos_visible?: boolean } | null)?.photos_visible === true) return null;
+  return NextResponse.json({ error: "Progress photos are not shared by this client." }, { status: 403 });
+}
+
+function requirePhotoMutation(auth: Awaited<ReturnType<typeof requireClientAccess>> & { ok: true }) {
+  if (auth.isAdmin || auth.isSelf) return null;
+  return NextResponse.json({ error: "Only the client or an admin can change progress photos." }, { status: 403 });
+}
+
 function extensionFor(file: File): string {
   const byMime: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -58,6 +74,8 @@ export async function GET(
   const { id } = await params;
   const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
+  const readError = await requirePhotoRead(auth, id);
+  if (readError) return readError;
 
   const { data, error } = await auth.admin
     .from("progress_photos")
@@ -79,6 +97,8 @@ export async function POST(
   const { id } = await params;
   const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
+  const mutationError = requirePhotoMutation(auth);
+  if (mutationError) return mutationError;
 
   let form: FormData;
   try {
@@ -138,6 +158,8 @@ export async function DELETE(
   const { id } = await params;
   const auth = await requireClientAccess(id, { allowSelf: true });
   if (!auth.ok) return auth.response;
+  const mutationError = requirePhotoMutation(auth);
+  if (mutationError) return mutationError;
 
   const photoId = new URL(req.url).searchParams.get("id");
   if (!photoId) return NextResponse.json({ error: "Missing id" }, { status: 400 });

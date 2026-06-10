@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { validateDetectOutput, parseAiJson } from "@/lib/ai/validate";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -37,6 +38,9 @@ OUTPUT SCHEMA:
 Output ONLY valid JSON.`;
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   try {
     const body = await req.json() as { input: string };
     const { input } = body;

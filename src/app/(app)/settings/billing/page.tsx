@@ -75,7 +75,7 @@ export default function BillingPage() {
       const res = await fetch("/api/stripe/portal", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerId, returnUrl: `${origin}/settings/billing` }),
+        body: JSON.stringify({ returnUrl: `${origin}/settings/billing` }),
       });
       const data = await res.json() as { url?: string };
       if (data.url) window.location.href = data.url;

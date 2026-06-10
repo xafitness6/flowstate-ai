@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { DecisionOutput, SessionResult } from "@/lib/ai/types";
 import { validateReflectionOutput, parseAiJson } from "@/lib/ai/validate";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -35,6 +36,9 @@ OUTPUT SCHEMA:
 }`;
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   try {
     const body = await req.json() as { planned: DecisionOutput; actual: SessionResult };
     const { planned, actual } = body;

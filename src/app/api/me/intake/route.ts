@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { BACKFILL_QUESTIONS } from "@/lib/intake/backfill";
+import { syncWeightLogFromIntake } from "@/lib/server/weightLogs";
 
 const ENERGY = new Set(["low", "steady", "high", "variable"]);
 const CADENCE = new Set(["daily", "weekly", "none"]);
@@ -76,9 +77,9 @@ export async function PATCH(req: Request) {
   const deepUpdates: Record<string, unknown> = {};
   if (goalKg) deepUpdates.goalWeightKg = goalKg;
   if (typeof patch.height === "string") deepUpdates.heightCm = Number(patch.height); // stored in cm
-  if (typeof patch.weight === "string") {
+  if (typeof patch.weight === "string" || typeof patch.weightUnit === "string") {
     const unit = (patch.weightUnit ?? current.weightUnit) === "lbs" ? "lbs" : "kg";
-    const w = Number(patch.weight);
+    const w = Number(patch.weight ?? current.weight);
     if (Number.isFinite(w) && w > 0) deepUpdates.weightKg = unit === "lbs" ? Math.round(w * 0.4536 * 10) / 10 : w;
   }
   if (Object.keys(deepUpdates).length) {
@@ -91,5 +92,16 @@ export async function PATCH(req: Request) {
     .upsert({ user_id: user.id, raw_answers: next, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, raw_answers: next });
+
+  let weightLogSynced = false;
+  if (typeof patch.weight === "string" || typeof patch.weightUnit === "string") {
+    try {
+      const result = await syncWeightLogFromIntake(admin, user.id, next, {
+        note: "Updated from intake",
+      });
+      weightLogSynced = result.changed;
+    } catch { /* best-effort */ }
+  }
+
+  return NextResponse.json({ ok: true, raw_answers: next, weightLogSynced });
 }

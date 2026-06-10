@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -34,6 +35,9 @@ type PlanItem = { food?: string; qty?: string };
 type PlanMeal = { name?: string; items?: PlanItem[] };
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
   try {
     const body = await req.json().catch(() => ({})) as { plan?: { meals?: PlanMeal[] }; unitSystem?: string };

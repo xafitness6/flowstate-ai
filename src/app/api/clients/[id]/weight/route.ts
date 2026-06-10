@@ -3,6 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
+import { syncWeightLogFromIntake } from "@/lib/server/weightLogs";
 
 type WeightPayload = {
   weight_kg?: unknown;
@@ -43,7 +44,22 @@ export async function GET(
     return NextResponse.json({ logs: [], unavailable: true });
   }
 
-  return NextResponse.json({ logs: [...(data ?? [])].reverse() });
+  const logs = [...(data ?? [])].reverse();
+  if (logs.length > 0) return NextResponse.json({ logs });
+
+  const { data: onboarding } = await auth.admin
+    .from("onboarding_state")
+    .select("raw_answers,onboarding_completed_at,updated_at")
+    .eq("user_id", id)
+    .maybeSingle();
+
+  const rawAnswers = onboarding?.raw_answers;
+  const result = await syncWeightLogFromIntake(auth.admin, id, rawAnswers, {
+    note: "Starting weight from onboarding",
+    loggedAt: onboarding?.onboarding_completed_at ?? onboarding?.updated_at,
+  });
+
+  return NextResponse.json({ logs: result.log ? [result.log] : [] });
 }
 
 export async function POST(

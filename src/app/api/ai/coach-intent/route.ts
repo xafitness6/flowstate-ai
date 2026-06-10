@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { validateCoachIntent, parseAiJson } from "@/lib/ai/validate";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -84,6 +85,9 @@ OUTPUT SCHEMA (JSON only):
 Output ONLY valid JSON.`;
 
 export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req);
+  if (!access.ok) return access.response;
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: "Coach not configured" }, { status: 503 });
   }

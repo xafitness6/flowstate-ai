@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseServiceRoleKey, missingServiceRoleMessage } from "@/lib/supabase/env";
 import { builderPayloadToProgramRow, type BuilderProgramPayload } from "@/lib/db/programs";
 import { notifyClient } from "@/lib/server/notifications";
+import { syncWeightLogFromIntake } from "@/lib/server/weightLogs";
 
 // Injury safety-gate: the auto-generated starter plan is generic. If onboarding
 // surfaced an injury, ping the assigned coach so they tailor the plan — and flag
@@ -98,6 +99,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: onboarding.error.message }, { status: 500 });
   }
 
+  let startingWeightLogged = false;
+  try {
+    const result = await syncWeightLogFromIntake(admin, user.id, body.intake, {
+      note: "Starting weight from onboarding",
+    });
+    startingWeightLogged = result.changed;
+  } catch (e) {
+    console.warn("[onboarding/starter-complete] starting weight sync failed:", e);
+  }
+
   if (programWarning) {
     console.warn("[onboarding/starter-complete] program save skipped:", programWarning);
   }
@@ -158,5 +169,5 @@ export async function POST(request: Request) {
     console.warn("[onboarding/starter-complete] task seeding failed:", e);
   }
 
-  return NextResponse.json({ ok: true, programSaved, warning: programWarning, coachNotifiedOfInjury, tasksSeeded });
+  return NextResponse.json({ ok: true, programSaved, warning: programWarning, coachNotifiedOfInjury, tasksSeeded, startingWeightLogged });
 }

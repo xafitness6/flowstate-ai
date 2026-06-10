@@ -508,17 +508,7 @@ export default function CalibrationPage() {
       }
     }
 
-    completeOnboarding(userId, {
-      primaryGoal:   answers.primaryGoal,
-      experience:    answers.experience,
-      daysPerWeek:   answers.daysPerWeek,
-      equipment,
-      mainStruggle:  answers.mainStruggle.join(" · "),
-      sessionLength: answers.sessionLength,
-      weight:        "",
-      weightUnit:    "lbs",
-      injuries:      "",
-    });
+    completeOnboarding(userId, intake);
 
     try { sessionStorage.setItem("flowstate-program-reveal", "starter"); } catch { /* ignore */ }
     try { sessionStorage.setItem("flowstate-calibration-finished", "true"); } catch { /* ignore */ }
