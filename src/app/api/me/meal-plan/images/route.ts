@@ -4,11 +4,12 @@
 //      ONE missing dish image per call (keyed by dish composition, shared across
 //      everyone) so a member's plan gets the same imagery as a trainer-set one.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import OpenAI from "openai";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { dishKey, dishLabel } from "@/lib/nutrition/dishKey";
+import { rateLimit } from "@/lib/server/security";
 
 const BUCKET = "meal-images";
 const SIGNED_TTL = 60 * 60;
@@ -47,10 +48,13 @@ export async function GET() {
   return NextResponse.json({ images });
 }
 
-export async function POST() {
+export async function POST(_req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ images: {}, remaining: 0 }, { status: 401 });
+  // Image generation is expensive; tight per-user cap on top of the dish-key cache.
+  const limited = rateLimit(`meal-plan-image:${user.id}`, { limit: 6, windowMs: 60_000 });
+  if (limited) return limited;
 
   const admin = await createAdminClient();
   const { data: planRow } = await supabase

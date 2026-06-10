@@ -93,3 +93,53 @@ export function requireNonProductionDemoApi(): NextResponse | null {
   if (process.env.NODE_ENV !== "production") return null;
   return NextResponse.json({ error: "Demo API disabled in production." }, { status: 404 });
 }
+
+// ─── Prompt-injection defenses for AI text inputs ───────────────────────────
+// Caps a user-supplied text input and strips classic role-override / system-
+// reveal payloads before it ever reaches the model. Returns a NextResponse if
+// the input is too large; otherwise returns the cleaned, capped string.
+
+const INJECTION_PATTERNS = [
+  /ignore (all|any|previous|prior|the (above|earlier|previous)) (instructions?|prompts?|rules?|directives?)/gi,
+  /(reveal|show|print|repeat|disclose|leak|output) (your|the) (system|initial|hidden) (prompt|instructions?|rules?)/gi,
+  /you are (now|actually|really) (?!the|a flow|an? coach|an? trainer|in flowstate)/gi,
+  /(disregard|forget|override) (everything|all|previous|prior)/gi,
+];
+
+export function sanitizeUserText(
+  raw: unknown,
+  options: { maxChars?: number; field?: string } = {},
+): { ok: true; text: string } | { ok: false; response: NextResponse } {
+  const max = options.maxChars ?? 4000;
+  const field = options.field ?? "input";
+
+  if (typeof raw !== "string") {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: `Missing ${field}.` }, { status: 400 }),
+    };
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: `Empty ${field}.` }, { status: 400 }),
+    };
+  }
+  if (trimmed.length > max) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: `${field} too long. Keep it under ${max} characters.` },
+        { status: 413 },
+      ),
+    };
+  }
+  // Neutralize known injection patterns by surrounding them with brackets so
+  // the model treats them as quoted user text, not commands.
+  let cleaned = trimmed;
+  for (const pattern of INJECTION_PATTERNS) {
+    cleaned = cleaned.replace(pattern, (m) => `[user wrote: "${m}"]`);
+  }
+  return { ok: true, text: cleaned };
+}

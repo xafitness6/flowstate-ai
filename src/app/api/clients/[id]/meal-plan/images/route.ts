@@ -10,6 +10,7 @@ import { createHash } from "crypto";
 import OpenAI from "openai";
 import { requireClientAccess } from "@/lib/admin/requireClientAccess";
 import { dishKey, dishLabel } from "@/lib/nutrition/dishKey";
+import { rateLimit } from "@/lib/server/security";
 
 const BUCKET = "meal-images";
 const SIGNED_TTL = 60 * 60; // 1 hour
@@ -26,6 +27,9 @@ export async function POST(
   const { id } = await params;
   const auth = await requireClientAccess(id);
   if (!auth.ok) return auth.response;
+  // Image generation is expensive; per-client tight cap on top of the dish-key cache.
+  const limited = rateLimit(`meal-plan-image:${id}`, { limit: 6, windowMs: 60_000 });
+  if (limited) return limited;
 
   // Load the client's active plan and collect its distinct dishes.
   const { data: planRow, error: planErr } = await auth.admin
