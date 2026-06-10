@@ -4,8 +4,9 @@
 // We hand the frames to GPT-4o vision with an exercise-specific prompt and
 // return structured cues the workout player can render inline.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -44,7 +45,10 @@ RULES
 - No medical advice. No "consult a professional." Just coach.
 - Plain language, no emojis, no markdown. Output JSON ONLY (no code fences).`;
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req, { limit: 12, windowMs: 60_000 });
+  if (!access.ok) return access.response;
+
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: "OPENAI_API_KEY not configured." }, { status: 503 });

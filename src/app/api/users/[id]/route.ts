@@ -8,6 +8,7 @@
 // from a real auth provider — never trust role from the request body.
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireNonProductionDemoApi } from "@/lib/server/security";
 
 const MASTER_ROLE  = "master";
 const TRAINER_ROLE = "trainer";
@@ -32,6 +33,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: targetId } = await params;
+  const demoOnly = requireNonProductionDemoApi();
+  if (demoOnly) return demoOnly;
 
   // Read actor identity from request headers.
   const actorRole = req.headers.get("x-actor-role") ?? "";

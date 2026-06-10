@@ -6,8 +6,12 @@
 // a verified JWT/session — never trust role from the request body.
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireNonProductionDemoApi } from "@/lib/server/security";
 
 function requireMaster(req: NextRequest): Response | null {
+  const demoOnly = requireNonProductionDemoApi();
+  if (demoOnly) return demoOnly;
+
   const actorRole = req.headers.get("x-actor-role") ?? "";
   if (actorRole !== "master") {
     return NextResponse.json({ error: "Master role required" }, { status: 403 });

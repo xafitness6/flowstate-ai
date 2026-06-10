@@ -1,17 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const PROTECTED_PAGE_PREFIXES = [
+  "/accountability",
+  "/admin",
+  "/breathwork",
+  "/calendar",
+  "/clients",
+  "/coach",
+  "/dashboard",
+  "/form",
+  "/leaderboard",
+  "/learn",
+  "/library",
+  "/master",
+  "/messages",
+  "/my-clients",
+  "/nutrition",
+  "/onboarding",
+  "/pricing",
+  "/profile",
+  "/program",
+  "/progress",
+  "/showcase",
+  "/trainers",
+];
+
+function isProtectedPage(pathname: string): boolean {
+  return PROTECTED_PAGE_PREFIXES.some((prefix) =>
+    pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function shouldGuardProtectedPages(req: NextRequest): boolean {
+  if (process.env.NODE_ENV !== "production") return false;
+  if (req.method !== "GET" && req.method !== "HEAD") return false;
+  if (!isProtectedPage(req.nextUrl.pathname)) return false;
+  if (req.nextUrl.pathname.startsWith("/api/")) return false;
+  return true;
+}
+
 // ─── Supabase session refresh ─────────────────────────────────────────────────
 // Calls getUser() so the @supabase/ssr library actually writes refreshed tokens
 // back to cookies on every request, preventing session expiry mid-navigation.
-// Route-level auth enforcement is handled client-side in AppShell — not here.
-// Doing server-side redirects here causes a freeze: after signInWithPassword the
-// client cookies aren't propagated yet when the next proxy request fires.
+// In development, route-level auth enforcement stays in AppShell so demo/local
+// storage sessions keep working. In production, proxy() also guards protected
+// app pages before the page shell is served.
 
 async function applySessionRefresh(request: NextRequest, response: NextResponse) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return response;
+  if (!supabaseUrl || !supabaseKey) return { response, userId: null };
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -28,8 +67,12 @@ async function applySessionRefresh(request: NextRequest, response: NextResponse)
   });
 
   // getUser() is required to actually trigger the token refresh write-back.
-  await supabase.auth.getUser();
-  return response;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return { response, userId: user?.id ?? null };
+  } catch {
+    return { response, userId: null };
+  }
 }
 
 // ─── Proxy ────────────────────────────────────────────────────────────────────
@@ -47,7 +90,17 @@ export async function proxy(req: NextRequest) {
 
   // 2. Refresh session tokens on all other routes
   const res = NextResponse.next({ request: req });
-  return applySessionRefresh(req, res);
+  const refreshed = await applySessionRefresh(req, res);
+
+  // 3. Production page guard: direct-pasting a protected app URL without a
+  // valid Supabase session is redirected before the page shell is served.
+  if (shouldGuardProtectedPages(req) && !refreshed.userId) {
+    const login = new URL("/login", req.url);
+    login.searchParams.set("next", `${req.nextUrl.pathname}${req.nextUrl.search}`);
+    return NextResponse.redirect(login);
+  }
+
+  return refreshed.response;
 }
 
 export const config = {

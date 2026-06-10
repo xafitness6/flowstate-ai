@@ -15,12 +15,13 @@
 //   - A default coach portrait at public/coach-portrait.jpg (override via
 //     COACH_PORTRAIT_URL or pass portraitUrl in the request).
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import OpenAI from "openai";
 import { generateAvatarVideo, isAvailable as higgsfieldAvailable } from "@/lib/avatar/higgsfield";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -64,7 +65,10 @@ async function fetchPortrait(req: Request, override: string | undefined): Promis
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req, { limit: 8, windowMs: 60_000 });
+  if (!access.ok) return access.response;
+
   let workDir: string | null = null;
   try {
     if (!process.env.OPENAI_API_KEY) {

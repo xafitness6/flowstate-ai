@@ -10,8 +10,9 @@
 // The chat UI exposes both as separate buttons; users land on the fast path
 // by default and reach for video only when they want it.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireAiAccess } from "@/lib/server/security";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -25,7 +26,10 @@ function condenseText(text: string): string {
   return lastDot > 80 ? slice.slice(0, lastDot + 1) : slice + "…";
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const access = await requireAiAccess(req, { limit: 20, windowMs: 60_000 });
+  if (!access.ok) return access.response;
+
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: "OPENAI_API_KEY not configured." }, { status: 503 });

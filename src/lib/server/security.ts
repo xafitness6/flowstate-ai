@@ -88,3 +88,8 @@ export function appendQuery(urlString: string, params: Record<string, string>): 
   }
   return url.toString();
 }
+
+export function requireNonProductionDemoApi(): NextResponse | null {
+  if (process.env.NODE_ENV !== "production") return null;
+  return NextResponse.json({ error: "Demo API disabled in production." }, { status: 404 });
+}
