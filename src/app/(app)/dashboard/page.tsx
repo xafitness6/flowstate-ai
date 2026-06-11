@@ -565,7 +565,7 @@ function DashboardContent() {
       {/* Login greeting toast still has its place — doesn't conflict with the new cover. */}
       <GreetingBanner />
 
-      <div className="relative mx-auto max-w-[640px] px-6 md:px-8 pt-10 md:pt-14 pb-28 space-y-16 md:space-y-20">
+      <div className="relative mx-auto max-w-[760px] px-6 md:px-8 pt-10 md:pt-14 pb-28 space-y-16 md:space-y-20">
 
         {/* Calibration nudge — quietly above the fold when present. */}
         {actualUserId && <DeepCalPrompt userId={actualUserId} />}
