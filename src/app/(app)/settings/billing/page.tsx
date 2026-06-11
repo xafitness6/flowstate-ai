@@ -245,6 +245,13 @@ export default function BillingPage() {
         <p className="text-center text-[11px] text-white/20 leading-relaxed px-4">
           All historical data is preserved on any plan change. Cancel anytime — no hidden fees.
         </p>
+
+        {/* Legal footer — reachable from inside the app, not just login. */}
+        <div className="flex items-center justify-center gap-5 pt-6 text-[11px] text-white/25 border-t border-white/[0.05]">
+          <a href="/privacy"    className="hover:text-[#B48B40] transition-colors">Privacy</a>
+          <a href="/terms"      className="hover:text-[#B48B40] transition-colors">Terms</a>
+          <a href="/disclaimer" className="hover:text-[#B48B40] transition-colors">Disclaimer</a>
+        </div>
       </div>
     </div>
   );

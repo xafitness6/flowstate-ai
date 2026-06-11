@@ -243,6 +243,13 @@ export default function LoginPage() {
         <p className="text-center text-[11px] text-white/18 leading-relaxed">
           Invite only - contact your coach or admin for access.
         </p>
+
+        {/* Legal footer — every pre-auth surface needs these reachable. */}
+        <div className="flex items-center justify-center gap-5 pt-2 text-[11px] text-white/25">
+          <Link href="/privacy"    className="hover:text-[#B48B40] transition-colors">Privacy</Link>
+          <Link href="/terms"      className="hover:text-[#B48B40] transition-colors">Terms</Link>
+          <Link href="/disclaimer" className="hover:text-[#B48B40] transition-colors">Disclaimer</Link>
+        </div>
       </div>
     </div>
   );
