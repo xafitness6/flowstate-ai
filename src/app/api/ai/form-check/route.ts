@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireAiAccess } from "@/lib/server/security";
+import { log } from "@/lib/server/log";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(parsed);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[form-check]", message);
+    log.error("[form-check]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

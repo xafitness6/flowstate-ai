@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe, STRIPE_WEBHOOK_SECRET } from "@/lib/stripe";
 import { STRIPE_PRICE_IDS, STRIPE_PRICE_IDS_ANNUAL } from "@/lib/plans";
 import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
+import { log } from "@/lib/server/log";
 import type Stripe from "stripe";
 import type { Plan, SubscriptionStatus } from "@/types";
 
@@ -69,14 +70,14 @@ export async function POST(req: NextRequest) {
     if (STRIPE_WEBHOOK_SECRET) {
       event = stripe.webhooks.constructEvent(body, signature, STRIPE_WEBHOOK_SECRET);
     } else if (process.env.NODE_ENV === "production") {
-      console.error("[webhook] STRIPE_WEBHOOK_SECRET is required in production");
+      log.error("[webhook] STRIPE_WEBHOOK_SECRET is required in production");
       return NextResponse.json({ error: "Webhook secret not configured" }, { status: 503 });
     } else {
       // Dev mode: parse without verification (never in production)
       event = JSON.parse(body) as Stripe.Event;
     }
   } catch (err) {
-    console.error("[webhook] Signature verification failed:", err);
+    log.error("[webhook] Signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
         const customerId = typeof session.customer === "string" ? session.customer : null;
         const subId      = typeof session.subscription === "string" ? session.subscription : null;
 
-        console.log(`[webhook] checkout.session.completed user=${userId} plan=${plan}`);
+        log.info(`[webhook] checkout.session.completed user=${userId} plan=${plan}`);
 
         if (userId && plan && supabaseConfigured) {
           // Fetch subscription to get period end
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
         const itemPeriodEnd = sub.items?.data?.[0]?.current_period_end;
         const periodEnd  = itemPeriodEnd ? new Date(itemPeriodEnd * 1000).toISOString() : null;
 
-        console.log(`[webhook] customer.subscription.updated sub=${sub.id} status=${sub.status} plan=${plan ?? "unknown"}`);
+        log.info(`[webhook] customer.subscription.updated sub=${sub.id} status=${sub.status} plan=${plan ?? "unknown"}`);
 
         if (customerId && supabaseConfigured) {
           await updateByCustomerId(customerId, {
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
         const sub        = event.data.object as Stripe.Subscription;
         const customerId = typeof sub.customer === "string" ? sub.customer : null;
 
-        console.log(`[webhook] customer.subscription.deleted sub=${sub.id} — downgrading to foundation`);
+        log.info(`[webhook] customer.subscription.deleted sub=${sub.id} — downgrading to foundation`);
 
         // DATA IS NEVER DELETED. Plan downgraded only, history stays intact.
         if (customerId && supabaseConfigured) {
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
         const invoice    = event.data.object as Stripe.Invoice;
         const customerId = typeof invoice.customer === "string" ? invoice.customer : null;
 
-        console.log(`[webhook] invoice.payment_succeeded customer=${customerId}`);
+        log.info(`[webhook] invoice.payment_succeeded customer=${customerId}`);
 
         if (customerId && supabaseConfigured) {
           await updateByCustomerId(customerId, {
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
         const invoice    = event.data.object as Stripe.Invoice;
         const customerId = typeof invoice.customer === "string" ? invoice.customer : null;
 
-        console.log(`[webhook] invoice.payment_failed customer=${customerId}`);
+        log.info(`[webhook] invoice.payment_failed customer=${customerId}`);
 
         if (customerId && supabaseConfigured) {
           await updateByCustomerId(customerId, {
@@ -200,7 +201,7 @@ export async function POST(req: NextRequest) {
         break;
     }
   } catch (err) {
-    console.error("[webhook] Handler error:", err);
+    log.error("[webhook] Handler error:", err);
     return NextResponse.json({ error: "Handler error" }, { status: 500 });
   }
 

@@ -27,6 +27,9 @@ import OpenAI from "openai";
 import type { BuilderProgramPayload } from "@/lib/db/programs";
 import type { ProgramSplitV2, WeekTemplate, DayWorkout, ProgressionType } from "@/lib/program/types";
 import { requireAiAccess } from "@/lib/server/security";
+import { createClient } from "@/lib/supabase/server";
+import { avoidKeywords, filterExercises } from "@/lib/injuries";
+import { log } from "@/lib/server/log";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -305,6 +308,40 @@ export async function POST(req: NextRequest) {
   const daysPerWeek = Math.max(1, Math.min(7, Number(body.daysPerWeek) || 4));
   body = { ...body, weeks, daysPerWeek };
 
+  // ── Account-wide injury awareness ──────────────────────────────────────────
+  // The client may forget to include the athlete's stored injuries (mobile flow,
+  // older callers, etc). Pull from onboarding_state server-side and UNION with
+  // whatever the client sent. The server is the source of truth on safety.
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) {
+      const { data: row } = await supabase
+        .from("onboarding_state")
+        .select("raw_answers")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const raw = (row?.raw_answers ?? null) as Record<string, unknown> | null;
+      const fromIntake: string[] = [];
+      // Common shapes used by the intake forms.
+      const directInjuries = raw?.injuries;
+      if (Array.isArray(directInjuries))
+        for (const v of directInjuries) if (typeof v === "string" && v.trim()) fromIntake.push(v.trim());
+      const injuryAreas = raw?.injuryAreas ?? (raw?.deep as Record<string, unknown> | undefined)?.injuryAreas;
+      if (Array.isArray(injuryAreas))
+        for (const v of injuryAreas) if (typeof v === "string" && v.trim()) fromIntake.push(v.trim());
+      const injuryNote  = (raw?.deep as Record<string, unknown> | undefined)?.injuryNotes;
+      if (typeof injuryNote === "string" && injuryNote.trim()) fromIntake.push(injuryNote.trim().slice(0, 200));
+
+      if (fromIntake.length > 0) {
+        const set = new Set([...(body.injuries ?? []), ...fromIntake].map((s) => s.toLowerCase().trim()).filter(Boolean));
+        body = { ...body, injuries: [...set] };
+      }
+    }
+  } catch (err: unknown) {
+    log.warn("[program-generator] injury hydrate", err as Error);
+  }
+
   try {
     const completion = await client.chat.completions.create({
       model:       "gpt-4o",
@@ -335,13 +372,45 @@ export async function POST(req: NextRequest) {
     // Validate days-per-week match — count training days only (rest days don't count)
     const trainingDayCount = ai.baseWeek.days.filter((d) => d.kind === "training").length;
     if (trainingDayCount !== daysPerWeek) {
-      console.warn("[program-generator] training daysPerWeek mismatch", { requested: daysPerWeek, got: trainingDayCount });
+      log.warn("[program-generator] training daysPerWeek mismatch", { requested: daysPerWeek, got: trainingDayCount });
     }
 
-    const payload = aiToPayload(ai, body);
+    let payload = aiToPayload(ai, body);
+
+    // ── Post-generation safety pass ────────────────────────────────────────
+    // Belt-and-braces: even though the prompt forbids contraindicated lifts,
+    // run every exercise through the rule engine and swap any survivor.
+    // This catches the case where the model invented a name we'd flag.
+    if (body.injuries && body.injuries.length > 0) {
+      const areas = body.injuries.map((s) => s.trim().toLowerCase()).filter(Boolean);
+      const avoid = avoidKeywords(areas);
+      let swaps = 0;
+      const protectDay = <D extends { exercises?: Array<{ name: string }> }>(d: D): D => {
+        if (!d.exercises || d.exercises.length === 0) return d;
+        const before = d.exercises.length;
+        const after  = filterExercises(d.exercises, areas, null, []);
+        if (JSON.stringify(after) !== JSON.stringify(d.exercises)) swaps++;
+        return { ...d, exercises: after } as D;
+      };
+      payload = {
+        ...payload,
+        split: {
+          ...payload.split,
+          baseWeek: { ...payload.split.baseWeek, days: payload.split.baseWeek.days.map(protectDay) },
+          weekOverrides: Object.fromEntries(
+            Object.entries(payload.split.weekOverrides).map(([k, w]) => [
+              k,
+              { ...w, days: w.days.map(protectDay) },
+            ])
+          ),
+        },
+      };
+      if (swaps > 0) log.info("[program-generator] injury swaps applied", { swaps, areas, avoid });
+    }
+
     return NextResponse.json({ payload });
   } catch (e) {
-    console.error("[program-generator] failed", e);
+    log.error("[program-generator] failed", e as Error);
     return NextResponse.json({ error: e instanceof Error ? e.message : "AI generation failed" }, { status: 500 });
   }
 }

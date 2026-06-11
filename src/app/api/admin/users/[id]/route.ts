@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { audit } from "@/lib/server/audit";
 import type { Role, Plan, SubscriptionStatus } from "@/lib/supabase/types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -148,6 +149,30 @@ export async function PATCH(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+  }
+
+  // ── Audit trail ───────────────────────────────────────────────────────────
+  // Only emit when something actually changed — log spam adds noise.
+  const changedKeys = Object.keys(profileFields).filter((k) => k !== "updated_at");
+  if (changedKeys.length > 0 || body.onboarding_complete !== undefined) {
+    const summaryBits: string[] = [];
+    if (body.role !== undefined)                summaryBits.push(`role → ${body.role}`);
+    if (body.plan !== undefined)                summaryBits.push(`plan → ${body.plan}`);
+    if (body.subscription_status !== undefined) summaryBits.push(`subscription → ${body.subscription_status}`);
+    if ("assigned_trainer_id" in body) {
+      summaryBits.push(body.assigned_trainer_id ? `trainer → ${String(body.assigned_trainer_id).slice(0, 8)}` : "trainer cleared");
+    }
+    if (body.onboarding_complete !== undefined) summaryBits.push(`onboarding ${body.onboarding_complete ? "complete" : "reset"}`);
+    await audit({
+      actorId:    auth.user.id,
+      actorEmail: auth.user.email ?? null,
+      actorRole:  "master",
+      action:     "admin_update_user",
+      targetKind: "user",
+      targetId:   targetId,
+      summary:    summaryBits.join(" · ") || "admin update",
+      details:    { ...profileFields, onboarding_complete: body.onboarding_complete } as Record<string, unknown>,
+    });
   }
 
   return NextResponse.json({ ok: true });

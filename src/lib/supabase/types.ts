@@ -28,6 +28,8 @@ export interface Profile {
   coach_chat_visible:  boolean;
   photos_visible:      boolean;
   meal_logs_visible:   boolean;
+  coach_intensity:     number;   // 1 gentle → 5 militant; 042
+  coach_strong_language: boolean; // 042
   plan:                Plan;
   default_dashboard:   string;
   push_level:          number;

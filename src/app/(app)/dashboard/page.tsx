@@ -531,6 +531,8 @@ function DashboardContent() {
         ?? (() => { const a = getAccountById(roleKey); return a ? accountToMockUser(a) : null; })()
         ?? DEMO_USERS.member);
   const demoUser  = resolvedUser;
+  // `demoUser.name` already prefers the user's nickname when set, see
+  // src/lib/db/profiles.ts → getMyProfile().
   const firstName = demoUser.name.split(" ")[0];
   const visibleCards = QUICK_CARDS.filter((c) => hasAccess(role, c.minRole));
   const cachedCoachResult =

@@ -10,7 +10,7 @@
 // and any [user wrote: "..."] payloads that slipped through the input gate.
 // See docs/legal/observability-plan.md for the full policy.
 
-type Loggable = string | number | boolean | null | undefined | Error | object;
+type Loggable = unknown;
 
 const PATTERNS: Array<[RegExp, string]> = [
   // Emails — keep just the shape, lose the address.

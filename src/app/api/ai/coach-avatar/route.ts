@@ -22,6 +22,7 @@ import path from "node:path";
 import OpenAI from "openai";
 import { generateAvatarVideo, isAvailable as higgsfieldAvailable } from "@/lib/avatar/higgsfield";
 import { requireAiAccess } from "@/lib/server/security";
+import { log } from "@/lib/server/log";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ videoUrl, durationSec: duration, spokenText: text });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[coach-avatar]", message);
+    log.error("[coach-avatar]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   } finally {
     if (workDir) {

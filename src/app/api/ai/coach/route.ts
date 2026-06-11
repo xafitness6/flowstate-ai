@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireAiAccess, sanitizeUserText } from "@/lib/server/security";
+import { log } from "@/lib/server/log";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -196,17 +197,16 @@ export async function POST(req: NextRequest) {
       if (cleaned.ok) safeRecovery = cleaned.text;
     }
 
-    const intensity = intensityFrom({ intensity: body.intensity, tone: body.tone });
-    const allowStrongLanguage =
-      typeof body.allowStrongLanguage === "boolean"
-        ? body.allowStrongLanguage
-        : body.profanity === "mild";
-
     // Pull the signed-in athlete's onboarding intake so the coach speaks to
     // THEIR specifics (injuries, equipment, diet, goals). Best-effort — never
     // block the reply if it's missing or slow.
     let athleteProfile    = "";
     let nutritionApproach = "";
+    // Server-side persisted coach voice prefs (042) — fall back to body params
+    // only if the row doesn't have them yet.
+    let serverIntensity:     number  | null = null;
+    let serverStrongLang:    boolean | null = null;
+    let athleteNickname:     string  | null = null;
     try {
       const { createClient } = await import("@/lib/supabase/server");
       const { summarizeIntakeForCoach } = await import("@/lib/intake/format");
@@ -216,10 +216,22 @@ export async function POST(req: NextRequest) {
       if (user?.id) {
         const [{ data: intakeRow }, { data: profileRow }] = await Promise.all([
           supabase.from("onboarding_state").select("raw_answers").eq("user_id", user.id).maybeSingle(),
-          supabase.from("profiles").select("nutrition_approach").eq("id", user.id).maybeSingle(),
+          supabase.from("profiles")
+            .select("nutrition_approach, nickname, coach_intensity, coach_strong_language")
+            .eq("id", user.id).maybeSingle(),
         ]);
         const rawA = (intakeRow?.raw_answers ?? null) as Record<string, unknown> | null;
         athleteProfile    = summarizeIntakeForCoach(rawA);
+        // Coach voice prefs from the profile — overrides client body when set.
+        const p = (profileRow ?? null) as {
+          nutrition_approach?: unknown;
+          nickname?:           string  | null;
+          coach_intensity?:    number  | null;
+          coach_strong_language?: boolean | null;
+        } | null;
+        athleteNickname  = p?.nickname ?? null;
+        serverIntensity  = typeof p?.coach_intensity      === "number"  ? p.coach_intensity : null;
+        serverStrongLang = typeof p?.coach_strong_language === "boolean" ? p.coach_strong_language : null;
         // Hard dietary rule, so food advice in chat respects it (no dairy for vegan, etc.)
         const { dietConstraint } = await import("@/lib/nutrition/diet");
         const diet = dietConstraint(rawA?.dietStyle, (rawA?.deep as Record<string, unknown> | undefined)?.foodsHate);
@@ -232,6 +244,14 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* coach still works without the intake */ }
 
+    // Resolve coach voice — profile prefs (server-trusted) override client body.
+    const intensity = serverIntensity ?? intensityFrom({ intensity: body.intensity, tone: body.tone });
+    const allowStrongLanguage = serverStrongLang ?? (
+      typeof body.allowStrongLanguage === "boolean"
+        ? body.allowStrongLanguage
+        : body.profanity === "mild"
+    );
+
     // Build conversation history — last 10 messages (5 exchanges) for context.
     // safeHistory has already been capped + sanitized above.
     const historyMessages = safeHistory.map((m) => ({
@@ -239,11 +259,16 @@ export async function POST(req: NextRequest) {
       content: m.content,
     } as { role: "user" | "assistant"; content: string }));
 
+    // Bias the model to use the athlete's preferred name if they've set one.
+    const nicknameDirective = athleteNickname
+      ? `\nThe athlete prefers to be called "${athleteNickname.trim().slice(0, 40)}". Address them by that name when natural (greetings, direct callouts) but never every sentence — that reads scripted.`
+      : "";
+
     const completion = await client.chat.completions.create({
       model:      "gpt-4o",
       max_tokens: 700,
       messages:   [
-        { role: "system", content: buildSystem({ intensity, allowStrongLanguage, context, athleteProfile, recoveryContext: safeRecovery, nutritionApproach }) },
+        { role: "system", content: buildSystem({ intensity, allowStrongLanguage, context, athleteProfile, recoveryContext: safeRecovery, nutritionApproach }) + nicknameDirective },
         ...historyMessages,
         { role: "user",   content: message.trim() },
       ],
@@ -258,7 +283,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ content });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[coach]", message);
+    log.error("[coach]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

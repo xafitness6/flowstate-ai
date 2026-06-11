@@ -939,6 +939,10 @@ function WeightChart({
   onSelect: (id: string) => void;
   unitSystem: UnitSystem;
 }) {
+  // Hovered dot drives the rich tooltip (date + weight + note). Separate from
+  // `selectedId` so clicking a different dot doesn't lose the hover preview.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   if (logs.length === 0) {
     return (
       <div className="h-44 rounded-2xl border border-dashed border-white/[0.08] bg-black/10 flex flex-col items-center justify-center text-center">
@@ -963,40 +967,68 @@ function WeightChart({
     return { log, x, y };
   });
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const hoveredPoint = hoveredId ? points.find((p) => p.log.id === hoveredId) : null;
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-black/15 px-2 py-2">
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full overflow-visible">
+    <div className="relative rounded-2xl border border-white/[0.06] bg-black/15 px-2 py-2">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-48 w-full overflow-visible"
+        onMouseLeave={() => setHoveredId(null)}
+      >
         <line x1={pad.left} x2={width - pad.right} y1={pad.top} y2={pad.top} className="stroke-white/5" />
         <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH / 2} y2={pad.top + chartH / 2} className="stroke-white/5" />
         <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} className="stroke-white/5" />
         <text x={8} y={pad.top + 4} className="fill-white/30 text-[10px]">{max.toFixed(1)}</text>
         <text x={8} y={pad.top + chartH + 4} className="fill-white/30 text-[10px]">{min.toFixed(1)}</text>
         {logs.length > 1 && <path d={path} fill="none" className="stroke-[#B48B40]" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
+
+        {/* Hover guideline + value tag drop down from the hovered dot. */}
+        {hoveredPoint && (
+          <>
+            <line
+              x1={hoveredPoint.x} x2={hoveredPoint.x}
+              y1={hoveredPoint.y + 6} y2={pad.top + chartH}
+              className="stroke-[#B48B40]/30"
+              strokeDasharray="2 3"
+            />
+          </>
+        )}
+
         {points.map(({ log, x, y }) => {
           const selected = selectedId === log.id;
+          const hovered  = hoveredId === log.id;
+          // Invisible target ring widens the tap/hover area so users don't
+          // need to land precisely on the 4px dot.
           return (
-            <circle
-              key={log.id}
-              cx={x}
-              cy={y}
-              r={selected ? 5.5 : 4}
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelect(log.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") onSelect(log.id);
-              }}
-              className={cn(
-                "cursor-pointer stroke-[#0A0A0A] transition-all",
-                selected ? "fill-[#F0C66E]" : "fill-[#B48B40] hover:fill-[#F0C66E]",
-              )}
-              strokeWidth={2}
-            >
-              <title>{`${formatFullDate(log.logged_at)} - ${formatWeight(log.weight_kg, unitSystem)}`}</title>
-            </circle>
+            <g key={log.id}>
+              <circle
+                cx={x} cy={y} r={12}
+                fill="transparent"
+                role="button"
+                tabIndex={0}
+                aria-label={`${formatFullDate(log.logged_at)} — ${formatWeight(log.weight_kg, unitSystem)}`}
+                className="cursor-pointer focus:outline-none"
+                onClick={() => onSelect(log.id)}
+                onMouseEnter={() => setHoveredId(log.id)}
+                onFocus={() => setHoveredId(log.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") onSelect(log.id);
+                }}
+              />
+              <circle
+                cx={x} cy={y}
+                r={selected || hovered ? 5.5 : 4}
+                className={cn(
+                  "stroke-[#0A0A0A] transition-all pointer-events-none",
+                  selected || hovered ? "fill-[#F0C66E]" : "fill-[#B48B40]",
+                )}
+                strokeWidth={2}
+              />
+            </g>
           );
         })}
+
         {points.length > 0 && (
           <>
             <text x={pad.left} y={height - 8} className="fill-white/30 text-[10px]">{formatShortDate(points[0].log.logged_at)}</text>
@@ -1004,6 +1036,41 @@ function WeightChart({
           </>
         )}
       </svg>
+
+      {/* Rich hover tooltip — weight, date, and note (if any). HTML overlay
+          positioned in SVG user coords, with smart edge avoidance so it never
+          overflows the chart on either side. */}
+      {hoveredPoint && (() => {
+        const xPct = (hoveredPoint.x / width) * 100;
+        const note = (hoveredPoint.log.note ?? "").trim();
+        // Anchor: prefer center; flip to right-aligned when near the right edge.
+        const nearRight = xPct > 78;
+        const nearLeft  = xPct < 22;
+        const transform = nearRight ? "translate(-100%, -100%)" :
+                          nearLeft  ? "translate(0, -100%)"     :
+                                      "translate(-50%, -100%)";
+        const offsetY = ((hoveredPoint.y - 10) / height) * 100;
+        return (
+          <div
+            className="pointer-events-none absolute z-20"
+            style={{ left: `${xPct}%`, top: `${offsetY}%`, transform }}
+          >
+            <div className="rounded-xl border border-white/10 bg-[#0F0D0A]/95 backdrop-blur-sm shadow-[0_18px_36px_-18px_rgba(0,0,0,0.7)] px-3.5 py-2.5 min-w-[160px] max-w-[240px]">
+              <p className="text-[15px] font-medium tabular-nums text-[#F0C66E] leading-none">
+                {formatWeight(hoveredPoint.log.weight_kg, unitSystem)}
+              </p>
+              <p className="text-[11px] text-white/45 mt-1">
+                {formatFullDate(hoveredPoint.log.logged_at)}
+              </p>
+              {note && (
+                <p className="text-[12px] text-white/70 mt-2 leading-snug border-t border-white/[0.07] pt-2">
+                  {note}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
