@@ -22,7 +22,7 @@ export function ApproachSummary({
   if (!approach) {
     return (
       <div className={`rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 ${className ?? ""}`}>
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Approach</p>
+        <p className="text-[12px] text-white/45 font-medium">Approach</p>
         <p className="text-xs text-white/40 mt-2">
           Client hasn&apos;t saved a nutrition approach yet.
         </p>
@@ -38,7 +38,7 @@ export function ApproachSummary({
   return (
     <div className={`rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 space-y-3 ${className ?? ""}`}>
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Approach</p>
+        <p className="text-[12px] text-white/45 font-medium">Approach</p>
         <div className="flex items-center gap-1.5 text-[10px] text-white/35">
           <Scale className="w-3 h-3" strokeWidth={1.5} />
           <span>Balanced + chosen modality</span>
@@ -96,7 +96,7 @@ function Tile({
     <div className={`rounded-xl border px-3 py-2 ${accentCls}`}>
       <div className="flex items-center gap-1.5">
         {icon}
-        <p className="text-[9px] uppercase tracking-[0.14em] text-white/35">{label}</p>
+        <p className="text-[10px] font-medium text-white/35">{label}</p>
       </div>
       <p className={`text-sm font-semibold mt-0.5 ${valueCls}`}>{value}</p>
       {sub && <p className="text-[10px] text-white/35 mt-0.5 leading-snug">{sub}</p>}

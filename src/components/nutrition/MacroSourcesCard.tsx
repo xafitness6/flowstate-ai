@@ -53,7 +53,7 @@ export function MacroSourcesCard({ meals }: { meals: LoggedMeal[] }) {
     <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Top sources today</p>
+        <p className="text-[12px] text-white/45 font-medium">Top sources today</p>
         <BarChart3 className="w-3.5 h-3.5 text-white/25" strokeWidth={1.5} />
       </div>
 

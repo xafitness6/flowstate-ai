@@ -172,9 +172,9 @@ export function WeeklyCheckInCard({
     : null;
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Weekly check-in</p>
+        <p className="text-[12px] text-white/45 font-medium">Weekly check-in</p>
         <span className="flex items-center gap-1.5 text-[10px] text-white/35">
           {goalArrow}
           <span>{goalMode.charAt(0).toUpperCase() + goalMode.slice(1)} mode</span>
@@ -214,7 +214,7 @@ export function WeeklyCheckInCard({
           </button>
         ) : (
           <div className="rounded-xl border border-[#B48B40]/22 bg-[#B48B40]/[0.04] px-3 py-2.5 space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#B48B40]/65">Today&apos;s weigh-in</p>
+            <p className="text-[11px] font-medium text-[#B48B40]/65">Today&apos;s weigh-in</p>
             <div className="flex items-center gap-2">
               <input
                 autoFocus
@@ -256,7 +256,7 @@ export function WeeklyCheckInCard({
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string | null }) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-center">
-      <p className="text-[9px] uppercase tracking-[0.1em] text-white/30">{label}</p>
+      <p className="text-[10px] font-medium text-white/30">{label}</p>
       <p className="text-sm font-semibold tabular-nums text-white/80 mt-0.5 truncate">{value}</p>
       {sub && <p className="text-[9px] text-white/35 mt-0.5 truncate">{sub}</p>}
     </div>

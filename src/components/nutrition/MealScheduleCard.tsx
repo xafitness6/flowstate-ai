@@ -29,9 +29,9 @@ export function MealScheduleCard({
   const TIMINGS: TrainingTiming[] = ["fasted_am", "after_1_meal", "after_2_meals", "after_3_meals"];
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">When to eat</p>
+        <p className="text-[12px] text-white/45 font-medium">When to eat</p>
         <div className="flex items-center gap-1.5 text-[10px] text-white/35">
           <Clock className="w-3 h-3" strokeWidth={1.5} />
           <span>{schedule.length} {schedule.length === 1 ? "meal" : "meals"} / day</span>
@@ -79,7 +79,7 @@ export function MealScheduleCard({
       <div>
         <div className="flex items-center gap-1.5 mb-2">
           <Activity className="w-3 h-3 text-white/35" strokeWidth={1.5} />
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/25">When do you train?</p>
+          <p className="text-[11px] text-white/40 font-medium">When do you train?</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           {TIMINGS.map((t) => {

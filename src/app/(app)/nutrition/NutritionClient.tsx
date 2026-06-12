@@ -320,9 +320,9 @@ function CalorieCard({ consumed, target }: { consumed: number; target: number })
   const remaining = Math.max(0, target - consumed);
   const pct = target > 0 ? Math.min(Math.round((consumed / target) * 100), 100) : 0;
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-3">
+    <div className="p-1 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Calories</p>
+        <p className="text-[12px] text-white/45 font-medium">Calories</p>
         <Flame className="w-3.5 h-3.5 text-[#B48B40]/40" strokeWidth={1.5} />
       </div>
       <div>
@@ -347,8 +347,8 @@ function MacrosCard({ totals, targets }: { totals: MealTotals; targets: Nutritio
     { label: "Fats",    value: totals.fat,      target: targets.fatG,     color: "bg-[#93C5FD]/60"  },
   ];
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-4">
-      <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Macros</p>
+    <div className="p-1 flex flex-col gap-4">
+      <p className="text-[12px] text-white/45 font-medium">Macros</p>
       <div className="space-y-3.5">
         {rows.map((r) => (
           <div key={r.label}>
@@ -371,9 +371,9 @@ function HydrationCard({
 }: { current: number; target: number; onAdd: (ml: number) => void }) {
   const done = current >= target;
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-3">
+    <div className="p-1 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Hydration</p>
+        <p className="text-[12px] text-white/45 font-medium">Hydration</p>
         <Droplets className={cn("w-3.5 h-3.5", done ? "text-[#93C5FD]" : "text-white/20")} strokeWidth={1.5} />
       </div>
       <div>
@@ -586,7 +586,7 @@ function MealCard({
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] overflow-hidden">
+    <div className="overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-4 py-3">
         <button
@@ -1433,7 +1433,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
   return (
     <div className="px-5 md:px-8 py-6 text-white">
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="max-w-[760px] mx-auto space-y-5">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Nutrition</h1>
@@ -1568,7 +1568,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
         {/* ── Quick actions ─────────────────────────────────────────────────── */}
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">Quick actions</p>
+          <p className="text-[12px] text-white/45 font-medium mb-3 px-1">Quick actions</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <QuickActionTile
               icon={Mic}
@@ -1595,7 +1595,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         {/* ── AI suggestions ────────────────────────────────────────────────── */}
         {!viewWeek && suggestions.length > 0 && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">◈ AI suggestions</p>
+            <p className="text-[12px] text-white/45 font-medium mb-3 px-1">◈ AI suggestions</p>
             <div className="space-y-2">
               {suggestions.map((s) => (
                 <SuggestionCard
@@ -1609,7 +1609,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
 
         {/* ── Parsing indicator ─────────────────────────────────────────────── */}
         {parsing && (
-          <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex items-center gap-3">
+          <div className="p-1 flex items-center gap-3">
             <Loader2 className="w-4 h-4 text-[#B48B40]/60 animate-spin shrink-0" strokeWidth={1.5} />
             <p className="text-sm text-white/45">Analysing meal log…</p>
           </div>
@@ -1645,7 +1645,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         {/* ── Day: Meal timeline ────────────────────────────────────────────── */}
         {!viewWeek && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">
+            <p className="text-[12px] text-white/45 font-medium mb-3 px-1">
               Meal timeline
             </p>
 
@@ -1713,7 +1713,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
         {/* ── Week view ─────────────────────────────────────────────────────── */}
         {viewWeek && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">7-day log</p>
+            <p className="text-[12px] text-white/45 font-medium mb-3 px-1">7-day log</p>
             {weekMeals.length === 0 ? (
               <div className="rounded-2xl border border-white/[0.06] bg-[#0D0D0D] px-6 py-8 text-center">
                 <p className="text-sm text-white/40">No meals logged in the last 7 days</p>
@@ -1726,7 +1726,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
                     const dayMeals  = weekMeals.filter((m) => m.eatenAt.slice(0, 10) === date);
                     const dayTotals = sumTotals(dayMeals);
                     return (
-                      <div key={date} className="rounded-2xl border border-white/[0.07] bg-[#111111] overflow-hidden">
+                      <div key={date} className="overflow-hidden">
                         <div className="px-5 py-3.5 flex items-center justify-between border-b border-white/[0.05]">
                           <span className="text-sm font-medium text-white/65">{formatDateLabel(date)}</span>
                           <div className="flex items-center gap-3 text-xs text-white/35 tabular-nums">
@@ -1768,13 +1768,13 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
             onClick={() => setNoteOpen((v) => !v)}
             className="w-full flex items-center justify-between mb-3 px-1"
           >
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25">Nutrition notes</p>
+            <p className="text-[12px] text-white/45 font-medium">Nutrition notes</p>
             {noteOpen
               ? <ChevronUp   className="w-3.5 h-3.5 text-white/18" strokeWidth={1.5} />
               : <ChevronDown className="w-3.5 h-3.5 text-white/18" strokeWidth={1.5} />}
           </button>
           {noteOpen && (
-            <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4">
+            <div className="p-1">
               <textarea
                 value={note}
                 onChange={(e) => { setNote(e.target.value); setNoteSaved(false); }}

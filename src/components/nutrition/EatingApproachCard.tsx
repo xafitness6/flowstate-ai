@@ -33,11 +33,11 @@ export function EatingApproachCard({
   const GOALS:    GoalMode[]    = ["cut", "maintain", "build"];
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 space-y-5">
+    <div className="space-y-5">
       {/* Header — balanced eating is the philosophy */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Your philosophy</p>
+          <p className="text-[12px] text-white/45 font-medium">Your philosophy</p>
           <div className="flex items-center gap-1.5 text-[10px] text-white/35">
             <Scale className="w-3 h-3" strokeWidth={1.5} />
             <span>Balanced eating</span>
@@ -51,7 +51,7 @@ export function EatingApproachCard({
 
       {/* Goal mode */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/25 mb-2">Goal mode</p>
+        <p className="text-[11px] text-white/40 font-medium mb-2">Goal mode</p>
         <div className="flex rounded-xl border border-white/[0.08] overflow-hidden">
           {GOALS.map((g) => {
             const active = goalMode === g;
@@ -77,7 +77,7 @@ export function EatingApproachCard({
 
       {/* Meal pattern */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/25 mb-2">Meal pattern</p>
+        <p className="text-[11px] text-white/40 font-medium mb-2">Meal pattern</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {PATTERNS.map((key) => {
             const meta   = MEAL_PATTERN_META[key];
@@ -116,7 +116,7 @@ export function EatingApproachCard({
       {/* First meal time + carb cycling toggle */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1.5">First meal at</p>
+          <p className="text-[11px] text-white/45 font-medium mb-1.5">First meal at</p>
           <select
             value={firstMealHour24}
             onChange={(e) => onChange({ firstMealHour24: parseInt(e.target.value, 10) })}
@@ -140,7 +140,7 @@ export function EatingApproachCard({
           )}
         >
           <div className="flex items-center justify-between mb-0.5">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Optional modality</p>
+            <p className="text-[11px] text-white/45 font-medium">Optional modality</p>
             <span className={cn(
               "text-[9px] font-semibold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded-md",
               carbCyclingOn

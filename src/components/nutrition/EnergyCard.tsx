@@ -40,9 +40,9 @@ export function EnergyCard({
   const adjLabel = adjKcal === 0 ? "maintenance" : `${adjKcal > 0 ? "+" : ""}${adjKcal} kcal`;
 
   return (
-    <div className={cn("rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-4", className)}>
+    <div className={cn("flex flex-col gap-4", className)}>
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Energy</p>
+        <p className="text-[12px] text-white/45 font-medium">Energy</p>
         <Flame className="w-3.5 h-3.5 text-[#B48B40]/40" strokeWidth={1.5} />
       </div>
 

@@ -109,9 +109,9 @@ export function PhilosophyTips() {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">From Xavier&apos;s playbook</p>
+        <p className="text-[12px] text-white/45 font-medium">From Xavier&apos;s playbook</p>
         <Lightbulb className="w-3.5 h-3.5 text-[#B48B40]/40" strokeWidth={1.5} />
       </div>
 

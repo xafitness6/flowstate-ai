@@ -10,9 +10,9 @@ import type { CarbCycleBreakdown, CycleDay } from "@/lib/nutrition/approach";
  */
 export function CarbCyclingCard({ data }: { data: CarbCycleBreakdown }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Your carb cycle</p>
+        <p className="text-[12px] text-white/45 font-medium">Your carb cycle</p>
         <div className="flex items-center gap-1.5 text-[10px] text-white/35">
           <Repeat className="w-3 h-3" strokeWidth={1.5} />
           <span>{data.ratioLabel}</span>
@@ -25,7 +25,7 @@ export function CarbCyclingCard({ data }: { data: CarbCycleBreakdown }) {
       </div>
 
       <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] px-3.5 py-3">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1.5">Carb pyramid</p>
+        <p className="text-[11px] text-white/45 font-medium mb-1.5">Carb pyramid</p>
         <p className="text-[11px] text-white/45 leading-relaxed">
           On <span className="text-white/70 font-medium">high days</span>, place ~30–35% of carbs right after your workout,
           20–25% in the next meal, the rest sprinkled at 10–15% each. On <span className="text-white/70 font-medium">low days</span>,
@@ -98,7 +98,7 @@ function Pill({
           ? "border-emerald-400/15 bg-emerald-400/[0.03]"
           : "border-white/[0.06] bg-white/[0.02]",
     )}>
-      <p className="text-[9px] uppercase tracking-[0.1em] text-white/35">{label}</p>
+      <p className="text-[10px] font-medium text-white/35">{label}</p>
       <p className={cn(
         "text-xs font-semibold tabular-nums mt-0.5",
         highlight ? "text-[#B48B40]" : accent ? "text-emerald-300/80" : "text-white/75",
