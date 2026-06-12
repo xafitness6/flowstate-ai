@@ -52,7 +52,7 @@ export function EditorialCover({
             {eyebrow}
           </p>
         )}
-        <h1 className={cn(titleClass, "font-medium tracking-[-0.025em]")}>{title}</h1>
+        <h1 className={cn(titleClass, "font-display font-normal tracking-[-0.02em]")}>{title}</h1>
       </div>
       {subline && (
         <p className="text-[15px] text-white/55 leading-relaxed max-w-[34rem]">{subline}</p>

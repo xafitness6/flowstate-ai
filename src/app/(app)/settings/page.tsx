@@ -102,7 +102,7 @@ export default function SettingsPage() {
         {/* ── COVER ── */}
         <header className="space-y-2">
           <p className="text-[12px] text-white/30">Account</p>
-          <h1 className="text-[44px] md:text-[52px] font-medium tracking-[-0.025em] leading-[0.95]">
+          <h1 className="text-[44px] md:text-[52px] font-display font-normal tracking-[-0.02em] leading-[0.95]">
             Settings
           </h1>
           <p className="text-[14px] text-white/45 mt-3">

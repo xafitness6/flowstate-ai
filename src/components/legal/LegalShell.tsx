@@ -46,7 +46,7 @@ export function LegalShell({
             <span className="h-px w-8 bg-white/15" aria-hidden />
             <span>Last updated</span>
           </div>
-          <h1 className="text-[44px] md:text-[56px] font-medium tracking-[-0.025em] leading-[0.95]">{title}</h1>
+          <h1 className="text-[44px] md:text-[56px] font-display font-normal tracking-[-0.02em] leading-[0.95]">{title}</h1>
           {intro && (
             <p className="text-[15px] text-white/55 leading-relaxed max-w-[34rem]">{intro}</p>
           )}

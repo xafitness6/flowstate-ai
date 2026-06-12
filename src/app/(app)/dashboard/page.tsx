@@ -581,10 +581,10 @@ function DashboardContent() {
 
           {/* Editorial greeting — light weight, big numerals-like name. */}
           <div className="space-y-1.5">
-            <p className="text-[28px] md:text-[34px] font-extralight text-white/45 leading-none">
+            <p className="text-[28px] md:text-[34px] font-display italic text-white/45 leading-none">
               {timeOfDayGreeting()},
             </p>
-            <h1 className="text-[56px] md:text-[68px] font-medium tracking-[-0.025em] leading-[0.95]">
+            <h1 className="text-[56px] md:text-[68px] font-display font-normal tracking-[-0.02em] leading-[0.95]">
               {firstName}.
             </h1>
           </div>

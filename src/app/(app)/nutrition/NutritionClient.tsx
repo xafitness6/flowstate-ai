@@ -1436,7 +1436,7 @@ export default function NutritionClient({ initial }: { initial: NutritionSSRData
       <div className="max-w-[760px] mx-auto space-y-5">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Nutrition</h1>
+        <h1 className="text-[44px] md:text-[52px] font-display font-normal tracking-[-0.02em] leading-[0.95]">Nutrition</h1>
 
         {/* ── No intake banner ────────────────────────────────────────────── */}
         {!hasIntake && (
