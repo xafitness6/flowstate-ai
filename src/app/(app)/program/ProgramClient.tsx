@@ -77,7 +77,7 @@ function WeekStrip({
         return (
           <div key={i} className="flex flex-col items-center gap-1.5">
             <span className={cn(
-              "text-[10px] uppercase tracking-[0.12em] font-medium",
+              "text-[10px] font-medium",
               isToday ? "text-white/70" : "text-white/30",
             )}>
               {DAYS_SHORT[i]}
@@ -189,15 +189,15 @@ function ProgramRevealBanner({
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-left">
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/28">Plan</p>
+          <p className="text-[10px] text-white/28">Plan</p>
           <p className="mt-1 text-xs font-semibold text-white/78 truncate">{program.name}</p>
         </div>
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/28">Goal</p>
+          <p className="text-[10px] text-white/28">Goal</p>
           <p className="mt-1 text-xs font-semibold text-white/78 truncate">{goalLabel}</p>
         </div>
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/28">Schedule</p>
+          <p className="text-[10px] text-white/28">Schedule</p>
           <p className="mt-1 text-xs font-semibold text-white/78">{program.daysPerWeek} days/wk</p>
         </div>
       </div>
@@ -215,7 +215,7 @@ function ProgramRevealBanner({
 
       {nextWo && (
         <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48B40]/80">Next workout</p>
+          <p className="text-[10px] text-[#B48B40]/80">Next workout</p>
           <p className="mt-1 text-sm font-semibold text-white/88">{nextWo.focus}</p>
           <div className="mt-2 space-y-1">
             {nextWo.exercises.slice(0, 3).map((exercise) => (
@@ -434,7 +434,7 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
         <div className="mb-6">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-white/30 mb-1.5">Active Program</p>
+              <p className="text-[10px] text-white/30 mb-1.5">Active Program</p>
               <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">{program.name}</h1>
               <p className="text-[11px] text-white/40 mt-1.5">
                 {goalLabel} · {program.daysPerWeek} days/wk · {fmtDate(program.startDate)} → {fmtDate(endDate)}
@@ -472,7 +472,7 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
                     <Zap className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1 min-w-0 space-y-1.5">
-                    <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40]/80">This week</p>
+                    <p className="text-[10px] text-[#B48B40]/80">This week</p>
                     <p className="text-sm text-white/85 leading-relaxed">
                       {program.description.split("—").map((s, i, arr) => (
                         <span key={i}>
@@ -493,7 +493,7 @@ export default function ProgramClient({ initial }: { initial: ProgramSSRData }) 
             <Card className="border-[#B48B40]/15">
               <div className="px-5 pt-5 pb-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40]/80">
+                  <p className="text-[10px] text-[#B48B40]/80">
                     {isToday ? "Today" : `Up next · ${nextWo.dayLabel}`}
                   </p>
                   <div className="flex items-center gap-1.5 text-[11px] text-white/40">

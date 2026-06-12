@@ -298,7 +298,7 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
             {state.phase === "breathing" && (
               <div>
                 <p className={cn(
-                  "text-[11px] uppercase tracking-[0.25em] font-medium mb-2 transition-colors duration-300",
+                  "text-[11px] font-medium mb-2 transition-colors duration-300",
                   isInhale ? "text-white/55" : "text-white/28"
                 )}>
                   {isInhale ? "Inhale" : "Exhale"}
@@ -312,7 +312,7 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
 
             {state.phase === "hold" && (
               <div>
-                <p className="text-[11px] uppercase tracking-[0.25em] text-[#B48B40]/55 font-medium mb-2">
+                <p className="text-[11px] text-[#B48B40]/55 font-medium mb-2">
                   Hold
                 </p>
                 <p className="text-5xl font-extralight text-[#B48B40] tabular-nums leading-none">
@@ -324,7 +324,7 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
 
             {state.phase === "recovery" && (
               <div>
-                <p className="text-[11px] uppercase tracking-[0.25em] text-white/28 font-medium mb-2">
+                <p className="text-[11px] text-white/28 font-medium mb-2">
                   Recover
                 </p>
                 <p className="text-4xl font-extralight text-white/50 tabular-nums leading-none">
@@ -336,7 +336,7 @@ export function BreathingTimer({ settings, onComplete, onEnd }: Props) {
 
             {state.phase === "complete" && (
               <div>
-                <p className="text-[11px] uppercase tracking-[0.25em] text-emerald-400/70 font-medium mb-1">
+                <p className="text-[11px] text-emerald-400/70 font-medium mb-1">
                   Done
                 </p>
                 <p className="text-sm text-white/30">Well done</p>

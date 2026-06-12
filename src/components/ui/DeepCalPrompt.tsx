@@ -60,7 +60,7 @@ export function DeepCalPrompt({ userId }: { userId: string }) {
             <Zap className="w-5 h-5 text-[#B48B40]" strokeWidth={2} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#B48B40]/70 mb-0.5">Recommended next step</p>
+            <p className="text-[10px] text-[#B48B40]/70 mb-0.5">Recommended next step</p>
             <h2 className="text-lg sm:text-xl font-semibold text-white/95 leading-tight">Get smarter coaching</h2>
           </div>
         </div>

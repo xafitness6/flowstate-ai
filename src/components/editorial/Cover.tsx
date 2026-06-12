@@ -8,7 +8,7 @@
 //
 // Pattern: light secondary eyebrow over a medium-weight title is the
 // reverse of the V1 default, and the gentlest way to give the page an
-// anchor without uppercase tracking-[0.22em] tells.
+// anchor without tells.
 
 import { cn } from "@/lib/utils";
 

@@ -108,7 +108,7 @@ function SubmissionCard({ sub }: { sub: FormSubmission }) {
               {sub.aiAnalysis.score}
             </span>
           </div>
-          <span className="text-[9px] text-white/20 uppercase tracking-[0.12em]">score</span>
+          <span className="text-[9px] text-white/20">score</span>
         </div>
       )}
 
@@ -187,7 +187,7 @@ function SubmitModal({
         <div className="px-5 py-4 space-y-4">
           {/* Exercise name */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.12em] text-white/30 mb-1.5 block">
+            <label className="text-[10px] text-white/30 mb-1.5 block">
               Exercise name
             </label>
             <input
@@ -274,7 +274,7 @@ function SubmitModal({
 
           {/* Notes */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.12em] text-white/30 mb-1.5 block">
+            <label className="text-[10px] text-white/30 mb-1.5 block">
               Notes <span className="normal-case tracking-normal text-white/20">(optional)</span>
             </label>
             <textarea
@@ -380,7 +380,7 @@ export default function FormPage() {
         {/* Coach reviewed */}
         {coachReviewed.length > 0 && (
           <section className="mb-6">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-white/25 mb-2 px-1">Coach reviewed</p>
+            <p className="text-[10px] text-white/25 mb-2 px-1">Coach reviewed</p>
             <div className="space-y-2">
               {coachReviewed.map((s) => <SubmissionCard key={s.id} sub={s} />)}
             </div>
@@ -390,7 +390,7 @@ export default function FormPage() {
         {/* Reviewed (includes legacy AI-reviewed submissions) */}
         {aiReviewed.length > 0 && (
           <section className="mb-6">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-white/25 mb-2 px-1">Reviewed</p>
+            <p className="text-[10px] text-white/25 mb-2 px-1">Reviewed</p>
             <div className="space-y-2">
               {aiReviewed.map((s) => <SubmissionCard key={s.id} sub={s} />)}
             </div>
@@ -400,7 +400,7 @@ export default function FormPage() {
         {/* Pending */}
         {pending.length > 0 && (
           <section className="mb-6">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-white/25 mb-2 px-1">Pending</p>
+            <p className="text-[10px] text-white/25 mb-2 px-1">Pending</p>
             <div className="space-y-2">
               {pending.map((s) => <SubmissionCard key={s.id} sub={s} />)}
             </div>

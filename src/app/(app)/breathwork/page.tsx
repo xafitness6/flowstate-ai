@@ -402,7 +402,7 @@ export default function BreathworkPage() {
     return (
       <div className="px-5 md:px-8 py-6 max-w-lg mx-auto">
         <div className="mb-8">
-          <p className="text-xs uppercase tracking-[0.22em] text-white/25 mb-1.5">Recovery</p>
+          <p className="text-xs text-white/25 mb-1.5">Recovery</p>
           <h1 className="text-3xl font-semibold tracking-tight text-white">Breathwork</h1>
         </div>
 
@@ -425,7 +425,7 @@ export default function BreathworkPage() {
                   <div className="flex items-start justify-between mb-1">
                     <span className="text-sm font-semibold text-white/85">{mode.name}</span>
                     <span className={[
-                      "text-[9px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full ml-2 shrink-0",
+                      "text-[9px] px-2 py-0.5 rounded-full ml-2 shrink-0",
                       mode.difficulty === "Beginner"     ? "bg-emerald-500/15 text-emerald-400/70"
                       : mode.difficulty === "Intermediate" ? "bg-amber-500/15 text-amber-400/70"
                       : mode.difficulty === "Custom"       ? "bg-[#1a5c6b]/30 text-[#a8c8cf]/80"
@@ -658,21 +658,21 @@ export default function BreathworkPage() {
   if (screen === "complete") {
     return (
       <div className="px-5 md:px-8 py-10 max-w-md mx-auto flex flex-col items-center">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-2">Session Complete</p>
+        <p className="text-[12px] text-white/45 font-medium mb-2">Session Complete</p>
         <h2 className="text-3xl font-semibold text-white mb-1">Good job!</h2>
         <p className="text-sm text-white/35 mb-10">{fmtTime(totalDuration)} total</p>
 
         <div className="w-full rounded-2xl border border-white/8 bg-[#111111] px-5 py-5 mb-8 flex gap-8">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-1.5">Mode</p>
+            <p className="text-[9px] text-white/22 mb-1.5">Mode</p>
             <p className="text-base font-semibold text-white/80">{modeRef.current.name}</p>
           </div>
           <div>
-            <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-1.5">Rounds</p>
+            <p className="text-[9px] text-white/22 mb-1.5">Rounds</p>
             <p className="text-2xl font-semibold text-white/80">{totalRoundsRef.current}</p>
           </div>
           <div>
-            <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-1.5">Duration</p>
+            <p className="text-[9px] text-white/22 mb-1.5">Duration</p>
             <p className="text-2xl font-semibold text-white/80">{fmtTime(totalDuration)}</p>
           </div>
         </div>

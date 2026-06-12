@@ -55,14 +55,14 @@ export function BmiCard({
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/28">Body Mass Index</p>
+        <p className="text-[12px] text-white/45 font-medium">Body Mass Index</p>
         <Scale className="w-3.5 h-3.5 text-white/25" strokeWidth={1.5} />
       </div>
 
       {/* Inputs */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-[10px] uppercase tracking-[0.12em] text-white/30 mb-1 block">
+          <label className="text-[10px] text-white/30 mb-1 block">
             Height ({heightUnitLabel(unitSystem)})
           </label>
           <input
@@ -74,7 +74,7 @@ export function BmiCard({
           />
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-[0.12em] text-white/30 mb-1 block">
+          <label className="text-[10px] text-white/30 mb-1 block">
             Weight ({weightUnitLabel(unitSystem)})
           </label>
           <input

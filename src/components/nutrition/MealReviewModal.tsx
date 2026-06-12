@@ -242,7 +242,7 @@ export function MealReviewModal({
 
           {/* Meal type */}
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-2">Meal type</p>
+            <p className="text-[10px] text-white/22 mb-2">Meal type</p>
             <div className="relative">
               <button
                 onClick={() => setTypeOpen((v) => !v)}
@@ -274,7 +274,7 @@ export function MealReviewModal({
 
           {/* Food items */}
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-2">
+            <p className="text-[10px] text-white/22 mb-2">
               Items ({activeItems.length})
             </p>
             <div className="space-y-1.5">
@@ -320,7 +320,7 @@ export function MealReviewModal({
                       <div className="border-t border-white/[0.05] px-3.5 pb-3.5 pt-3 space-y-2.5">
                         {/* Name */}
                         <div>
-                          <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Name</label>
+                          <label className="text-[10px] text-white/20 mb-1 block">Name</label>
                           <input
                             type="text"
                             value={item.name}
@@ -332,7 +332,7 @@ export function MealReviewModal({
                         {/* Qty + Unit */}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Quantity</label>
+                            <label className="text-[10px] text-white/20 mb-1 block">Quantity</label>
                             <input
                               type="number" min="0" step="any"
                               value={numField(item.quantity)}
@@ -342,7 +342,7 @@ export function MealReviewModal({
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Unit</label>
+                            <label className="text-[10px] text-white/20 mb-1 block">Unit</label>
                             <select
                               value={item.unit ?? ""}
                               onChange={(e) => updateItem(item.id, { unit: e.target.value || null })}
@@ -355,7 +355,7 @@ export function MealReviewModal({
                         </div>
                         {/* Grams */}
                         <div>
-                          <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Grams (weight)</label>
+                          <label className="text-[10px] text-white/20 mb-1 block">Grams (weight)</label>
                           <input
                             type="number" min="0" step="any"
                             value={numField(item.grams)}
@@ -373,7 +373,7 @@ export function MealReviewModal({
                             { key: "fat"      as const, label: "Fat",       placeholder: "e.g. 8"   },
                           ].map(({ key, label, placeholder }) => (
                             <div key={key}>
-                              <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">{label}</label>
+                              <label className="text-[10px] text-white/20 mb-1 block">{label}</label>
                               <input
                                 type="number" min="0" step="any"
                                 value={numField(item[key])}
@@ -398,7 +398,7 @@ export function MealReviewModal({
             {/* Removed items — restore */}
             {removedItems.length > 0 && (
               <div className="mt-3 space-y-1.5">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/15 px-1">Removed</p>
+                <p className="text-[10px] text-white/15 px-1">Removed</p>
                 {removedItems.map((item) => (
                   <div
                     key={item.id}
@@ -420,7 +420,7 @@ export function MealReviewModal({
 
           {/* Totals */}
           <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-3">Totals</p>
+            <p className="text-[10px] text-white/22 mb-3">Totals</p>
             <div className="grid grid-cols-4 gap-2">
               {[
                 { label: "Calories", value: totals.calories, unit: "kcal", color: "text-white/75" },
@@ -429,7 +429,7 @@ export function MealReviewModal({
                 { label: "Fat",      value: totals.fat,      unit: "g",    color: "text-emerald-400/60" },
               ].map(({ label, value, unit, color }) => (
                 <div key={label} className="rounded-xl border border-white/5 bg-white/[0.02] px-2 py-2.5 text-center">
-                  <p className="text-[9px] uppercase tracking-[0.1em] text-white/25 mb-1">{label}</p>
+                  <p className="text-[9px] text-white/25 mb-1">{label}</p>
                   <p className={cn("text-sm font-semibold tabular-nums leading-none", color)}>
                     {Math.round(value)}
                     <span className="text-[10px] text-white/30 font-normal">{unit}</span>
@@ -442,7 +442,7 @@ export function MealReviewModal({
           {/* Raw transcript */}
           {rawTranscript && (
             <div className="rounded-xl border border-white/[0.05] bg-white/[0.015] px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-white/18 mb-1.5">What you said</p>
+              <p className="text-[10px] text-white/18 mb-1.5">What you said</p>
               <p className="text-xs text-white/35 leading-relaxed italic">&ldquo;{rawTranscript}&rdquo;</p>
             </div>
           )}

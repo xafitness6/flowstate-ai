@@ -350,7 +350,7 @@ export default function ProgramBuilderPage() {
 
         {/* Header */}
         <div className="mb-6">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-2">
+          <p className="text-[10px] text-white/35 mb-2">
             {clientId ? `Program · for ${clientLabel || "your client"}` : "Program · Builder"}
           </p>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
@@ -367,7 +367,7 @@ export default function ProgramBuilderPage() {
         <Card className="mb-4">
           <div className="px-5 py-5 space-y-5">
             <div>
-              <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Program name</label>
+              <label className="text-[11px] text-white/45 font-medium block mb-2">Program name</label>
               <input
                 type="text"
                 value={name}
@@ -379,7 +379,7 @@ export default function ProgramBuilderPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Goal</label>
+                <label className="text-[11px] text-white/45 font-medium block mb-2">Goal</label>
                 <div className="grid grid-cols-2 gap-2">
                   {GOAL_OPTIONS.map((opt) => (
                     <button
@@ -401,7 +401,7 @@ export default function ProgramBuilderPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Phase length</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Phase length</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -416,7 +416,7 @@ export default function ProgramBuilderPage() {
                   <p className="text-[10px] text-white/30 mt-1">Typically 3–6 per phase</p>
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Session target</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Session target</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -432,7 +432,7 @@ export default function ProgramBuilderPage() {
             </div>
 
             <details className="group">
-              <summary className="cursor-pointer text-[10px] uppercase tracking-[0.18em] text-white/35 hover:text-white/65 transition-colors flex items-center gap-2 select-none">
+              <summary className="cursor-pointer text-[11px] text-white/55 font-medium hover:text-white/65 transition-colors flex items-center gap-2 select-none">
                 <Settings2 className="w-3 h-3" strokeWidth={2} />
                 Equipment, focus &amp; notes
                 <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" strokeWidth={2} />
@@ -451,7 +451,7 @@ export default function ProgramBuilderPage() {
                   onChange={(v) => { setBodyFocus(v); markDirty(); }}
                 />
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Coaching notes</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Coaching notes</label>
                   <textarea
                     value={coachingNotes}
                     onChange={(e) => { setCoachingNotes(e.target.value); markDirty(); }}
@@ -498,7 +498,7 @@ export default function ProgramBuilderPage() {
 
         {/* ── Week tabs ── */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-3">
-          <span className="text-[10px] uppercase tracking-[0.22em] text-white/30 shrink-0 mr-1">Edit week</span>
+          <span className="text-[12px] text-white/45 font-medium shrink-0 mr-1">Edit week</span>
           {Array.from({ length: weeks }, (_, i) => i + 1).map((w) => {
             const isActive   = w === editingWeek;
             const hasOverride = w > 1 && !!weekOverrides[w];
@@ -530,7 +530,7 @@ export default function ProgramBuilderPage() {
           <div className="px-5 py-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.25em] text-white/35 mb-0.5">
+                <p className="text-[10px] text-white/35 mb-0.5">
                   Week {editingWeek} of {weeks}
                 </p>
                 <div className="flex items-center gap-2">
@@ -552,7 +552,7 @@ export default function ProgramBuilderPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Week intent</label>
+                <label className="text-[9px] text-white/35 block mb-1">Week intent</label>
                 <input
                   type="text"
                   value={currentWeek.intent ?? ""}
@@ -562,7 +562,7 @@ export default function ProgramBuilderPage() {
                 />
               </div>
               <div>
-                <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Progression this week</label>
+                <label className="text-[9px] text-white/35 block mb-1">Progression this week</label>
                 <input
                   type="text"
                   value={currentWeek.progressionThisWeek ?? ""}
@@ -745,7 +745,7 @@ function ChipMultiselect({
   }
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">{label}</label>
+      <label className="text-[11px] text-white/45 font-medium block mb-2">{label}</label>
       <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => {
           const active = value.includes(opt);

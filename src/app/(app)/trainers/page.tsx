@@ -243,7 +243,7 @@ export default function TrainersPage() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-1.5">
+          <p className="text-[10px] text-white/22 mb-1.5">
             {isMaster ? "Admin · Trainers" : "My Profile"}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -320,10 +320,10 @@ export default function TrainersPage() {
             : "grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]"
         )}>
           {["Trainer", "Active clients", "Retention", "Adherence", "At-risk", "Response time"].map((col) => (
-            <p key={col} className="text-[10px] uppercase tracking-[0.14em] text-white/22">{col}</p>
+            <p key={col} className="text-[10px] text-white/22">{col}</p>
           ))}
-          <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 w-20">Feedback</p>
-          {isMaster && <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 w-8" />}
+          <p className="text-[10px] text-white/22 w-20">Feedback</p>
+          {isMaster && <p className="text-[10px] text-white/22 w-8" />}
         </div>
 
         {/* Rows */}

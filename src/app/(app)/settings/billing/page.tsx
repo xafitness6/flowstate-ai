@@ -94,7 +94,7 @@ export default function BillingPage() {
         <div className="max-w-lg mx-auto space-y-6">
 
           <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40] mb-1 font-medium">Settings</p>
+            <p className="text-[10px] text-[#B48B40] mb-1 font-medium">Settings</p>
             <h1 className="text-2xl font-semibold text-white tracking-tight">Billing</h1>
           </div>
 
@@ -161,7 +161,7 @@ export default function BillingPage() {
       <div className="max-w-lg mx-auto space-y-6">
 
         <div>
-          <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40] mb-1 font-medium">Settings</p>
+          <p className="text-[10px] text-[#B48B40] mb-1 font-medium">Settings</p>
           <h1 className="text-2xl font-semibold text-white tracking-tight">Billing</h1>
         </div>
 

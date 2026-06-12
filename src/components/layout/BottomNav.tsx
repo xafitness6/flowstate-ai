@@ -222,7 +222,7 @@ export function BottomNav() {
             </div>
 
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Bottom bar</p>
+              <p className="text-[11px] text-white/45 font-medium">Bottom bar</p>
               <p className="text-[10px] text-white/25">{pinnedHrefs.length}/{MAX_PINNED}</p>
             </div>
             <div className="space-y-1.5">
@@ -249,7 +249,7 @@ export function BottomNav() {
                     <Icon className="w-4 h-4 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     {isLocked && item.plan && (
-                      <span className="text-[9px] uppercase tracking-[0.12em] text-[#B48B40]/45">
+                      <span className="text-[9px] text-[#B48B40]/45">
                         {PLAN_LABELS[item.plan]}
                       </span>
                     )}

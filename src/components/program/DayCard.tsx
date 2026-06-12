@@ -57,7 +57,7 @@ function InlineField({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <label className="text-[9px] uppercase tracking-[0.12em] text-white/28">{label}</label>
+      <label className="text-[9px] text-white/28">{label}</label>
       <input
         type={type}
         value={value}
@@ -229,7 +229,7 @@ export function DayCard({
         <div className="flex items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 min-w-0">
             <span className={cn(
-              "text-[10px] uppercase tracking-[0.25em] px-2 py-0.5 rounded-full border whitespace-nowrap",
+              "text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap",
               isRest
                 ? "text-white/45 border-white/12 bg-white/[0.03]"
                 : "text-[#B48B40]/80 border-[#B48B40]/25 bg-[#B48B40]/[0.06]",
@@ -270,7 +270,7 @@ export function DayCard({
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Session name</label>
+                <label className="text-[9px] text-white/35 block mb-1">Session name</label>
                 <input
                   type="text"
                   value={day.name}
@@ -280,7 +280,7 @@ export function DayCard({
                 />
               </div>
               <div>
-                <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Target duration</label>
+                <label className="text-[9px] text-white/35 block mb-1">Target duration</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -293,7 +293,7 @@ export function DayCard({
               </div>
             </div>
             <div className="mt-3">
-              <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Focus / muscle groups</label>
+              <label className="text-[9px] text-white/35 block mb-1">Focus / muscle groups</label>
               <input
                 type="text"
                 value={day.focus}
@@ -305,7 +305,7 @@ export function DayCard({
           </>
         ) : (
           <div>
-            <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Recovery note</label>
+            <label className="text-[9px] text-white/35 block mb-1">Recovery note</label>
             <input
               type="text"
               value={day.focus}

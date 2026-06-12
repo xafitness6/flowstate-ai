@@ -184,7 +184,7 @@ function CoachReviewSection({
 
         <div className="px-4 py-3 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.12em] text-white/22 mb-1">
+            <p className="text-[9px] text-white/22 mb-1">
               {existing.coachName} · {new Date(existing.reviewedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </p>
             <p className="text-sm text-white/70 leading-relaxed">{existing.overall}</p>
@@ -192,14 +192,14 @@ function CoachReviewSection({
 
           {existing.technicalNotes && (
             <div className="pt-2 border-t border-white/[0.05]">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-white/22 mb-1.5">Technical notes</p>
+              <p className="text-[9px] text-white/22 mb-1.5">Technical notes</p>
               <p className="text-xs text-white/55 leading-relaxed">{existing.technicalNotes}</p>
             </div>
           )}
 
           {existing.cues.length > 0 && (
             <div className="pt-2 border-t border-white/[0.05]">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-white/22 mb-1.5">Coach cues</p>
+              <p className="text-[9px] text-white/22 mb-1.5">Coach cues</p>
               <ul className="space-y-1">
                 {existing.cues.map((c, i) => (
                   <li key={i} className="flex items-start gap-2">
@@ -240,7 +240,7 @@ function CoachReviewSection({
           </div>
 
           <div>
-            <label className="text-[9px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Overall feedback</label>
+            <label className="text-[9px] text-white/25 mb-1 block">Overall feedback</label>
             <textarea
               value={overall}
               onChange={(e) => setOverall(e.target.value)}
@@ -251,7 +251,7 @@ function CoachReviewSection({
           </div>
 
           <div>
-            <label className="text-[9px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Technical notes</label>
+            <label className="text-[9px] text-white/25 mb-1 block">Technical notes</label>
             <textarea
               value={technicalNotes}
               onChange={(e) => setTechnical(e.target.value)}
@@ -262,7 +262,7 @@ function CoachReviewSection({
           </div>
 
           <div>
-            <label className="text-[9px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Coaching cues</label>
+            <label className="text-[9px] text-white/25 mb-1 block">Coaching cues</label>
             <div className="flex gap-2">
               <input
                 value={cueInput}
@@ -393,7 +393,7 @@ sub && s.id === sub.id ? { ...s, status: "coach_reviewed", coachReview: review }
 
   return (
     <div className="flex-1 min-h-screen bg-[#0A0A0A]">
-      <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-10">
+      <div className="max-w-[760px] mx-auto px-4 md:px-6 py-8 md:py-10">
 
         {/* Back + header */}
         <div className="mb-6">
@@ -477,7 +477,7 @@ sub && s.id === sub.id ? { ...s, status: "coach_reviewed", coachReview: review }
             {/* Notes */}
             {sub.notes && (
               <div className="px-4 py-3 rounded-2xl border border-white/[0.05] bg-white/[0.01]">
-                <p className="text-[9px] uppercase tracking-[0.12em] text-white/22 mb-1">Submission notes</p>
+                <p className="text-[9px] text-white/22 mb-1">Submission notes</p>
                 <p className="text-sm text-white/55 leading-relaxed">{sub.notes}</p>
               </div>
             )}
@@ -561,11 +561,11 @@ sub && s.id === sub.id ? { ...s, status: "coach_reviewed", coachReview: review }
                       <div key={cue.id} className="px-4 py-3 flex items-start gap-3">
                         <PriorityDot priority={cue.priority} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[9px] uppercase tracking-[0.12em] text-white/22 mb-1">{cue.phase}</p>
+                          <p className="text-[9px] text-white/22 mb-1">{cue.phase}</p>
                           <p className="text-xs text-white/65 leading-relaxed">{cue.cue}</p>
                         </div>
                         <span className={cn(
-                          "text-[9px] uppercase tracking-[0.10em] shrink-0 mt-1",
+                          "text-[9px] shrink-0 mt-1",
                           cue.priority === "high"   ? "text-[#F87171]/50" :
                           cue.priority === "medium" ? "text-[#B48B40]/60" : "text-white/18"
                         )}>

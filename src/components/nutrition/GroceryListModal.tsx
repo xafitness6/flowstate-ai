@@ -82,7 +82,7 @@ export function GroceryListModal({
           ) : (
             list.categories.map((cat, ci) => (
               <div key={ci}>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[#B48B40]/70 mb-2">{cat.name}</p>
+                <p className="text-[10px] text-[#B48B40]/70 mb-2">{cat.name}</p>
                 <div className="space-y-1.5">
                   {cat.items.map((it, ii) => (
                     <div key={ii} className="flex items-center gap-2">

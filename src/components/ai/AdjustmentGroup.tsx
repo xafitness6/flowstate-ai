@@ -149,7 +149,7 @@ export function AdjustmentGroup({
       {/* ── Outcome ────────────────────────────────────────────────── */}
       <div className="h-px bg-white/5 mx-6" />
       <div className="px-6 py-4">
-        <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-1.5">
+        <p className="text-[10px] text-white/20 mb-1.5">
           Expected outcome
         </p>
         <p className="text-sm text-white/52 leading-relaxed">{outcome}</p>

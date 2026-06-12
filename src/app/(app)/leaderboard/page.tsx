@@ -270,13 +270,13 @@ export default function LeaderboardPage() {
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-1.5">Leaderboard</p>
+          <p className="text-[10px] text-white/22 mb-1.5">Leaderboard</p>
           <h1 className="text-2xl font-semibold tracking-tight">Performance Rankings</h1>
           <p className="text-sm text-white/30 mt-1">Updated daily. Rankings based on real activity data.</p>
         </div>
         {myEntry && (
           <div className="shrink-0 text-right">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/22 mb-0.5">Your rank</p>
+            <p className="text-[10px] text-white/22 mb-0.5">Your rank</p>
             <p className="text-2xl font-semibold text-[#B48B40] tabular-nums">#{myRank}</p>
             <p className="text-[10px] text-white/28">of {filtered.length}</p>
           </div>
@@ -325,7 +325,7 @@ export default function LeaderboardPage() {
               key={f.id}
               onClick={() => setTierFilter(f.id)}
               className={cn(
-                "rounded-lg px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.08em] transition-all",
+                "rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition-all",
                 tierFilter === f.id
                   ? "bg-white/8 text-white/70 border border-white/12"
                   : "text-white/25 hover:text-white/50 border border-transparent"
@@ -363,14 +363,14 @@ export default function LeaderboardPage() {
 
           {/* Column headers */}
           <div className="hidden md:grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 border-b border-white/[0.05]">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 w-6">#</p>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-white/22">Name</p>
+            <p className="text-[10px] text-white/22 w-6">#</p>
+            <p className="text-[10px] text-white/22">Name</p>
             {SORT_OPTIONS.filter((o) => o.key !== "overall").map((o) => (
               <button
                 key={o.key}
                 onClick={() => setSortKey(o.key)}
                 className={cn(
-                  "text-[10px] uppercase tracking-[0.14em] text-left transition-colors",
+                  "text-[10px] text-left transition-colors",
                   sortKey === o.key ? "text-[#B48B40]" : "text-white/22 hover:text-white/45"
                 )}
               >
@@ -380,7 +380,7 @@ export default function LeaderboardPage() {
             <button
               onClick={() => setSortKey("overall")}
               className={cn(
-                "text-[10px] uppercase tracking-[0.14em] text-left transition-colors",
+                "text-[10px] text-left transition-colors",
                 sortKey === "overall" ? "text-[#B48B40]" : "text-white/22 hover:text-white/45"
               )}
             >

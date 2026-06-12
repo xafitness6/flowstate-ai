@@ -625,37 +625,37 @@ function CoachPageInner() {
         >
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 text-[9px] uppercase tracking-[0.16em] text-white/25 md:text-[10px]">Goal</span>
+              <span className="shrink-0 text-[9px] text-white/25 md:text-[10px]">Goal</span>
               <span className="min-w-0 truncate text-xs font-medium text-[#B48B40]">{context.goal}</span>
             </div>
             <div className="mt-1 flex min-w-0 items-center gap-2 sm:hidden">
-              <span className="shrink-0 text-[9px] uppercase tracking-[0.16em] text-white/20">Phase</span>
+              <span className="shrink-0 text-[9px] text-white/20">Phase</span>
               <span className="min-w-0 truncate text-[11px] font-medium text-white/50">{context.phase}</span>
             </div>
             <div className="mt-1 hidden min-w-0 items-center gap-3 sm:flex">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Phase</span>
+                <span className="text-[11px] text-white/40 font-medium">Phase</span>
                 <span className="min-w-0 truncate text-xs font-medium text-white/55">{context.phase}</span>
               </div>
               <span className="text-white/10">·</span>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Week</span>
+                <span className="text-[11px] text-white/40 font-medium">Week</span>
                 <span className="text-xs font-medium text-white/55">{context.week}</span>
               </div>
               <span className="text-white/10">·</span>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-white/25">Status</span>
+                <span className="text-[11px] text-white/40 font-medium">Status</span>
                 <span className="text-xs font-medium text-emerald-400">{context.status}</span>
               </div>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className="rounded-full border border-[#B48B40]/20 bg-[#B48B40]/8 px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-[#B48B40]/70">
+            <span className="rounded-full border border-[#B48B40]/20 bg-[#B48B40]/8 px-2 py-1 text-[10px] font-medium text-[#B48B40]/70">
               {INTENSITY_LABELS[activeIntensity]}
             </span>
             {strongLanguage && (
-              <span className="hidden rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white/35 min-[390px]:inline">
+              <span className="hidden rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-white/35 min-[390px]:inline">
                 Unfiltered
               </span>
             )}
@@ -675,7 +675,7 @@ function CoachPageInner() {
               { label: "Status", value: context.status, color: "text-emerald-400" },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2.5">
-                <p className="text-[10px] uppercase tracking-[0.1em] text-white/22 mb-1">{label}</p>
+                <p className="text-[10px] text-white/22 mb-1">{label}</p>
                 <p className={cn("text-xs font-semibold", color)}>{value}</p>
               </div>
             ))}
@@ -683,7 +683,7 @@ function CoachPageInner() {
             {/* Coaching voice controls */}
             <div className="col-span-2 sm:col-span-4 rounded-xl border border-white/6 bg-white/[0.02] px-3.5 py-3 mt-0.5">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Coaching voice</p>
+                <p className="text-[10px] text-white/22">Coaching voice</p>
                 <span className="text-xs font-semibold text-[#B48B40]">{INTENSITY_LABELS[activeIntensity]}</span>
               </div>
               <input
@@ -692,7 +692,7 @@ function CoachPageInner() {
                 onChange={(e) => setIntensity(Number(e.target.value))}
                 className="w-full accent-[#B48B40] cursor-pointer"
               />
-              <div className="flex justify-between text-[9px] uppercase tracking-[0.1em] text-white/25 mt-1">
+              <div className="flex justify-between text-[10px] font-medium text-white/25 mt-1">
                 <span>Gentle</span><span>Militant</span>
               </div>
               <button

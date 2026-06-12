@@ -134,11 +134,11 @@ export function EditMyStats() {
         <div className="px-5 pb-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1 block">Age</label>
+              <label className="text-[10px] text-white/30 mb-1 block">Age</label>
               <input type="number" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value)} className={field} placeholder="30" />
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1 block">Sex</label>
+              <label className="text-[10px] text-white/30 mb-1 block">Sex</label>
               <div className="flex gap-2">
                 {(["male", "female"] as const).map((s) => (
                   <button key={s} onClick={() => setSex(sex === s ? "" : s)} className={cn(chip(sex === s), "flex-1 capitalize")}>{s}</button>
@@ -148,7 +148,7 @@ export function EditMyStats() {
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1 block">Height</label>
+            <label className="text-[10px] text-white/30 mb-1 block">Height</label>
             {sys === "imperial" ? (
               <div className="flex gap-2">
                 <div className="flex-1 flex items-center gap-1"><input type="number" inputMode="numeric" value={ft} onChange={(e) => setFt(e.target.value)} className={field} placeholder="5" /><span className="text-[11px] text-white/30">ft</span></div>
@@ -161,21 +161,21 @@ export function EditMyStats() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1 block">Current weight ({weightUnitLabel(sys)})</label>
+              <label className="text-[10px] text-white/30 mb-1 block">Current weight ({weightUnitLabel(sys)})</label>
               <input type="number" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className={field} placeholder="180" />
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1 block">Goal weight ({weightUnitLabel(sys)})</label>
+              <label className="text-[10px] text-white/30 mb-1 block">Goal weight ({weightUnitLabel(sys)})</label>
               <input type="number" inputMode="decimal" value={goalW} onChange={(e) => setGoalW(e.target.value)} className={field} placeholder="170" />
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5 block">Activity level</label>
+            <label className="text-[10px] text-white/30 mb-1.5 block">Activity level</label>
             <div className="flex flex-wrap gap-2">{ACTIVITY.map((a) => <button key={a.v} onClick={() => setActivity(a.v)} className={chip(activity === a.v)}>{a.l}</button>)}</div>
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5 block">Goal</label>
+            <label className="text-[10px] text-white/30 mb-1.5 block">Goal</label>
             <div className="flex flex-wrap gap-2">{GOALS.map((g) => <button key={g.v} onClick={() => setGoal(g.v)} className={chip(goal === g.v)}>{g.l}</button>)}</div>
           </div>
 

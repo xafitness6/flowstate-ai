@@ -71,7 +71,7 @@ function StatCard({
     )}>
       <div className="flex items-center gap-2 mb-0.5">
         <Icon className={cn("w-3.5 h-3.5", accent ? "text-[#B48B40]/60" : "text-white/22")} strokeWidth={1.5} />
-        <p className="text-[10px] uppercase tracking-[0.16em] text-white/28">{label}</p>
+        <p className="text-[10px] text-white/28">{label}</p>
       </div>
       <p className={cn("text-2xl font-light tabular-nums", accent ? "text-[#B48B40]" : "text-white/80")}>{value}</p>
       {sub && <p className="text-[10px] text-white/28">{sub}</p>}
@@ -261,12 +261,12 @@ export default function MyClientsPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="px-5 md:px-8 py-6 max-w-5xl mx-auto space-y-6">
+    <div className="px-5 md:px-8 py-6 max-w-[760px] mx-auto space-y-6">
 
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-1">My Clients</p>
+          <p className="text-[10px] text-white/22 mb-1">My Clients</p>
           <h1 className="text-xl font-light text-white/90">
             {clients.length > 0 ? `${clients.length} assigned client${clients.length !== 1 ? "s" : ""}` : "No clients assigned"}
           </h1>
@@ -310,7 +310,7 @@ export default function MyClientsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/30">Invite link</p>
+                    <p className="text-[11px] text-white/30">Invite link</p>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5 min-w-0">
                         <p className="text-xs text-white/40 truncate">{getInviteUrl(invCreated.inviteToken)}</p>
@@ -343,7 +343,7 @@ export default function MyClientsPage() {
                 <form onSubmit={handleSendInvite} className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">First name</label>
+                      <label className="text-[11px] text-white/30">First name</label>
                       <input
                         type="text"
                         value={invFirst}
@@ -352,7 +352,7 @@ export default function MyClientsPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Last name</label>
+                      <label className="text-[11px] text-white/30">Last name</label>
                       <input
                         type="text"
                         value={invLast}
@@ -362,7 +362,7 @@ export default function MyClientsPage() {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Email</label>
+                    <label className="text-[11px] text-white/30">Email</label>
                     <input
                       type="email"
                       value={invEmail}
@@ -371,7 +371,7 @@ export default function MyClientsPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Message <span className="normal-case text-white/20">(optional)</span></label>
+                    <label className="text-[11px] text-white/30">Message <span className="normal-case text-white/20">(optional)</span></label>
                     <textarea
                       value={invMessage}
                       onChange={(e) => setInvMessage(e.target.value)}
@@ -406,7 +406,7 @@ export default function MyClientsPage() {
       {/* ── Pending invites ──────────────────────────────────────────────────── */}
       {invites.filter((i) => i.inviteStatus === "pending" || i.inviteStatus === "sent").length > 0 && (
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-white/22">Pending invites</p>
+          <p className="text-[10px] text-white/22">Pending invites</p>
           <div className="rounded-2xl border border-white/6 bg-[#111111] divide-y divide-white/[0.04]">
             {invites
               .filter((i) => i.inviteStatus === "pending" || i.inviteStatus === "sent")
@@ -448,7 +448,7 @@ export default function MyClientsPage() {
       {leads.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/22">Open invite leads</p>
+            <p className="text-[10px] text-white/22">Open invite leads</p>
             <span className="text-[10px] text-white/22">{leads.length} lead{leads.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="rounded-2xl border border-white/6 bg-[#111111] divide-y divide-white/[0.04]">
@@ -532,7 +532,7 @@ export default function MyClientsPage() {
             {/* Column headers */}
             <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 border-b border-white/[0.04]">
               {["Client", "Status", "Compliance", "Check-ins", "Last active", ""].map((col) => (
-                <p key={col} className="text-[10px] uppercase tracking-[0.14em] text-white/22">{col}</p>
+                <p key={col} className="text-[10px] text-white/22">{col}</p>
               ))}
             </div>
 

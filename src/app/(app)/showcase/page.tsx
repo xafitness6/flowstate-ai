@@ -110,7 +110,7 @@ export default function ShowcasePage() {
 
         {/* Header */}
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/30 mb-3">
+          <p className="text-[12px] text-white/45 font-medium mb-3">
             Component showcase
           </p>
           <h1 className="text-4xl font-semibold tracking-tight mb-2">AI Adjustment Cards</h1>
@@ -120,7 +120,7 @@ export default function ShowcasePage() {
         {/* ── AdjustmentGroup ─────────────────────────────────────── */}
         <section className="space-y-4">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/30">
+            <p className="text-xs text-white/30">
               AdjustmentGroup
             </p>
             <p className="text-xs text-white/25">
@@ -147,7 +147,7 @@ export default function ShowcasePage() {
         {/* ── AdjustmentCard — default variant ────────────────────── */}
         <section className="space-y-4">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/30">
+            <p className="text-xs text-white/30">
               AdjustmentCard — default
             </p>
             <p className="text-xs text-white/25">
@@ -169,7 +169,7 @@ export default function ShowcasePage() {
         {/* ── AdjustmentCard — compact variant ────────────────────── */}
         <section className="space-y-4">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/30">
+            <p className="text-xs text-white/30">
               AdjustmentCard — compact
             </p>
             <p className="text-xs text-white/25">
@@ -188,7 +188,7 @@ export default function ShowcasePage() {
 
         {/* ── Props reference ─────────────────────────────────────── */}
         <section className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.18em] text-white/30">Props reference</p>
+          <p className="text-xs text-white/30">Props reference</p>
 
           <div className="rounded-2xl border border-white/7 bg-[#111111] overflow-hidden">
             <div className="divide-y divide-white/[0.05]">

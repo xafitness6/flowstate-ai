@@ -585,7 +585,7 @@ export default function AdminDashboard() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-1.5">Admin</p>
+          <p className="text-[10px] text-white/22 mb-1.5">Admin</p>
           <h1 className="text-2xl font-semibold tracking-tight">Platform Overview</h1>
           <p className="text-sm text-white/30 mt-1">Live platform data — auto-refreshes every 10s.</p>
         </div>
@@ -679,7 +679,7 @@ export default function AdminDashboard() {
         <div className="md:col-span-2 rounded-2xl border border-white/6 bg-[#111111] px-6 py-5 space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-1">Subscriptions</p>
+              <p className="text-[10px] text-white/22 mb-1">Subscriptions</p>
               <p className="text-base font-semibold text-white/88">by tier</p>
             </div>
             <p className="text-xs text-white/28">{tierTotal} total</p>
@@ -736,15 +736,15 @@ export default function AdminDashboard() {
           </div>
           <div className="pt-2 border-t border-white/5 flex items-center gap-6">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-0.5">MRR</p>
+              <p className="text-[10px] text-white/20 mb-0.5">MRR</p>
               <p className="text-sm font-semibold text-[#B48B40]">${totalMrr.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-0.5">ARR (projected)</p>
+              <p className="text-[10px] text-white/20 mb-0.5">ARR (projected)</p>
               <p className="text-sm font-semibold text-white/60">${(totalMrr * 12).toLocaleString()}</p>
             </div>
             <div className="ml-auto">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-0.5">ARPPU</p>
+              <p className="text-[10px] text-white/20 mb-0.5">ARPPU</p>
               <p className="text-sm font-semibold text-white/60">${arppu}</p>
             </div>
           </div>
@@ -753,7 +753,7 @@ export default function AdminDashboard() {
         {/* Client assignments + alerts */}
         <div className="space-y-3">
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3.5">Client assignments</p>
+            <p className="text-[10px] text-white/22 mb-3.5">Client assignments</p>
             <div className="space-y-4">
               {assignments.length === 0 && (
                 <p className="text-xs text-white/25">No active assignments.</p>
@@ -776,7 +776,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Alerts</p>
+            <p className="text-[10px] text-white/22 mb-3">Alerts</p>
             <div className="space-y-2.5">
               {([
                 atRiskUsers > 0 && {
@@ -829,7 +829,7 @@ export default function AdminDashboard() {
       {trainerMetrics.length > 0 && (
         <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
           <div className="px-5 py-4 border-b border-white/[0.05]">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Trainer Performance</p>
+            <p className="text-[10px] text-white/22">Trainer Performance</p>
             <p className="text-sm font-medium text-white/75 mt-0.5">{trainerMetrics.length} trainer{trainerMetrics.length !== 1 ? "s" : ""}</p>
           </div>
           <div className="divide-y divide-white/[0.04]">
@@ -902,7 +902,7 @@ export default function AdminDashboard() {
                   {/* Compact trend — full bar chart removed at user request */}
                   {metrics.adherenceTrend.length > 0 && (
                     <div className="mt-3 flex items-center gap-2">
-                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/18 shrink-0">7w trend</p>
+                      <p className="text-[9px] text-white/18 shrink-0">7w trend</p>
                       <div className="flex items-end gap-[2px] h-3 flex-1 max-w-[120px]">
                         {metrics.adherenceTrend.map((v, i) => {
                           const isLast = i === metrics.adherenceTrend.length - 1;
@@ -1086,14 +1086,14 @@ export default function AdminDashboard() {
             <button
               key={key}
               onClick={() => toggleSort(key)}
-              className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-white/22 hover:text-white/45 transition-colors"
+              className="flex items-center gap-1 text-[10px] text-white/22 hover:text-white/45 transition-colors"
             >
               {label}
               <SortIcon field={key} sortKey={sortKey} sortDir={sortDir} />
             </button>
           ))}
-          <p className="text-[10px] uppercase tracking-[0.14em] text-white/22">Trainer</p>
-          <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 w-8" />
+          <p className="text-[10px] text-white/22">Trainer</p>
+          <p className="text-[10px] text-white/22 w-8" />
         </div>
 
         <div className="divide-y divide-white/[0.04]">

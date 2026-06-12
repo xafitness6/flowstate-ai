@@ -181,7 +181,7 @@ function ParsedResultPanel({
       {/* Description */}
       {parseResult.cleanTranscript && (
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1.5">Detected</p>
+          <p className="text-[10px] text-white/20 mb-1.5">Detected</p>
           <p className="text-sm text-white/60 leading-relaxed">{parseResult.cleanTranscript}</p>
         </div>
       )}
@@ -217,7 +217,7 @@ function ParsedResultPanel({
 
       {/* Items */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-2">
+        <p className="text-[10px] text-white/22 mb-2">
           Items ({activeItems.length})
         </p>
         <div className="space-y-1.5">
@@ -272,7 +272,7 @@ function ParsedResultPanel({
           { label: "Fat",     value: totals.fat,      unit: "g", color: "text-emerald-400/60" },
         ].map(({ label, value, unit, color }) => (
           <div key={label} className="rounded-xl border border-white/6 bg-white/[0.02] px-2.5 py-2.5 text-center">
-            <p className="text-[9px] uppercase tracking-[0.1em] text-white/25 mb-1">{label}</p>
+            <p className="text-[9px] text-white/25 mb-1">{label}</p>
             <p className={cn("text-sm font-semibold tabular-nums", color)}>
               {Math.round(value)}<span className="text-[10px] text-white/30 font-normal">{unit}</span>
             </p>
@@ -669,7 +669,7 @@ function VoiceTab({
       {/* Transcript */}
       {transcript && !result && !parsing && (
         <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3">
-          <p className="text-[10px] uppercase tracking-[0.12em] text-white/22 mb-1.5">You said</p>
+          <p className="text-[10px] text-white/22 mb-1.5">You said</p>
           <p className="text-sm text-white/55 leading-relaxed italic">&ldquo;{transcript}&rdquo;</p>
         </div>
       )}
@@ -728,7 +728,7 @@ function CameraTab() {
             Point your camera at a meal and get real-time portion zones overlaid on screen.
           </p>
         </div>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-white/30 shrink-0 whitespace-nowrap">
+        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-white/30 shrink-0 whitespace-nowrap">
           Coming soon
         </span>
       </div>
@@ -745,13 +745,13 @@ function CameraTab() {
           ))}
           <div className="relative w-[70%] aspect-square rounded-full border border-white/5 bg-white/[0.02] flex items-center justify-center">
             <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[38%] h-[36%] rounded-xl bg-[#B48B40]/18 border border-[#B48B40]/30 flex items-center justify-center">
-              <p className="text-[9px] font-semibold text-[#B48B40]/80 uppercase tracking-[0.08em]">Protein</p>
+              <p className="text-[9px] font-semibold text-[#B48B40]/80">Protein</p>
             </div>
             <div className="absolute bottom-[18%] left-[15%] w-[30%] h-[26%] rounded-lg bg-[#93C5FD]/14 border border-[#93C5FD]/25 flex items-center justify-center">
-              <p className="text-[9px] font-semibold text-[#93C5FD]/70 uppercase tracking-[0.08em]">Carbs</p>
+              <p className="text-[9px] font-semibold text-[#93C5FD]/70">Carbs</p>
             </div>
             <div className="absolute bottom-[22%] right-[12%] w-[18%] h-[16%] rounded-md bg-emerald-400/12 border border-emerald-400/22 flex items-center justify-center">
-              <p className="text-[9px] font-semibold text-emerald-400/65 uppercase tracking-[0.08em]">Fat</p>
+              <p className="text-[9px] font-semibold text-emerald-400/65">Fat</p>
             </div>
           </div>
           <div className="absolute inset-x-3 h-px bg-gradient-to-r from-transparent via-[#B48B40]/30 to-transparent top-1/3 opacity-60" />

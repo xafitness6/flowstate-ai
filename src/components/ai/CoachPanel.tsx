@@ -136,7 +136,7 @@ export function CoachPanel() {
 
           {/* Today's focus */}
           <div className="px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/25 mb-1.5">
+            <p className="text-[11px] text-white/40 font-medium mb-1.5">
               Today&apos;s focus
             </p>
             <p className="text-sm text-white/80 leading-snug">
@@ -146,7 +146,7 @@ export function CoachPanel() {
 
           {/* Training plan */}
           <div className="px-5 py-4 space-y-3">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/25">
+            <p className="text-[11px] text-white/40 font-medium">
               Training plan
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -173,7 +173,7 @@ export function CoachPanel() {
               onClick={() => setNotesOpen((v) => !v)}
               className="w-full flex items-center justify-between px-5 py-3 text-xs text-white/30 hover:text-white/50 transition-colors"
             >
-              <span className="uppercase tracking-[0.15em]">Adjustment notes</span>
+              <span className="">Adjustment notes</span>
               {notesOpen
                 ? <ChevronUp  className="w-3.5 h-3.5" strokeWidth={1.5} />
                 : <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />}
@@ -207,7 +207,7 @@ export function CoachPanel() {
 function Metric({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
     <div>
-      <p className="text-[9px] uppercase tracking-[0.15em] text-white/20 mb-0.5">{label}</p>
+      <p className="text-[9px] text-white/20 mb-0.5">{label}</p>
       <p className={cn("text-xs font-semibold capitalize text-white/60", className)}>{value}</p>
     </div>
   );
@@ -216,7 +216,7 @@ function Metric({ label, value, className }: { label: string; value: string; cla
 function PlanCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2.5">
-      <p className="text-[9px] uppercase tracking-[0.12em] text-white/20 mb-1">{label}</p>
+      <p className="text-[9px] text-white/20 mb-1">{label}</p>
       <p className="text-xs text-white/70 leading-snug">{value}</p>
     </div>
   );

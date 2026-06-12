@@ -111,13 +111,13 @@ function HoverCardContent({
           {/* Adherence + streak */}
           <div className="px-4 py-3 border-b border-white/[0.06] grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[9px] uppercase tracking-[0.14em] text-white/22 mb-1">Adherence</p>
+              <p className="text-[9px] text-white/22 mb-1">Adherence</p>
               <p className={cn("text-xl font-semibold tabular-nums leading-none", adherenceColor(snap.adherence))}>
                 {snap.adherence}%
               </p>
             </div>
             <div>
-              <p className="text-[9px] uppercase tracking-[0.14em] text-white/22 mb-1">Streak</p>
+              <p className="text-[9px] text-white/22 mb-1">Streak</p>
               <div className="flex items-baseline gap-1">
                 {snap.streak > 0 && (
                   <Flame className="w-3 h-3 text-[#B48B40] shrink-0 mb-0.5" strokeWidth={1.5} />
@@ -138,7 +138,7 @@ function HoverCardContent({
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {snap.metrics.map((m) => (
                 <div key={m.label}>
-                  <p className="text-[9px] uppercase tracking-[0.12em] text-white/20 mb-0.5">{m.label}</p>
+                  <p className="text-[9px] text-white/20 mb-0.5">{m.label}</p>
                   <p className="text-xs font-medium text-white/60 tabular-nums">{m.value}</p>
                 </div>
               ))}

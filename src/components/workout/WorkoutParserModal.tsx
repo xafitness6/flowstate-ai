@@ -87,7 +87,7 @@ function ExercisePreviewCard({ ex }: { ex: ParsedWorkoutExercise }) {
 function Chip({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center gap-1 bg-white/[0.05] border border-white/8 rounded-lg px-2 py-1">
-      <span className="text-[9px] uppercase tracking-[0.12em] text-white/30">{label}</span>
+      <span className="text-[9px] text-white/30">{label}</span>
       <span className="text-[11px] text-white/70">{value}</span>
     </div>
   );

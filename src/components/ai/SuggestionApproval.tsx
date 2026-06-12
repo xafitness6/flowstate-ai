@@ -92,7 +92,7 @@ export function SuggestionApproval({
                 <div className="w-6 h-6 rounded-lg bg-[#B48B40]/12 border border-[#B48B40]/25 flex items-center justify-center">
                   <Sparkles className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.5} />
                 </div>
-                <span className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-medium">AI Suggestion</span>
+                <span className="text-[11px] text-white/45 font-medium font-medium">AI Suggestion</span>
                 <span className={cn("text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border", cfg.color, cfg.bg, cfg.border)}>
                   {cfg.label}
                 </span>
@@ -110,15 +110,15 @@ export function SuggestionApproval({
 
           {/* Change preview */}
           <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/22 mb-3">Proposed change</p>
+            <p className="text-[10px] text-white/22 mb-3">Proposed change</p>
             <div className="flex items-center gap-3">
               <div className="flex-1 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2.5">
-                <p className="text-[10px] uppercase tracking-[0.12em] text-white/22 mb-0.5">Current</p>
+                <p className="text-[10px] text-white/22 mb-0.5">Current</p>
                 <p className="text-sm text-white/65 font-medium">{suggestion.current}</p>
               </div>
               <ArrowRight className="w-4 h-4 text-white/20 shrink-0" strokeWidth={1.5} />
               <div className="flex-1 rounded-xl border border-[#B48B40]/25 bg-[#B48B40]/6 px-3.5 py-2.5">
-                <p className="text-[10px] uppercase tracking-[0.12em] text-[#B48B40]/50 mb-0.5">Proposed</p>
+                <p className="text-[10px] text-[#B48B40]/50 mb-0.5">Proposed</p>
                 <p className="text-sm text-[#B48B40] font-medium">{suggestion.proposed}</p>
               </div>
             </div>
@@ -127,15 +127,15 @@ export function SuggestionApproval({
           {/* What + Why */}
           <div className="space-y-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/22 mb-1.5">What changes</p>
+              <p className="text-[10px] text-white/22 mb-1.5">What changes</p>
               <p className="text-sm text-white/60 leading-relaxed">{suggestion.what}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/22 mb-1.5">Why</p>
+              <p className="text-[10px] text-white/22 mb-1.5">Why</p>
               <p className="text-sm text-white/60 leading-relaxed">{suggestion.why}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/22 mb-1.5">Expected impact</p>
+              <p className="text-[10px] text-white/22 mb-1.5">Expected impact</p>
               <p className="text-sm text-emerald-400/75 leading-relaxed">{suggestion.impact}</p>
             </div>
           </div>
@@ -143,7 +143,7 @@ export function SuggestionApproval({
           {/* Edit / Override panels */}
           {mode === "edit" && (
             <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-amber-400/60 mb-2">Edit proposed value</p>
+              <p className="text-[10px] text-amber-400/60 mb-2">Edit proposed value</p>
               <input
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
@@ -158,7 +158,7 @@ export function SuggestionApproval({
             <div className="rounded-2xl border border-[#F87171]/20 bg-[#F87171]/[0.04] p-4">
               <div className="flex items-center gap-1.5 mb-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-[#F87171]/60" strokeWidth={1.5} />
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#F87171]/60">Manual override</p>
+                <p className="text-[10px] text-[#F87171]/60">Manual override</p>
               </div>
               <input
                 value={overrideValue}
@@ -175,7 +175,7 @@ export function SuggestionApproval({
             <div>
               <div className="flex items-center gap-2 mb-2.5">
                 <Clock className="w-3.5 h-3.5 text-white/25" strokeWidth={1.5} />
-                <p className="text-[10px] uppercase tracking-[0.16em] text-white/22">How long should this stay active?</p>
+                <p className="text-[10px] text-white/22">How long should this stay active?</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {DURATION_OPTIONS.map((d) => (

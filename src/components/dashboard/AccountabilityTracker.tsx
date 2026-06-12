@@ -260,7 +260,7 @@ export function AccountabilityTracker({ compact = false }: { compact?: boolean }
 
       {/* Accountability heatmap */}
       <div className="px-4 pb-4">
-        <p className="text-xs font-semibold text-white/60 uppercase tracking-[0.15em] mb-2">Consistency heatmap</p>
+        <p className="text-xs font-semibold text-white/60 mb-2">Consistency heatmap</p>
         <div className="grid grid-cols-[repeat(53,minmax(0,1fr))] gap-[2px] h-[180px] overflow-x-auto">
           {columns.map((week, wi) => (
             <div key={wi} className="grid grid-rows-7 gap-[2px]">

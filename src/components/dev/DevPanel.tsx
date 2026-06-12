@@ -56,7 +56,7 @@ function PanelContent({
     <>
       {/* Current user */}
       <div className="px-4 pt-4 pb-3 border-b border-white/[0.06]">
-        <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-1.5">Active user</p>
+        <p className="text-[9px] text-white/22 mb-1.5">Active user</p>
         <p className="text-sm font-semibold text-white/85">{user.name}</p>
         <span className={cn(
           "inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md border capitalize",
@@ -68,7 +68,7 @@ function PanelContent({
 
       {/* Role switcher */}
       <div className="px-4 py-3 border-b border-white/[0.06]">
-        <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-2">Switch user</p>
+        <p className="text-[9px] text-white/22 mb-2">Switch user</p>
         <div className="grid grid-cols-2 gap-1.5">
           {(Object.keys(DEMO_USERS) as DemoKey[]).map((key) => (
             <button
@@ -89,7 +89,7 @@ function PanelContent({
 
       {/* Data controls */}
       <div className="px-4 py-3 space-y-1.5">
-        <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-2">Data</p>
+        <p className="text-[9px] text-white/22 mb-2">Data</p>
         {[
           { label: "Seed 21 days",       action: handleSeed,       color: "text-emerald-400/80 border-emerald-400/20 hover:bg-emerald-400/6" },
           { label: "Seed missed days",   action: handleMissedDays, color: "text-amber-400/80 border-amber-400/20 hover:bg-amber-400/5" },
@@ -118,7 +118,7 @@ function PanelContent({
 
       {/* Quick nav */}
       <div className="px-4 py-3 border-t border-white/[0.06]">
-        <p className="text-[9px] uppercase tracking-[0.18em] text-white/22 mb-2">Quick nav</p>
+        <p className="text-[9px] text-white/22 mb-2">Quick nav</p>
         <div className="flex flex-wrap gap-1">
           {["/", "/onboarding", "/program", "/coach", "/accountability", "/admin", "/pricing", "/calendar", "/dev"].map((href) => (
             <a

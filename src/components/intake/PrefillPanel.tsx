@@ -213,7 +213,7 @@ export function PrefillPanel({ clientId, onSaved }: { clientId: string; onSaved:
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-white/35">{rowLabel(r.def, system)}</span>
+                    <span className="text-[10px] text-white/35">{rowLabel(r.def, system)}</span>
                     {r.uncertain && <AlertTriangle className="w-3 h-3 text-amber-400/70" strokeWidth={2} />}
                   </div>
                   <input

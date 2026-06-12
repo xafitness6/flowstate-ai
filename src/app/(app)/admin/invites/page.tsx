@@ -211,7 +211,7 @@ export default function AdminInvitesPage() {
 
         <div className="flex items-start justify-between mb-6 gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-2">Invites</p>
+            <p className="text-[10px] text-white/35 mb-2">Invites</p>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Take new clients</h1>
             <p className="text-xs text-white/45 mt-2 max-w-md leading-relaxed">
               Generate signup links for members and clients. Pre-assign a trainer if needed. Each link expires in 7 days.
@@ -288,7 +288,7 @@ export default function AdminInvitesPage() {
               <SectionHeader>New invite</SectionHeader>
 
               <div>
-                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Role granted on signup</label>
+                <label className="text-[11px] text-white/45 font-medium block mb-2">Role granted on signup</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setRole("member")}
@@ -318,7 +318,7 @@ export default function AdminInvitesPage() {
               </div>
 
               <div>
-                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">
+                <label className="text-[11px] text-white/45 font-medium block mb-2">
                   Assign to trainer {role === "client" ? "(recommended)" : "(optional)"}
                 </label>
                 <select
@@ -340,7 +340,7 @@ export default function AdminInvitesPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">First name (optional)</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">First name (optional)</label>
                   <input
                     type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)}
                     placeholder="Jane"
@@ -348,7 +348,7 @@ export default function AdminInvitesPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Last name (optional)</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Last name (optional)</label>
                   <input
                     type="text" value={lastName} onChange={(e) => setLastName(e.target.value)}
                     placeholder="Doe"
@@ -358,7 +358,7 @@ export default function AdminInvitesPage() {
               </div>
 
               <div>
-                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Email (optional — open link if blank)</label>
+                <label className="text-[11px] text-white/45 font-medium block mb-2">Email (optional — open link if blank)</label>
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="jane@example.com"
@@ -370,7 +370,7 @@ export default function AdminInvitesPage() {
               </div>
 
               <div>
-                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Personal note (optional)</label>
+                <label className="text-[11px] text-white/45 font-medium block mb-2">Personal note (optional)</label>
                 <textarea
                   value={message} onChange={(e) => setMessage(e.target.value)}
                   rows={2}
@@ -432,7 +432,7 @@ export default function AdminInvitesPage() {
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <span className={cn(
-                          "text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full border whitespace-nowrap",
+                          "text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap",
                           inv.invite_role === "member"
                             ? "text-[#93C5FD] border-[#93C5FD]/25 bg-[#93C5FD]/[0.06]"
                             : "text-[#B48B40] border-[#B48B40]/30 bg-[#B48B40]/[0.06]",
@@ -440,7 +440,7 @@ export default function AdminInvitesPage() {
                           {inv.invite_role}
                         </span>
                         <span className={cn(
-                          "text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border whitespace-nowrap",
+                          "text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap",
                           openedNoSignup ? "text-amber-300 border-amber-400/25 bg-amber-400/[0.06]"
                           : isActive ? "text-emerald-300 border-emerald-400/25 bg-emerald-400/[0.06]"
                           : acceptedTotal > 0 ? "text-emerald-300/80 border-emerald-400/20 bg-emerald-400/[0.04]"
@@ -449,7 +449,7 @@ export default function AdminInvitesPage() {
                           {openedNoSignup ? "opened · follow up" : statusLabel}
                         </span>
                         {acceptedTotal > 0 && (
-                          <span className="text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.05] text-emerald-300/80 whitespace-nowrap">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.05] text-emerald-300/80 whitespace-nowrap">
                             {acceptedTotal} accepted
                           </span>
                         )}
@@ -581,7 +581,7 @@ function StatTile({ label, value, accent }: { label: string; value: number; acce
     <Card>
       <div className="px-4 py-3">
         <p className={cn("text-2xl font-semibold tabular-nums", accent ?? "text-white/90")}>{value}</p>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/35 mt-1">{label}</p>
+        <p className="text-[11px] text-white/55 font-medium mt-1">{label}</p>
       </div>
     </Card>
   );
@@ -610,7 +610,7 @@ function FunnelPill({
           : "border-white/[0.055] bg-white/[0.018]",
     )}>
       <p className={cn(
-        "text-[9px] uppercase tracking-[0.14em] flex items-center gap-1.5 mb-0.5",
+        "text-[9px] flex items-center gap-1.5 mb-0.5",
         warn ? "text-amber-200/55" : done ? "text-emerald-200/45" : "text-white/25",
       )}>
         <Icon className="w-3 h-3 shrink-0" strokeWidth={1.7} /> {label}

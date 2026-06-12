@@ -75,7 +75,7 @@ export function AssignClientModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-white/35 mb-1">Send workout</p>
+            <p className="text-[10px] text-white/35 mb-1">Send workout</p>
             <h2 className="text-base font-semibold text-white/90">Choose a recipient</h2>
           </div>
           <button

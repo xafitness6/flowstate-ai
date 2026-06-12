@@ -111,7 +111,7 @@ export default function AdminFeedbackPage() {
 
         <div className="mb-6 flex items-end justify-between gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-2">Inbox</p>
+            <p className="text-[10px] text-white/35 mb-2">Inbox</p>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Feedback &amp; bugs</h1>
             <p className="text-xs text-white/45 mt-2">
               Every report submitted via the bug icon. Bug reports include an AI triage.
@@ -169,20 +169,20 @@ export default function AdminFeedbackPage() {
                 <Card key={r.id}>
                   <div className="px-5 py-4">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-white/45">
+                      <span className="flex items-center gap-1.5 text-[10px] text-white/45">
                         <Icon className="w-3 h-3 text-[#B48B40]/70" strokeWidth={2} />
                         {r.category}
                       </span>
                       {r.category === "bug" && (
                         <span className={cn(
-                          "text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border",
+                          "text-[10px] px-2 py-0.5 rounded-full border",
                           SEVERITY_CLS[r.severity],
                         )}>
                           {r.severity}
                         </span>
                       )}
                       <span className={cn(
-                        "text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border",
+                        "text-[10px] px-2 py-0.5 rounded-full border",
                         STATUS_CLS[r.status],
                       )}>
                         {r.status.replace("_", " ")}
@@ -195,7 +195,7 @@ export default function AdminFeedbackPage() {
                       <div className="rounded-xl border border-[#B48B40]/20 bg-[#B48B40]/[0.04] px-3 py-2.5 mb-3">
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <Sparkles className="w-3 h-3 text-[#B48B40]" strokeWidth={2} />
-                          <span className="text-[10px] uppercase tracking-[0.18em] text-[#B48B40]/85">AI triage</span>
+                          <span className="text-[10px] text-[#B48B40]/85">AI triage</span>
                         </div>
                         <p className="text-[12px] text-white/75 leading-relaxed">{r.ai_diagnosis}</p>
                       </div>

@@ -217,7 +217,7 @@ export function ClientNutritionManager({
       {/* ── Targets strip ── */}
       <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
         <div className="flex items-center justify-between gap-3 mb-2.5">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-white/40 flex items-center gap-1.5">
+          <p className="text-[11px] text-white/40 flex items-center gap-1.5">
             <Apple className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={1.8} /> Daily targets
             <span className="text-white/25 normal-case tracking-normal">· {isCustom ? "custom, synced to their app" : "from intake"}</span>
           </p>

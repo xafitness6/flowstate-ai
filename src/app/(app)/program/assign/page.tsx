@@ -101,7 +101,7 @@ function ProgramPreview({ program }: { program: PlatformProgram }) {
     <div className="rounded-2xl border border-[#6f4a17]/40 bg-[#0e0d0b] p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-white/25 mb-1">
+          <p className="text-xs text-white/25 mb-1">
             {program.phase}
           </p>
           <h3 className="text-base font-semibold text-white/90">{program.name}</h3>
@@ -120,7 +120,7 @@ function ProgramPreview({ program }: { program: PlatformProgram }) {
           { label: "Exercises", value: `${program.exercises}/session` },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-[0.1em] text-white/25 mb-1">{label}</p>
+            <p className="text-[10px] text-white/25 mb-1">{label}</p>
             <p className="text-sm font-semibold text-white/80 tabular-nums">{value}</p>
           </div>
         ))}
@@ -176,11 +176,11 @@ export default function AssignProgramPage() {
   }
 
   return (
-    <div className="px-5 md:px-8 py-6 text-white max-w-5xl mx-auto">
+    <div className="px-5 md:px-8 py-6 text-white max-w-[760px] mx-auto">
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-white/30 mb-3">
+          <p className="text-xs text-white/30 mb-3">
             Program · Assign
           </p>
           <h1 className="text-4xl font-semibold tracking-tight">Assign program</h1>
@@ -223,7 +223,7 @@ export default function AssignProgramPage() {
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-4 h-4 text-white/30" strokeWidth={1.5} />
-                <p className="text-xs uppercase tracking-[0.18em] text-white/30">
+                <p className="text-xs text-white/30">
                   Select client
                 </p>
               </div>
@@ -294,7 +294,7 @@ export default function AssignProgramPage() {
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-4">
                 <Dumbbell className="w-4 h-4 text-white/30" strokeWidth={1.5} />
-                <p className="text-xs uppercase tracking-[0.18em] text-white/30">
+                <p className="text-xs text-white/30">
                   Select program
                 </p>
               </div>
@@ -339,14 +339,14 @@ export default function AssignProgramPage() {
           <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-5 space-y-5">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-white/30" strokeWidth={1.5} />
-              <p className="text-xs uppercase tracking-[0.18em] text-white/30">
+              <p className="text-xs text-white/30">
                 Configuration
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] uppercase tracking-[0.15em] text-white/25 block mb-2">
+                <label className="text-[10px] text-white/25 block mb-2">
                   Start date
                 </label>
                 <input
@@ -358,7 +358,7 @@ export default function AssignProgramPage() {
               </div>
 
               <div>
-                <label className="text-[10px] uppercase tracking-[0.15em] text-white/25 block mb-2">
+                <label className="text-[10px] text-white/25 block mb-2">
                   Client goal
                 </label>
                 <div className="flex gap-1.5 flex-wrap">
@@ -381,7 +381,7 @@ export default function AssignProgramPage() {
             </div>
 
             <div>
-              <label className="text-[10px] uppercase tracking-[0.15em] text-white/25 block mb-2">
+              <label className="text-[10px] text-white/25 block mb-2">
                 Training days / week
               </label>
               <div className="flex gap-2">
@@ -405,7 +405,7 @@ export default function AssignProgramPage() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <FileText className="w-3.5 h-3.5 text-white/25" strokeWidth={1.5} />
-                <label className="text-[10px] uppercase tracking-[0.15em] text-white/25">
+                <label className="text-[10px] text-white/25">
                   Coach notes
                 </label>
               </div>
@@ -425,7 +425,7 @@ export default function AssignProgramPage() {
 
           {selectedClient ? (
             <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/25 mb-3">Client</p>
+              <p className="text-xs text-white/25 mb-3">Client</p>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#B48B40]/15 flex items-center justify-center text-sm font-semibold text-[#B48B40] shrink-0">
                   {selectedClient.initials}
@@ -463,7 +463,7 @@ export default function AssignProgramPage() {
 
           {canAssign && (
             <div className="rounded-2xl border border-white/8 bg-[#111111] px-5 py-4 space-y-2.5">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/25 mb-3">Summary</p>
+              <p className="text-xs text-white/25 mb-3">Summary</p>
               {[
                 { label: "Client",  value: selectedClient!.name },
                 { label: "Program", value: selectedProgram!.name },

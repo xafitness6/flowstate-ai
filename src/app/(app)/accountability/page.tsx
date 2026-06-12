@@ -657,7 +657,7 @@ function FocusModal({
                 {/* Required / Optional selector — only when active */}
                 {cfg.active && (
                   <div className="mt-3 flex items-center gap-2.5 pl-4">
-                    <span className="text-[10px] text-white/22 uppercase tracking-[0.12em] shrink-0">Impact</span>
+                    <span className="text-[10px] text-white/22 shrink-0">Impact</span>
                     <div className="flex items-center gap-0.5 rounded-lg border border-white/8 bg-white/[0.02] p-0.5">
                       <button
                         onClick={() => { if (!cfg.required) toggleRequired(cfg.id); }}
@@ -813,7 +813,7 @@ function SortableHabitRow({
 
       {/* KEY badge: weight-3 habit in a required category, not yet done */}
       {!editMode && habit.weight === 3 && isRequired && !completed && (
-        <span className="text-[9px] text-[#B48B40]/55 shrink-0 uppercase tracking-[0.1em]">key</span>
+        <span className="text-[9px] text-[#B48B40]/55 shrink-0">key</span>
       )}
       {!editMode && habit.hint && !(habit.weight === 3 && isRequired && !completed) && (
         <span className="text-[10px] text-white/18 shrink-0">{habit.hint}</span>
@@ -888,11 +888,11 @@ function CategoryGroup({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between px-1 mb-2">
         <div className="flex items-center gap-2">
-          <span className={cn("text-[10px] font-semibold uppercase tracking-[0.18em]", cfg.color)}>
+          <span className={cn("text-[10px] font-semibold", cfg.color)}>
             {cfg.label}
           </span>
           {isRequired && !editMode && (
-            <span className="text-[9px] uppercase tracking-[0.1em] text-white/20 border border-white/10 rounded px-1 py-px">
+            <span className="text-[10px] font-medium text-white/20 border border-white/10 rounded px-1 py-px">
               required
             </span>
           )}
@@ -1071,7 +1071,7 @@ export default function AccountabilityPage() {
       {/* ── Header ───────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-2">Daily execution</p>
+          <p className="text-[10px] text-white/22 mb-2">Daily execution</p>
           <h1 className="text-2xl font-semibold tracking-tight">Accountability</h1>
           <p className="text-sm text-white/30 mt-1">{formatDate()}</p>
         </div>
@@ -1101,7 +1101,7 @@ export default function AccountabilityPage() {
       {/* ── Execution tracker (today's checklist) ────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Today&rsquo;s checklist</p>
+          <p className="text-[10px] text-white/22">Today&rsquo;s checklist</p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowFocusModal(true)}
@@ -1154,7 +1154,7 @@ export default function AccountabilityPage() {
           <div className="px-5 py-4 border-b border-red-400/10">
             <div className="flex items-center gap-2 mb-1">
               <AlertTriangle className="w-3.5 h-3.5 text-red-400/60" strokeWidth={1.5} />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-400/60">
+              <span className="text-[10px] font-semibold text-red-400/60">
                 Yesterday — {recovery.score}%
               </span>
             </div>
@@ -1162,11 +1162,11 @@ export default function AccountabilityPage() {
           </div>
           <div className="px-5 py-4 space-y-3.5">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">What likely went wrong</p>
+              <p className="text-[10px] text-white/22 mb-1">What likely went wrong</p>
               <p className="text-xs text-white/50 leading-relaxed">{recovery.likelyWrong}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">What to change</p>
+              <p className="text-[10px] text-white/22 mb-1">What to change</p>
               <p className="text-xs text-white/50 leading-relaxed">{recovery.shouldChange}</p>
             </div>
             <div className="flex items-start gap-2.5 rounded-xl border border-white/6 bg-white/[0.025] px-3.5 py-3">
@@ -1180,7 +1180,7 @@ export default function AccountabilityPage() {
       {/* ── 7-Day analytics ──────────────────────────────────────────────────── */}
       {stats7.hasData && (
         <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Last 7 days</p>
+          <p className="text-[10px] text-white/22 mb-3">Last 7 days</p>
           <div className="grid grid-cols-2 gap-2">
             {[
               {
@@ -1209,7 +1209,7 @@ export default function AccountabilityPage() {
               },
             ].map(({ label, value, sub, color }) => (
               <div key={label} className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3.5">
-                <p className="text-[9px] uppercase tracking-[0.14em] text-white/22 mb-1.5">{label}</p>
+                <p className="text-[10px] font-medium text-white/22 mb-1.5">{label}</p>
                 <p className={cn("text-xl font-semibold tabular-nums leading-none", color)}>{value}</p>
                 <p className="text-[10px] text-white/22 mt-1">{sub}</p>
               </div>
@@ -1221,7 +1221,7 @@ export default function AccountabilityPage() {
       {/* ── Trajectory chart ─────────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Trajectory</p>
+          <p className="text-[10px] text-white/22">Trajectory</p>
           <span className="text-[10px] text-white/18">30-day · goal 80</span>
         </div>
         <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-4 pt-4 pb-2">
@@ -1231,7 +1231,7 @@ export default function AccountabilityPage() {
 
       {/* ── Streaks ──────────────────────────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Streaks</p>
+        <p className="text-[10px] text-white/22 mb-3">Streaks</p>
         <div className="flex gap-2">
           {[
             { label: "Training",    count: streaks.training,    color: "text-[#B48B40]",   dot: "bg-[#B48B40]"   },
@@ -1241,7 +1241,7 @@ export default function AccountabilityPage() {
             <div key={label} className="flex-1 rounded-xl border border-white/6 bg-white/[0.02] px-3.5 py-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <Flame className={cn("w-3 h-3 shrink-0", color)} strokeWidth={1.5} />
-                <span className="text-[10px] uppercase tracking-[0.14em] text-white/25 truncate">{label}</span>
+                <span className="text-[10px] text-white/25 truncate">{label}</span>
               </div>
               <div className="flex items-baseline gap-1">
                 <span className={cn("text-2xl font-semibold tabular-nums leading-none", count > 0 ? color : "text-white/15")}>
@@ -1257,7 +1257,7 @@ export default function AccountabilityPage() {
       {/* ── Activity heatmap ─────────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Activity</p>
+          <p className="text-[10px] text-white/22">Activity</p>
           <span className="text-[10px] text-white/18">Past 12 months</span>
         </div>
         <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-4 pt-4 pb-3">
@@ -1268,7 +1268,7 @@ export default function AccountabilityPage() {
       {/* ── Journal / reflection ─────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Reflection</p>
+          <p className="text-[10px] text-white/22">Reflection</p>
           {journal.length > 0 && (
             <button
               onClick={() => setShowHistory((v) => !v)}
@@ -1353,7 +1353,7 @@ export default function AccountabilityPage() {
 
       {/* ── Identity / end-of-day reflection ─────────────────────────────────── */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">State</p>
+        <p className="text-[10px] text-white/22 mb-3">State</p>
         <div className="grid grid-cols-2 gap-2 mb-3">
           {IDENTITY_OPTIONS.map((opt) => {
             const sel = todayLog.identityState === opt.value;

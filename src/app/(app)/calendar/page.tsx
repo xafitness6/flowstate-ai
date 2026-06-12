@@ -202,7 +202,7 @@ function DaySynopsisModal({
         {/* ── Header ───────────────────────────────────────────────── */}
         <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/25 mb-0.5">Day Synopsis</p>
+            <p className="text-[10px] text-white/25 mb-0.5">Day Synopsis</p>
             <h2 className="text-sm font-semibold text-white/85 tracking-tight">{dateLabel}</h2>
           </div>
           <button
@@ -261,15 +261,15 @@ function DaySynopsisModal({
 
                     {/* Win/loss */}
                     {synopsis.won === null ? (
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] px-2 py-0.5 rounded-md border border-[#B48B40]/25 bg-[#B48B40]/8 text-[#B48B40]/70">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-[#B48B40]/25 bg-[#B48B40]/8 text-[#B48B40]/70">
                         In progress
                       </span>
                     ) : synopsis.won ? (
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] px-2 py-0.5 rounded-md border border-emerald-400/25 bg-emerald-400/8 text-emerald-400">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-emerald-400/25 bg-emerald-400/8 text-emerald-400">
                         Win
                       </span>
                     ) : (
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] px-2 py-0.5 rounded-md border border-red-400/20 bg-red-400/6 text-red-400/70">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-red-400/20 bg-red-400/6 text-red-400/70">
                         Miss
                       </span>
                     )}
@@ -296,7 +296,7 @@ function DaySynopsisModal({
 
               {/* ── Category breakdown ─────────────────────────────── */}
               <div>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Category breakdown</p>
+                <p className="text-[10px] text-white/22 mb-3">Category breakdown</p>
                 <div className="space-y-2.5">
                   {(Object.entries(synopsis.categories) as [keyof typeof CATEGORY_META, CategoryScore][])
                     .sort((a, b) => b[1].score - a[1].score)
@@ -305,7 +305,7 @@ function DaySynopsisModal({
                       return (
                         <div key={cat}>
                           <div className="flex items-center gap-3 mb-1">
-                            <span className={cn("text-[10px] font-semibold uppercase tracking-[0.14em] w-16 shrink-0", meta.text)}>
+                            <span className={cn("text-[10px] font-semibold w-16 shrink-0", meta.text)}>
                               {meta.label}
                             </span>
                             <div className="flex-1 h-1.5 rounded-full bg-white/6 overflow-hidden">
@@ -329,14 +329,14 @@ function DaySynopsisModal({
 
               {/* ── Performance grid ───────────────────────────────── */}
               <div>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Performance</p>
+                <p className="text-[10px] text-white/22 mb-3">Performance</p>
                 <div className="grid grid-cols-2 gap-2">
 
                   {/* Steps */}
                   <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Footprints className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Steps</p>
+                      <p className="text-[10px] text-white/22">Steps</p>
                     </div>
                     <p className={cn("text-lg font-semibold tabular-nums leading-none",
                       synopsis.performance.steps.actual >= synopsis.performance.steps.target
@@ -353,7 +353,7 @@ function DaySynopsisModal({
                   <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Dumbbell className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Workout</p>
+                      <p className="text-[10px] text-white/22">Workout</p>
                     </div>
                     {synopsis.performance.workout ? (
                       <>
@@ -378,7 +378,7 @@ function DaySynopsisModal({
                   <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Zap className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Calories</p>
+                      <p className="text-[10px] text-white/22">Calories</p>
                     </div>
                     <p className={cn("text-lg font-semibold tabular-nums leading-none",
                       Math.abs(synopsis.performance.calories.actual - synopsis.performance.calories.target) < 200
@@ -395,7 +395,7 @@ function DaySynopsisModal({
                   <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Flame className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Protein</p>
+                      <p className="text-[10px] text-white/22">Protein</p>
                     </div>
                     <p className={cn("text-lg font-semibold tabular-nums leading-none",
                       synopsis.performance.protein.actual >= synopsis.performance.protein.target * 0.9
@@ -412,7 +412,7 @@ function DaySynopsisModal({
                   <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Droplets className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Hydration</p>
+                      <p className="text-[10px] text-white/22">Hydration</p>
                     </div>
                     <p className={cn("text-lg font-semibold tabular-nums leading-none",
                       synopsis.performance.hydration.actual >= synopsis.performance.hydration.target * 0.9
@@ -429,7 +429,7 @@ function DaySynopsisModal({
                   <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Moon className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-white/22">Sleep</p>
+                      <p className="text-[10px] text-white/22">Sleep</p>
                     </div>
                     {synopsis.performance.sleep ? (
                       <>
@@ -452,14 +452,14 @@ function DaySynopsisModal({
 
               {/* ── Accountability ─────────────────────────────────── */}
               <div>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Accountability</p>
+                <p className="text-[10px] text-white/22 mb-3">Accountability</p>
                 <div className="rounded-2xl border border-white/6 bg-white/[0.015] overflow-hidden">
                   <div className="grid grid-cols-2 divide-x divide-white/[0.05]">
                     {/* Completed */}
                     <div className="px-4 py-4">
                       <div className="flex items-center gap-1.5 mb-2.5">
                         <Check className="w-3 h-3 text-emerald-400" strokeWidth={2} />
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-emerald-400/60">
+                        <p className="text-[10px] text-emerald-400/60">
                           Done · {synopsis.accountability.completed.length}
                         </p>
                       </div>
@@ -481,7 +481,7 @@ function DaySynopsisModal({
                     <div className="px-4 py-4">
                       <div className="flex items-center gap-1.5 mb-2.5">
                         <AlertTriangle className="w-3 h-3 text-red-400/60" strokeWidth={1.5} />
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-red-400/60">
+                        <p className="text-[10px] text-red-400/60">
                           Missed · {synopsis.accountability.missed.length}
                         </p>
                       </div>
@@ -512,7 +512,7 @@ function DaySynopsisModal({
               {/* ── Identity + journal ─────────────────────────────── */}
               {(synopsis.identity.state || synopsis.journal) && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Identity + Journal</p>
+                  <p className="text-[10px] text-white/22 mb-3">Identity + Journal</p>
                   <div className="space-y-2">
                     {synopsis.identity.state && (
                       <div className={cn(
@@ -533,7 +533,7 @@ function DaySynopsisModal({
 
                     {synopsis.journal && (
                       <div className="rounded-xl border border-white/6 bg-white/[0.015] px-4 py-3">
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-white/20 mb-1.5">Journal</p>
+                        <p className="text-[10px] text-white/20 mb-1.5">Journal</p>
                         <p className="text-sm text-white/50 leading-relaxed">{synopsis.journal}</p>
                         <p className="text-[10px] text-white/18 mt-2">Visible to AI coach</p>
                       </div>
@@ -546,7 +546,7 @@ function DaySynopsisModal({
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-[#B48B40] text-xs leading-none">◈</span>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">AI Insight</p>
+                  <p className="text-[10px] text-white/22">AI Insight</p>
                 </div>
                 <div className="rounded-2xl border border-white/6 bg-white/[0.015] overflow-hidden divide-y divide-white/[0.05]">
                   {[
@@ -557,7 +557,7 @@ function DaySynopsisModal({
                     <div key={label} className="flex items-start gap-3 px-4 py-3.5">
                       <Icon className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", color)} strokeWidth={1.5} />
                       <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-white/22 mb-1">{label}</p>
+                        <p className="text-[10px] text-white/22 mb-1">{label}</p>
                         <p className="text-sm text-white/60 leading-relaxed">{text}</p>
                       </div>
                     </div>
@@ -568,7 +568,7 @@ function DaySynopsisModal({
               {/* ── Timeline ───────────────────────────────────────── */}
               {synopsis.timeline.length > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Timeline</p>
+                  <p className="text-[10px] text-white/22 mb-3">Timeline</p>
                   <div className="relative pl-6">
                     {/* Vertical line */}
                     <div className="absolute left-2.5 top-1 bottom-1 w-px bg-white/[0.06]" />
@@ -832,7 +832,7 @@ function CalendarPageInner() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-2">Schedule</p>
+          <p className="text-[10px] text-white/22 mb-2">Schedule</p>
           <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
           <p className="text-sm text-white/30 mt-1">Training, nutrition, and recovery overview.</p>
         </div>
@@ -859,7 +859,7 @@ function CalendarPageInner() {
         {/* Weekday labels */}
         <div className="grid grid-cols-7 border-b border-white/[0.04]">
           {WEEKDAYS.map((d) => (
-            <div key={d} className="py-2 text-center text-[10px] font-medium text-white/20 uppercase tracking-[0.1em]">
+            <div key={d} className="py-2 text-center text-[10px] font-medium text-white/20">
               {d}
             </div>
           ))}
@@ -931,7 +931,7 @@ function CalendarPageInner() {
       {selected && (
         <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
           <div className="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">
+            <p className="text-[10px] text-white/22">
               {new Date(selected + "T00:00:00").toLocaleDateString("en-US", {
                 weekday: "long", month: "long", day: "numeric",
               })}
@@ -959,9 +959,9 @@ function CalendarPageInner() {
                       <span className="text-xs text-white/25">/100</span>
                     </div>
                     <span className={cn("text-xs font-medium", g.color)}>{g.label}</span>
-                    {s.won === true  && <span className="text-[10px] font-semibold uppercase tracking-[0.1em] px-2 py-0.5 rounded-md border border-emerald-400/25 bg-emerald-400/8 text-emerald-400">Win</span>}
-                    {s.won === false && <span className="text-[10px] font-semibold uppercase tracking-[0.1em] px-2 py-0.5 rounded-md border border-red-400/20 bg-red-400/6 text-red-400/70">Miss</span>}
-                    {s.won === null  && <span className="text-[10px] font-semibold uppercase tracking-[0.1em] px-2 py-0.5 rounded-md border border-[#B48B40]/25 bg-[#B48B40]/8 text-[#B48B40]/70">In progress</span>}
+                    {s.won === true  && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-emerald-400/25 bg-emerald-400/8 text-emerald-400">Win</span>}
+                    {s.won === false && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-red-400/20 bg-red-400/6 text-red-400/70">Miss</span>}
+                    {s.won === null  && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-[#B48B40]/25 bg-[#B48B40]/8 text-[#B48B40]/70">In progress</span>}
                     <div className={cn(
                       "flex items-center gap-1 text-[10px] ml-auto",
                       s.trend === "improving" ? "text-emerald-400/70" : s.trend === "declining" ? "text-orange-400/70" : "text-white/25"
@@ -1024,7 +1024,7 @@ function CalendarPageInner() {
           )}
 
           <div className="border-t border-white/[0.05] px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Add reminder</p>
+            <p className="text-[10px] text-white/22 mb-3">Add reminder</p>
             <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_auto] gap-2">
               <input
                 value={reminderDraft}

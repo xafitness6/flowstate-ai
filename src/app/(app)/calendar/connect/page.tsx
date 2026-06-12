@@ -138,7 +138,7 @@ export default function CalendarConnectPage() {
         </Link>
 
         <div className="mb-6">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-2">Sync</p>
+          <p className="text-[10px] text-white/35 mb-2">Sync</p>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Connect your calendar</h1>
           <p className="text-xs text-white/45 mt-2 max-w-lg leading-relaxed">
             Subscribe once and your training, rest days, and habits show up automatically in Google, Apple, Outlook — any calendar app. Updates auto-refresh.
@@ -278,7 +278,7 @@ export default function CalendarConnectPage() {
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">
+              <label className="text-[11px] text-white/45 font-medium block mb-2">
                 <Bell className="w-3 h-3 inline mr-1" strokeWidth={1.7} />
                 Reminder
               </label>
@@ -453,7 +453,7 @@ function TimeField({
 }) {
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">{label}</label>
+      <label className="text-[11px] text-white/45 font-medium block mb-2">{label}</label>
       <input
         type="time"
         value={value}
@@ -473,7 +473,7 @@ function ColorPicker({
 }) {
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">{label}</label>
+      <label className="text-[11px] text-white/45 font-medium block mb-2">{label}</label>
       <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-1.5">
         <input
           type="color"
@@ -600,7 +600,7 @@ function GoogleCalendarCard() {
             </div>
           </div>
           {status?.connected && (
-            <span className="shrink-0 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-emerald-300 border border-emerald-400/25 bg-emerald-400/[0.06] rounded-full px-2 py-0.5">
+            <span className="shrink-0 inline-flex items-center gap-1 text-[10px] text-emerald-300 border border-emerald-400/25 bg-emerald-400/[0.06] rounded-full px-2 py-0.5">
               <Check className="w-3 h-3" strokeWidth={2.5} />
               Connected
             </span>

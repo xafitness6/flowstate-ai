@@ -271,7 +271,7 @@ export function BarcodeScanner({ userId, onMealLogged, onClose }: Props) {
 
               {/* Qty */}
               <div className="flex items-center gap-2">
-                <label className="text-[10px] uppercase tracking-[0.12em] text-white/30 shrink-0 w-16">
+                <label className="text-[10px] text-white/30 shrink-0 w-16">
                   Servings
                 </label>
                 <input

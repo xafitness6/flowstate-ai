@@ -179,7 +179,7 @@ export function TodaySnapshot({ userId }: { userId: string }) {
 
       <div className="flex items-baseline justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.28em] text-[#B48B40]/70 mb-1">Today</p>
+          <p className="text-[10px] text-[#B48B40]/70 mb-1">Today</p>
           <h2 className="text-2xl font-semibold tracking-tight text-white">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</h2>
         </div>
       </div>
@@ -197,7 +197,7 @@ export function TodaySnapshot({ userId }: { userId: string }) {
             <Dumbbell className="w-5 h-5 text-[#B48B40]" strokeWidth={1.8} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-0.5">Your workout</p>
+            <p className="text-[10px] text-white/30 mb-0.5">Your workout</p>
             <p className="text-base font-semibold text-white/90 truncate">{state.workoutLabel}</p>
             {state.workoutDetail && (
               <p className="text-xs text-white/40 truncate">{state.workoutDetail}</p>
@@ -222,7 +222,7 @@ export function TodaySnapshot({ userId }: { userId: string }) {
               <Utensils className="w-5 h-5 text-emerald-400/80" strokeWidth={1.8} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-0.5">Your meals</p>
+              <p className="text-[10px] text-white/30 mb-0.5">Your meals</p>
               {state.hasNutritionTargets ? (
                 <p className="text-base font-semibold text-white/90">
                   {state.caloriesActual.toLocaleString()} <span className="text-white/35 font-normal">of {state.caloriesTarget.toLocaleString()} cal</span>
@@ -268,7 +268,7 @@ export function TodaySnapshot({ userId }: { userId: string }) {
             <CheckSquare className="w-5 h-5 text-[#93C5FD]/80" strokeWidth={1.8} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-0.5">Your habits</p>
+            <p className="text-[10px] text-white/30 mb-0.5">Your habits</p>
             <p className="text-base font-semibold text-white/90">
               {state.habitsTotal === 0 ? (
                 "No habits set up"

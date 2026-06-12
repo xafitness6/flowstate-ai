@@ -14,7 +14,7 @@ const cadenceValue = (v: unknown) => (typeof v === "string" && CADENCE_LABEL[v])
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 border-b border-white/[0.04] last:border-0">
-      <span className="text-[11px] uppercase tracking-[0.14em] text-white/35 shrink-0 pt-0.5">{label}</span>
+      <span className="text-[11px] text-white/35 shrink-0 pt-0.5">{label}</span>
       <span className="text-sm text-white/85 text-right leading-relaxed">{value}</span>
     </div>
   );
@@ -23,7 +23,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-5 py-4">
-      <h3 className="text-[10px] uppercase tracking-[0.28em] text-[#B48B40]/70 mb-2">{title}</h3>
+      <h3 className="text-[10px] text-[#B48B40]/70 mb-2">{title}</h3>
       <div>{children}</div>
     </div>
   );

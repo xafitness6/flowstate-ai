@@ -288,7 +288,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         {/* Assigned coach — admin can assign / change / remove */}
         {viewerIsAdmin && (
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
-            <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-3">Assigned coach</p>
+            <p className="text-[9px] text-white/22 mb-3">Assigned coach</p>
             <div className="flex items-center gap-3 flex-wrap">
               <select
                 value={assignedId ?? ""}
@@ -318,7 +318,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
           <div className="flex items-center gap-2 mb-3">
             <Dumbbell className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={1.5} />
-            <p className="text-[9px] uppercase tracking-[0.16em] text-white/22">Active program</p>
+            <p className="text-[9px] text-white/22">Active program</p>
           </div>
           {detail.activeProgram ? (
             <div className="space-y-1.5">
@@ -337,7 +337,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
         {/* Onboarding state */}
         <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
-          <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-2">Onboarding</p>
+          <p className="text-[9px] text-white/22 mb-2">Onboarding</p>
           {detail.onboarding ? (
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
@@ -430,7 +430,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         <>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-white/6 bg-[#111111] px-4 py-4">
-              <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-2">Adherence</p>
+              <p className="text-[9px] text-white/22 mb-2">Adherence</p>
               <p className={cn("text-3xl font-semibold tabular-nums", adherenceColor(snap.adherence))}>
                 {snap.adherence}%
               </p>
@@ -446,7 +446,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               </div>
             </div>
             <div className="rounded-2xl border border-white/6 bg-[#111111] px-4 py-4">
-              <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-2">Training streak</p>
+              <p className="text-[9px] text-white/22 mb-2">Training streak</p>
               <div className="flex items-baseline gap-1.5">
                 {snap.streak > 0 && (
                   <Flame className="w-4 h-4 text-[#B48B40] mb-0.5" strokeWidth={1.5} />
@@ -465,7 +465,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
             <div className="flex items-start gap-3">
               <div className="min-w-0">
-                <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-1.5">Current goal</p>
+                <p className="text-[9px] text-white/22 mb-1.5">Current goal</p>
                 <p className="text-sm font-semibold text-white/80">{snap.currentGoal}</p>
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <span className={cn(
@@ -480,11 +480,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
 
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-5 py-4">
-            <p className="text-[9px] uppercase tracking-[0.16em] text-white/22 mb-4">Key metrics</p>
+            <p className="text-[9px] text-white/22 mb-4">Key metrics</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {snap.metrics.map((m) => (
                 <div key={m.label}>
-                  <p className="text-[9px] uppercase tracking-[0.12em] text-white/20 mb-1">{m.label}</p>
+                  <p className="text-[9px] text-white/20 mb-1">{m.label}</p>
                   <p className="text-lg font-semibold text-white/70 tabular-nums">{m.value}</p>
                 </div>
               ))}

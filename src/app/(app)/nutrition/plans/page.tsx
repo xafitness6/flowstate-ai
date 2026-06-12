@@ -244,7 +244,7 @@ function MealEditor({
           {/* Name + time fields */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/22 block mb-1.5">Meal name</label>
+              <label className="text-[10px] text-white/22 block mb-1.5">Meal name</label>
               <input
                 value={meal.name}
                 onChange={(e) => onChange({ ...meal, name: e.target.value })}
@@ -253,7 +253,7 @@ function MealEditor({
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/22 block mb-1.5">Time</label>
+              <label className="text-[10px] text-white/22 block mb-1.5">Time</label>
               <input
                 value={meal.time}
                 onChange={(e) => onChange({ ...meal, time: e.target.value })}
@@ -268,7 +268,7 @@ function MealEditor({
             <div>
               <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
                 {["Item", "Amount", "kcal", "Prot g", ""].map((h) => (
-                  <p key={h} className="text-[10px] uppercase tracking-[0.12em] text-white/18">{h}</p>
+                  <p key={h} className="text-[10px] text-white/18">{h}</p>
                 ))}
               </div>
               <div className="space-y-1.5">
@@ -328,7 +328,7 @@ function MealEditor({
 
           {/* Note */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.14em] text-white/22 block mb-1.5">Note (optional)</label>
+            <label className="text-[10px] text-white/22 block mb-1.5">Note (optional)</label>
             <textarea
               value={meal.note}
               onChange={(e) => onChange({ ...meal, note: e.target.value })}
@@ -422,7 +422,7 @@ export default function NutritionPlansPage() {
 
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-1.5">Nutrition · Edit Plan</p>
+            <p className="text-[10px] text-white/22 mb-1.5">Nutrition · Edit Plan</p>
             <div className="flex items-center gap-3">
               <input
                 value={plan.name}
@@ -457,7 +457,7 @@ export default function NutritionPlansPage() {
 
       {/* ── Goal type ─────────────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-3">Goal type</p>
+        <p className="text-[10px] text-white/22 mb-3">Goal type</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {GOAL_OPTIONS.map((g) => (
             <button
@@ -482,7 +482,7 @@ export default function NutritionPlansPage() {
       {/* ── Macro targets ─────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Daily macro targets</p>
+          <p className="text-[10px] text-white/22">Daily macro targets</p>
           <div className="flex items-center gap-3 text-xs text-white/35">
             <span className="tabular-nums">
               <span className="text-white/65 font-semibold">{totalCals.toLocaleString()}</span> kcal target
@@ -519,7 +519,7 @@ export default function NutritionPlansPage() {
       {/* ── Meals ─────────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Meals</p>
+          <p className="text-[10px] text-white/22">Meals</p>
           <p className="text-xs text-white/28">{plan.meals.length} meals planned</p>
         </div>
         <div className="space-y-2.5">

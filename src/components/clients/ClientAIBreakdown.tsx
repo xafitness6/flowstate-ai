@@ -23,7 +23,7 @@ function List({ icon: Icon, label, items, tone = "default" }: { icon: typeof Tar
   const color = tone === "danger" ? "text-red-300" : tone === "warn" ? "text-amber-300" : "text-[#B48B40]";
   return (
     <div>
-      <p className={cn("text-[11px] uppercase tracking-[0.14em] mb-1.5 flex items-center gap-1.5", color)}>
+      <p className={cn("text-[11px] mb-1.5 flex items-center gap-1.5", color)}>
         <Icon className="w-3.5 h-3.5" strokeWidth={1.8} /> {label}
       </p>
       <ul className="space-y-1">

@@ -758,7 +758,7 @@ export default function ClientDetailPage() {
         {/* ── Header ── */}
         <div className="flex items-start justify-between gap-3 mb-5">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-1.5">Client dashboard</p>
+            <p className="text-[10px] text-white/35 mb-1.5">Client dashboard</p>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight truncate">{name}</h1>
             <p className="text-xs text-white/45 mt-1.5">
               {profile?.email} · <span className="capitalize">{profile?.role}</span> · {profile?.plan}
@@ -963,7 +963,7 @@ export default function ClientDetailPage() {
 
                 {program.body_focus_areas && program.body_focus_areas.length > 0 && (
                   <div className="mt-5">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2">Focus</p>
+                    <p className="text-[11px] text-white/45 font-medium mb-2">Focus</p>
                     <div className="flex flex-wrap gap-1.5">
                       {program.body_focus_areas.map((f) => (
                         <span key={f} className="rounded-full bg-white/[0.05] text-white/65 text-[11px] px-2.5 py-1 capitalize">{f}</span>
@@ -974,7 +974,7 @@ export default function ClientDetailPage() {
 
                 {program.coaching_notes && (
                   <div className="mt-5">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2">Coaching notes</p>
+                    <p className="text-[11px] text-white/45 font-medium mb-2">Coaching notes</p>
                     <p className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed">{program.coaching_notes}</p>
                   </div>
                 )}
@@ -1394,7 +1394,7 @@ export default function ClientDetailPage() {
 function StatTile({ label, value, capitalize }: { label: string; value: string; capitalize?: boolean }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">{label}</p>
+      <p className="text-[11px] text-white/45 font-medium mb-1">{label}</p>
       <p className={cn("text-sm font-semibold text-white/90 truncate", capitalize && "capitalize")}>{value}</p>
     </div>
   );
@@ -1426,7 +1426,7 @@ function EngagementCard({ data }: { data: EngagementData | null }) {
 
   return (
     <div className="no-print mb-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-3 flex items-center gap-1.5">
+      <p className="text-[11px] text-white/45 font-medium mb-3 flex items-center gap-1.5">
         <Activity className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.8} /> Engagement &amp; learning
       </p>
       <div className="grid grid-cols-3 gap-2 mb-4">
@@ -1491,7 +1491,7 @@ function ClientVitals({ intake }: { intake: RawIntake | null }) {
 
   return (
     <div className="no-print mb-4">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2 px-1 flex items-center gap-1.5">
+      <p className="text-[11px] text-white/45 font-medium mb-2 px-1 flex items-center gap-1.5">
         <User className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.8} /> Client info
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -1504,7 +1504,7 @@ function ClientVitals({ intake }: { intake: RawIntake | null }) {
 function ProgramFact({ icon: Icon, label, value }: { icon: typeof User; label: string; value: string }) {
   return (
     <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1 flex items-center gap-1">
+      <p className="text-[10px] text-white/30 mb-1 flex items-center gap-1">
         <Icon className="w-3 h-3" strokeWidth={1.8} /> {label}
       </p>
       <p className="text-sm font-medium text-white/85">{value}</p>
@@ -1667,7 +1667,7 @@ function SnapshotGrid({
     <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-2.5", className)}>
       {items.map(({ icon: Icon, label, value, detail }) => (
         <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-white/30 mb-1 flex items-center gap-1.5">
+          <p className="text-[10px] text-white/30 mb-1 flex items-center gap-1.5">
             <Icon className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.8} /> {label}
           </p>
           <p className="text-sm font-semibold text-white/90">{value}</p>
@@ -1685,7 +1685,7 @@ function NutritionPanel({ n }: { n: NutritionSummary }) {
     <div className="space-y-5">
       {/* 7-day averages */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2 px-0.5">7-day average · {n.daysLogged7} day{n.daysLogged7 === 1 ? "" : "s"} logged</p>
+        <p className="text-[11px] text-white/45 font-medium mb-2 px-0.5">7-day average · {n.daysLogged7} day{n.daysLogged7 === 1 ? "" : "s"} logged</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <MacroTile label="Calories" value={n.avg.calories} unit="kcal" />
           <MacroTile label="Protein"  value={n.avg.protein}  unit="g" />
@@ -1697,7 +1697,7 @@ function NutritionPanel({ n }: { n: NutritionSummary }) {
       {/* Today */}
       {today && today.meals > 0 && (
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2">Today · {today.meals} meal{today.meals === 1 ? "" : "s"}</p>
+          <p className="text-[11px] text-white/45 font-medium mb-2">Today · {today.meals} meal{today.meals === 1 ? "" : "s"}</p>
           <p className="text-sm text-white/80">
             <span className="font-semibold">{today.calories}</span> kcal ·
             <span className="text-white/55"> {today.protein}g P · {today.carbs}g C · {today.fat}g F</span>
@@ -1707,7 +1707,7 @@ function NutritionPanel({ n }: { n: NutritionSummary }) {
 
       {/* 14-day calories mini chart */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2 px-0.5">Calories · last 14 days</p>
+        <p className="text-[11px] text-white/45 font-medium mb-2 px-0.5">Calories · last 14 days</p>
         <div className="flex items-end gap-1 h-24 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-3">
           {n.days.map((d) => (
             <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full group relative" title={`${d.date}: ${d.calories} kcal`}>
@@ -1722,7 +1722,7 @@ function NutritionPanel({ n }: { n: NutritionSummary }) {
 
       {/* Recent meals */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-2 px-0.5">Recent meals</p>
+        <p className="text-[11px] text-white/45 font-medium mb-2 px-0.5">Recent meals</p>
         <div className="space-y-2">
           {n.recentMeals.map((m) => (
             <div key={m.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
@@ -1749,7 +1749,7 @@ function NutritionPanel({ n }: { n: NutritionSummary }) {
 function MacroTile({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 mb-1">{label}</p>
+      <p className="text-[11px] text-white/45 font-medium mb-1">{label}</p>
       <p className="text-sm font-semibold text-white/90">{value}<span className="text-white/40 font-normal text-xs"> {unit}</span></p>
     </div>
   );
@@ -2091,7 +2091,7 @@ function ComingSoon({ icon: Icon, title, blurb }: { icon: typeof User; title: st
       <Icon className="w-7 h-7 text-white/15 mx-auto mb-3" strokeWidth={1.5} />
       <p className="text-sm font-semibold text-white/70 mb-1">{title}</p>
       <p className="text-xs text-white/35 max-w-xs mx-auto leading-relaxed">{blurb}</p>
-      <p className="text-[10px] uppercase tracking-[0.2em] text-[#B48B40]/70 mt-4">Coming next</p>
+      <p className="text-[10px] text-[#B48B40]/70 mt-4">Coming next</p>
     </div>
   );
 }

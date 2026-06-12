@@ -353,7 +353,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
         {/* Programs */}
         <div className="rounded-2xl border border-white/6 bg-[#111111] px-6 py-5 space-y-5">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-1">Programs</p>
+            <p className="text-[10px] text-white/22 mb-1">Programs</p>
             <p className="text-base font-semibold text-white/88">Assignments & coverage</p>
           </div>
 
@@ -373,7 +373,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           <div className="pt-3 border-t border-white/5 space-y-2.5">
-            <p className="text-[10px] uppercase tracking-[0.15em] text-white/22 mb-3">Client breakdown</p>
+            <p className="text-[10px] text-white/22 mb-3">Client breakdown</p>
             {[
               { label: "Active",  count: metrics.activeClients,  color: "bg-emerald-400/70",    pct: metrics.totalClients > 0 ? Math.round((metrics.activeClients  / metrics.totalClients) * 100) : 0 },
               { label: "Paused",  count: metrics.pausedClients,  color: "bg-white/20",          pct: metrics.totalClients > 0 ? Math.round((metrics.pausedClients  / metrics.totalClients) * 100) : 0 },
@@ -393,7 +393,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
         {/* Engagement & revenue */}
         <div className="rounded-2xl border border-white/6 bg-[#111111] px-6 py-5 space-y-5">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/22 mb-1">Engagement</p>
+            <p className="text-[10px] text-white/22 mb-1">Engagement</p>
             <p className="text-base font-semibold text-white/88">Response & revenue</p>
           </div>
 
@@ -401,7 +401,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
             {/* Response time */}
             <div className="flex items-start justify-between pb-4 border-b border-white/[0.05]">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">Avg response time</p>
+                <p className="text-[10px] text-white/22 mb-1">Avg response time</p>
                 <div className="flex items-center gap-2">
                   <Clock className={cn("w-4 h-4", isSlowResponse ? "text-[#F87171]" : "text-white/35")} strokeWidth={1.5} />
                   <span className={cn("text-lg font-semibold", isSlowResponse ? "text-[#F87171]" : "text-white/80")}>
@@ -415,7 +415,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">Messages sent</p>
+                <p className="text-[10px] text-white/22 mb-1">Messages sent</p>
                 <div className="flex items-center gap-1.5 justify-end">
                   <MessageSquare className="w-3.5 h-3.5 text-white/30" strokeWidth={1.5} />
                   <span className="text-lg font-semibold text-white/80 tabular-nums">{metrics.messageCount}</span>
@@ -426,18 +426,18 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
             {/* Feedback */}
             <div className="flex items-start justify-between pb-4 border-b border-white/[0.05]">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1.5">Client feedback</p>
+                <p className="text-[10px] text-white/22 mb-1.5">Client feedback</p>
                 <FeedbackStars score={metrics.feedbackScore} />
               </div>
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">Upgrades driven</p>
+                <p className="text-[10px] text-white/22 mb-1">Upgrades driven</p>
                 <p className="text-lg font-semibold text-white/80 tabular-nums">{metrics.upgradeCount}</p>
               </div>
             </div>
 
             {/* Revenue */}
             <div>
-              <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 mb-1">Revenue generated</p>
+              <p className="text-[10px] text-white/22 mb-1">Revenue generated</p>
               <p className="text-2xl font-semibold text-[#B48B40] tabular-nums">
                 ${metrics.revenueGenerated.toLocaleString()}
               </p>
@@ -450,7 +450,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
       {/* ── Flags / alerts ────────────────────────────────────────────── */}
       {hasFlags && (
         <div id="trainer-flags" className="rounded-2xl border border-amber-400/14 bg-amber-400/[0.03] px-5 py-4 scroll-mt-20">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-amber-400/60 mb-3">Flags</p>
+          <p className="text-[10px] text-amber-400/60 mb-3">Flags</p>
           <div className="space-y-2">
             {metrics.atRiskClients > 0 && (
               <div className="flex items-center gap-2.5">
@@ -483,7 +483,7 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
       {/* ── Client roster ────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/6 bg-[#111111] overflow-hidden">
         <div className="px-5 py-4 border-b border-white/[0.05]">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/22">Client roster</p>
+          <p className="text-[10px] text-white/22">Client roster</p>
           <p className="text-sm font-medium text-white/70 mt-0.5">{clients.length} assigned</p>
         </div>
 
@@ -495,9 +495,9 @@ export default function TrainerDetailPage({ params }: { params: Promise<{ id: st
             : "grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]"
         )}>
           {["Client", "Status", "Adherence", "Execution", "Check-ins", "Last active"].map((col) => (
-            <p key={col} className="text-[10px] uppercase tracking-[0.14em] text-white/22">{col}</p>
+            <p key={col} className="text-[10px] text-white/22">{col}</p>
           ))}
-          {(isMaster || isTrainer) && <p className="text-[10px] uppercase tracking-[0.14em] text-white/22 w-8" />}
+          {(isMaster || isTrainer) && <p className="text-[10px] text-white/22 w-8" />}
         </div>
 
         <div className="divide-y divide-white/[0.04]">

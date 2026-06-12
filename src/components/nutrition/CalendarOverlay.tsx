@@ -118,7 +118,7 @@ export function CalendarOverlay({ userId, selectedDate, onSelect, onClose }: Pro
         {/* Weekday labels */}
         <div className="grid grid-cols-7 px-5 mb-2">
           {WEEKDAYS.map((d) => (
-            <div key={d} className="text-center text-[9px] uppercase tracking-[0.12em] text-white/22 font-medium py-1">
+            <div key={d} className="text-center text-[9px] text-white/22 font-medium py-1">
               {d}
             </div>
           ))}

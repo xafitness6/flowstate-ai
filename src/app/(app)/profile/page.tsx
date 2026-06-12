@@ -747,7 +747,7 @@ export default function ProfilePage() {
               onChange={(e) => setCoachIntensity(Number(e.target.value))}
               className="w-full accent-[#B48B40] cursor-pointer"
             />
-            <div className="flex justify-between text-[9px] uppercase tracking-[0.1em] text-white/25 mt-1">
+            <div className="flex justify-between text-[9px] text-white/25 mt-1">
               <span>Gentle</span><span>Balanced</span><span>Militant</span>
             </div>
           </div>
@@ -858,7 +858,7 @@ export default function ProfilePage() {
                 {PLAN_HIERARCHY[user.plan as Plan] < PLAN_HIERARCHY[MAX_PLAN_FOR_ROLE[user.role]] && (
                   <Link
                     href="/pricing"
-                    className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#B48B40] border border-[#B48B40]/30 bg-[#B48B40]/8 rounded-lg px-2 py-1 hover:bg-[#B48B40]/14 transition-colors"
+                    className="flex items-center gap-1 text-[10px] font-semibold text-[#B48B40] border border-[#B48B40]/30 bg-[#B48B40]/8 rounded-lg px-2 py-1 hover:bg-[#B48B40]/14 transition-colors"
                   >
                     Upgrade <ArrowUpRight className="w-3 h-3" strokeWidth={2} />
                   </Link>

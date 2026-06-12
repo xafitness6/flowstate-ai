@@ -86,7 +86,7 @@ export function LockedPageState({
         {/* Copy */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#B48B40]/20 bg-[#B48B40]/6 mb-2">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[#B48B40]/70 font-semibold">
+            <span className="text-[10px] text-[#B48B40]/70 font-semibold">
               {label} plan
             </span>
           </div>

@@ -225,7 +225,7 @@ export function NutritionAnalytics({ userId, targets, today }: Props) {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Flame className="w-3.5 h-3.5 text-[#B48B40]/55" strokeWidth={1.5} />
-                <span className="text-[11px] uppercase tracking-[0.16em] text-white/25 font-medium">Calorie trend</span>
+                <span className="text-[11px] text-white/25 font-medium">Calorie trend</span>
               </div>
               <span className="text-xs tabular-nums text-white/35">
                 avg {Math.round(summary.avgCalories).toLocaleString()}
@@ -239,7 +239,7 @@ export function NutritionAnalytics({ userId, targets, today }: Props) {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Zap className="w-3.5 h-3.5 text-white/30" strokeWidth={1.5} />
-              <span className="text-[11px] uppercase tracking-[0.16em] text-white/25 font-medium">Avg macro adherence</span>
+              <span className="text-[11px] text-white/25 font-medium">Avg macro adherence</span>
             </div>
             <div className="space-y-2.5">
               <AdherenceBar label="Protein" value={summary.avgProtein} target={targets.proteinG} color="bg-[#B48B40]/70" />
@@ -253,7 +253,7 @@ export function NutritionAnalytics({ userId, targets, today }: Props) {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Droplets className="w-3.5 h-3.5 text-[#93C5FD]/55" strokeWidth={1.5} />
-                <span className="text-[11px] uppercase tracking-[0.16em] text-white/25 font-medium">Hydration</span>
+                <span className="text-[11px] text-white/25 font-medium">Hydration</span>
               </div>
               <span className="text-xs tabular-nums text-white/35">
                 avg {(summary.avgHydration / 1000).toFixed(1)}L
@@ -267,7 +267,7 @@ export function NutritionAnalytics({ userId, targets, today }: Props) {
           <div className="flex items-center gap-5 rounded-2xl border border-white/[0.06] bg-white/[0.015] px-4 py-4">
             <ConsistencyRing logged={summary.daysLogged} total={summary.totalDays} />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/22 mb-1">Consistency</p>
+              <p className="text-[10px] text-white/22 mb-1">Consistency</p>
               <p className="text-xl font-semibold tabular-nums text-white/80 leading-none">
                 {summary.daysLogged}
                 <span className="text-sm text-white/30 font-normal"> / {summary.totalDays} days</span>
@@ -287,7 +287,7 @@ export function NutritionAnalytics({ userId, targets, today }: Props) {
           {/* AI insight */}
           {summary.insight && (
             <div className="rounded-xl border border-[#B48B40]/12 bg-[#B48B40]/[0.04] px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-[#B48B40]/50 mb-1.5 font-medium">◈ Insight</p>
+              <p className="text-[10px] text-[#B48B40]/50 mb-1.5 font-medium">◈ Insight</p>
               <p className="text-sm text-white/55 leading-relaxed">{summary.insight}</p>
             </div>
           )}

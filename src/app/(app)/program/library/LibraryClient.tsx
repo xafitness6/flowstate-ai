@@ -175,7 +175,7 @@ export default function LibraryClient({ initialPrograms }: { initialPrograms: Pr
 
         <div className="flex items-start justify-between mb-6 gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/30 mb-1.5">Library</p>
+            <p className="text-[10px] text-white/30 mb-1.5">Library</p>
             <h1 className="text-2xl font-bold tracking-tight">My Programs</h1>
             <p className="text-xs text-white/40 mt-1.5">
               Every program you&apos;ve built or generated, ready to activate or fork.
@@ -242,7 +242,7 @@ export default function LibraryClient({ initialPrograms }: { initialPrograms: Pr
                         <div className="flex items-center gap-2 mb-1">
                           <h2 className="text-base font-semibold text-white/90 truncate">{p.block_name}</h2>
                           <span className={cn(
-                            "text-[10px] uppercase tracking-[0.15em] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap",
+                            "text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap",
                             pill.cls,
                           )}>
                             {pill.label}

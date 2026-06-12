@@ -207,7 +207,7 @@ function WarmUpSection({
 
   return (
     <div className="space-y-1">
-      <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-2">{title}</p>
+      <p className="text-[10px] text-white/30 mb-2">{title}</p>
       {items.map((item) => {
         const done   = checked.has(item.id);
         const isOpen = expanded === item.id;
@@ -325,7 +325,7 @@ function ExerciseCard({
         <div className="min-w-0">
           <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-2 px-1 pb-1">
             {["Set", "Target", "Prev", ""].map((h) => (
-              <span key={h} className="text-[9px] uppercase tracking-[0.18em] text-white/20">{h}</span>
+              <span key={h} className="text-[9px] text-white/20">{h}</span>
             ))}
           </div>
           <div className="space-y-0.5">
@@ -384,7 +384,7 @@ function ExerciseCard({
                 <div className="mx-1 mb-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-3 space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/30">Reps</label>
+                      <label className="text-[11px] text-white/45 font-medium">Reps</label>
                       <input
                         type="number"
                         inputMode="numeric"
@@ -396,7 +396,7 @@ function ExerciseCard({
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/30">Load (kg)</label>
+                      <label className="text-[11px] text-white/45 font-medium">Load (kg)</label>
                       <input
                         type="number"
                         inputMode="decimal"
@@ -460,7 +460,7 @@ function ExerciseCard({
             <Dumbbell className="w-8 h-8 text-[#B48B40]/40" strokeWidth={1.5} />
           </div>
           <div className="p-3 space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/30">How to do it</p>
+            <p className="text-[10px] text-white/30">How to do it</p>
             <p className="text-[12px] text-white/55 leading-relaxed">
               {exercise.notes || "Controlled tempo, full range of motion, brace your core. Stop a rep or two shy of failure."}
             </p>
@@ -832,7 +832,7 @@ export default function WorkoutPage() {
         <div className="px-4 pt-5 space-y-5 max-w-lg mx-auto">
           {/* Title block */}
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[#B48B40]/70 mb-1">{workout.dayLabel} · Today&apos;s focus</p>
+            <p className="text-[11px] text-[#B48B40]/70 mb-1">{workout.dayLabel} · Today&apos;s focus</p>
             <h1 className="text-2xl font-bold tracking-tight text-white/90">{workout.focus}</h1>
             <div className="flex items-center gap-4 mt-2 text-xs text-white/40">
               <span className="flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5" strokeWidth={1.5} /> {workout.exercises.length} exercises</span>
@@ -853,7 +853,7 @@ export default function WorkoutPage() {
 
           {/* Exercise list with sets/reps */}
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/25 mb-2 px-1">The work</p>
+            <p className="text-[10px] text-white/25 mb-2 px-1">The work</p>
             <div className="space-y-2">
               {workout.exercises.map((ex, i) => (
                 <div key={ex.exerciseId} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
@@ -885,7 +885,7 @@ export default function WorkoutPage() {
               <p className="text-sm font-semibold text-white/70">AI coach in your ear</p>
               <p className="text-[11px] text-white/35">Live, set-by-set voice coaching through your session.</p>
             </div>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] px-2 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-white/35 shrink-0">
+            <span className="text-[9px] font-semibold px-2 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-white/35 shrink-0">
               Coming soon
             </span>
           </button>
@@ -918,7 +918,7 @@ export default function WorkoutPage() {
   if (phase === "countdown") {
     return (
       <div className="min-h-screen bg-[#0A0A0A] text-white flex flex-col items-center justify-center px-5">
-        <p className="text-[11px] uppercase tracking-[0.3em] text-white/30 mb-6">{workout.focus}</p>
+        <p className="text-[11px] text-white/30 mb-6">{workout.focus}</p>
         <div
           key={countdown}
           className="text-[7rem] font-bold leading-none text-[#B48B40] tabular-nums"
@@ -1079,7 +1079,7 @@ export default function WorkoutPage() {
 
         {/* ── Exercises ── */}
         <div className="space-y-3">
-          <p className="text-[10px] uppercase tracking-[0.25em] text-white/28 px-1">Exercises</p>
+          <p className="text-[10px] text-white/28 px-1">Exercises</p>
           {workout.exercises.map((ex) => (
             <ExerciseCard
               key={ex.exerciseId}

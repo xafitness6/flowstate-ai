@@ -597,7 +597,7 @@ function MealCard({
             <p className="text-sm font-medium text-white/75 truncate">{displayName}</p>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={cn(
-                "text-[9px] font-semibold uppercase tracking-[0.12em]",
+                "text-[9px] font-semibold",
                 meal.source === "voice" ? "text-[#B48B40]/60"
                 : meal.source === "photo" ? "text-[#93C5FD]/60"
                 : "text-white/25",
@@ -728,7 +728,7 @@ function MealCard({
                   <div className="border-t border-[#B48B40]/10 px-3 pb-3 pt-2.5 space-y-2">
                     {/* Name */}
                     <div>
-                      <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Name</label>
+                      <label className="text-[10px] text-white/25 mb-1 block">Name</label>
                       <input
                         autoFocus
                         type="text"
@@ -742,7 +742,7 @@ function MealCard({
                     {/* Qty + Unit */}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Qty</label>
+                        <label className="text-[10px] text-white/25 mb-1 block">Qty</label>
                         <input
                           type="text"
                           inputMode="decimal"
@@ -753,7 +753,7 @@ function MealCard({
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Unit</label>
+                        <label className="text-[10px] text-white/25 mb-1 block">Unit</label>
                         <select
                           value={draft.unit ?? ""}
                           onChange={(e) => handleDraftChange(item, "unit", e.target.value)}
@@ -767,7 +767,7 @@ function MealCard({
 
                     {/* Grams */}
                     <div>
-                      <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">Grams (weight)</label>
+                      <label className="text-[10px] text-white/25 mb-1 block">Grams (weight)</label>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -787,7 +787,7 @@ function MealCard({
                         { key: "fat",      label: "Fat"      },
                       ] as { key: keyof typeof draft; label: string }[]).map(({ key, label }) => (
                         <div key={key}>
-                          <label className="text-[10px] uppercase tracking-[0.12em] text-white/25 mb-1 block">{label}</label>
+                          <label className="text-[10px] text-white/25 mb-1 block">{label}</label>
                           <input
                             type="text"
                             inputMode="decimal"

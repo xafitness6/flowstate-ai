@@ -294,7 +294,7 @@ export default function ProgramGeneratePage() {
         </button>
 
         <div className="mb-6">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-[#B48B40]/85 mb-2 flex items-center gap-2">
+          <p className="text-[10px] text-[#B48B40]/85 mb-2 flex items-center gap-2">
             <Sparkles className="w-3 h-3" strokeWidth={2} /> AI · Program generator
           </p>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Build me a full phase</h1>
@@ -309,7 +309,7 @@ export default function ProgramGeneratePage() {
             <Card className="mb-4">
               <div className="px-5 py-5 space-y-5">
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Goal</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Goal</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     {GOAL_OPTIONS.map((opt) => (
                       <button
@@ -336,7 +336,7 @@ export default function ProgramGeneratePage() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Experience</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Experience</label>
                   <div className="flex gap-2">
                     {EXPERIENCE_OPTIONS.map((e) => (
                       <button
@@ -359,7 +359,7 @@ export default function ProgramGeneratePage() {
                 <GroupedChipMulti label="Body focus" groups={BODY_FOCUS_GROUPS} value={bodyFocus} onChange={setBodyFocus} defaultOpen="Qualities" />
 
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Injuries / limitations</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Injuries / limitations</label>
                   <div className="flex flex-wrap gap-1.5">
                     {INJURY_OPTIONS.map((opt) => {
                       const active = injuries.includes(opt.id);
@@ -385,7 +385,7 @@ export default function ProgramGeneratePage() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Style notes (optional)</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Style notes (optional)</label>
                   <textarea
                     value={style}
                     onChange={(e) => setStyle(e.target.value)}
@@ -427,7 +427,7 @@ export default function ProgramGeneratePage() {
               <div className="px-5 py-4">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.28em] text-[#B48B40]/80 mb-1">Generated</p>
+                    <p className="text-[10px] text-[#B48B40]/80 mb-1">Generated</p>
                     <h2 className="text-xl font-semibold text-white/95 leading-tight">{payload.name}</h2>
                     <p className="text-xs text-white/45 mt-1">
                       {payload.split.phase.name} · {payload.weeks} weeks · {payload.daysPerWeek} days/wk
@@ -457,7 +457,7 @@ export default function ProgramGeneratePage() {
 
             {/* Week tabs */}
             <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-3">
-              <span className="text-[10px] uppercase tracking-[0.22em] text-white/30 shrink-0 mr-1">Week</span>
+              <span className="text-[12px] text-white/45 font-medium shrink-0 mr-1">Week</span>
               {Array.from({ length: payload.weeks }, (_, i) => i + 1).map((w) => {
                 const isActive = w === previewWeek;
                 const isOverride = w > 1 && !!payload.split.weekOverrides[w];
@@ -489,12 +489,12 @@ export default function ProgramGeneratePage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="w-3.5 h-3.5 text-[#B48B40]/70" strokeWidth={1.8} />
-                        <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                        <span className="text-[10px] text-white/40">
                           Week {previewWeek} of {payload.weeks}
                         </span>
                         {previewWeek > 1 && (
                           <span className={cn(
-                            "text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded-full border",
+                            "text-[10px] px-2 py-0.5 rounded-full border",
                             isOverride
                               ? "border-[#B48B40]/30 bg-[#B48B40]/[0.06] text-[#B48B40]"
                               : "border-white/10 bg-white/[0.02] text-white/50",
@@ -514,7 +514,7 @@ export default function ProgramGeneratePage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Week intent</label>
+                        <label className="text-[9px] text-white/35 block mb-1">Week intent</label>
                         <input
                           type="text"
                           value={currentWeekTemplate.intent ?? ""}
@@ -524,7 +524,7 @@ export default function ProgramGeneratePage() {
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] uppercase tracking-[0.15em] text-white/35 block mb-1">Progression this week</label>
+                        <label className="text-[9px] text-white/35 block mb-1">Progression this week</label>
                         <input
                           type="text"
                           value={currentWeekTemplate.progressionThisWeek ?? ""}
@@ -561,7 +561,7 @@ export default function ProgramGeneratePage() {
                   </button>
                   {showDowPicker && (
                     <div className="px-5 pb-4 space-y-2">
-                      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                      <div className="flex items-center gap-2 text-[11px] text-white/55 font-medium">
                         <Calendar className="w-3 h-3" strokeWidth={1.8} />
                         Which day, and what kind?
                       </div>
@@ -693,7 +693,7 @@ function NumberField({
 }) {
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">{label}</label>
+      <label className="text-[11px] text-white/45 font-medium block mb-2">{label}</label>
       <div className="relative">
         <input
           type="number"
@@ -719,7 +719,7 @@ function ChipMulti({
 }) {
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">{label}</label>
+      <label className="text-[11px] text-white/45 font-medium block mb-2">{label}</label>
       <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => {
           const active = value.includes(opt);
@@ -779,7 +779,7 @@ function GroupedChipMulti({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className="text-[10px] uppercase tracking-[0.18em] text-white/30">{label}</label>
+        <label className="text-[11px] text-white/45 font-medium">{label}</label>
         {totalSelected > 0 && (
           <button
             onClick={() => onChange([])}
@@ -800,7 +800,7 @@ function GroupedChipMulti({
                 className="w-full px-3 py-2 flex items-center justify-between hover:bg-white/[0.02] transition-colors text-left"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] uppercase tracking-[0.18em] text-white/60 font-medium">{g.label}</span>
+                  <span className="text-[11px] text-white/60 font-medium">{g.label}</span>
                   {count > 0 && (
                     <span className="text-[10px] tabular-nums text-[#B48B40] bg-[#B48B40]/[0.08] border border-[#B48B40]/25 rounded-full px-1.5 py-0.5">
                       {count}

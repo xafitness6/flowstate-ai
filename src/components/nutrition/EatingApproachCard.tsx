@@ -142,7 +142,7 @@ export function EatingApproachCard({
           <div className="flex items-center justify-between mb-0.5">
             <p className="text-[11px] text-white/45 font-medium">Optional modality</p>
             <span className={cn(
-              "text-[9px] font-semibold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded-md",
+              "text-[9px] font-semibold px-1.5 py-0.5 rounded-md",
               carbCyclingOn
                 ? "bg-[#B48B40]/20 text-[#B48B40]"
                 : "bg-white/[0.06] text-white/35",

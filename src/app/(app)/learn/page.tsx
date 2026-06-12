@@ -222,7 +222,7 @@ export default function LearnPage() {
         {/* Resources */}
         {(cat === "all" || cat === "nutrition") && !query && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/25 mb-3 px-1">Resources</p>
+            <p className="text-[12px] text-white/45 font-medium mb-3 px-1">Resources</p>
             <a
               href="/resources/conquer-your-carbs.pdf"
               target="_blank"

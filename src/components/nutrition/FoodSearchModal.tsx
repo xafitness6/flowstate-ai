@@ -217,7 +217,7 @@ export function FoodSearchModal({ userId, onMealLogged, onClose }: Props) {
 
               {/* Qty */}
               <div className="flex items-center gap-2 mb-3">
-                <label className="text-[10px] uppercase tracking-[0.12em] text-white/30 shrink-0 w-16">
+                <label className="text-[10px] text-white/30 shrink-0 w-16">
                   Servings
                 </label>
                 <input
@@ -318,7 +318,7 @@ export function FoodSearchModal({ userId, onMealLogged, onClose }: Props) {
             <div className="px-4 py-3">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                <span className="text-[10px] uppercase tracking-[0.14em] text-white/22 font-medium">
+                <span className="text-[10px] text-white/22 font-medium">
                   Recent
                 </span>
               </div>
@@ -338,7 +338,7 @@ export function FoodSearchModal({ userId, onMealLogged, onClose }: Props) {
             <div className="px-4 pb-5">
               <div className="flex items-center gap-2 mb-2">
                 <Star className="w-3 h-3 text-white/25" strokeWidth={1.5} />
-                <span className="text-[10px] uppercase tracking-[0.14em] text-white/22 font-medium">
+                <span className="text-[10px] text-white/22 font-medium">
                   Common foods
                 </span>
               </div>

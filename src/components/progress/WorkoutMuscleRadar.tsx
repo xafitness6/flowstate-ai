@@ -92,7 +92,7 @@ export function WorkoutMuscleRadar() {
 
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-      <p className="text-[11px] uppercase tracking-[0.18em] text-white/40 flex items-center gap-1.5 mb-4">
+      <p className="text-[11px] text-white/40 flex items-center gap-1.5 mb-4">
         <Dumbbell className="w-3.5 h-3.5 text-[#B48B40]" strokeWidth={1.8} /> Training map · last 60 days
       </p>
 
@@ -127,7 +127,7 @@ export function WorkoutMuscleRadar() {
             { icon: Dumbbell,   label: "Groups hit",    value: `${GROUPS.filter((g) => stats.setsByGroup[g] > 0).length}/7`, sub: "balance" },
           ].map(({ icon: Icon, label, value, sub }) => (
             <div key={label} className="rounded-xl border border-white/[0.06] bg-black/15 px-3.5 py-3">
-              <p className="text-[10px] uppercase tracking-[0.12em] text-white/30 flex items-center gap-1.5"><Icon className="w-3 h-3 text-[#B48B40]/70" strokeWidth={1.8} /> {label}</p>
+              <p className="text-[10px] text-white/30 flex items-center gap-1.5"><Icon className="w-3 h-3 text-[#B48B40]/70" strokeWidth={1.8} /> {label}</p>
               <p className="text-lg font-bold text-white/90 mt-1 tabular-nums leading-none">{value}</p>
               <p className="text-[10px] text-white/35 mt-1">{sub}</p>
             </div>

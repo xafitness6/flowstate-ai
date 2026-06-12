@@ -345,7 +345,7 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
                         {item._expanded && (
                           <div className="border-t border-white/[0.05] px-3.5 pb-3.5 pt-3 space-y-2.5">
                             <div>
-                              <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Name</label>
+                              <label className="text-[10px] text-white/20 mb-1 block">Name</label>
                               <input
                                 type="text"
                                 value={item.name}
@@ -356,7 +356,7 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Quantity</label>
+                                <label className="text-[10px] text-white/20 mb-1 block">Quantity</label>
                                 <input
                                   type="number" min="0" step="any"
                                   value={numField(item.quantity)}
@@ -366,7 +366,7 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
                                 />
                               </div>
                               <div>
-                                <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Unit</label>
+                                <label className="text-[10px] text-white/20 mb-1 block">Unit</label>
                                 <select
                                   value={item.unit ?? ""}
                                   onChange={(e) => patchItem(meal.id, item.id, { unit: e.target.value || null })}
@@ -378,7 +378,7 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
                               </div>
                             </div>
                             <div>
-                              <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Grams (weight)</label>
+                              <label className="text-[10px] text-white/20 mb-1 block">Grams (weight)</label>
                               <input
                                 type="number" min="0" step="any"
                                 value={numField(item.grams)}
@@ -395,7 +395,7 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
                                 { key: "fat"      as const, label: "Fat",      placeholder: "e.g. 8"   },
                               ].map(({ key, label, placeholder }) => (
                                 <div key={key}>
-                                  <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">{label}</label>
+                                  <label className="text-[10px] text-white/20 mb-1 block">{label}</label>
                                   <input
                                     type="number" min="0" step="any"
                                     value={numField(item[key])}
@@ -421,7 +421,7 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
 
           {/* Grand totals */}
           <div className="rounded-2xl border border-white/[0.07] bg-[#111111] px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-3">Day totals</p>
+            <p className="text-[10px] text-white/22 mb-3">Day totals</p>
             <div className="grid grid-cols-4 gap-2">
               {[
                 { label: "Calories", value: grand.calories, unit: "kcal", color: "text-white/75" },
@@ -430,7 +430,7 @@ export function GroupedMealReviewModal({ meals, userId, onSaved, onCancel }: Pro
                 { label: "Fat",      value: grand.fat,      unit: "g",    color: "text-emerald-400/60" },
               ].map(({ label, value, unit, color }) => (
                 <div key={label} className="rounded-xl border border-white/5 bg-white/[0.02] px-2 py-2.5 text-center">
-                  <p className="text-[9px] uppercase tracking-[0.1em] text-white/25 mb-1">{label}</p>
+                  <p className="text-[9px] text-white/25 mb-1">{label}</p>
                   <p className={cn("text-sm font-semibold tabular-nums leading-none", color)}>
                     {Math.round(value)}
                     <span className="text-[10px] text-white/30 font-normal">{unit}</span>

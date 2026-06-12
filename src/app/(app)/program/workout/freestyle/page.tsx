@@ -71,7 +71,7 @@ function ExerciseRowUI({
       <div className="grid grid-cols-3 gap-2">
         {(["sets", "reps", "load"] as const).map((field) => (
           <div key={field} className="space-y-1">
-            <label className="text-[10px] uppercase tracking-[0.14em] text-white/25">
+            <label className="text-[10px] text-white/25">
               {field === "load" ? "Load (kg)" : field}
             </label>
             <input
@@ -238,7 +238,7 @@ export default function FreestyleWorkoutPage() {
           <p className="text-[10px] text-white/30">Log any session — prescribed or not</p>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-white/25 uppercase tracking-[0.12em] px-2 py-1 rounded-lg bg-white/[0.04] border border-white/8">
+          <span className="text-[10px] text-white/25 px-2 py-1 rounded-lg bg-white/[0.04] border border-white/8">
             Freestyle
           </span>
         </div>
@@ -297,7 +297,7 @@ export default function FreestyleWorkoutPage() {
 
         {/* Body focus */}
         <div className="space-y-1.5">
-          <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Body focus</label>
+          <label className="text-[11px] text-white/30">Body focus</label>
           <div className="relative">
             <select
               value={bodyFocus}
@@ -314,7 +314,7 @@ export default function FreestyleWorkoutPage() {
 
         {/* Duration */}
         <div className="space-y-1.5">
-          <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Duration (minutes)</label>
+          <label className="text-[11px] text-white/30">Duration (minutes)</label>
           <input
             type="number"
             inputMode="numeric"
@@ -328,7 +328,7 @@ export default function FreestyleWorkoutPage() {
         {/* Exercises */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/30">Exercises</p>
+            <p className="text-[11px] text-white/30">Exercises</p>
             <button
               type="button"
               onClick={addRow}
@@ -349,7 +349,7 @@ export default function FreestyleWorkoutPage() {
 
         {/* Notes */}
         <div className="space-y-1.5">
-          <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">Notes</label>
+          <label className="text-[11px] text-white/30">Notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

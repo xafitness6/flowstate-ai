@@ -94,7 +94,7 @@ export function FormCheckModal({
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#B48B40]" strokeWidth={1.8} />
             <div>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Form check</p>
+              <p className="text-[11px] text-white/55 font-medium">Form check</p>
               <p className="text-sm font-semibold text-white/90">{exerciseName}</p>
             </div>
           </div>
@@ -210,7 +210,7 @@ export function FormCheckModal({
                     )}
                   >
                     <span className={cn(
-                      "text-[9px] font-bold uppercase tracking-[0.14em] px-1.5 py-0.5 rounded-md mt-0.5 shrink-0",
+                      "text-[9px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 shrink-0",
                       c.severity === "ok"    ? "bg-emerald-400/15 text-emerald-300/85" :
                       c.severity === "watch" ? "bg-amber-400/15  text-amber-300/85"   :
                                                 "bg-red-400/15    text-red-300/85",
@@ -224,7 +224,7 @@ export function FormCheckModal({
 
               {result.oneThingToFix && (
                 <div className="rounded-2xl border border-[#B48B40]/25 bg-[#B48B40]/[0.05] px-4 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#B48B40]/75 mb-1">One thing for next set</p>
+                  <p className="text-[10px] text-[#B48B40]/75 mb-1">One thing for next set</p>
                   <p className="text-sm font-medium text-white/85 leading-relaxed">{result.oneThingToFix}</p>
                 </div>
               )}

@@ -143,7 +143,7 @@ function ItemRow({
         <div className="border-t border-white/[0.05] px-3.5 pb-3.5 pt-3 space-y-2.5">
           {/* Name */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Name</label>
+            <label className="text-[10px] text-white/20 mb-1 block">Name</label>
             <input
               type="text"
               value={item.name}
@@ -156,7 +156,7 @@ function ItemRow({
           {/* Qty + Unit on same row */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Quantity</label>
+              <label className="text-[10px] text-white/20 mb-1 block">Quantity</label>
               <input
                 type="number"
                 min="0"
@@ -168,7 +168,7 @@ function ItemRow({
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Unit</label>
+              <label className="text-[10px] text-white/20 mb-1 block">Unit</label>
               <select
                 value={item.unit ?? ""}
                 onChange={(e) => onChange(item.id, { unit: e.target.value || null })}
@@ -184,7 +184,7 @@ function ItemRow({
 
           {/* Grams */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">Grams (weight)</label>
+            <label className="text-[10px] text-white/20 mb-1 block">Grams (weight)</label>
             <input
               type="number"
               min="0"
@@ -205,7 +205,7 @@ function ItemRow({
               { key: "fat",      label: "Fat",       placeholder: "e.g. 15",  suffix: "g"    },
             ].map(({ key, label, placeholder }) => (
               <div key={key}>
-                <label className="text-[10px] uppercase tracking-[0.14em] text-white/20 mb-1 block">
+                <label className="text-[10px] text-white/20 mb-1 block">
                   {label}
                 </label>
                 <input
@@ -240,7 +240,7 @@ function TotalsBar({ totals }: { totals: MealTotals }) {
         { label: "F",    value: totals.fat,      color: "text-emerald-400/60" },
       ].map(({ label, value, color }) => (
         <div key={label} className="rounded-xl border border-white/5 bg-white/[0.02] px-2.5 py-2.5 text-center">
-          <p className="text-[9px] uppercase tracking-[0.1em] text-white/22 mb-1">{label}</p>
+          <p className="text-[9px] text-white/22 mb-1">{label}</p>
           <p className={cn("text-sm font-semibold tabular-nums leading-none", color)}>
             {Math.round(value)}
           </p>
@@ -403,7 +403,7 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
 
           {/* Meal type */}
           <div className="relative">
-            <label className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-2 block">Meal type</label>
+            <label className="text-[10px] text-white/22 mb-2 block">Meal type</label>
             <button
               onClick={() => setTypeOpen((v) => !v)}
               className="w-full flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-white/70 hover:border-white/18 transition-colors"
@@ -433,7 +433,7 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
 
           {/* Eaten at */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-2 block">
+            <label className="text-[10px] text-white/22 mb-2 block">
               Date &amp; time eaten
             </label>
             <input
@@ -447,7 +447,7 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
           {/* Food items */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-[10px] uppercase tracking-[0.2em] text-white/22">
+              <label className="text-[10px] text-white/22">
                 Items ({activeItemCount})
               </label>
               {voice.isSupported && (
@@ -513,13 +513,13 @@ export function MealEditModal({ meal, userId, onSave, onCancel }: Props) {
 
           {/* Totals */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-2 block">Totals</label>
+            <label className="text-[10px] text-white/22 mb-2 block">Totals</label>
             <TotalsBar totals={totals} />
           </div>
 
           {/* Notes */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.2em] text-white/22 mb-2 block">Notes</label>
+            <label className="text-[10px] text-white/22 mb-2 block">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

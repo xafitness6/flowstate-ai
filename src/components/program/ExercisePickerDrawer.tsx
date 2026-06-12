@@ -91,7 +91,7 @@ export function ExercisePickerDrawer({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/35 mb-0.5">Exercise library</p>
+            <p className="text-[10px] text-white/35 mb-0.5">Exercise library</p>
             <h2 className="text-base font-semibold text-white/95">Pick an exercise</h2>
           </div>
           <button
@@ -198,7 +198,7 @@ export function ExercisePickerDrawer({
                       {ex.injury_friendly_for.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {ex.injury_friendly_for.slice(0, 4).map((tag) => (
-                            <span key={tag} className="text-[9px] uppercase tracking-[0.1em] text-emerald-300/70 border border-emerald-400/15 bg-emerald-400/5 px-1.5 py-0.5 rounded">
+                            <span key={tag} className="text-[9px] text-emerald-300/70 border border-emerald-400/15 bg-emerald-400/5 px-1.5 py-0.5 rounded">
                               {tag}-safe
                             </span>
                           ))}

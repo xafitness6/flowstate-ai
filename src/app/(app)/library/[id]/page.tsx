@@ -157,7 +157,7 @@ function TrimEditor({
   const effectiveEnd = trimEnd > 0 ? trimEnd : video.duration;
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between text-[10px] text-white/30 uppercase tracking-[0.14em]">
+      <div className="flex items-center justify-between text-[10px] text-white/30">
         <span>Trim Range</span>
         <span className="tabular-nums font-mono text-white/40">
           {formatDuration(trimStart)} → {formatDuration(effectiveEnd)}
@@ -240,7 +240,7 @@ function CueEditor({
 
   return (
     <div className="space-y-2">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-white/30">Coaching Cues</p>
+      <p className="text-[10px] text-white/30">Coaching Cues</p>
       <div className="space-y-1.5">
         {cues.map((cue, i) => (
           <div
@@ -346,7 +346,7 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="flex-1 min-h-screen bg-[#0A0A0A] px-6 py-8 max-w-5xl mx-auto w-full">
+    <div className="flex-1 min-h-screen bg-[#0A0A0A] px-6 py-8 max-w-[760px] mx-auto w-full">
       {/* Back nav */}
       <Link
         href="/library"
@@ -459,7 +459,7 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-white/30" strokeWidth={1.5} />
-                <p className="text-xs font-medium text-white/50 uppercase tracking-[0.12em]">Coaching Notes</p>
+                <p className="text-xs font-medium text-white/50">Coaching Notes</p>
               </div>
               {canManage && !editingNotes && (
                 <button
@@ -506,7 +506,7 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-4 py-4">
             <div className="flex items-center gap-2 mb-3">
               <Link2 className="w-4 h-4 text-white/30" strokeWidth={1.5} />
-              <p className="text-xs font-medium text-white/50 uppercase tracking-[0.12em]">Linked Exercises</p>
+              <p className="text-xs font-medium text-white/50">Linked Exercises</p>
             </div>
             <div className="flex flex-wrap gap-2 mb-3">
               {video.linkedExercises.map((name) => (
@@ -548,7 +548,7 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
         <div className="space-y-4">
           {/* Playback options */}
           <div className="rounded-2xl border border-white/6 bg-[#111111] px-4 py-4">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-white/30 mb-3">Playback</p>
+            <p className="text-[10px] text-white/30 mb-3">Playback</p>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <RotateCcw className="w-4 h-4 text-white/35" strokeWidth={1.5} />
@@ -575,7 +575,7 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
             <div className="rounded-2xl border border-white/6 bg-[#111111] px-4 py-4">
               <div className="flex items-center gap-2 mb-4">
                 <Scissors className="w-4 h-4 text-white/35" strokeWidth={1.5} />
-                <p className="text-[10px] uppercase tracking-[0.14em] text-white/30">Trim</p>
+                <p className="text-[10px] text-white/30">Trim</p>
               </div>
               <TrimEditor
                 video={video}
@@ -592,7 +592,7 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center gap-2 mb-4">
               <Type className="w-4 h-4 text-white/35" strokeWidth={1.5} />
               <div>
-                <p className="text-[10px] uppercase tracking-[0.14em] text-white/30">Cues</p>
+                <p className="text-[10px] text-white/30">Cues</p>
                 <p className="text-[9px] text-white/20 mt-0.5">Tap a cue to preview overlay</p>
               </div>
             </div>

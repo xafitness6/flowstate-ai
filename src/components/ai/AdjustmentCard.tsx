@@ -178,7 +178,7 @@ export function AdjustmentCard({
         <>
           <div className="h-px bg-white/5 mx-5" />
           <div className="px-5 py-3.5">
-            <p className="text-[10px] uppercase tracking-[0.15em] text-white/20 mb-1">
+            <p className="text-[10px] text-white/20 mb-1">
               Expected outcome
             </p>
             <p className="text-xs text-white/50 leading-relaxed">{outcome}</p>

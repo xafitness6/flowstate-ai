@@ -87,7 +87,7 @@ export function Sidebar() {
               )}
               {locked && (
                 <span className="flex items-center gap-1 ml-auto">
-                  <span className="text-[8px] uppercase tracking-[0.12em] text-[#B48B40]/40 font-medium">
+                  <span className="text-[8px] text-[#B48B40]/40 font-medium">
                     {PLAN_LABELS[item.plan!]}
                   </span>
                   <Lock className="w-3 h-3 text-white/15" strokeWidth={1.5} />

@@ -202,7 +202,7 @@ export function TargetsEditModal({
 
           {/* Edit-by toggle */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.16em] text-white/25 mr-auto">Macro split — edit by</span>
+            <span className="text-[10px] text-white/25 mr-auto">Macro split — edit by</span>
             {([
               { v: "percent", label: "%", icon: Percent },
               { v: "grams",   label: "g", icon: Scale },

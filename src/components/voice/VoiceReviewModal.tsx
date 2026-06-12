@@ -108,7 +108,7 @@ export function VoiceReviewModal({
           {/* Transcript edit area */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+              <label className="text-[11px] text-white/30">
                 {isListening ? "Listening…" : "What you said"}
               </label>
               {confidence >= 0 && !isListening && (

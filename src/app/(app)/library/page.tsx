@@ -41,7 +41,7 @@ function TagSelects({
   return (
     <div className="grid grid-cols-3 gap-3">
       <div>
-        <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">Muscle</label>
+        <label className="block text-[10px] text-white/30 mb-1.5">Muscle</label>
         <div className="relative">
           <select value={muscle} onChange={(e) => setMuscle(e.target.value as MuscleGroup | "")}
             className="w-full appearance-none bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white/70 outline-none focus:border-[#B48B40]/40 transition-all">
@@ -52,7 +52,7 @@ function TagSelects({
         </div>
       </div>
       <div>
-        <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">Movement</label>
+        <label className="block text-[10px] text-white/30 mb-1.5">Movement</label>
         <div className="relative">
           <select value={movement} onChange={(e) => setMovement(e.target.value as MovementType | "")}
             className="w-full appearance-none bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white/70 outline-none focus:border-[#B48B40]/40 transition-all">
@@ -63,7 +63,7 @@ function TagSelects({
         </div>
       </div>
       <div>
-        <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">Difficulty</label>
+        <label className="block text-[10px] text-white/30 mb-1.5">Difficulty</label>
         <div className="relative">
           <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty | "")}
             className="w-full appearance-none bg-white/[0.03] border border-white/8 rounded-xl px-3 py-2.5 text-xs text-white/70 outline-none focus:border-[#B48B40]/40 transition-all">
@@ -186,7 +186,7 @@ function AddVideoModal({ onClose }: { onClose: () => void }) {
                 <p className="text-xs text-white/20">MP4, MOV, WebM — max 500 MB</p>
               </div>
               <div>
-                <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">Exercise Title</label>
+                <label className="block text-[10px] text-white/30 mb-1.5">Exercise Title</label>
                 <input value={uploadTitle} onChange={(e) => setUploadTitle(e.target.value)}
                   placeholder="e.g. Barbell Back Squat"
                   className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-3.5 py-2.5 text-sm text-white/85 placeholder:text-white/20 outline-none focus:border-[#B48B40]/40 focus:bg-[#B48B40]/5 transition-all" />
@@ -204,7 +204,7 @@ function AddVideoModal({ onClose }: { onClose: () => void }) {
             <>
               {/* URL input */}
               <div>
-                <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">YouTube URL</label>
+                <label className="block text-[10px] text-white/30 mb-1.5">YouTube URL</label>
                 <div className="relative">
                   <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none" />
                   <input
@@ -259,7 +259,7 @@ function AddVideoModal({ onClose }: { onClose: () => void }) {
 
               {/* Title */}
               <div>
-                <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">Exercise Title</label>
+                <label className="block text-[10px] text-white/30 mb-1.5">Exercise Title</label>
                 <input
                   value={ytTitle}
                   onChange={(e) => setYtTitle(e.target.value)}
@@ -277,7 +277,7 @@ function AddVideoModal({ onClose }: { onClose: () => void }) {
 
               {/* Coaching notes */}
               <div>
-                <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">Coaching Notes</label>
+                <label className="block text-[10px] text-white/30 mb-1.5">Coaching Notes</label>
                 <textarea
                   value={ytNotes}
                   onChange={(e) => setYtNotes(e.target.value)}
@@ -648,7 +648,7 @@ export default function LibraryPage() {
               { label: "Difficulty", value: difficulty, setter: setDifficulty, options: DIFFICULTY_LABELS, allLabel: "All levels" },
             ].map(({ label, value, setter, options, allLabel }) => (
               <div key={label}>
-                <label className="block text-[10px] uppercase tracking-[0.14em] text-white/30 mb-1.5">{label}</label>
+                <label className="block text-[10px] text-white/30 mb-1.5">{label}</label>
                 <div className="relative">
                   <select
                     value={value}

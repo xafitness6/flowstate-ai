@@ -85,7 +85,7 @@ export function VideoPreviewModal({ video, onClose }: VideoPreviewModalProps) {
 
           {video.cues.length > 0 && (
             <div>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/25 mb-1.5">Cues</p>
+              <p className="text-[11px] text-white/40 font-medium mb-1.5">Cues</p>
               <ul className="space-y-1">
                 {video.cues.map((cue, i) => (
                   <li key={i} className="text-xs text-white/55 flex gap-2">

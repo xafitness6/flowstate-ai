@@ -77,7 +77,7 @@ export function BugReportButton() {
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.25em] text-white/35 mb-0.5">Report</p>
+                <p className="text-[10px] text-white/35 mb-0.5">Report</p>
                 <h2 className="text-base font-semibold text-white/95 flex items-center gap-2">
                   <Bug className="w-4 h-4 text-[#B48B40]" strokeWidth={2} />
                   Send feedback
@@ -95,7 +95,7 @@ export function BugReportButton() {
 
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Type</label>
+                <label className="text-[11px] text-white/45 font-medium block mb-2">Type</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {([
                     { id: "bug",      label: "Bug" },
@@ -121,7 +121,7 @@ export function BugReportButton() {
 
               {category === "bug" && (
                 <div>
-                  <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">Severity</label>
+                  <label className="text-[11px] text-white/45 font-medium block mb-2">Severity</label>
                   <div className="grid grid-cols-4 gap-1.5">
                     {([
                       { id: "low",      label: "Low",      cls: "text-white/55" },
@@ -149,7 +149,7 @@ export function BugReportButton() {
               )}
 
               <div>
-                <label className="text-[10px] uppercase tracking-[0.18em] text-white/30 block mb-2">
+                <label className="text-[11px] text-white/45 font-medium block mb-2">
                   {category === "bug"     ? "What broke? Steps to reproduce help a lot."
                   : category === "feature" ? "What would you like to see added?"
                   :                          "Anything on your mind?"}

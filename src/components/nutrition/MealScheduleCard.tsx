@@ -41,7 +41,7 @@ export function MealScheduleCard({
       {/* Window banner (only for fasting patterns) */}
       {windowLabel && (
         <div className="rounded-xl border border-[#B48B40]/22 bg-[#B48B40]/[0.04] px-3.5 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#B48B40]/70 mb-0.5">Eating window</p>
+          <p className="text-[10px] text-[#B48B40]/70 mb-0.5">Eating window</p>
           <p className="text-xs font-medium text-white/75">{windowLabel}</p>
         </div>
       )}

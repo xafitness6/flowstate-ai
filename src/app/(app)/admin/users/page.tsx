@@ -339,7 +339,7 @@ export default function AdminUsersPage() {
               <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
             </button>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40] font-medium">Admin</p>
+              <p className="text-[10px] text-[#B48B40] font-medium">Admin</p>
               <h1 className="text-xl font-semibold text-white tracking-tight">User Management</h1>
             </div>
           </div>

@@ -189,8 +189,8 @@ export default function PricingPage() {
       </Suspense>
 
       {/* Header */}
-      <div className="max-w-5xl mx-auto text-center mb-10">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-[#B48B40] mb-3 font-medium">
+      <div className="max-w-[760px] mx-auto text-center mb-10">
+        <p className="text-[10px] text-[#B48B40] mb-3 font-medium">
           {EARLY_ACCESS_ENABLED ? "Early Access" : "Pricing"}
         </p>
         <h1 className="text-3xl font-semibold text-white mb-3 tracking-tight">
@@ -205,7 +205,7 @@ export default function PricingPage() {
 
       {/* Early access banner */}
       {EARLY_ACCESS_ENABLED && (
-        <div className="max-w-5xl mx-auto mb-8">
+        <div className="max-w-[760px] mx-auto mb-8">
           <div className="rounded-2xl border border-[#B48B40]/25 bg-[#B48B40]/[0.05] px-5 py-4 flex items-start gap-3.5">
             <div className="w-8 h-8 rounded-xl bg-[#B48B40]/12 border border-[#B48B40]/22 flex items-center justify-center shrink-0 mt-0.5">
               <Gift className="w-4 h-4 text-[#B48B40]" strokeWidth={1.5} />
@@ -224,7 +224,7 @@ export default function PricingPage() {
 
       {/* Billing toggle — hidden in early access (prices aren't active) */}
       {!EARLY_ACCESS_ENABLED && (
-        <div className="max-w-5xl mx-auto flex justify-center mb-10">
+        <div className="max-w-[760px] mx-auto flex justify-center mb-10">
           <div className="inline-flex items-center gap-1 rounded-xl border border-white/8 bg-white/[0.02] p-1">
             {(["monthly", "annual"] as BillingCycle[]).map((cycle) => (
               <button
@@ -245,7 +245,7 @@ export default function PricingPage() {
       )}
 
       {/* Plan cards */}
-      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="max-w-[760px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {PLANS.map((p) => {
           const isCurrent   = p.key === currentPlan;
           const price       = billing === "annual" ? p.annual : p.monthly;
@@ -269,7 +269,7 @@ export default function PricingPage() {
               {/* Badge */}
               {(p.badge || isEarlyElite) && (
                 <div className={cn(
-                  "absolute top-3 right-3 text-[9px] uppercase tracking-[0.18em] font-semibold px-2 py-0.5 rounded-full border",
+                  "absolute top-3 right-3 text-[9px] font-semibold px-2 py-0.5 rounded-full border",
                   isEarlyElite
                     ? "text-[#B48B40] border-[#B48B40]/30 bg-[#B48B40]/10"
                     : p.highlight
@@ -284,7 +284,7 @@ export default function PricingPage() {
                 {/* Name + price */}
                 <div className="mb-4 mt-4">
                   <p className={cn(
-                    "text-xs font-semibold uppercase tracking-[0.15em] mb-1",
+                    "text-xs font-semibold mb-1",
                     isEarlyElite || (p.highlight && !EARLY_ACCESS_ENABLED) ? "text-[#B48B40]" : "text-white/50"
                   )}>
                     {p.name}
@@ -373,7 +373,7 @@ export default function PricingPage() {
       </div>
 
       {/* Footer */}
-      <div className="max-w-5xl mx-auto mt-10 text-center">
+      <div className="max-w-[760px] mx-auto mt-10 text-center">
         {EARLY_ACCESS_ENABLED ? (
           <p className="text-[11px] text-white/22 leading-relaxed">
             Billing opens for new users at public launch. Existing early users are grandfathered in.

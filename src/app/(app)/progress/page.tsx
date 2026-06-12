@@ -491,7 +491,7 @@ export default function ProgressPage() {
     <div className="px-5 md:px-8 py-6 max-w-3xl mx-auto text-white space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/22 mb-2">Body progress</p>
+          <p className="text-[10px] text-white/22 mb-2">Body progress</p>
           <h1 className="text-2xl font-semibold tracking-tight">Progress</h1>
           <p className="text-sm text-white/35 mt-1">Track weight and private progress photos over any period.</p>
         </div>
@@ -814,7 +814,7 @@ function PhotoSelect({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-white/28">{label}</span>
+      <span className="mb-1 block text-[10px] text-white/28">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -844,7 +844,7 @@ function PhotoCompareCard({ label, photo }: { label: string; photo: ProgressPhot
         )}
       </div>
       <div className="px-3 py-2">
-        <p className="text-[10px] uppercase tracking-[0.14em] text-white/25">{label}</p>
+        <p className="text-[10px] text-white/25">{label}</p>
         <p className="mt-0.5 truncate text-[11px] text-white/58">{photo ? formatFullDate(photo.taken_at) : "No photo"}</p>
       </div>
     </div>
@@ -919,7 +919,7 @@ function SummaryCard({
 }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#111111] px-3.5 py-3">
-      <p className="text-[10px] uppercase tracking-[0.16em] text-white/30 mb-1 flex items-center gap-1.5">
+      <p className="text-[10px] text-white/30 mb-1 flex items-center gap-1.5">
         <Icon className="w-3 h-3 text-[#B48B40]/80" strokeWidth={1.8} /> {label}
       </p>
       <p className="text-sm font-semibold text-white/90">{value}</p>
