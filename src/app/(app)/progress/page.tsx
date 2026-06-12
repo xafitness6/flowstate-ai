@@ -967,10 +967,46 @@ function WeightChart({
     return { log, x, y };
   });
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  // Range delta pill — change between the first and last visible log so it
+  // matches what the line itself shows. Maintained when the swing is below
+  // scale noise (0.2 lbs / 0.1 kg).
+  const rangeDelta = (() => {
+    if (logs.length < 2) return null;
+    const firstKg = Number(logs[0].weight_kg);
+    const lastKg  = Number(logs[logs.length - 1].weight_kg);
+    const deltaKg = lastKg - firstKg;
+    const display = unitSystem === "imperial" ? kgToDisplayUnit(deltaKg, "imperial") : deltaKg;
+    const rounded = Math.round(display * 10) / 10;
+    const unit    = weightUnitLabel(unitSystem);
+    const noise   = unitSystem === "imperial" ? 0.2 : 0.1;
+    if (Math.abs(rounded) < noise) {
+      return { text: "Maintained", tone: "neutral" as const };
+    }
+    return {
+      text: `${rounded > 0 ? "+" : ""}${rounded} ${unit}`,
+      tone: rounded < 0 ? ("down" as const) : ("up" as const),
+    };
+  })();
   const hoveredPoint = hoveredId ? points.find((p) => p.log.id === hoveredId) : null;
 
   return (
     <div className="relative rounded-2xl border border-white/[0.06] bg-black/15 px-2 py-2">
+      {rangeDelta && (
+        <span
+          className={cn(
+            "absolute top-3 right-3 z-10 inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full border",
+            rangeDelta.tone === "down"
+              ? "border-emerald-400/30 bg-emerald-400/[0.08] text-emerald-300/90"
+              : rangeDelta.tone === "up"
+              ? "border-amber-400/30 bg-amber-400/[0.08] text-amber-300/90"
+              : "border-white/15 bg-white/[0.04] text-white/65",
+          )}
+          title="Change from first to last log in range"
+        >
+          {rangeDelta.text}
+        </span>
+      )}
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="h-48 w-full overflow-visible"
