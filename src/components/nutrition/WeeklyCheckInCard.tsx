@@ -171,14 +171,55 @@ export function WeeklyCheckInCard({
       : weightTrend.deltaKg)
     : null;
 
+  // Headline weekly weight delta — the single most-asked question on this card.
+  // Shows "+5 lbs", "-5 lbs", or "Maintained" with intent-aware coloring so
+  // it reads at a glance: cutter losing = good, cutter gaining = warn, etc.
+  const weeklyDelta = (() => {
+    if (!weightTrend.hasTrend || weightTrend.deltaKg == null) return null;
+    const display = unitSystem === "imperial"
+      ? kgToDisplayUnit(weightTrend.deltaKg, "imperial")
+      : weightTrend.deltaKg;
+    const rounded = Math.round(display * 10) / 10;
+    const unit    = weightUnitLabel(unitSystem);
+    // ±0.2 lbs / 0.1 kg counts as maintained — scale noise shouldn't read as drift.
+    const noiseFloor = unitSystem === "imperial" ? 0.2 : 0.1;
+    if (Math.abs(rounded) < noiseFloor) {
+      return { text: "Maintained", tone: wantFlat ? "good" : "neutral" as const };
+    }
+    const text = `${rounded > 0 ? "+" : ""}${rounded} ${unit}`;
+    // Tone follows the goal direction:
+    // cutter wants down, builder wants up, maintainer wants flat.
+    let tone: "good" | "warn" | "neutral" = "neutral";
+    if (wantDown) tone = rounded < 0 ? "good" : "warn";
+    if (wantUp)   tone = rounded > 0 ? "good" : "warn";
+    if (wantFlat) tone = Math.abs(rounded) <= (unitSystem === "imperial" ? 1 : 0.5) ? "good" : "warn";
+    return { text, tone };
+  })();
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-[12px] text-white/45 font-medium">Weekly check-in</p>
-        <span className="flex items-center gap-1.5 text-[10px] text-white/35">
-          {goalArrow}
-          <span>{goalMode.charAt(0).toUpperCase() + goalMode.slice(1)} mode</span>
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {weeklyDelta && (
+            <span className={cn(
+              "text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full border",
+              weeklyDelta.tone === "good"
+                ? "border-emerald-400/30 bg-emerald-400/[0.08] text-emerald-300/90"
+                : weeklyDelta.tone === "warn"
+                ? "border-amber-400/30 bg-amber-400/[0.08] text-amber-300/90"
+                : "border-white/15 bg-white/[0.04] text-white/65",
+            )}
+              title="Bodyweight change vs. seven days ago"
+            >
+              {weeklyDelta.text}
+            </span>
+          )}
+          <span className="flex items-center gap-1.5 text-[10px] text-white/35">
+            {goalArrow}
+            <span>{goalMode.charAt(0).toUpperCase() + goalMode.slice(1)} mode</span>
+          </span>
+        </div>
       </div>
 
       <div className={`rounded-xl border ${toneClass} px-4 py-3 flex items-start gap-3`}>
